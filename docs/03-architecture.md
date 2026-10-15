@@ -117,7 +117,7 @@ termvexa/
 
 后端终态只回收连接及其订阅，不清空/销毁终端，也不移除 Tab；只有用户关闭 Tab/窗口才 dispose 视图。重连串行结束旧连接的数据排空，在原终端加入可信本地状态分界，再绑定新 session/Channel，继续追加到同一 xterm。旧 session 的 ACK、帧序号与 offset 不得延续到新连接，也不能让其迟到状态覆盖新状态；见 [IPC 规则](06-ipc-and-streaming.md)。
 
-UI 使用 Naive UI 现成组件及 `src/components/ui/` 薄适配，NConfigProvider 管理主题，页面只保留必要布局。工作区与 xterm 宿主留在业务模块，独立于 NTabs/TabPane 显隐生命周期。系统原生菜单/文件选择继续由 Tauri 负责，详见 [UI 选型](13-ui-stack.md)。
+UI 使用 Naive UI 现成组件及 `src/components/ui/` 薄适配，NConfigProvider 管理主题，页面只保留必要布局。工作区标签由 workspace/WorkspaceTabs.vue 自定义实现，只派发激活/关闭/菜单等事件，store.ts 维护唯一标签状态与临时连接序号；终端宿主独立于导航组件，设置内标签仍使用 Naive UI。系统原生菜单/文件选择继续由 Tauri 负责，详见 [UI 选型](13-ui-stack.md)。
 
 ## 6. 扩展接口
 
@@ -146,10 +146,20 @@ core 统一错误码与阶段，协议错误在适配器映射；应用层增加
 
 CommandRegistry 统一菜单、按钮与按键动作，KeymapService 合并平台默认/用户覆盖，ShortcutRouter 按焦点/IME/模态上下文只消费一次。全局默认应用内前台，系统后台注册为可选适配；Cmd+L 的 Local 动作由工厂能力启用。详见 [快捷键](14-shortcuts.md)。
 
-TerminalThemeService 解析全局/profile/当前终端方案优先级并转换 xterm ITheme；ThemeRepository 管持久化用户方案，应用 CSS tokens 单独管理 UI 明暗主题。颜色热应用到原 xterm，不 clear/reset/dispose；导入在后端按 schema 校验。详见 [终端配色](15-terminal-themes.md)。
+当前配色优先级由 terminal/registry.ts 的 schemeForTab 解析，settings/themes.ts 转换 xterm ITheme，terminal/theme.ts 的 applyTerminalTheme 统一实际终端与预览的选区合成适配；TerminalThemeService 是目标职责名，不表示已有同名类。ThemeRepository 管持久化用户方案，应用 CSS tokens 单独管理 UI 明暗主题。颜色热应用到原 xterm，不 clear/reset/dispose；导入在后端按 schema 校验。详见 [终端配色](15-terminal-themes.md)。
 
 ## 首期落地边界（2026-10-15）
 
 四个领域 crate、Tauri commands/state 与 Vue modules 已创建。当前只注入 SshFactory，不为未实现的 Local/Serial 构建空工厂；仍通过 SessionFactory trait 隔离协议。原生壳只做 DTO/owner/资源桥接，具体握手、认证、PTY 与 socket 取消在 terminal-ssh。SQLite 复合写使用 BEGIN IMMEDIATE，不在应用全局锁内等待数据库。
 
 UI tokens 目前集中 `src/styles.css`，项目交互封装为 `src/components/ui/`；命令注册表在 `src/services/commands/`，只有 `src/services/desktop/` 能调用 invoke。终端注册表和设置/主机/工作区分模块维护；设置面板拆为配色、快捷键、安全子组件。未创建文件/传输/Local/Serial crate。实际交付与限制见 [实施状态](17-implementation-status.md)。
+
+## 10. 终端工作区布局（2026-10-15）
+
+M2-13 提前引入内存分屏。WorkspaceStore.tabs 继续表示所有终端，groups 独立维护标签顺序、二叉布局树和 focusedTerminalId；activeId 是组ID，active 是聚焦终端。layout.ts 提供无副作用树/矩形操作，useTabDrag.ts 处理 Pointer Events 与命中，TerminalStage 扁平 keyed 渲染全部宿主。布局树不决定组件父子层级，因此合并/排序/缩放不重建 xterm 或后端会话。App 协调组关闭与单窗格关闭，菜单/命令路由到聚焦叶子；无新增 IPC、存储或协议层职责。契约与限制见 [终端工作区](18-terminal-workspaces.md)。
+
+窗格迁移补充：拖动来源为 `WorkspaceDragSource`（tab/tabId 或 pane/terminalId），同一个指针控制器处理标题拖动、标签插入与悬停切页。纯函数 `relocateTerminal` 先校验双方并计算收缩/分割结果，Store同步提交；窗格拖回标签栏新建组ID但保留terminalId、终端元数据与会话，避免原组ID碰撞。
+
+## 11. 工作区输入广播（2026-10-15）
+
+M2-14只扩展前端输入路由。WorkspaceTab增加内存broadcast/broadcastRevision，成员重组关闭并递增版本。inputOrigin薄适配固定xterm用户输入标记，inputRouter分发用户键盘/IME并隔离鼠标/自动应答；Registry提供连接过滤和现有FIFO端口，每目标独立粘贴/远端滚轮编码。禁止通过目标term.input再次广播，不改SessionManager/SSH/IPC/存储。模块边界与升级条件见 [工作区广播](18-terminal-workspaces.md)。

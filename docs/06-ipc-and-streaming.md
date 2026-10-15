@@ -201,6 +201,8 @@ M3 的端点、列表、属性、传输、冲突、原生拖拽使用独立命�
 
 认证提交成功后前端只移除匹配 sessionId/challengeId 的提示，不能按 sessionId 删除随后到达的下一轮 OTP；会话终态/关闭仍清除该会话全部提示。自动 MFA 复用现有 AuthChallenge，无新增 IPC 命令。
 
-终端字体设置补充（2026-10-15）：`app.fontFamily` 保存固定12项规范名称，名单见 [桌面字体设计](09-desktop-ux.md#6-字体主题与可访问性)。`save_settings` 拒绝名单外值；`get_settings` 对旧版有效字符串但不在名单中的值，仅在返回值中归一为 JetBrains Mono，其余字段仍完整校验，不执行自动持久化。字体二进制从应用自带静态资源加载，不通过 IPC 返回字体正文或访问系统字体目录。
+终端字体设置补充（2026-10-15）：`app.fontFamily` 保存固定12项规范名称，名单见 [桌面字体设计](09-desktop-ux.md#6-字体主题与可访问性)。`save_settings` 拒绝名单外值；`get_settings` 对旧版有效字符串但不在名单中的值，仅在返回值中归一为 DejaVu Sans Mono，其余字段仍完整校验，不执行自动持久化。字体二进制从应用自带静态资源加载，不通过 IPC 返回字体正文或访问系统字体目录。
 
 内置配色引用补充（2026-10-15）：64项内置 ID 从 resources/terminal-palettes.json 读取，前后端共享；保存设置仍拒绝未知或悬空引用。get_settings 对移除的旧预设引用只归一返回值：dark/forest/amber/violet/contrast-dark → nord-dark，light/contrast-light → nord-light；ocean 采用同 ID 的提取配色。未修改用户自定义方案 ID，不自动写库。
+
+工作区广播（2026-10-15）：复用每目标原有write_session和FIFO，不增加广播IPC命令或跨会话事务。输入只复制到当前组已连接目标，每目标编号/限额/错误独立；源只写一次。粘贴确认/剪贴板等待期校验组广播版本与会话代次，旧输入不跨重连；任一目标失败不重放，也不保证多机同时执行。

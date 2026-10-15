@@ -38,7 +38,7 @@ CSS 默认限制无关文字选择，通过 input/textarea/contenteditable、可
 
 - `WorkspaceStore` 是唯一标签状态；固定首页/SFTP 不创建 session，关闭按钮只作用于 SSH 标签。固定区不随会话溢出滚动消失。
 - `TerminalPane` 始终按 terminalId 挂载，使用可见性切换；不把终端交给 TabPane 的默认卸载策略。切库、布局、认证失败、断线或重连不 clear/reset/dispose。
-- 工作区标签使用自定义原生按钮与布局，支持单一 tablist、roving tabindex、方向键/Home/End/Enter/空格、Delete 关闭、菜单键/Shift+F10 与焦点衔接。横向/纵向会话区独立溢出滚动；固定首页/SFTP 不关闭且不随会话滚动。菜单弹层继续使用 NDropdown，终端内容不由标签组件挂载。拖拽排序留后续实现，不引入依赖或第二套标签状态。
+- 工作区标签使用自定义原生按钮与布局，支持单一 tablist、roving tabindex、方向键/Home/End/Enter/空格、Delete 关闭、菜单键/Shift+F10 与焦点衔接。横向/纵向会话区独立溢出滚动；固定首页/SFTP 不关闭且不随会话滚动。菜单弹层继续使用 NDropdown，终端内容不由标签组件挂载。动态标签使用 Pointer Events 拖拽排序/拖入合并，分屏舞台由纯数据树计算矩形和分隔线，不引入 Dock 库或第二套标签状态；详见 [终端工作区](18-terminal-workspaces.md)。
 - 模态与选择/取色浮层打开期间，应用快捷键与延迟终端聚焦让位于控件；Escape 先关闭内层浮层，不能意外取消认证或关闭主机编辑。
 - NSelect 的空值与“连接时询问/跟随默认/未分组”显式映射，不把占位符当作用户选择；异步选项更新不能改变业务引用。
 - CSS-in-JS 与 xterm 动态样式沿用已明确记录的 `style-src 'unsafe-inline'` 范围，不放宽 script-src、导航和 IPC ACL。
@@ -53,7 +53,7 @@ CSS 默认限制无关文字选择，通过 input/textarea/contenteditable、可
 
 本轮允许执行 `vue-tsc --noEmit`、Prettier、Rust 格式、依赖公告和静态契约检查；不构建运行。SP-07~09 仍需验证：Modal/Select/ColorPicker 叠层与焦点、系统主题变化、三平台高 DPI、Tab 横纵布局与隐藏终端、IME/快捷键、表单 Enter/校验、文件导入、透明颜色和配置往返。具体结果见 [实施状态](17-implementation-status.md)。
 
-终端字体使用既有 AppSelect → NSelect 固定12项选择，取消自由文本输入；字型资源、许可证和版本清单置于 `public/fonts/` 并随应用分发。只添加字体声明 CSS，不自定义选择器皮肤；默认 JetBrains Mono，设置保存后异步加载所需字型并更新原 xterm。
+终端字体使用既有 AppSelect → NSelect 固定12项选择，取消自由文本输入；字型资源、许可证和版本清单置于 `public/fonts/` 并随应用分发。只添加字体声明 CSS，不自定义选择器皮肤；默认 DejaVu Sans Mono，设置保存后异步加载所需字型并更新原 xterm。
 
 字体选择预览使用 NSelect 原生 render-label（由 AppSelect 的 attrs 透传），菜单选项与当前值都以对应本地字体渲染名称；字体加载由 CSS Font Loading 按可见内容触发，不另造选择器或预览皮肤。
 
@@ -64,3 +64,7 @@ CSS 默认限制无关文字选择，通过 input/textarea/contenteditable、可
 工作区标签状态色（2026-10-15）：WorkspaceTabs 通过 useThemeVars 读取当前 NConfigProvider 主题，悬停用 buttonColor2、激活用 buttonColor2Hover、状态文字用 textColor1。激活规则优先于悬停规则，深色主题下激活比悬停更亮；浅色主题使用库对应的强调底色，不写死新色值。
 
 标签尺寸与圆角补充（2026-10-15）：标签和关闭按钮圆角统一读取 useThemeVars().borderRadius；标签36px高，关闭按钮24px，按钮上下及右侧留白6px。关闭按钮清零原生 padding，以 flex 居中，NIcon/SVG 块级显示避免基线偏移。
+
+广播控件（2026-10-15）：分屏标题关闭按钮右侧沿用AppButton→NButton、NIcon和库primary状态，图标为一入三出SVG，aria-pressed表示组共享开关；虚实线仅业务窗格边框CSS，不另造按钮皮肤。粘贴确认继续使用AppDialog footer，展示目标数。
+
+弹窗活动标记补充：AppDialog的data-modal-open随open移除，关闭动画保留DOM不再被误识别为仍开启；确认粘贴等待Vue更新后再复核其他弹层，避免已确认输入被自身离场动画误拦截。

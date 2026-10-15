@@ -10,7 +10,7 @@ export const builtinSchemes: Scheme[] = palettes.map((palette): Scheme => ({
   schemaVersion: 1,
   source: "builtin",
 }));
-export const defaultSchemeId = "nord-dark";
+export const defaultSchemeId = "pro";
 export const defaultScheme = builtinSchemes.find(
   (s) => s.id === defaultSchemeId,
 )!;

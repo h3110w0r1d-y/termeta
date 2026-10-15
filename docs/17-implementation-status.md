@@ -2,6 +2,40 @@
 
 日期：2026-10-15。范围：M1 SSH 纵向切片与 M2 SSH MVP 的源码实施。**当前为实现待验证，不能宣布 MVP 验收通过。** 代理没有构建、启动应用、连接真实主机或运行 Rust 测试。用户已进入终端并反馈体验问题。此前启动失败和旧库迁移记录为历史；当前凭据/数据库契约以第10节及 ADR-022 为准。
 
+## 0. 当前功能总览（2026-10-15）
+
+当前结论：**M1/M2 SSH 主体源码已落地，正在收敛桌面交互和集成质量，尚未完成首期运行验收。** 用户日志证明此前版本在 macOS 完成过 Rust 编译，用户也已实际使用终端并提供截图；这些证据不等于最新工作树或全部认证/存储路径通过验证。后文按轮次保留的记录包含已被替换的历史方案，当前能力以本节、最新模块文档和源码为准。
+
+| 功能域 | 当前实现 | 主要源码入口 | 状态与边界 |
+| --- | --- | --- | --- |
+| 主机与首页 | 主机/分组 CRUD、收藏、标签、搜索、复制、快速连接；首页主机/凭据/设置侧栏 | [HostsSidebar](../src/modules/hosts/HostsSidebar.vue)、[HostEditor](../src/modules/hosts/HostEditor.vue)、[App](../src/App.vue) | 源码已实现，完整保存/删除/重启回归待验收 |
+| 标签工作区 | 固定首页/SFTP、自定义顶部/侧栏标签、重复连接 (n) 编号、关闭确认、右键菜单、键盘导航；滚动会话区后紧随方形新建，末端连接数 | [WorkspaceTabs](../src/modules/workspace/WorkspaceTabs.vue)、[WorkspaceStore](../src/modules/workspace/store.ts) | 源码已实现；最新尺寸/主题/溢出/焦点待视觉复验；拖拽排序/嵌套分屏已落源码待运行验证 |
+| SSH 连接与信任 | 密码/公钥、服务器动态交互认证与 OTP、未知指纹确认/持久信任、变更阻断、PTY/Shell、resize、KeepAlive | [SSH 引擎](../crates/terminal-ssh/src/lib.rs)、[认证](../crates/terminal-ssh/src/auth.rs) | 主通路已有用户使用反馈；算法/服务端/认证组合仍待矩阵验证；无专门系统睡眠恢复钩子 |
+| 会话与流控 | 每会话 actor、取消、有界输入输出、Channel/ACK、terminalId 保活、失败/断线保留、同 xterm 手动重连 | [核心](../crates/terminal-core/src/lib.rs)、[终端 Registry](../src/modules/terminal/registry.ts) | 源码已实现；洪泛/并发/无 ACK/取消及旧流隔离待运行验收；不自动重放输入 |
+| 终端交互 | 历史选择/复制/搜索、多行粘贴确认、根滚动隔离、背景同步、纯修饰键不跳底、macOS Option跳词、修饰键打开受控链接 | [Registry](../src/modules/terminal/registry.ts)、[快捷键路由](../src/services/commands/registry.ts) | 基础终端有使用反馈；Option跳词与链接残留拖选修复等最新行为待复验；IME/全屏/三平台未完整验收 |
+| 工作区广播 | 标题开关、虚实线、键盘/IME/粘贴/远端滚轮、点击与自动应答隔离 | [输入路由](../src/modules/terminal/inputRouter.ts)、[来源桥接](../src/modules/terminal/inputOrigin.ts) | 实现待运行验证 |
+| 凭据与存储 | 公共密码/私钥（含可选解密密码）、主机引用/专属密码、SQLite元数据+OS keyring；新库与旧库隔离 | [凭据页](../src/modules/credentials/CredentialsPage.vue)、[存储](../crates/terminal-storage/src/lib.rs)、[系统凭据](../crates/terminal-security/src/vault.rs) | 非空主机密码自动保存，明确留空改为连接询问；无记住开关、无旧库迁移；系统服务与故障恢复待验收 |
+| 设置与 UI | Naive UI 2.45.3、应用明暗主题、标签位置/字号/滚屏、统一页头、弹窗 footer 与底部固定保存、禁止无关文字选择 | [SettingsDialog](../src/modules/settings/SettingsDialog.vue)、[AppDialog](../src/components/ui/AppDialog.vue) | 源码已实现；工作区标签按用户要求自定义，其余优先库组件；表单/弹层/小窗口待验收 |
+| 字体与配色 | 本地12家族/35字型及许可，选项按真实字体显示；64套内置方案（默认 Pro）、自定义/取色/JSON、全局/主机/当前终端覆盖、自然网格与折叠编辑 | [字体](../src/modules/settings/fonts.ts)、[配色编辑](../src/modules/settings/ThemeSettings.vue)、[主题适配](../src/modules/terminal/theme.ts) | 资源与源码已落地；粗体不自动提亮、选区蒙色已静态检查，视觉/热切换待验收；DOM蒙色适配随xterm升级复核 |
+| 快捷键与安全设置 | 应用/终端分类、录制、多绑定、冲突检查、JSON导入导出；信任撤销、连接历史/清空 | [快捷键设置](../src/modules/settings/ShortcutSettings.vue)、[安全设置](../src/modules/settings/SecuritySettings.vue) | 源码已实现；系统后台热键未实现，Local 动作未启用 |
+| 安全与分发 | 命令 manifest/ACL、窗口 owner、参数/URL白名单、CSP、凭据不返回秘密 | [命令入口](../src-tauri/src/commands/mod.rs)、[安全设计](08-security.md) | 运行安全复核/性能/三平台/签名打包未通过；第4节依赖公告记录待后续处置及复查 |
+| SFTP 与后续 | 固定 SFTP Tab 和左右未连接卡片 | [SftpWorkspace](../src/modules/workspace/SftpWorkspace.vue) | 仅布局；文件服务/浏览/传输/属性/拖入拖出均未实现，仍属 M3；Local/Serial、隧道/跳板/Agent、布局保存/恢复未实现 |
+
+### 验证证据与剩余门槛
+
+- 最近功能修改通过 `vue-tsc --noEmit`、相关文件 Prettier 和 `git diff --check`，它们只证明相应静态检查结果。Rust 测试源码存在但代理未编译/运行；早期依赖审计记录不代表本轮重新审计。
+- 用户已报告实际终端行为；最新标签布局、Option跳词、链接清理和选区蒙色尚无修复后的运行验收结论。用户确认长按回车空白属于远端 zsh，不再列作客户端待修缺陷。
+- 尚需明确授权后完成当前版本编译/启动、SSH与多因素认证、OS keyring/重启持久化、断流/流控/关闭、IME/全屏与三平台验证。不得据本总结自行启动验证。
+
+### 下一步优先级
+
+1. 先复验最近用户可见修复：标签两种方向/大量会话/编号、Option跳词、链接回窗不拖选、选区蒙色和显式自定义文字色。
+2. 再跑首期关键链路：密码/加密及非加密私钥/OTP、主机指纹拒绝与变更、凭据保存/清除/重启、失败与断线保留、原终端手动重连。
+3. 完成压力与安全/三平台退出门槛；补齐睡眠/唤醒行为及已记录依赖风险，核实字体许可和配色来源在发布时的处理。
+4. 首期稳定后推进 M3 文件服务与 SFTP；拖拽排序/嵌套分屏已提前实施，须先完成三平台交互与生命周期验收；布局持久化仍留后续。
+
+本次总结只修改文档，不改变实现、接口、依赖或阶段范围；本轮静态核对记录位于本文末尾。
+
 ## 1. 实际交付
 
 | 模块 | 源码入口 | 已写入的行为 |
@@ -16,7 +50,7 @@
 | 终端宿主 | [Registry](../src/modules/terminal/registry.ts) | 稳定 terminalId、隐藏保活、失败保留、原终端重连、解析后 ACK、FIFO 输入、UTF-8 二进制、搜索/复制/多行粘贴确认、全屏最后画面有界文本快照 |
 | 设置 | [设置](../src/modules/settings/SettingsDialog.vue) | 应用外观、字体/滚屏、64套提取内置终端方案、颜色编辑/JSON、profile 和当前终端覆盖、快捷键分类/录制/多绑定/导入导出、信任/凭据管理 |
 
-所有终端正文留在 xterm/有界字节管线，未进入 Pinia、SQLite、日志或浏览器持久存储。Local、Serial、SFTP、隧道、Agent、跳板和分屏未实现。
+所有终端正文留在 xterm/有界字节管线，未进入 Pinia、SQLite、日志或浏览器持久存储。Local、Serial、SFTP 实际文件能力、隧道、Agent、跳板和布局恢复未实现；内存分屏当前见第17节；SFTP 仅有固定双栏占位布局。
 
 ## 2. 本轮契约与方案调整
 
@@ -159,7 +193,7 @@ SSH 按服务器支持的方法与 partial success 自动衔接 Keyboard-interac
 
 Pro 粗体颜色修复（2026-10-15）：TerminalRegistry 与 ThemeSettings 的 xterm 初始化均显式设置 drawBoldTextInBrightColors=false，粗体不再自动提升普通 ANSI 色；显式高亮色及原配色数据保留。vue-tsc --noEmit、Prettier 与 git diff --check 静态检查通过；未构建、启动或连接主机，实际颜色需按验证文档复验。
 
-工作区标签重构（2026-10-15）：App.vue 不再使用 NTabs/NTab，新增 WorkspaceTabs 以原生按钮、稳定 terminalId、类型化 activate/focusTerminal/close/menu/create 事件实现顶部与侧栏标签。固定首页/SFTP 与可滚动会话区共用单一 tablist；包含选中项滚动显露、方向键/Home/End/Enter/空格、Delete 关闭、右键/菜单键/Shift+F10、关闭后焦点衔接与面板 ARIA 关联。NDropdown 菜单、关闭确认及 TerminalRegistry 保活不变；没有实现拖拽排序或新增持久化配置。vue-tsc --noEmit、修改源码的 Prettier 与 git diff --check 静态检查通过；未构建、启动或连接主机，布局、焦点及终端保活待运行复验。
+工作区标签重构（2026-10-15）：App.vue 不再使用 NTabs/NTab，新增 WorkspaceTabs 以原生按钮、稳定 terminalId、类型化 activate/focusTerminal/close/menu/create 事件实现顶部与侧栏标签。固定首页/SFTP 与可滚动会话区共用单一 tablist；包含选中项滚动显露、方向键/Home/End/Enter/空格、Delete 关闭、右键/菜单键/Shift+F10、关闭后焦点衔接与面板 ARIA 关联。NDropdown 菜单、关闭确认及 TerminalRegistry 保活不变；该阶段没有实现拖拽排序；当前见第17节，仍无新增持久化配置。vue-tsc --noEmit、修改源码的 Prettier 与 git diff --check 静态检查通过；未构建、启动或连接主机，布局、焦点及终端保活待运行复验。
 
 工作区标签悬停调整（2026-10-15）：整项 workspace-tab-item 承接 hover 背景，标题和关闭按钮透明并继承文字色；固定页按钮保持完整高亮，键盘焦点轮廓保留。Prettier 与 git diff --check 静态检查通过；未构建或启动应用，视觉效果待复验。
 
@@ -178,3 +212,59 @@ macOS Option 跳词（2026-10-15）：终端自定义键处理在命令路由之
 链接激活残留拖选（2026-10-15）：静态核对 xterm 6 Linkifier 的 mouseup 激活与 SelectionService 的 document mouseup 清理路径，定位业务 stopPropagation 截断清理。共享 activate 回调仅 preventDefault，保留冒泡，并以 setTimeout(0) 延后调用 opener，已释放终端取消延迟动作。vue-tsc、Prettier 与差异静态检查通过；未构建、启动或打开真实链接，回窗后鼠标状态待运行复验。
 
 选区透明蒙色（2026-10-15）：新增独立 terminal/theme.ts，以 applyTerminalTheme 统一实际终端及预览主题应用；无显式 selectionForeground 时，将原生选区底色临时设透明，CSS 按原色在文字上方绘制 xterm 自己管理的矩形，防止背景重复混合；显式选区文字色使用原生渲染。模块含中文边界注释，不改依赖、不添加逐字遍历或鼠标/渲染事件监听、不修改持久化数据。固定 xterm 6 DOM 图层为适配边界；类型、格式及差异静态检查通过，未构建、启动或执行视觉验收，实际合成与搜索/光标/列选区待复验。
+
+## 16. 功能进度汇总核对（2026-10-15）
+
+本轮仅更新 AGENTS、文档入口、架构实际入口说明、路线账本/任务、验证队列及本文当前总览。核对工作区/设置/终端/凭据源码与资源清单，明确 SFTP仅布局、拖拽排序/嵌套分屏已落源码待运行验证、KeepAlive不等于专门睡眠恢复，保留历史记录并标明最新快照优先。19份 Markdown 的代码围栏及176个本地链接目标检查通过（未校验锚点），资源静态核对为64套配色/12字体家族/35字型，git diff --check 通过。本轮未重新执行前端类型检查或依赖审计，未构建、启动、运行测试或连接远端；此前静态结果和用户日志仅按既有证据引用。
+
+## 17. 标签拖动排序与嵌套分屏（2026-10-15）
+
+按用户要求新增M2-13：动态标签可横纵拖动排序，非激活单终端拖入当前终端区域显示四向绿色半窗格预览，松手合并为Workspace；支持继续命中子终端嵌套分割、指针/键盘调节分隔比例，以及窗格标题拖回Tab/同组及跨组重分割。当前标签拖入自身不操作，固定首页/SFTP不参与。
+
+实现入口：workspace/layout.ts、useTabDrag.ts、TerminalStage.vue、store.ts、WorkspaceTabs.vue，以及TerminalPane/Registry/App协调。标签组与终端分离，终端始终在同一扁平keyed列表，排序/合并不移动或重建xterm/session。动作路由聚焦叶子；整组关闭统一确认，单窗格关闭自动收缩；取消拖动/失焦/丢失捕获清理状态。
+
+布局与顺序仅内存保存，未实现重启恢复、跨窗口拖动、整体Workspace合并。文件/SFTP仍保持M3边界。纯数据用例已编写未执行；前端类型、格式、测试语法和Markdown链接静态检查记录见本轮报告。按用户约束未构建、启动、运行测试或连接主机，桌面拖动/缩放、输出/选区保活和三平台运行待验收。
+
+本轮静态检查通过：`pnpm exec vue-tsc --noEmit`；9份修改前端源码与新增布局测试的 Prettier 检查；`node --check tests/workspace-layout.test.mjs`；21份 Markdown 围栏与196个本地链接目标（不含锚点）；`git diff --check`。测试用例未执行，无编译/运行证据。
+
+### 窗格拖出补充（2026-10-15）
+
+已补充窗格标题拖回顶部/侧栏标签栏独立Tab、同组其他窗格重分割，以及悬停其他标签600ms切换后跨组重分割。标签/窗格使用统一来源类型和Pointer Events控制器；纯数据迁移先校验计算再提交，来源树自动收缩，新标签组使用随机ID，原terminalId/session/xterm/连接编号不变。无效释放/Escape/失焦恢复来源标签；普通标题点击、关闭/菜单与正文选区保留。新增迁移用例未执行，编译/启动/桌面运行和SSH验证未执行。
+
+本次补充静态检查通过：`pnpm exec vue-tsc --noEmit`、8份修改源码/测试的Prettier、`node --check tests/workspace-layout.test.mjs`、21份Markdown围栏/196个本地链接目标（不含锚点）、`git diff --check`；未执行测试和编译/运行验证。
+
+### 末尾插入命中修复（2026-10-15）
+
+用户反馈新建/后方空白无法释放且新建按钮错误高亮。命中改为标签栏与末项可见边界的几何判断，覆盖末项后方整区（新建、间隙、空白与连接数）；末尾插入线独立于按钮，拖动期间按钮不响应指针hover。兼容顶部/侧栏和溢出列表，保留取消/焦点与原终端保活。未构建、启动、执行测试或连接主机，桌面交互待复验。
+
+末尾提示去重（2026-10-15）：新增单一展示计算，将末项after与tab-end合并到新建按钮前的唯一提示线，禁用末项自身的after提示。命中/插入/悬停逻辑不变，无新增依赖。未启动应用或执行运行测试，横纵布局视觉效果待复验。
+
+默认配色调整（2026-10-15）：按用户要求默认终端配色改为Pro（`pro`），新设置、缺失/未知引用回退、导入补缺和删除默认自定义方案的回退统一跟随该基准；删除提示读取真实默认名称。已有明确保存的配色与旧预设映射保持原值，不自动改写用户设置。后端仅校验共享资源ID，无单独默认值，无需修改Rust/IPC/存储。
+
+## 18. 当前Workspace输入广播（2026-10-15）
+
+M2-14源码已实施：分屏标题关闭按钮右侧提供一入三出图标开关，组共享状态；聚焦实线、其他虚线。键盘/IME/控制键/粘贴广播到当前组已连接终端，自动应答与鼠标点击/释放/移动/拖动仅原连接。远端滚轮单独交各目标xterm编码，不重复广播生成的方向键；普通历史滚动保持本地。未连接跳过，每会话FIFO/序号/限额/失败独立，无输入日志与自动重放。
+
+输入来源桥接inputOrigin.ts隔离固定xterm内部onUserInput只读事件；缺能力禁止开启广播，不改变单终端发送。inputRouter.ts管理目标去重、方向键模式和递归保护，Registry负责会话过滤/独立粘贴/滚轮；WorkspaceStore只增加内存开关及版本，成员重组自动关闭。多行确认只出现一次且显示目标数，等待期间校验组/广播版本和会话代次，旧输入不交给新会话。
+
+无新增依赖、Rust/IPC/数据库或凭据变化。新增纯逻辑用例但未执行；键盘/IME、粘贴确认、vim滚轮、自动应答隔离、断线流控和三平台桌面实际运行均待验收。
+
+本轮静态检查通过：`pnpm exec vue-tsc --noEmit`、11份相关源码/测试的Prettier、`node --check tests/terminal-broadcast.test.mjs`、21份Markdown围栏/206个本地链接目标（不含锚点）与`git diff --check`。补充修正AppDialog活动标记随open移除，避免粘贴确认被自身弹窗离场动画误拦截。未构建、启动、执行测试或连接真实主机。
+
+终端右键配色菜单溢出修复（2026-10-15）：NDropdown启用库滚动条与边缘翻转，menu-props对主菜单及子菜单统一限高420px/视口减24px、限宽320px/视口减24px，长名称省略。未新增依赖、存储或IPC，未启动应用；实际滚动、四角定位与键盘选择待复验。
+
+分屏底边高亮残留修复（2026-10-15）：源码未发现焦点边框的延时撤销逻辑，结合底部裁剪位置和不定时消失的用户反馈，怀疑WebView局部重绘/小数像素边界，尚无运行定位证据。将状态边框移至窗格内部伪元素，统一处理焦点及广播颜色/虚实线；外框固定透明占位，覆盖层不接收指针，局部堆叠隔离。不增加定时器、终端重建或依赖；实际残线消除待用户复验。
+
+本轮静态检查通过：`pnpm exec vue-tsc --noEmit`、`pnpm exec prettier --check src/styles.css`、`git diff --check`。按仓库约束未构建、启动应用、执行运行测试或连接SSH。
+
+连接提示光标修复（2026-10-15）：从registry.ts抽取localStatus.ts，删除`ESC[?1049l`；原序列即使在普通屏也会恢复保存光标，未保存时可能回到顶部。普通连接边界不再切屏/恢复光标；实际备用屏单独使用1047退出，并恢复整屏坐标/滚动区域后从底行换行追加有界快照。无clear/reset、实例重建或新依赖；首次登录、断线及重连的实际显示仍待运行复验。
+
+默认字体调整（2026-10-15）：TypeScript defaultTerminalFont与Rust DEFAULT_TERMINAL_FONT同步改为DejaVu Sans Mono，已有明确保存的合法字体保持原值；文档同步当前默认值。无依赖、存储契约或资源变更，未编译/启动应用。
+
+分屏标题对齐（2026-10-15）：标题按钮使用flex垂直居中，状态点不再依赖文字基线；标题文字独立容器保留长名称省略。仅静态检查，未启动应用，视觉效果待复验。
+
+分屏标题颜色（2026-10-15）：terminal-pane-title改用主题正文色（var(--text)），提高标题亮度；未启动应用，视觉效果待复验。
+
+OSC标题后缀（2026-10-15）：新增terminal/title.ts处理文本清理/限长/名称格式；Registry订阅公开onTitleChange，WorkspaceStore只增加可选内存字段remoteTitle，普通/Workspace标签与分屏标题统一显示。原title/重复编号/主机身份不变，无持久化、命令检测或IPC变化。实际Shell标题发送、断线/重连与多窗格显示待运行复验。
+
+本轮OSC标题静态检查通过：vue-tsc --noEmit、4份修改源码的Prettier、git diff --check。未构建、启动应用、执行运行测试或连接真实SSH。

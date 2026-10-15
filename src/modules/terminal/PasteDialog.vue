@@ -11,14 +11,23 @@ import { pendingPaste, resolvePaste } from "./paste";
     description="换行可能立即执行远端命令。请核对全部内容后继续。"
     @update:open="(value) => !value && resolvePaste(false)"
     ><template v-if="pendingPaste"
-      ><p>即将粘贴 {{ pendingPaste.lines }} 行；控制字符以原始文本显示。</p>
+      ><p>
+        即将粘贴 {{ pendingPaste.lines }} 行<span
+          v-if="pendingPaste.targetCount > 1"
+          >，广播至 {{ pendingPaste.targetCount }} 个终端</span
+        >；控制字符以原始文本显示。
+      </p>
       <pre class="paste-preview">{{ pendingPaste.text }}</pre>
     </template>
     <template #footer>
       <NFlex justify="end">
         <AppButton @click="resolvePaste(false)">取消</AppButton
         ><AppButton class="primary" @click="resolvePaste(true)">
-          确认粘贴到当前连接
+          {{
+            pendingPaste && pendingPaste.targetCount > 1
+              ? `确认广播到 ${pendingPaste.targetCount} 个终端`
+              : "确认粘贴到当前连接"
+          }}
         </AppButton>
       </NFlex></template
     ></AppDialog

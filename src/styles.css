@@ -616,3 +616,220 @@ p {
 .terminal-selection-overlay .xterm.focus .xterm-screen > .xterm-selection div {
   background-color: var(--terminal-selection-active);
 }
+
+/* 拖动使用 Pointer Events，固定页没有排序标记，也不会进入分屏命中。 */
+.workspace-tab-item {
+  position: relative;
+  touch-action: none;
+}
+.workspace-tab-item.dragging {
+  opacity: 0.45;
+}
+.workspace-tab-item.drop-before::before,
+.workspace-tab-item.drop-after::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 3px;
+  bottom: 3px;
+  width: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.workspace-tab-item.drop-before::before {
+  left: 0;
+}
+.workspace-tab-item.drop-after::after {
+  right: 0;
+}
+.tabs-left .workspace-tab-item.drop-before::before,
+.tabs-left .workspace-tab-item.drop-after::after {
+  left: 3px;
+  right: 3px;
+  width: auto;
+  height: 2px;
+  bottom: auto;
+}
+.tabs-left .workspace-tab-item.drop-before::before {
+  top: 0;
+}
+.tabs-left .workspace-tab-item.drop-after::after {
+  top: auto;
+  bottom: 0;
+}
+.workspace-drag-label {
+  position: fixed;
+  z-index: 3000;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--workspace-tab-radius);
+  background: var(--surface);
+  color: var(--text);
+  pointer-events: none;
+}
+.terminal-layout {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.terminal-layout.is-dragging-tab {
+  cursor: grabbing;
+}
+.terminal-layout.is-resizing .terminal-host {
+  pointer-events: none;
+}
+.terminal-pane {
+  inset: auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--terminal-background);
+}
+.terminal-pane.split-pane {
+  padding: 4px 6px 6px;
+  /* 外框只占位，状态线内缩到边框内侧，避开视口裁剪边界的小数像素。 */
+  border: 1px solid transparent;
+  isolation: isolate;
+}
+.terminal-pane.split-pane::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border: 1px var(--pane-frame-style, solid)
+    var(--pane-frame-color, var(--border));
+  pointer-events: none;
+}
+.terminal-pane.focused-pane {
+  --pane-frame-color: var(--pane-focus-color);
+}
+.terminal-pane .terminal-host {
+  flex: 1;
+  min-height: 0;
+}
+.terminal-pane-heading {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  margin-bottom: 4px;
+}
+.terminal-pane-title {
+  /* 状态点与文字按容器居中，避免行内基线使圆点偏下。 */
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  padding: 0 4px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-align: left;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.terminal-pane-title-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.terminal-pane-title:focus-visible {
+  outline: 1px solid var(--pane-focus-color);
+}
+.terminal-pane-heading .pane-close,
+.terminal-pane-heading .pane-broadcast {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+}
+.terminal-divider {
+  position: absolute;
+  z-index: 5;
+  touch-action: none;
+}
+.terminal-divider.horizontal {
+  width: 6px;
+  transform: translateX(-50%);
+  cursor: col-resize;
+}
+.terminal-divider.vertical {
+  height: 6px;
+  transform: translateY(-50%);
+  cursor: row-resize;
+}
+.terminal-divider:hover,
+.terminal-divider:focus-visible,
+.terminal-divider.resizing {
+  background: var(--accent);
+  outline: none;
+}
+.terminal-drop-preview {
+  position: absolute;
+  z-index: 10;
+  border: 1px solid #18a058;
+  background: #18a05840;
+  pointer-events: none;
+}
+
+/* 窗格仅标题可拖动，终端正文仍保留原生xterm选区与鼠标协议。 */
+.terminal-pane-title[data-drag-terminal] {
+  touch-action: none;
+  cursor: grab;
+}
+.terminal-layout.is-dragging-tab .terminal-pane-title {
+  cursor: grabbing;
+}
+/* 插入提示固定在会话区末尾；拖动时新建按钮不响应hover或接收点击。 */
+.workspace-tab-end {
+  position: relative;
+  align-self: center;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+}
+.app-tabs.is-dragging .new-tab {
+  pointer-events: none;
+}
+.workspace-tab-end.drop-at-end::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: 3px;
+  bottom: 3px;
+  width: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.tabs-left .workspace-tab-end {
+  align-self: flex-start;
+}
+.tabs-left .workspace-tab-end.drop-at-end::before {
+  left: 3px;
+  right: 3px;
+  top: -6px;
+  bottom: auto;
+  width: auto;
+  height: 2px;
+}
+
+/* 广播与焦点共用内部状态线，不改变终端尺寸，也不拦截选区或拖动。 */
+.terminal-pane.broadcast-pane {
+  --pane-frame-color: var(--pane-focus-color);
+}
+.terminal-pane.broadcast-peer {
+  --pane-frame-style: dashed;
+}
+
+/* 自定义名称可能很长，仅约束菜单文字尺寸，菜单皮肤/滚动/定位仍由Naive UI提供。 */
+.terminal-context-menu .n-dropdown-option-body__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

@@ -13,7 +13,7 @@ export const terminalFonts = [
   "JetBrains Mono",
   "Meslo",
 ] as const;
-export const defaultTerminalFont = "JetBrains Mono";
+export const defaultTerminalFont = "DejaVu Sans Mono";
 export const terminalFontOptions = terminalFonts.map((name) => ({
   label: name,
   value: name,

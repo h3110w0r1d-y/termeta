@@ -12,7 +12,7 @@ pub const TERMINAL_FONTS: &[&str] = &[
     "JetBrains Mono",
     "Meslo",
 ];
-pub const DEFAULT_TERMINAL_FONT: &str = "JetBrains Mono";
+pub const DEFAULT_TERMINAL_FONT: &str = "DejaVu Sans Mono";
 
 use serde_json::Value;
 use terminal_core::{Result, SessionError};

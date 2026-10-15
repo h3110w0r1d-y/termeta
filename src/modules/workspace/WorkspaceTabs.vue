@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { NIcon, useThemeVars } from "naive-ui";
 import AppButton from "../../components/ui/AppButton.vue";
-import { stateLabels, type TerminalTab } from "./store";
+import { stateLabels, useWorkspace, type WorkspaceTabItem } from "./store";
+import { useTabDrag } from "./useTabDrag";
 const props = defineProps<{
-  tabs: TerminalTab[];
+  tabs: WorkspaceTabItem[];
   activeId: string;
   position: "top" | "left";
   connected: number;
@@ -17,7 +18,27 @@ const emit = defineEmits<{
   create: [];
 }>();
 const themeVars = useThemeVars();
+const workspace = useWorkspace();
+const tabDrag = useTabDrag((id) => emit("focusTerminal", id));
 const root = ref<HTMLElement>();
+// 最后一个标签后方与空白区是同一插入位置，只使用新建按钮前的提示线。
+// 保留原命中类型，避免影响悬停标签切页和实际插入逻辑。
+const dropAtEnd = computed(() => {
+  const target = workspace.dropTarget;
+  return (
+    target?.kind === "tab-end" ||
+    (target?.kind === "tab" &&
+      !target.before &&
+      target.tabId === props.tabs[props.tabs.length - 1]?.id)
+  );
+});
+const dragTitle = computed(() => {
+  const source = workspace.drag?.source;
+  if (!source) return "";
+  return source.kind === "pane"
+    ? workspace.tabs.find((tab) => tab.terminalId === source.terminalId)?.title
+    : props.tabs.find((tab) => tab.id === source.tabId)?.title;
+});
 const fixedTabs = [
   { id: "home", title: "首页", panel: "page-home" },
   { id: "sftp", title: "SFTP", panel: "page-sftp" },
@@ -29,14 +50,13 @@ function selectedElement() {
 }
 function activate(id: string) {
   emit("activate", id);
-  if (props.tabs.some((tab) => tab.terminalId === id))
-    emit("focusTerminal", id);
+  if (props.tabs.some((tab) => tab.id === id)) emit("focusTerminal", id);
 }
 async function onKey(event: KeyboardEvent) {
   const target = event.target as HTMLElement;
   if (target.getAttribute("role") !== "tab" || event.isComposing) return;
   const id = target.dataset.workspaceTab!;
-  const session = props.tabs.some((tab) => tab.terminalId === id);
+  const session = props.tabs.some((tab) => tab.id === id);
   if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
     if (session) emit("menu", event, id);
     return;
@@ -49,7 +69,7 @@ async function onKey(event: KeyboardEvent) {
   }
   const ids = [
     ...fixedTabs.map((tab) => tab.id),
-    ...props.tabs.map((tab) => tab.terminalId),
+    ...props.tabs.map((tab) => tab.id),
   ];
   const index = ids.indexOf(id);
   const vertical = props.position === "left";
@@ -79,6 +99,7 @@ watch(
   <nav
     ref="root"
     class="app-tabs"
+    :class="{ 'is-dragging': !!workspace.drag }"
     aria-label="工作区标签"
     :style="{
       '--workspace-tab-hover': themeVars.buttonColor2,
@@ -117,24 +138,45 @@ watch(
       <div class="session-tabs" role="presentation">
         <div
           v-for="tab in tabs"
-          :key="tab.terminalId"
+          :key="tab.id"
           class="workspace-tab-item"
-          :class="{ selected: activeId === tab.terminalId }"
+          :class="{
+            selected: activeId === tab.id,
+            dragging:
+              workspace.drag?.source.kind === 'tab' &&
+              workspace.drag.source.tabId === tab.id,
+            'drop-before':
+              workspace.dropTarget?.kind === 'tab' &&
+              workspace.dropTarget.tabId === tab.id &&
+              workspace.dropTarget.before,
+            'drop-after':
+              workspace.dropTarget?.kind === 'tab' &&
+              workspace.dropTarget.tabId === tab.id &&
+              !workspace.dropTarget.before &&
+              !dropAtEnd,
+          }"
+          :data-sort-tab="tab.id"
+          @pointerdown="tabDrag.start($event, tab.id)"
           role="presentation"
-          @contextmenu="emit('menu', $event, tab.terminalId)"
+          @contextmenu="emit('menu', $event, tab.id)"
         >
           <button
             type="button"
             role="tab"
             class="workspace-tab"
-            :id="'workspace-tab-' + tab.terminalId"
-            :data-workspace-tab="tab.terminalId"
-            :aria-selected="activeId === tab.terminalId"
-            :tabindex="activeId === tab.terminalId ? 0 : -1"
-            :aria-controls="'terminal-panel-' + tab.terminalId"
-            :aria-label="tab.title + ' · ' + stateLabels[tab.state]"
+            :id="'workspace-tab-' + tab.id"
+            :data-workspace-tab="tab.id"
+            :aria-selected="activeId === tab.id"
+            :tabindex="activeId === tab.id ? 0 : -1"
+            :aria-controls="'workspace-panel-' + tab.id"
+            :aria-label="
+              tab.title +
+              (tab.split ? ' · ' + tab.terminalIds.length + ' 个终端' : '') +
+              ' · ' +
+              stateLabels[tab.state]
+            "
             :title="tab.title + ' · ' + stateLabels[tab.state]"
-            @click="activate(tab.terminalId)"
+            @click="activate(tab.id)"
           >
             <i class="status-dot" :class="tab.state" aria-hidden="true" /><span
               class="workspace-tab-title"
@@ -147,7 +189,7 @@ watch(
             tabindex="-1"
             :aria-label="'关闭 ' + tab.title"
             :title="'关闭 ' + tab.title"
-            @click="emit('close', tab.terminalId)"
+            @click="emit('close', tab.id)"
           >
             <NIcon :size="14" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" focusable="false">
@@ -163,13 +205,27 @@ watch(
         </div>
       </div>
     </div>
-    <AppButton
-      class="icon-button new-tab"
-      aria-label="新建 SSH 连接"
-      title="新建 SSH 连接"
-      @click="emit('create')"
-      >＋</AppButton
+    <!-- 末尾标记独立于按钮，整片后方命中区只强调同一个插入位置。 -->
+    <div class="workspace-tab-end" :class="{ 'drop-at-end': dropAtEnd }">
+      <AppButton
+        class="icon-button new-tab"
+        aria-label="新建 SSH 连接"
+        title="新建 SSH 连接"
+        @click="emit('create')"
+        >＋</AppButton
+      >
+    </div>
+    <div
+      v-if="workspace.drag"
+      class="workspace-drag-label"
+      :style="{
+        left: workspace.drag.x + 12 + 'px',
+        top: workspace.drag.y + 12 + 'px',
+      }"
+      aria-hidden="true"
     >
+      {{ dragTitle }}
+    </div>
     <div class="workspace-tabs-spacer" aria-hidden="true" />
     <span class="connection-count"
       ><i class="status-dot" :class="{ connected: connected > 0 }" />{{

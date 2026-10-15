@@ -32,7 +32,7 @@
 ## 3. 标签与终端
 
 - 首页和 SFTP 是应用级固定标签，不创建会话或 xterm；关闭快捷键在固定页不执行。标签导航包含固定页，顶部使用左右键、侧边使用上下键，Home/End 跳至首尾。
-- 每个终端标签拥有一个稳定 terminalId 与 xterm 视图，先后绑定多次后端 session；M2 不实现分屏，布局模型为 tab→pane→terminalId→当前 session。M3 增加独立 sftp Tab 类型，左右 browserId 不创建虚假终端。
+- 每个终端拥有稳定 terminalId 与 xterm 视图，先后绑定多次后端 session；M2 按用户要求增加内存分屏，布局模型为标签组→二叉布局树→terminalId→当前 session。M3 增加独立 sftp Tab 类型，左右 browserId 不创建虚假终端。
 - 标签显示名称、类型、状态图标与关闭按钮；颜色之外同时用文本/图标表达状态。
 - 切换标签保持同一 xterm 实例、缓冲、selection 与 session；隐藏宿主继续消费输出。
 - Connected 前禁用向远端写入，状态文字解释当前阶段；始终保留滚动、选择、复制和已实现的搜索。断线、连接失败、认证失败、取消连接、正常远端退出都保留 Tab、原屏幕和缓冲，清空的只有旧待发送输入队列。
@@ -56,7 +56,7 @@
 
 ## 5. 快捷键与输入
 
-应用根页面固定在视口内，不允许页面级横纵滚动或边缘回弹；主机列表、设置与终端保留各自的内部滚动。终端滚轮到达上下边界时不向根页面传递滚动。单独按 Command/Control/Alt/Shift 不改变终端选区与历史位置，实际输入沿用 xterm 的跟随行为。顶部/侧栏工作区使用自定义 WorkspaceTabs，标签按钮使用36px高度及 `padding: 6px 12px`。组件只负责展示、导航与派发 activate/close/menu 等事件，WorkspaceStore 保持唯一状态源；拖拽排序后续实现。
+应用根页面固定在视口内，不允许页面级横纵滚动或边缘回弹；主机列表、设置与终端保留各自的内部滚动。终端滚轮到达上下边界时不向根页面传递滚动。单独按 Command/Control/Alt/Shift 不改变终端选区与历史位置，实际输入沿用 xterm 的跟随行为。顶部/侧栏工作区使用自定义 WorkspaceTabs，标签按钮使用36px高度及 `padding: 6px 12px`。组件只负责展示、导航与派发 activate/close/menu 等事件，WorkspaceStore 保持唯一状态源；动态标签支持指针拖拽排序与四向拖入嵌套分屏，固定首页/SFTP 不参与，详见 [终端工作区](18-terminal-workspaces.md)。
 
 终端不显示常驻顶部工具栏；名称和状态由标签及底部状态栏展示。搜索、当前标签配色、断开/重连收进 SSH 标签的 Naive UI 上下文菜单，可右键或聚焦标签后按 Shift+F10/菜单键打开；操作以被打开菜单的标签为目标，搜索快捷键继续可用。
 
@@ -78,9 +78,9 @@ Ctrl/Alt/Option/Meta、功能键、AltGr、鼠标报告、selection 和中文输
 
 ## 6. 字体、主题与可访问性
 
-应用外壳通过 CSS tokens 提供系统/深/浅主题；终端配色独立设置，不强制跟随应用明暗。M2 现内置64套提取方案（默认 Nord Dark，来源见 [资源说明](../resources/README.md)），支持复制为自定义、任意取色/HEX/RGB、前背景/光标/选区/ANSI16 与支持的扩展色编辑、JSON 导入导出和预览。全局默认 → profile 覆盖 → 当前终端临时覆盖，具体优先级由高到低见 [配色规格](15-terminal-themes.md)。修改立即热应用同一 xterm，不清历史、不重连；导入先校验/预览，不自动覆盖或应用。
+应用外壳通过 CSS tokens 提供系统/深/浅主题；终端配色独立设置，不强制跟随应用明暗。M2 现内置64套提取方案（默认 Pro，来源见 [资源说明](../resources/README.md)），支持复制为自定义、任意取色/HEX/RGB、前背景/光标/选区/ANSI16 与支持的扩展色编辑、JSON 导入导出和预览。全局默认 → profile 覆盖 → 当前终端临时覆盖，具体优先级由高到低见 [配色规格](15-terminal-themes.md)。修改立即热应用同一 xterm，不清历史、不重连；导入先校验/预览，不自动覆盖或应用。
 
-终端字体采用固定12项 Naive UI 下拉选择：DejaVu Sans Mono、Droid Sans Mono、Ubuntu Mono、Anonymous Pro、Inconsolata、Fira Mono、Source Code Pro、PT Mono、Cascadia Code、Fira Code、JetBrains Mono、Meslo，默认 JetBrains Mono。下拉选项与当前选中名称通过 NSelect render-label 使用各自实际字体渲染，按可见内容自动加载本地字型。随应用分发原始 TTF/WOFF2 与许可证，完整版本来源见 [字体资源说明](../public/fonts/README.md)；不依赖系统安装或在线 CDN。Meslo 固定 LG S，小行距版本；没有独立字型时由浏览器合成粗体/斜体，不承诺 xterm 编程连字。
+终端字体采用固定12项 Naive UI 下拉选择：DejaVu Sans Mono、Droid Sans Mono、Ubuntu Mono、Anonymous Pro、Inconsolata、Fira Mono、Source Code Pro、PT Mono、Cascadia Code、Fira Code、JetBrains Mono、Meslo，默认 DejaVu Sans Mono。下拉选项与当前选中名称通过 NSelect render-label 使用各自实际字体渲染，按可见内容自动加载本地字型。随应用分发原始 TTF/WOFF2 与许可证，完整版本来源见 [字体资源说明](../public/fonts/README.md)；不依赖系统安装或在线 CDN。Meslo 固定 LG S，小行距版本；没有独立字型时由浏览器合成粗体/斜体，不承诺 xterm 编程连字。
 
 fontFamily 保存规范家族名称；Rust 仅接受上述12项。读取旧自由字体串时归一为默认项，不自动写库。CSS 使用 Termvexa 前缀的独立别名，避免系统同名字体干扰。字型加载完成后更新 xterm 并 fit/resize，迟到加载不能覆盖较新的设置或访问已销毁实例；隐藏标签待激活重算，不重建终端或清空历史。加载失败在标签报告错误，允许重新应用。支持字号和有限 scrollback，初始5000行、可设1000–50000；行高与光标更多选项仍属后续设计，内存与三平台字宽表现待验证。仅改颜色不需远端 resize。
 
@@ -107,7 +107,7 @@ SSH 终端的 SFTP 面板可打开/隐藏，支持左/右/底部位置与尺寸�
 
 独立 SFTP Tab 是左右双栏文件工作区，两侧都可选择本地或 SSH，支持本地↔远端和远端 A↔B 拖拽复制。标清两端身份和路径，默认 copy，不能无提示删除源。远端互传默认后台有界中转，不要求用户手动下载/上传；切换侧栏端点不重定向旧任务。关闭有任务的 Tab 可选应用内后台继续或取消，退出应用统一确认。文件列表过期/失败保留但禁用写入，终端断线历史仍可查看。
 
-分屏布局采用版本化树节点 `split(direction, ratio, children)` / `leaf(paneId, profileRef)`，不保存 live handle；移动 pane 不销毁终端。SFTP Tab 与 terminal Tab 分属布局节点类型。串口有参数面板与 Terminal/HEX 切换，本地终端有 Shell/cwd 选择；不能复用 SSH 专用认证表单。本地文件浏览 M3 即可实现，不等待 Local PTY。
+当前终端内存布局为 `split(id, axis, ratio, first, second)` / `terminal(terminalId)`，布局只计算矩形；扁平宿主列表不移动或销毁 xterm。版本化持久化与 profileRef 恢复后续实现，不保存 live handle。SFTP 固定页独立于终端布局。串口有参数面板与 Terminal/HEX 切换，本地终端有 Shell/cwd 选择；不能复用 SSH 专用认证表单。本地文件浏览 M3 即可实现，不等待 Local PTY。
 
 ## 9. UI 基础组件方案
 
@@ -121,7 +121,7 @@ SSH 终端的 SFTP 面板可打开/隐藏，支持左/右/底部位置与尺寸�
 
 App.vue 组装固定首页/SFTP 与 SSH Tab；首页使用 HostsSidebar、CredentialsPage 和内嵌 SettingsDialog，连接使用 HostEditor、TerminalPane、ChallengeDialog；统一 Naive UI 确认/输入/粘贴预览，主机信任默认拒绝，宿主按terminalId保活。主机编辑支持公共凭据引用或专属密码自动保存，只提供密码和公钥认证，不提供独立交互认证选项或追加 OTP 开关；服务器要求的 Keyboard-interactive 在连接时自动协商。首页提供主机、凭据和内嵌设置导航；窗口/Tab关闭与断开分离，重连保留原实例及有界全屏文本快照。错误与文本状态不替换终端。
 
-目前无原生系统菜单、后台快捷键、Tab拖拽排序/分屏，SFTP 仅交付固定双栏未连接布局，文件服务等保持后续设计。剪贴板、键盘/IME、焦点、缩放和三平台验收均待执行；源码UI完成不代替体验验证。见 [实施状态](17-implementation-status.md)。
+动态标签排序和嵌套终端分屏已落源码，尚待桌面验证；目前无原生系统菜单、后台快捷键或布局恢复，SFTP 仅交付固定双栏未连接布局，文件服务等保持后续设计。剪贴板、键盘/IME、焦点、缩放和三平台验收均待执行；源码UI完成不代替体验验证。见 [实施状态](17-implementation-status.md)。
 
 首页页面布局补充（2026-10-15）：首页菜单仅保留主机/凭据/设置入口，删除 home-brand 与 home-navigation-footer。主机/凭据/设置共用 home-page/page-heading 的宽度、28px内边距及 NH1/NText 标题与说明，无 eyebrow。首页内容壳锁定可用高度，主机/凭据分别用 NScrollbar；设置内嵌页采用独立滚动正文和底部操作区，放弃修改/保存设置始终在底部可见，不被正文滚动带走或覆盖。
 
@@ -136,3 +136,11 @@ App.vue 组装固定首页/SFTP 与 SSH Tab；首页使用 HostsSidebar、Creden
 关闭按钮补充：采用 NIcon 承载 SVG 关闭图标；按钮悬停额外叠加 Naive UI closeColorHover 半透明背景，整项标签高亮继续保留。
 
 标签编号与新建位置（2026-10-15）：同一已存主机按 profileId 判断，快速连接按 SSH 类型、地址、端口、用户名判断，显示原名、原名 (2)、原名 (3)；密码不参与身份键。连接仍有标签时序号递增，关闭中间标签不重编号、不复用序号；该连接所有标签关闭后重置。顶部顺序为固定首页/SFTP、分隔线、按内容占宽且可收缩滚动的会话区、36×36新建按钮、弹性空白、连接数。新建按钮不参与会话滚动；侧栏对应为从上到下排列，会话区可纵向收缩滚动，新建按钮靠左且保持正方形，连接数位于底部。
+
+窗格重组（2026-10-15）：分屏标题可拖回顶部/侧栏标签栏成为独立Tab；拖至动态标签之间按标记插入，最后一个Tab后方的整片区域追加末尾（含间隙/新建/空白/连接数），统一显示末尾插入线，新建按钮在拖动期间不高亮。拖到本组其他窗格直接四向重分割；拖到其他组先悬停标签600ms切页，再进入目标窗格预览/释放。标题普通点击/右键与关闭按钮保持原行为，正文拖选不启动窗格拖动。取消拖动还原活动标签和布局；保留原终端实例，详见18文档。
+
+工作区广播（2026-10-15）：分屏标题关闭按钮右侧显示一入三出图标，可反复开启/关闭，所有窗格按钮共享状态。开启时激活实线/其他虚线，点击按钮后输入焦点回到该窗格；仅向本组已连接终端广播键盘/中文/控制键/粘贴，远端鼠标仅滚轮（各目标编码），点击/释放/拖动与本地历史滚动不广播。多行粘贴确认显示目标数量，未连接跳过；成员重组自动关闭。完整规格见18文档。
+
+终端右键菜单边界（2026-10-15）：主菜单与配色子菜单共用视口约束，最大高度420px且距窗口上下至少留24px总余量，最大宽度320px且不超过视口减24px；长名称省略，Naive UI scrollable提供内部滚动、flip处理边缘展开方向。大量内置/自定义配色不能撑出窗口，终端本身不随菜单滚动。
+
+连接提示光标修复（2026-10-15）：`terminal/localStatus.ts`统一写入首次连接、断线、重连及失败消息。移除`ESC[?1049l`，普通缓冲区不再因本地消息恢复保存光标。仅当备用缓冲区实际激活时，保留有界末帧后使用不恢复保存光标的`ESC[?1047l`退出，关闭origin模式、恢复整屏滚动区域并定位普通屏底行，再换行追加快照及消息，避免备用屏光标带入后覆盖普通历史。不清空/重建终端；远端自身主动移动光标或清屏不在此修复范围。

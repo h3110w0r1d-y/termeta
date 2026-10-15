@@ -173,3 +173,7 @@ terminal-security 复用锁文件已有 serde 1.0.228（derive）、serde_json 1
 ## 15. 内置终端字体核查（2026-10-15）
 
 从 DejaVu、Mozilla、Adobe、Microsoft、Fira Code、JetBrains 官方 GitHub 的 latest 正式 Release、Canonical 官方字体包、Meslo 作者仓库和 AOSP 官方镜像获取字体；Anonymous Pro 与 PT Mono 采用 Google Fonts 官方固定分发提交。详情见 [字体来源清单](../public/fonts/README.md) 和 [含 SHA-256 的 manifest](../public/fonts/manifest.json)。未引入运行时字体下载服务或额外 npm/Rust 依赖，下载后用 fontTools 静态读取字体表和内部版本，不执行应用。采用原始字体文件，未重打包转换/子集化。许可分别为 OFL、Ubuntu Font Licence、Apache-2.0、Bitstream Vera/DejaVu，逐家族附原许可与版权。官方站点不能完整验证的分发情况已单独记录，不将仓库 head 说成独立发布版本。
+
+## xterm 6.0.0广播输入来源边界（2026-10-15，本地锁定源码静态核对）
+
+公开onData同时包含用户输入与远端查询的自动应答，公开onKey不能覆盖CompositionHelper的延迟IME提交。锁定包CoreService.triggerDataEvent(data, wasUserInput)先同步触发onUserInput再onData；InputHandler的设备/光标查询使用非用户分支。新增inputOrigin.ts仅订阅内部_core.coreService.onUserInput，与公开onData/onBinary配合消费标记，不覆写库。能力缺失拒绝开启广播，版本升级须复核这一非公开接口。鼠标仅广播滚轮事件，由目标公开modes及自身DOM处理，独立隔离原始鼠标报告和递归；并未验证三平台真实WebView行为，无依赖版本变更。

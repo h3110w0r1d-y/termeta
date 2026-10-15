@@ -1,5 +1,11 @@
+import { nextTick } from "vue";
 import { applyTerminalTheme } from "./theme";
+import { writeLocalStatus } from "./localStatus";
+import { normalizeRemoteTitle } from "./title";
 import { confirmPaste } from "./paste";
+import { observeTerminalInput } from "./inputOrigin";
+import { createInputRouter } from "./inputRouter";
+import { terminalIds } from "../workspace/layout";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
@@ -45,41 +51,10 @@ interface Entry {
   connecting: boolean;
   disposed: boolean;
   lastSize: string;
+  inputOrigin?: ReturnType<typeof observeTerminalInput>;
   fontRequest?: string;
 }
 const entries = new Map<string, Entry>();
-function localLine(entry: Entry, message: string) {
-  const safe = (text: string) => text.replace(/[\x00-\x1f\x7f-\x9f]/g, " ");
-  let snapshot = "";
-  if (entry.term.buffer.active.type === "alternate") {
-    const buffer = entry.term.buffer.active;
-    const lines: string[] = [];
-    let bytes = 0;
-    for (let row = 0; row < Math.min(1000, entry.term.rows); row++) {
-      const line = safe(
-        buffer.getLine(buffer.baseY + row)?.translateToString(true) ?? "",
-      );
-      bytes += new TextEncoder().encode(line).length;
-      if (bytes > 1024 * 1024) {
-        lines.push("[全屏画面快照超过 1 MiB，已截断]");
-        break;
-      }
-      lines.push(line);
-    }
-    snapshot = "\r\n[断开前全屏画面快照]\r\n" + lines.join("\r\n") + "\r\n";
-  }
-  // v6 Utf8ToUtf32 对 ASCII 非续字节会丢弃残留；必须用 bytes 写 CAN，字符串使用另一解码器。
-  // CAN 同时取消不完整控制序列；公开 buffer API 有界保留全屏末帧，再退出 alternate。
-  const modes =
-    "\x18\x1b[0m\x1b[?1049l\x1b[?2004l\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l";
-  entry.term.write(
-    new TextEncoder().encode(
-      modes +
-        snapshot +
-        `\r\n\x1b[90m[${new Date().toLocaleTimeString()}] ${safe(message)}\x1b[0m\r\n`,
-    ),
-  );
-}
 function update(tab: TerminalTab, snapshot: SessionSnapshot) {
   if (snapshot.stateRevision >= tab.revision) {
     tab.sessionId = snapshot.sessionId;
@@ -196,11 +171,13 @@ function event(
     // 等待最后一帧解析，控制事件与数据 Channel 没有全局先后顺序。
     void drain(entry, stream)
       .then(() => {
-        if (entry.stream === stream)
-          localLine(
-            entry,
+        if (entry.stream === stream) {
+          tab.remoteTitle = undefined;
+          writeLocalStatus(
+            entry.term,
             `${value.reason}${value.exitCode !== undefined && value.exitCode !== null ? `（退出码 ${value.exitCode}）` : ""}`,
           );
+        }
       })
       .catch((error) => {
         tab.error = errorMessage(error);
@@ -274,6 +251,85 @@ function input(entry: Entry, tab: TerminalTab, bytes: Uint8Array) {
     });
   }
 }
+function connectedTargets(sourceId: string) {
+  const workspace = useWorkspace();
+  const source = workspace.tabs.find((tab) => tab.terminalId === sourceId);
+  const origin = entries.get(sourceId);
+  if (
+    source?.state !== "connected" ||
+    !origin?.stream?.sessionId ||
+    origin.stream.ended ||
+    origin.disposed
+  )
+    return [];
+  const ids = document.querySelector("[data-modal-open], [data-ui-popup-open]")
+    ? [sourceId]
+    : workspace.inputTargets(sourceId);
+  return ids.filter((id) => {
+    const tab = workspace.tabs.find((item) => item.terminalId === id);
+    const entry = entries.get(id);
+    return (
+      tab?.state === "connected" &&
+      entry &&
+      !entry.disposed &&
+      entry.stream?.sessionId &&
+      !entry.stream.ended &&
+      !workspace.closingTerminalIds.includes(id)
+    );
+  });
+}
+function remoteWheel(term: Terminal) {
+  return (
+    term.modes.mouseTrackingMode !== "none" ||
+    term.buffer.active.type === "alternate"
+  );
+}
+const inputRouter = createInputRouter({
+  targets: connectedTargets,
+  send(id, bytes) {
+    const entry = entries.get(id);
+    const tab = useWorkspace().tabs.find((item) => item.terminalId === id);
+    if (entry && tab && !entry.disposed) input(entry, tab, bytes);
+  },
+  applicationCursor: (id) =>
+    entries.get(id)?.term.modes.applicationCursorKeysMode ?? false,
+  wheel(id, event, sourceId) {
+    const target = entries.get(id)?.term;
+    const source = entries.get(sourceId)?.term;
+    if (!target?.element || !source?.element || !remoteWheel(target)) return;
+    const from = source.element.getBoundingClientRect();
+    const to = target.element.getBoundingClientRect();
+    // 只重放滚轮事件，由目标xterm按自身模式/尺寸编码；绝不重放点击、释放或拖动。
+    target.element.dispatchEvent(
+      new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        deltaX: event.deltaX,
+        deltaY: event.deltaY,
+        deltaZ: event.deltaZ,
+        deltaMode: event.deltaMode,
+        ctrlKey: event.ctrlKey,
+        altKey: event.altKey,
+        shiftKey: event.shiftKey,
+        metaKey: event.metaKey,
+        clientX:
+          to.left +
+          Math.max(
+            0,
+            Math.min(1, (event.clientX - from.left) / Math.max(1, from.width)),
+          ) *
+            to.width,
+        clientY:
+          to.top +
+          Math.max(
+            0,
+            Math.min(1, (event.clientY - from.top) / Math.max(1, from.height)),
+          ) *
+            to.height,
+      }),
+    );
+  },
+});
 function settings(entry: Entry, tab: TerminalTab) {
   const s = useSettings().value;
   applyTerminalTheme(entry.term, entry.host, schemeForTab(tab));
@@ -381,6 +437,12 @@ export const terminalRegistry = {
       lastSize: "",
     };
     entries.set(tab.terminalId, entry);
+    // xterm 统一解析 OSC 0/2；标题仅驻内存展示，不作为真实命令或主机身份。
+    // 订阅随终端实例销毁，标签切换与分屏不重复注册。
+    term.onTitleChange((title) => {
+      if (!entry.disposed)
+        tab.remoteTitle = normalizeRemoteTitle(title) || undefined;
+    });
     settings(entry, tab);
     term.open(host);
     entry.observer.observe(host);
@@ -410,14 +472,15 @@ export const terminalRegistry = {
       }
       return true;
     });
-    term.onData((data) => input(entry, tab, new TextEncoder().encode(data)));
-    term.onBinary((data) =>
-      input(
-        entry,
-        tab,
-        Uint8Array.from(data, (c) => c.charCodeAt(0)),
-      ),
+    entry.inputOrigin = observeTerminalInput(term, (packet) =>
+      inputRouter.data(tab.terminalId, packet),
     );
+    term.attachCustomWheelEventHandler((event) => {
+      // 普通历史滚动保持本地；全屏程序或启用鼠标协议时才广播滚轮。
+      if (remoteWheel(term) && event.deltaY !== 0)
+        inputRouter.wheel(tab.terminalId, event);
+      return true;
+    });
     host.addEventListener(
       "paste",
       (e) => {
@@ -450,7 +513,11 @@ export const terminalRegistry = {
         await acknowledge(entry, old);
         useWorkspace().dismiss(old.sessionId ?? "");
       }
-      localLine(entry, old ? "重新连接，保留终端历史" : "开始 SSH 连接");
+      tab.remoteTitle = undefined;
+      writeLocalStatus(
+        entry.term,
+        old ? "重新连接，保留终端历史" : "开始 SSH 连接",
+      );
       const stream: Stream = {
         generation: (old?.generation ?? 0) + 1,
         seq: 0,
@@ -487,7 +554,7 @@ export const terminalRegistry = {
     } catch (error) {
       tab.error = errorMessage(error);
       tab.state = "failed";
-      localLine(entry, tab.error);
+      writeLocalStatus(entry.term, tab.error);
     } finally {
       entry.connecting = false;
     }
@@ -508,6 +575,7 @@ export const terminalRegistry = {
     e.disposed = true;
     e.observer.disconnect();
     if (e.stream?.ackTimer) clearTimeout(e.stream.ackTimer);
+    e.inputOrigin?.dispose();
     e.term.dispose();
     entries.delete(id);
   },
@@ -534,7 +602,7 @@ export const terminalRegistry = {
         // 快速切换到首页或弹出认证时，迟到的焦点任务不能抢回隐藏终端。
         if (
           e.disposed ||
-          useWorkspace().activeId !== id ||
+          useWorkspace().active?.terminalId !== id ||
           document.querySelector("[data-modal-open], [data-ui-popup-open]")
         )
           return;
@@ -548,31 +616,94 @@ export const terminalRegistry = {
     if (text) await navigator.clipboard.writeText(text);
   },
   async paste(id: string) {
-    await this.pasteText(id, await navigator.clipboard.readText());
+    const workspace = useWorkspace();
+    const group = workspace.activeGroup;
+    const revision = group?.broadcastRevision;
+    const stream = entries.get(id)?.stream;
+    const text = await navigator.clipboard.readText();
+    if (
+      workspace.activeGroup !== group ||
+      group?.broadcastRevision !== revision ||
+      entries.get(id)?.stream !== stream
+    )
+      return;
+    await this.pasteText(id, text);
   },
   async pasteText(id: string, text: string) {
-    const e = entries.get(id),
-      tab = useWorkspace().tabs.find((t) => t.terminalId === id);
-    if (!e || !tab || tab.state !== "connected") return;
+    const workspace = useWorkspace();
+    const e = entries.get(id);
+    const tab = workspace.tabs.find((item) => item.terminalId === id);
+    if (
+      !e ||
+      !tab ||
+      tab.state !== "connected" ||
+      workspace.active?.terminalId !== id
+    )
+      return;
     if (new TextEncoder().encode(text).length > 65536) {
       tab.error = "单次粘贴不能超过 64 KiB。";
       return;
     }
-    const stream = e.stream;
+    const group = workspace.activeGroup!;
+    const revision = group.broadcastRevision;
+    const sourceStream = e.stream;
+    const targets = connectedTargets(id).map((targetId) => ({
+      id: targetId,
+      entry: entries.get(targetId)!,
+      stream: entries.get(targetId)!.stream,
+    }));
     if (
       useSettings().value.multilinePaste &&
       /[\r\n]/.test(text) &&
-      !(await confirmPaste(text))
+      !(await confirmPaste(text, targets.length))
     )
       return;
+    await nextTick();
+    // 确认期间切组/切焦点、修改广播状态或成员均取消，不把旧输入交给新会话。
     if (
       e.disposed ||
-      e.stream !== stream ||
-      stream?.ended ||
-      tab.state !== "connected"
+      e.stream !== sourceStream ||
+      sourceStream?.ended ||
+      tab.state !== "connected" ||
+      workspace.activeGroup !== group ||
+      workspace.active?.terminalId !== id ||
+      group.broadcastRevision !== revision ||
+      document.querySelector("[data-modal-open], [data-ui-popup-open]")
     )
       return;
-    e.term.paste(text);
+    for (const target of targets) {
+      const current = workspace.tabs.find(
+        (item) => item.terminalId === target.id,
+      );
+      if (
+        target.entry.disposed ||
+        target.entry.stream !== target.stream ||
+        target.stream?.ended ||
+        current?.state !== "connected" ||
+        workspace.closingTerminalIds.includes(target.id)
+      )
+        continue;
+      // 每个目标独立应用括号粘贴模式；本次已展开目标，不能再次触发广播。
+      inputRouter.local(target.id, () => target.entry.term.paste(text));
+    }
+  },
+  toggleBroadcast() {
+    const workspace = useWorkspace();
+    const group = workspace.activeGroup;
+    if (!group) return;
+    if (
+      !group.broadcast &&
+      terminalIds(group.root).some(
+        (id) => !entries.get(id)?.inputOrigin?.supported,
+      )
+    ) {
+      if (workspace.active)
+        workspace.active.error =
+          "当前终端无法区分用户输入与自动应答，不能开启广播。";
+      return;
+    }
+    workspace.toggleBroadcast();
+    if (workspace.active) this.focus(workspace.active.terminalId);
   },
   find(id: string, query: string, previous = false) {
     const search = entries.get(id)?.search;

@@ -171,7 +171,7 @@ async function deleteScheme() {
   if (editor.value.source === "builtin") return;
   if (
     !(await confirmAction(
-      "删除自定义方案？主机和终端引用将跟随全局默认；若删除的是全局默认，将改用 Nord Dark。",
+      `删除自定义方案？主机和终端引用将跟随全局默认；若删除的是全局默认，将改用 ${defaultScheme.name}。`,
     ))
   )
     return;

@@ -1,5 +1,14 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
+import { terminalDisplayTitle } from "../terminal/title";
+import {
+  terminalIds,
+  removeTerminal,
+  setSplitRatio,
+  relocateTerminal,
+  type LayoutNode,
+  type SplitEdge,
+} from "./layout";
 import type {
   AuthChallenge,
   HostKeyChallenge,
@@ -9,6 +18,7 @@ import type {
 export interface TerminalTab {
   terminalId: string;
   title: string;
+  remoteTitle?: string;
   target: OpenTarget;
   state: SessionState;
   sessionId?: string;
@@ -17,19 +27,75 @@ export interface TerminalTab {
   schemeId?: string;
   size: { cols: number; rows: number };
 }
+export interface WorkspaceTab {
+  id: string;
+  root: LayoutNode;
+  focusedTerminalId: string;
+  broadcast: boolean;
+  broadcastRevision: number;
+}
+export interface WorkspaceTabItem {
+  id: string;
+  title: string;
+  state: SessionState;
+  terminalIds: string[];
+  split: boolean;
+}
+export type WorkspaceDragSource =
+  { kind: "tab"; tabId: string } | { kind: "pane"; terminalId: string };
+export type WorkspaceDropTarget =
+  | { kind: "tab"; tabId: string; before: boolean }
+  | { kind: "pane"; terminalId: string; edge: SplitEdge }
+  | { kind: "tab-end" };
 export const useWorkspace = defineStore("workspace", () => {
-  // 只保存视图元数据；输出、Channel 和 xterm 实例均由 TerminalRegistry 持有。
-  const tabs = ref<TerminalTab[]>([]),
-    activeId = ref("home");
+  // tabs 仅保存终端元数据，groups 独立保存标签顺序与布局；移动布局不增删终端。
+  const tabs = ref<TerminalTab[]>([]);
+  const groups = ref<WorkspaceTab[]>([]);
+  const activeId = ref("home");
   const homeSection = ref<"hosts" | "credentials" | "settings">("hosts");
+  const challenges = ref<(AuthChallenge | HostKeyChallenge)[]>([]);
+  const closingTerminalIds = ref<string[]>([]);
+  const drag = ref<{ source: WorkspaceDragSource; x: number; y: number }>();
+  const dropTarget = ref<WorkspaceDropTarget>();
+  const activeGroup = computed(() =>
+    groups.value.find((g) => g.id === activeId.value),
+  );
+  const active = computed(() =>
+    tabs.value.find(
+      (t) => t.terminalId === activeGroup.value?.focusedTerminalId,
+    ),
+  );
   const tabIds = computed(() => [
     "home",
     "sftp",
-    ...tabs.value.map((tab) => tab.terminalId),
+    ...groups.value.map((g) => g.id),
   ]);
-  const challenges = ref<(AuthChallenge | HostKeyChallenge)[]>([]);
-  const active = computed(() =>
-    tabs.value.find((t) => t.terminalId === activeId.value),
+  const workspaceTabs = computed<WorkspaceTabItem[]>(() =>
+    groups.value.map((group) => {
+      const ids = terminalIds(group.root);
+      const terminal = tabs.value.find(
+        (t) => t.terminalId === group.focusedTerminalId,
+      );
+      return {
+        id: group.id,
+        title: terminalDisplayTitle(
+          group.root.kind === "split"
+            ? "Workspace"
+            : (terminal?.title ?? "终端"),
+          terminal?.remoteTitle,
+        ),
+        // 标签状态概括全部子终端，避免聚焦已关闭窗格时掩盖其他活动连接。
+        state: ids.some((id) =>
+          tabs.value.some(
+            (t) => t.terminalId === id && t.state === "connected",
+          ),
+        )
+          ? "connected"
+          : (terminal?.state ?? "closed"),
+        terminalIds: ids,
+        split: group.root.kind === "split",
+      };
+    }),
   );
   // 序号按连接身份递增，不依赖可变的显示名称，也不将密码纳入键。
   const connectionNumbers = new Map<string, number>();
@@ -58,22 +124,205 @@ export const useWorkspace = defineStore("workspace", () => {
       size: { cols: 80, rows: 24 },
     };
     tabs.value.push(tab);
+    groups.value.push({
+      id: tab.terminalId,
+      root: { kind: "terminal", terminalId: tab.terminalId },
+      focusedTerminalId: tab.terminalId,
+      broadcast: false,
+      broadcastRevision: 0,
+    });
     activeId.value = tab.terminalId;
     return tabs.value[tabs.value.length - 1]!;
   }
+  function groupForTerminal(id: string) {
+    return groups.value.find((g) => terminalIds(g.root).includes(id));
+  }
+  function focusTerminal(id: string) {
+    const group = groupForTerminal(id);
+    if (!group) return;
+    group.focusedTerminalId = id;
+    activeId.value = group.id;
+  }
+  function activateTab(id: string) {
+    if (tabIds.value.includes(id)) activeId.value = id;
+  }
   function remove(id: string) {
-    const removed = tabs.value.find((tab) => tab.terminalId === id);
-    const at = tabs.value.findIndex((t) => t.terminalId === id);
+    const removed = tabs.value.find((t) => t.terminalId === id);
+    const group = groupForTerminal(id);
     tabs.value = tabs.value.filter((t) => t.terminalId !== id);
+    if (group) {
+      resetBroadcast(group);
+      const root = removeTerminal(group.root, id);
+      if (root) {
+        group.root = root;
+        if (group.focusedTerminalId === id)
+          group.focusedTerminalId = terminalIds(root)[0]!;
+      } else {
+        const at = groups.value.indexOf(group);
+        groups.value = groups.value.filter((g) => g.id !== group.id);
+        if (activeId.value === group.id)
+          activeId.value =
+            groups.value[Math.min(at, groups.value.length - 1)]?.id ?? "home";
+      }
+    }
     if (removed) {
       const key = connectionKey(removed.target);
-      // 同一连接全部关闭后重置序号；中途关闭不改名或复用序号。
-      if (!tabs.value.some((tab) => connectionKey(tab.target) === key))
+      // 同一连接全部关闭后重置序号；布局移动与中途关闭不改名或复用序号。
+      if (!tabs.value.some((t) => connectionKey(t.target) === key))
         connectionNumbers.delete(key);
     }
-    if (activeId.value === id)
-      activeId.value =
-        tabs.value[Math.min(at, tabs.value.length - 1)]?.terminalId ?? "home";
+    cancelDrag();
+  }
+  function reorderTab(id: string, targetId: string, before: boolean) {
+    if (id === targetId) return;
+    const source = groups.value.find((g) => g.id === id);
+    if (!source || !groups.value.some((g) => g.id === targetId)) return;
+    const next = groups.value.filter((g) => g.id !== id);
+    const at = next.findIndex((g) => g.id === targetId);
+    next.splice(at + (before ? 0 : 1), 0, source);
+    groups.value = next;
+  }
+  function dragTerminal(source: WorkspaceDragSource) {
+    if (source.kind === "pane") {
+      const group = groupForTerminal(source.terminalId);
+      return group && group.root.kind === "split"
+        ? { group, terminalId: source.terminalId }
+        : undefined;
+    }
+    const group = groups.value.find((g) => g.id === source.tabId);
+    return group?.root.kind === "terminal"
+      ? { group, terminalId: group.root.terminalId }
+      : undefined;
+  }
+  function groupIsClosing(group: WorkspaceTab) {
+    return terminalIds(group.root).some((id) =>
+      closingTerminalIds.value.includes(id),
+    );
+  }
+  function canSplit(source: WorkspaceDragSource, targetTerminalId: string) {
+    const incoming = dragTerminal(source);
+    const target = activeGroup.value;
+    return !!(
+      incoming &&
+      target &&
+      incoming.terminalId !== targetTerminalId &&
+      (source.kind === "pane" || incoming.group.id !== target.id) &&
+      terminalIds(target.root).includes(targetTerminalId) &&
+      !groupIsClosing(incoming.group) &&
+      !groupIsClosing(target)
+    );
+  }
+  // 仅移除布局归属，不调用 remove/dispose，避免删除终端元数据或重置重复编号。
+  function extractTerminal(group: WorkspaceTab, id: string) {
+    resetBroadcast(group);
+    const root = removeTerminal(group.root, id);
+    if (root) {
+      group.root = root;
+      if (group.focusedTerminalId === id)
+        group.focusedTerminalId = terminalIds(root)[0]!;
+    } else groups.value = groups.value.filter((g) => g.id !== group.id);
+  }
+  function mergeTerminal(
+    source: WorkspaceDragSource,
+    targetTerminalId: string,
+    edge: SplitEdge,
+  ) {
+    if (!canSplit(source, targetTerminalId)) return false;
+    const incoming = dragTerminal(source)!;
+    const target = activeGroup.value!;
+    const moved = relocateTerminal(
+      incoming.group.root,
+      target.root,
+      incoming.terminalId,
+      targetTerminalId,
+      edge,
+    );
+    if (!moved) return false;
+    resetBroadcast(incoming.group);
+    if (incoming.group !== target) resetBroadcast(target);
+    // 两棵树先计算后提交；同组移动使用同一结果，始终保持叶子归属唯一。
+    if (moved.sourceRoot) {
+      incoming.group.root = moved.sourceRoot;
+      if (incoming.group.focusedTerminalId === incoming.terminalId)
+        incoming.group.focusedTerminalId = terminalIds(moved.sourceRoot)[0]!;
+    } else
+      groups.value = groups.value.filter((g) => g.id !== incoming.group.id);
+    target.root = moved.targetRoot;
+    target.focusedTerminalId = incoming.terminalId;
+    activeId.value = target.id;
+    cancelDrag();
+    return true;
+  }
+  function dropOnTabBar(
+    source: WorkspaceDragSource,
+    target?: { tabId: string; before: boolean },
+  ) {
+    if (source.kind === "tab") {
+      if (target) reorderTab(source.tabId, target.tabId, target.before);
+      else {
+        const last = groups.value[groups.value.length - 1];
+        if (last) reorderTab(source.tabId, last.id, false);
+      }
+      return false;
+    }
+    const incoming = dragTerminal(source);
+    if (
+      !incoming ||
+      groupIsClosing(incoming.group) ||
+      (target && !groups.value.some((g) => g.id === target.tabId))
+    )
+      return false;
+    // 标签组ID不能沿用terminalId：原组可能仍以被拖出终端的ID为组ID。
+    const group: WorkspaceTab = {
+      id: crypto.randomUUID(),
+      root: { kind: "terminal", terminalId: incoming.terminalId },
+      focusedTerminalId: incoming.terminalId,
+      broadcast: false,
+      broadcastRevision: 0,
+    };
+    extractTerminal(incoming.group, incoming.terminalId);
+    const at = target
+      ? groups.value.findIndex((g) => g.id === target.tabId) +
+        (target.before ? 0 : 1)
+      : groups.value.length;
+    groups.value.splice(at, 0, group);
+    activeId.value = group.id;
+    cancelDrag();
+    return true;
+  }
+  // 成员变化必须显式重新开启广播；版本号也使等待粘贴确认的旧目标失效。
+  function resetBroadcast(group: WorkspaceTab) {
+    group.broadcast = false;
+    group.broadcastRevision++;
+  }
+  function toggleBroadcast() {
+    const group = activeGroup.value;
+    if (
+      !group ||
+      group.root.kind !== "split" ||
+      drag.value ||
+      groupIsClosing(group)
+    )
+      return;
+    group.broadcast = !group.broadcast;
+    group.broadcastRevision++;
+  }
+  function inputTargets(id: string) {
+    const group = activeGroup.value;
+    return group?.broadcast &&
+      group.focusedTerminalId === id &&
+      !drag.value &&
+      !groupIsClosing(group)
+      ? terminalIds(group.root)
+      : [id];
+  }
+  function resizeSplit(id: string, ratio: number) {
+    if (activeGroup.value)
+      activeGroup.value.root = setSplitRatio(activeGroup.value.root, id, ratio);
+  }
+  function cancelDrag() {
+    drag.value = undefined;
+    dropTarget.value = undefined;
   }
   function cycle(direction: number) {
     const ids = tabIds.value;
@@ -93,13 +342,31 @@ export const useWorkspace = defineStore("workspace", () => {
   }
   return {
     tabs,
+    groups,
+    workspaceTabs,
     tabIds,
     activeId,
     homeSection,
+    activeGroup,
     active,
     challenges,
+    closingTerminalIds,
+    drag,
+    dropTarget,
     add,
     remove,
+    groupForTerminal,
+    focusTerminal,
+    activateTab,
+    reorderTab,
+    dragTerminal,
+    dropOnTabBar,
+    canSplit,
+    mergeTerminal,
+    toggleBroadcast,
+    inputTargets,
+    resizeSplit,
+    cancelDrag,
     cycle,
     openHome,
     dismiss,

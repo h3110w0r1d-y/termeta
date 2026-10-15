@@ -36,7 +36,7 @@ const emit = defineEmits<{ "update:open": [value: boolean] }>();
         ? 'min(1050px, calc(100vw - 40px))'
         : 'min(550px, calc(100vw - 40px))',
     }"
-    data-modal-open
+    :data-modal-open="open ? '' : undefined"
     aria-modal="true"
     role="dialog"
     :aria-label="title"

@@ -4,7 +4,7 @@
 
 ## 1. 内置方案与作用范围
 
-按用户要求移除原8套项目预设，使用指定 Termius 解包文件静态提取的64套方案，包含 Nord Dark/Light、Solarized、Dracula、Gruvbox、Catppuccin 等。默认 Nord Dark，保留原名称和终端色值；来源、SHA-256 与映射见 [配色资源说明](../resources/README.md)。前后端从同一 JSON 读取名单；提取仅解析字面量，不执行解包代码。旧预设明暗引用在读取时归一为 Nord Dark/Light，同名 Ocean 使用新的提取值；用户自定义方案保留。运行视觉、选区和 ANSI 渲染仍待验证。
+按用户要求移除原8套项目预设，使用指定 Termius 解包文件静态提取的64套方案，包含 Nord Dark/Light、Solarized、Dracula、Gruvbox、Catppuccin 等。默认 Pro，保留原名称和终端色值；来源、SHA-256 与映射见 [配色资源说明](../resources/README.md)。前后端从同一 JSON 读取名单；提取仅解析字面量，不执行解包代码。旧预设明暗引用在读取时归一为 Nord Dark/Light，同名 Ocean 使用新的提取值；用户自定义方案保留。运行视觉、选区和 ANSI 渲染仍待验证。
 
 方案列表支持预览、搜索、设为默认、复制为自定义、删除自定义、导入/导出。内置方案只读，编辑时创建副本；用户副本不会被升级覆盖。
 
@@ -95,3 +95,5 @@ resources/terminal-palettes.json 保存64套提取配色，src/modules/settings/
 粗体颜色语义（2026-10-15）：实际终端与配色预览显式设置 drawBoldTextInBrightColors=false。SGR 1 只改变字重，不将普通 ANSI 0–7 提升为8–15；显式高亮色仍使用高亮色表，256色和真彩色不变。Pro 等方案色值不修改，避免用改色表补偿渲染策略。
 
 选区合成适配（2026-10-15）：实际终端与预览统一通过 src/modules/terminal/theme.ts 的 applyTerminalTheme 应用主题。未设置 selectionForeground 时，xterm 选区主题临时设为透明，避免其 DOM 渲染器为选中文字绘制已混合的底色；业务 CSS 使用原 selectionBackground/selectionInactiveBackground 将原有选区矩形覆盖在文字上方，使 ANSI/真彩色文字也参与透明混合。颜色不写回 Scheme，不改选择范围/鼠标/复制，也不逐字监听或重绘。不透明选区色沿用 xterm 的30%透明度；显式 selectionForeground 关闭该适配，使用原生主题语义。适配依赖固定 xterm 6 的 .xterm-screen/.xterm-selection DOM 和层级，升级或换渲染器须复验，不保证与 Termius 每个像素一致。
+
+终端右键配色列表（2026-10-15）：64套内置与自定义方案仍由Naive UI子菜单展示，启用库scrollable，主/子菜单通过menu-props共用视口限高/限宽，靠边由库flip定位；长名称省略，不再按全部选项撑开到窗口外。

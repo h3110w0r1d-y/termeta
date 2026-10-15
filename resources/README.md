@@ -1,6 +1,6 @@
 # 终端配色静态资源
 
-日期：2026-10-15。`terminal-palettes.json` 包含从用户提供的 Termius 解包目录静态提取的64套终端配色，保留原名称与全部终端色值。前后端使用同一 JSON：前端映射为 Scheme，Rust 仅从中读取内置 ID 名单，避免维护两份白名单。默认方案为 Nord Dark。
+日期：2026-10-15。`terminal-palettes.json` 包含从用户提供的 Termius 解包目录静态提取的64套终端配色，保留原名称与全部终端色值。前后端使用同一 JSON：前端映射为 Scheme，Rust 仅从中读取内置 ID 名单，避免维护两份白名单。默认方案为 Pro。
 
 来源文件为 `ui-process/assets/reconnectSaga-871ae692.js`，另外三个进程包中的同一数组已做逐字节一致性核对。只截取21,621字节数组进行 TypeScript AST 数据解析，不运行解包程序，也不输出整行压缩 JS。来源文件与数组 SHA-256 见 [提取记录](terminal-palettes.provenance.json)。
 
