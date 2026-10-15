@@ -185,7 +185,7 @@ async function save() {
                     :min="1000"
                     :max="50000" /></AppLabel
                 ><AppCheckbox v-model="draft.confirmClose" class="span-2"
-                  >关闭活动会话前确认</AppCheckbox
+                  >关闭可能正在执行命令的终端前确认</AppCheckbox
                 ><AppCheckbox v-model="draft.multilinePaste" class="span-2"
                   >多行粘贴前确认</AppCheckbox
                 >

@@ -1,7 +1,11 @@
 import { nextTick } from "vue";
 import { applyTerminalTheme } from "./theme";
 import { writeLocalStatus } from "./localStatus";
-import { normalizeRemoteTitle } from "./title";
+import {
+  resetTerminalActivity,
+  updateActivityTitle,
+  updateShellActivity,
+} from "./activity";
 import { confirmPaste } from "./paste";
 import { observeTerminalInput } from "./inputOrigin";
 import { createInputRouter } from "./inputRouter";
@@ -172,7 +176,7 @@ function event(
     void drain(entry, stream)
       .then(() => {
         if (entry.stream === stream) {
-          tab.remoteTitle = undefined;
+          resetTerminalActivity(tab);
           writeLocalStatus(
             entry.term,
             `${value.reason}${value.exitCode !== undefined && value.exitCode !== null ? `（退出码 ${value.exitCode}）` : ""}`,
@@ -440,8 +444,12 @@ export const terminalRegistry = {
     // xterm 统一解析 OSC 0/2；标题仅驻内存展示，不作为真实命令或主机身份。
     // 订阅随终端实例销毁，标签切换与分屏不重复注册。
     term.onTitleChange((title) => {
-      if (!entry.disposed)
-        tab.remoteTitle = normalizeRemoteTitle(title) || undefined;
+      if (!entry.disposed) updateActivityTitle(tab, title);
+    });
+    // 只读取Shell执行阶段，不从输出猜命令，也不执行远端控制指令。
+    term.parser.registerOscHandler(133, (payload) => {
+      if (!entry.disposed) updateShellActivity(tab, payload);
+      return true;
     });
     settings(entry, tab);
     term.open(host);
@@ -513,7 +521,7 @@ export const terminalRegistry = {
         await acknowledge(entry, old);
         useWorkspace().dismiss(old.sessionId ?? "");
       }
-      tab.remoteTitle = undefined;
+      resetTerminalActivity(tab);
       writeLocalStatus(
         entry.term,
         old ? "重新连接，保留终端历史" : "开始 SSH 连接",

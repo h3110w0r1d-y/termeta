@@ -268,3 +268,7 @@ M2-14源码已实施：分屏标题关闭按钮右侧提供一入三出图标开
 OSC标题后缀（2026-10-15）：新增terminal/title.ts处理文本清理/限长/名称格式；Registry订阅公开onTitleChange，WorkspaceStore只增加可选内存字段remoteTitle，普通/Workspace标签与分屏标题统一显示。原title/重复编号/主机身份不变，无持久化、命令检测或IPC变化。实际Shell标题发送、断线/重连与多窗格显示待运行复验。
 
 本轮OSC标题静态检查通过：vue-tsc --noEmit、4份修改源码的Prettier、git diff --check。未构建、启动应用、执行运行测试或连接真实SSH。
+
+动态关闭提醒（2026-10-15）：新增activity.ts集中管理首次标题、OSC 133阶段与关闭谓词，TerminalTab仅扩展可选内存字段。Registry接入OSC 133，OSC 0/2更新标题与首次基准，连接边界重置。App关闭Tab/窗格/Workspace/窗口共用谓词，空闲直接关闭，有执行标记或标题不同则一次确认，保留confirmClose开关；提示使用“可能”而不声称真实命令检测。未采集命令正文或新增后端接口，真实交互待复验。
+
+本轮静态检查通过：vue-tsc --noEmit、5份修改源码的Prettier、git diff --check。按仓库约束未构建、启动应用、执行运行测试或连接真实SSH。

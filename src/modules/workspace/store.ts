@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { terminalDisplayTitle } from "../terminal/title";
+import type { TerminalActivity } from "../terminal/activity";
 import {
   terminalIds,
   removeTerminal,
@@ -15,10 +16,9 @@ import type {
   OpenTarget,
   SessionState,
 } from "../../services/desktop/types";
-export interface TerminalTab {
+export interface TerminalTab extends TerminalActivity {
   terminalId: string;
   title: string;
-  remoteTitle?: string;
   target: OpenTarget;
   state: SessionState;
   sessionId?: string;

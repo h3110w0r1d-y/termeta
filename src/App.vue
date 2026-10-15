@@ -37,6 +37,7 @@ import { useHosts } from "./modules/hosts/store";
 import { useSettings } from "./modules/settings/store";
 import { useWorkspace, stateLabels, isActive } from "./modules/workspace/store";
 import { schemeForTab, terminalRegistry } from "./modules/terminal/registry";
+import { needsCloseConfirmation } from "./modules/terminal/activity";
 import { commands } from "./services/commands/registry";
 import { desktop, errorMessage } from "./services/desktop/client";
 import type { HostProfile, SshConfig } from "./services/desktop/types";
@@ -101,11 +102,12 @@ async function closeTerminals(ids: string[], title: string) {
     "[data-workspace-tab], .workspace-tab-close",
   );
   try {
+    const running = terminals.filter(needsCloseConfirmation);
     if (
-      terminals.some((tab) => isActive(tab.state)) &&
+      running.length > 0 &&
       settings.value.confirmClose &&
       !(await confirmAction(
-        `关闭“${title}”${terminals.length > 1 ? `中的 ${terminals.length} 个终端` : ""}并断开连接？终端历史将释放。`,
+        `“${title}”${terminals.length > 1 ? `中有 ${running.length} 个终端` : ""}可能正在执行命令，关闭将断开连接并释放终端历史，确定继续？`,
       ))
     )
       return;
@@ -290,12 +292,12 @@ onMounted(async () => {
     unlisten = await desktop.onCloseRequested(async (event) => {
       if (closingWindow) return;
       event.preventDefault();
-      const active = workspace.tabs.filter((t) => isActive(t.state));
+      const running = workspace.tabs.filter(needsCloseConfirmation);
       if (
-        active.length &&
+        running.length > 0 &&
         settings.value.confirmClose &&
         !(await confirmAction(
-          `关闭窗口将断开 ${active.length} 个活动会话，确定继续？`,
+          `${running.length} 个终端可能正在执行命令，关闭窗口将断开全部连接，确定继续？`,
         ))
       )
         return;
