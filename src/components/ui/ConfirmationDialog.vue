@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { NFlex } from "naive-ui";
+import AppButton from "./AppButton.vue";
+import AppInput from "./AppInput.vue";
 import AppDialog from "./AppDialog.vue";
 import { currentConfirmation, settleConfirmation } from "./confirmation";
 </script>
@@ -8,20 +11,26 @@ import { currentConfirmation, settleConfirmation } from "./confirmation";
     :title="currentConfirmation?.input === undefined ? '确认操作' : '输入信息'"
     @update:open="(value) => !value && settleConfirmation(false)"
     ><form
+      id="confirmation-form"
       v-if="currentConfirmation"
       @submit.prevent="settleConfirmation(true)"
     >
       <p class="confirmation-message">{{ currentConfirmation.message }}</p>
-      <input
+      <AppInput
         v-if="currentConfirmation.input !== undefined"
         v-model="currentConfirmation.input"
         maxlength="120"
         autofocus
       />
-      <footer class="dialog-actions">
-        <button type="button" @click="settleConfirmation(false)">取消</button
-        ><button class="primary">确认</button>
-      </footer>
-    </form></AppDialog
+    </form>
+    <template #footer>
+      <NFlex justify="end">
+        <AppButton type="button" @click="settleConfirmation(false)"
+          >取消</AppButton
+        ><AppButton type="submit" form="confirmation-form" class="primary"
+          >确认</AppButton
+        >
+      </NFlex>
+    </template></AppDialog
   >
 </template>

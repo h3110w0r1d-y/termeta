@@ -1,12 +1,11 @@
 use super::*;
-use sqlx::migrate::Migrator;
 use std::path::PathBuf;
+use terminal_core::AuthStep;
 
 struct TestDirectory(PathBuf);
 impl TestDirectory {
     fn new() -> Self {
-        let path =
-            std::env::temp_dir().join(format!("termvexa-migration-{}", uuid::Uuid::new_v4()));
+        let path = std::env::temp_dir().join(format!("termvexa-storage-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir(&path).unwrap();
         Self(path)
     }
@@ -16,86 +15,39 @@ impl Drop for TestDirectory {
         let _ = std::fs::remove_dir_all(&self.0);
     }
 }
-
-#[tokio::test(flavor = "current_thread")]
-async fn upgrades_original_database_without_rewriting_migration_or_granting_old_keys() {
-    let directory = TestDirectory::new();
-    let path = directory.0.join("termvexa.sqlite3");
-    let legacy = directory.0.join("legacy");
-    std::fs::create_dir(&legacy).unwrap();
-    std::fs::write(
-        legacy.join("0001_initial.sql"),
-        include_str!("../migrations/0001_initial.sql"),
-    )
-    .unwrap();
-    let pool = SqlitePoolOptions::new()
-        .connect_with(
-            SqliteConnectOptions::new()
-                .filename(&path)
-                .create_if_missing(true),
-        )
-        .await
-        .unwrap();
-    Migrator::new(legacy.as_path())
-        .await
-        .unwrap()
-        .run(&pool)
-        .await
-        .unwrap();
-    // 固定已在用户数据库应用的校验和，防止重写旧迁移再次破坏升级。
-    let checksum: String =
-        sqlx::query_scalar("SELECT hex(checksum) FROM _sqlx_migrations WHERE version=1")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-    assert_eq!(
-        checksum,
-        "FF38F38EC75B9A99E4DDAA4586E5BE24D0BE55E6AC3BA985D1566741AAF31DB2B248E733B72581B97E9AC202BD414B5E"
-    );
-    sqlx::query("PRAGMA user_version = 1")
-        .execute(&pool)
-        .await
-        .unwrap();
-    sqlx::query("INSERT INTO settings(key,value_json,value_version,updated_at) VALUES('retained','true',1,0)")
-        .execute(&pool).await.unwrap();
-    sqlx::query("INSERT INTO key_files(id,path,display_name,created_at,updated_at) VALUES('legacy','unused','旧私钥',0,0)")
-        .execute(&pool).await.unwrap();
-    pool.close().await;
-
-    let store = SqliteStore::open(&path).await.unwrap();
-    assert_eq!(
-        store.get_setting("retained").await.unwrap().unwrap().value,
-        serde_json::json!(true)
-    );
-    let key = store.get_key_file("legacy").await.unwrap();
-    assert!(key.content_fingerprint().is_empty());
-    assert!(
-        matches!(read_key_file(Path::new(&key.path), Some(key.content_fingerprint())), Err(StorageError::Validation(message)) if message.contains("重新选择"))
-    );
-    let version: i64 = sqlx::query_scalar("PRAGMA user_version")
-        .fetch_one(&store.pool)
-        .await
-        .unwrap();
-    assert_eq!(version, SCHEMA_VERSION);
-    store.pool.close().await;
-    let backups = std::fs::read_dir(&directory.0)
-        .unwrap()
-        .filter_map(|entry| entry.ok())
-        .filter(|entry| {
-            entry
-                .file_name()
-                .to_string_lossy()
-                .starts_with("termvexa.backup-")
-        })
-        .count();
-    assert_eq!(backups, 1);
-    // 已升级数据库再次打开时，不重复添加列，也不重新执行已应用迁移。
-    let reopened = SqliteStore::open(&path).await.unwrap();
-    reopened.pool.close().await;
+fn draft() -> HostDraft {
+    HostDraft {
+        id: None,
+        revision: None,
+        name: "测试主机".into(),
+        address: "example.com".into(),
+        port: 22,
+        username: "user".into(),
+        group_id: None,
+        favorite: false,
+        tags: vec![],
+        auth_plan: vec![AuthStep::Password {
+            credential_id: None,
+        }],
+    }
+}
+fn edit(host: HostProfile) -> HostDraft {
+    HostDraft {
+        id: Some(host.id),
+        revision: Some(host.revision),
+        name: host.name,
+        address: host.address,
+        port: host.port,
+        username: host.username,
+        group_id: host.group_id,
+        favorite: host.favorite,
+        tags: host.tags,
+        auth_plan: host.auth_plan,
+    }
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn initializes_new_database_with_both_migrations() {
+async fn initializes_rebuilt_schema_with_password_and_private_key_credentials() {
     let directory = TestDirectory::new();
     let store = SqliteStore::open(directory.0.join("new.sqlite3"))
         .await
@@ -105,12 +57,195 @@ async fn initializes_new_database_with_both_migrations() {
             .fetch_all(&store.pool)
             .await
             .unwrap();
-    assert_eq!(versions, vec![1, 2]);
-    let fingerprint: Option<String> =
-        sqlx::query_scalar("SELECT content_fingerprint FROM key_files LIMIT 1")
-            .fetch_optional(&store.pool)
+    assert_eq!(versions, vec![1]);
+    let version: i64 = sqlx::query_scalar("PRAGMA user_version")
+        .fetch_one(&store.pool)
+        .await
+        .unwrap();
+    assert_eq!(version, SCHEMA_VERSION);
+    assert!(
+        store
+            .begin_credential("passphrase", "旧口令类型")
+            .await
+            .is_err()
+    );
+    let key = store.begin_credential("privateKey", "私钥").await.unwrap();
+    assert_eq!(store.get_credential(&key).await.unwrap().kind, "privateKey");
+    let columns: Vec<String> =
+        sqlx::query_scalar("SELECT name FROM pragma_table_info('profile_auth_steps')")
+            .fetch_all(&store.pool)
             .await
             .unwrap();
-    assert!(fingerprint.is_none());
+    assert!(!columns.contains(&"key_file_id".to_string()));
+    assert!(!columns.contains(&"passphrase_credential_id".to_string()));
+    store.pool.close().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn validates_public_credential_type_and_prevents_deleting_bound_credential() {
+    let directory = TestDirectory::new();
+    let store = SqliteStore::open(directory.0.join("new.sqlite3"))
+        .await
+        .unwrap();
+    let key = store.begin_credential("privateKey", "私钥").await.unwrap();
+    let mut host = draft();
+    host.auth_plan = vec![AuthStep::PrivateKey {
+        credential_id: key.clone(),
+    }];
+    assert!(store.save_host(host.clone()).await.is_err());
+    store.credential_ready(&key).await.unwrap();
+    host.auth_plan = vec![AuthStep::Password {
+        credential_id: Some(key.clone()),
+    }];
+    assert!(store.save_host(host.clone()).await.is_err());
+    host.auth_plan = vec![AuthStep::PrivateKey {
+        credential_id: key.clone(),
+    }];
+    let saved = store.save_host(host).await.unwrap();
+    assert!(!saved.has_password);
+    assert!(store.begin_delete_credential(&key).await.is_err());
+    let duplicate = store.duplicate_host(&saved.id).await.unwrap();
+    assert!(
+        matches!(duplicate.auth_plan.as_slice(), [AuthStep::PrivateKey { credential_id }] if credential_id == &key)
+    );
+    store.pool.close().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn host_password_is_hidden_owned_preserved_and_explicitly_cleared() {
+    let directory = TestDirectory::new();
+    let store = SqliteStore::open(directory.0.join("new.sqlite3"))
+        .await
+        .unwrap();
+    let owner = uuid::Uuid::new_v4().to_string();
+    let secret = store.begin_host_password(&owner, "主机密码").await.unwrap();
+    store.credential_ready(&secret).await.unwrap();
+    let saved = store
+        .save_host_with_password_ref(draft(), Some(&secret))
+        .await
+        .unwrap();
+    assert_eq!(saved.id, owner);
+    assert!(saved.has_password);
+    assert!(matches!(
+        saved.auth_plan.as_slice(),
+        [AuthStep::Password {
+            credential_id: None
+        }]
+    ));
+    assert!(store.list_credentials().await.unwrap().is_empty());
+    assert_eq!(store.list_all_credentials().await.unwrap().len(), 1);
+    let config = store.get_host_connection(&owner).await.unwrap();
+    assert!(
+        matches!(config.auth_plan.as_slice(), [AuthStep::Password { credential_id: Some(reference) }] if reference == &secret)
+    );
+    let duplicate = store.duplicate_host(&owner).await.unwrap();
+    assert!(!duplicate.has_password);
+    assert!(
+        store
+            .save_host_with_password_ref(edit(duplicate.clone()), Some(&secret))
+            .await
+            .is_err()
+    );
+    let mut forged = edit(duplicate);
+    forged.auth_plan = vec![AuthStep::Password {
+        credential_id: Some(secret.clone()),
+    }];
+    assert!(store.save_host(forged).await.is_err());
+    let preserved = store.save_host(edit(saved)).await.unwrap();
+    assert!(preserved.has_password);
+    let cleared = store
+        .save_host_with_password_ref(edit(preserved), None)
+        .await
+        .unwrap();
+    assert!(!cleared.has_password);
+    assert_eq!(
+        store.get_credential(&secret).await.unwrap().status,
+        "deleting"
+    );
+    store.finish_delete_credential(&secret).await.unwrap();
+    assert!(matches!(
+        store.get_credential(&secret).await,
+        Err(StorageError::NotFound)
+    ));
+    store.pool.close().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn replacing_and_deleting_host_marks_only_owned_password_for_cleanup() {
+    let directory = TestDirectory::new();
+    let store = SqliteStore::open(directory.0.join("new.sqlite3"))
+        .await
+        .unwrap();
+    let owner = uuid::Uuid::new_v4().to_string();
+    let first = store.begin_host_password(&owner, "原密码").await.unwrap();
+    store.credential_ready(&first).await.unwrap();
+    let host = store
+        .save_host_with_password_ref(draft(), Some(&first))
+        .await
+        .unwrap();
+    let second = store.begin_host_password(&owner, "新密码").await.unwrap();
+    store.credential_ready(&second).await.unwrap();
+    let host = store
+        .save_host_with_password_ref(edit(host), Some(&second))
+        .await
+        .unwrap();
+    assert_eq!(
+        store.get_credential(&first).await.unwrap().status,
+        "deleting"
+    );
+    assert_eq!(store.get_credential(&second).await.unwrap().status, "ready");
+    let public = store
+        .begin_credential("password", "公共密码")
+        .await
+        .unwrap();
+    store.credential_ready(&public).await.unwrap();
+    let orphan = store
+        .begin_host_password(&owner, "中断的保存")
+        .await
+        .unwrap();
+    store.credential_ready(&orphan).await.unwrap();
+    store
+        .mark_orphaned_host_credentials_deleting()
+        .await
+        .unwrap();
+    assert_eq!(
+        store.get_credential(&orphan).await.unwrap().status,
+        "deleting"
+    );
+    assert_eq!(store.get_credential(&public).await.unwrap().status, "ready");
+    assert_eq!(store.get_credential(&second).await.unwrap().status, "ready");
+    assert!(store.delete_host(&owner, host.revision + 1).await.is_err());
+    assert_eq!(store.get_credential(&second).await.unwrap().status, "ready");
+    store.delete_host(&owner, host.revision).await.unwrap();
+    assert_eq!(
+        store.get_credential(&second).await.unwrap().status,
+        "deleting"
+    );
+    store.pool.close().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn save_returns_committed_revision_and_normalized_tags() {
+    let directory = TestDirectory::new();
+    let store = SqliteStore::open(directory.0.join("new.sqlite3"))
+        .await
+        .unwrap();
+    let mut input = draft();
+    input.name = "  正规名称  ".into();
+    input.tags = vec![" z ".into(), "a".into(), "z".into()];
+    let saved = store.save_host(input).await.unwrap();
+    assert_eq!(saved.name, "正规名称");
+    assert_eq!(saved.tags, vec!["a".to_string(), "z".to_string()]);
+    assert_eq!(saved.revision, 1);
+    assert!(!saved.has_password);
+    let id = saved.id.clone();
+    let saved = store.save_host(edit(saved)).await.unwrap();
+    assert_eq!(saved.revision, 2);
+    let revision: i64 = sqlx::query_scalar("SELECT revision FROM connection_profiles WHERE id=?")
+        .bind(id)
+        .fetch_one(&store.pool)
+        .await
+        .unwrap();
+    assert_eq!(saved.revision, revision);
     store.pool.close().await;
 }

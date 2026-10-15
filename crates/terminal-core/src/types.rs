@@ -112,15 +112,9 @@ pub struct SshConfig {
 #[serde(tag = "type", rename_all = "camelCase", deny_unknown_fields)]
 pub enum AuthStep {
     #[serde(rename_all = "camelCase")]
-    Password {
-        credential_id: Option<String>,
-    },
+    Password { credential_id: Option<String> },
     #[serde(rename_all = "camelCase")]
-    PrivateKey {
-        key_file_ref: String,
-        passphrase_credential_id: Option<String>,
-    },
-    KeyboardInteractive,
+    PrivateKey { credential_id: String },
 }
 impl SshConfig {
     pub fn validate(&self) -> Result<()> {
@@ -135,8 +129,7 @@ impl SshConfig {
             || self.username.is_empty()
             || self.username.len() > 256
             || self.username.chars().any(char::is_control)
-            || self.auth_plan.is_empty()
-            || self.auth_plan.len() > 3
+            || self.auth_plan.len() != 1
         {
             return Err(SessionError::new(
                 "INVALID_CONFIG",
@@ -152,14 +145,7 @@ impl SshConfig {
                 AuthStep::Password { credential_id } => {
                     credential_id.as_deref().is_none_or(valid_ref)
                 }
-                AuthStep::PrivateKey {
-                    key_file_ref,
-                    passphrase_credential_id,
-                } => {
-                    valid_ref(key_file_ref)
-                        && passphrase_credential_id.as_deref().is_none_or(valid_ref)
-                }
-                AuthStep::KeyboardInteractive => true,
+                AuthStep::PrivateKey { credential_id } => valid_ref(credential_id),
             };
             if !valid {
                 return Err(SessionError::new(

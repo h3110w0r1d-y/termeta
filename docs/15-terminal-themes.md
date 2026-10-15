@@ -1,10 +1,10 @@
 # Terminal 配色方案、编辑与导入
 
-日期：2026-10-15。M2/P0 的 8 预设、颜色编辑/JSON、三级引用与热应用已落源码，未运行/视觉验收。终端配色独立于应用界面“系统/深色/浅色”模式；用户可以使用浅色 UI + 深色终端或相反组合。
+日期：2026-10-15。M2/P0 的64套提取预设、颜色编辑/JSON、三级引用与热应用已落源码，未运行/视觉验收。终端配色独立于应用界面“系统/深色/浅色”模式；用户可以使用浅色 UI + 深色终端或相反组合。
 
 ## 1. 内置方案与作用范围
 
-至少提供 8 种经过对比度与 ANSI 示例检查的内置方案：Termvexa Dark、Light、Ocean、Forest、Amber、Violet、High Contrast Dark、High Contrast Light。名称为项目预设设计目标，不代表颜色值已定稿；引入第三方经典主题时核对来源与许可，不默认拷贝未知授权配色包。
+按用户要求移除原8套项目预设，使用指定 Termius 解包文件静态提取的64套方案，包含 Nord Dark/Light、Solarized、Dracula、Gruvbox、Catppuccin 等。默认 Nord Dark，保留原名称和终端色值；来源、SHA-256 与映射见 [配色资源说明](../resources/README.md)。前后端从同一 JSON 读取名单；提取仅解析字面量，不执行解包代码。旧预设明暗引用在读取时归一为 Nord Dark/Light，同名 Ocean 使用新的提取值；用户自定义方案保留。运行视觉、选区和 ANSI 渲染仍待验证。
 
 方案列表支持预览、搜索、设为默认、复制为自定义、删除自定义、导入/导出。内置方案只读，编辑时创建副本；用户副本不会被升级覆盖。
 
@@ -76,6 +76,8 @@ interface TerminalColorSchemeV1 {
 
 通过已存在实例的 theme/options 更新即时应用，不能 dispose/reset/clear，不能因更换主题重新连接或清空滚屏。隐藏终端也更新主题状态，显示后按需刷新；颜色变化不必发送远端 resize，字体/字号变化才按实际尺寸触发。
 
+终端舞台与宿主边缘背景共用当前活动终端的配色解析，包含当前标签、主机覆盖和全局默认的相同优先级；切换标签或热修改配色时同步变化，避免边缘显示应用主题底色。
+
 ## 6. 预研依据与验收
 
 官方 ITheme 提供背景/前景、光标、选择、ANSI 与扩展颜色字段；项目统一模型需按最终锁定 release 映射，当前页面不等于已完成集成。[xterm ITheme](https://xtermjs.org/docs/api/terminal/interfaces/itheme/)
@@ -84,4 +86,12 @@ interface TerminalColorSchemeV1 {
 
 ## 首期实现映射（2026-10-15）
 
-src/modules/settings/themes.ts 定义8个自有预设和xterm映射，ThemeSettings/ColorField实现编辑/取色/HEX/RGB/JSON。app设置中hostSchemes保存主机覆盖，当前terminal覆盖仅内存；方案保留上限64。背景/ANSI使用HEX6，选择色可带透明度；运行热更新/对比度/传递字段仍须SP-09验证。 具体交付及限制见 [首期实施状态](17-implementation-status.md)。
+resources/terminal-palettes.json 保存64套提取配色，src/modules/settings/themes.ts 提供xterm映射，ThemeSettings/ColorField实现编辑/取色/HEX/RGB/JSON。app设置中hostSchemes保存主机覆盖，当前terminal覆盖仅内存；用户自定义方案保留上限64（与64套内置配色分别计算）。背景/ANSI使用HEX6，选择色可带透明度；运行热更新/对比度/传递字段仍须SP-09验证。 具体交付及限制见 [首期实施状态](17-implementation-status.md)。
+
+配色选项采用名称在上、ANSI 色块在下的两行布局，由 Naive UI NFlex 组织按钮内容；按钮高度随内容扩展，色块作为装饰不重复朗读。视觉效果待运行复验。
+
+64项配色采用 NGrid 自适应网格平铺，不限制高度、不设独立滚动，随设置正文的 NScrollbar 统一滚动。搜索与导入位于网格上方；点击卡片修改全局配色草稿并显示选中标记。自定义编辑默认折叠于网格下方，使用 NCollapse，展开后才初始化 xterm 预览，收起后保留实例；编辑区末尾为保存为自定义按钮，保存后选中该方案。设置正文与底部保存设置操作独立，最终持久化仍需保存设置。
+
+粗体颜色语义（2026-10-15）：实际终端与配色预览显式设置 drawBoldTextInBrightColors=false。SGR 1 只改变字重，不将普通 ANSI 0–7 提升为8–15；显式高亮色仍使用高亮色表，256色和真彩色不变。Pro 等方案色值不修改，避免用改色表补偿渲染策略。
+
+选区合成适配（2026-10-15）：实际终端与预览统一通过 src/modules/terminal/theme.ts 的 applyTerminalTheme 应用主题。未设置 selectionForeground 时，xterm 选区主题临时设为透明，避免其 DOM 渲染器为选中文字绘制已混合的底色；业务 CSS 使用原 selectionBackground/selectionInactiveBackground 将原有选区矩形覆盖在文字上方，使 ANSI/真彩色文字也参与透明混合。颜色不写回 Scheme，不改选择范围/鼠标/复制，也不逐字监听或重绘。不透明选区色沿用 xterm 的30%透明度；显式 selectionForeground 关闭该适配，使用原生主题语义。适配依赖固定 xterm 6 的 .xterm-screen/.xterm-selection DOM 和层级，升级或换渲染器须复验，不保证与 Termius 每个像素一致。

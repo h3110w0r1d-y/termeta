@@ -47,8 +47,9 @@ pub fn run() {
                 use std::os::unix::fs::PermissionsExt;
                 std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700))?;
             }
+            // 新凭据模型采用独立数据库代际，保留旧库且不尝试兼容迁移。
             let store = Arc::new(tauri::async_runtime::block_on(SqliteStore::open(
-                path.join("termvexa.sqlite3"),
+                path.join("termvexa-credentials-v1.sqlite3"),
             ))?);
             let vault = Arc::new(CredentialVault::new(store.clone()));
             let recover_vault = vault.clone();

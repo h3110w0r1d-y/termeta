@@ -1,9 +1,18 @@
 <script setup lang="ts">
+import { NFlex, NForm } from "naive-ui";
 import { clone } from "../../services/data/clone";
 import { computed, ref, watch } from "vue";
 import AppDialog from "../../components/ui/AppDialog.vue";
+import AppSelect from "../../components/ui/AppSelect.vue";
+import AppCheckbox from "../../components/ui/AppCheckbox.vue";
+import AppButton from "../../components/ui/AppButton.vue";
+import AppInput from "../../components/ui/AppInput.vue";
+import AppLabel from "../../components/ui/AppLabel.vue";
+import AppNumberField from "../../components/ui/AppNumberField.vue";
 import { desktop, errorMessage } from "../../services/desktop/client";
 import type {
+  AuthStep,
+  CredentialMetadata,
   HostDraft,
   HostProfile,
   SshConfig,
@@ -26,13 +35,13 @@ const settings = useSettings();
 const hosts = useHosts(),
   busy = ref(false),
   error = ref(""),
-  auth = ref("password"),
-  keyName = ref(""),
+  auth = ref<"password" | "privateKey">("password"),
   tagText = ref(""),
-  hostScheme = ref<string>(),
+  hostScheme = ref(""),
   savedRevision = ref<number | null>(null),
-  interactive = ref(false),
-  saveSecret = ref(false),
+  committedHost = ref<HostProfile | null>(null),
+  credentials = ref<CredentialMetadata[]>([]),
+  credentialId = ref(""),
   secret = ref("");
 const blank = (): HostDraft => ({
   id: null,
@@ -46,37 +55,98 @@ const blank = (): HostDraft => ({
   authPlan: [{ type: "password" }],
 });
 const draft = ref<HostDraft>(blank());
+const fieldsLocked = computed(() => busy.value || !!committedHost.value);
 watch(
   () => props.open,
   (open) => {
     if (open) {
+      committedHost.value = null;
       draft.value = props.host
-        ? {
-            ...clone(props.host),
-            id: props.duplicate ? null : props.host.id,
-          }
+        ? (() => {
+            const {
+              hasPassword: _hasPassword,
+              revision: _revision,
+              ...profile
+            } = clone(props.host);
+            return { ...profile, id: props.duplicate ? null : props.host.id };
+          })()
         : blank();
       if (props.duplicate) draft.value.name += " 副本";
       savedRevision.value = props.duplicate
         ? null
         : (props.host?.revision ?? null);
-      interactive.value =
-        draft.value.authPlan.length > 1 &&
-        draft.value.authPlan.some((p) => p.type === "keyboardInteractive");
-      auth.value = draft.value.authPlan[0]?.type ?? "password";
+      const first = draft.value.authPlan.find(
+        (step) => step.type === "password" || step.type === "privateKey",
+      );
+      auth.value = first?.type === "privateKey" ? "privateKey" : "password";
+      credentialId.value = first?.credentialId ?? "";
+      void desktop
+        .listCredentials()
+        .then((items) => {
+          credentials.value = items;
+        })
+        .catch((e) => {
+          error.value = errorMessage(e);
+        });
       tagText.value = draft.value.tags.join(", ");
-      keyName.value = auth.value === "privateKey" ? "已授权私钥" : "";
       error.value = "";
       hostScheme.value = props.host
-        ? settings.value.hostSchemes[props.host.id]
-        : undefined;
+        ? (settings.value.hostSchemes[props.host.id] ?? "")
+        : "";
       secret.value = "";
-      saveSecret.value = false;
     } else {
       secret.value = "";
     }
   },
 );
+watch(
+  auth,
+  () => {
+    credentialId.value = "";
+    secret.value = "";
+  },
+  { flush: "sync" },
+);
+watch(
+  credentialId,
+  () => {
+    secret.value = "";
+  },
+  { flush: "sync" },
+);
+const authOptions = [
+  { value: "password" as const, label: "密码认证" },
+  { value: "privateKey" as const, label: "公钥认证" },
+];
+const credentialOptions = computed(() => [
+  {
+    value: "",
+    label:
+      auth.value === "privateKey"
+        ? "请选择私钥凭据"
+        : "不引用凭据，使用主机专属密码",
+  },
+  ...credentials.value
+    .filter((item) => item.status === "ready" && item.kind === auth.value)
+    .map((item) => ({ value: item.id, label: item.label })),
+]);
+const schemeOptions = computed(() => [
+  { value: "", label: "跟随全局默认" },
+  ...[...builtinSchemes, ...settings.value.customSchemes].map((scheme) => ({
+    value: scheme.id,
+    label: scheme.name,
+  })),
+]);
+const groupOptions = computed(() => [
+  { value: "", label: "未分组" },
+  ...hosts.groups.map((group) => ({ value: group.id, label: group.name })),
+]);
+const groupId = computed({
+  get: () => draft.value.groupId ?? "",
+  set: (value: string) => {
+    draft.value.groupId = value || null;
+  },
+});
 const valid = computed(
   () =>
     draft.value.address.trim() &&
@@ -84,53 +154,22 @@ const valid = computed(
     Number.isInteger(draft.value.port) &&
     draft.value.port > 0 &&
     draft.value.port < 65536 &&
-    !(!props.quick && !draft.value.name.trim()),
+    !(!props.quick && !draft.value.name.trim()) &&
+    (auth.value !== "privateKey" || !!credentialId.value),
 );
-async function selectKey() {
-  try {
-    const file = await desktop.selectKey();
-    if (file) {
-      draft.value.authPlan = [
-        { type: "privateKey", keyFileRef: file.keyFileRef },
-      ];
-      keyName.value = file.name;
-    }
-  } catch (e) {
-    error.value = errorMessage(e);
-  }
-}
 async function submit() {
-  if (!valid.value) return;
+  if (!valid.value || busy.value) return;
   busy.value = true;
   error.value = "";
   try {
-    const plan: import("../../services/desktop/types").AuthStep[] =
+    if (auth.value === "privateKey" && !credentialId.value)
+      throw new Error("请先在凭据页创建并选择私钥凭据");
+    // 主机只保存认证引用；专属密码单独传递，避免进入轻量配置状态。
+    const first: AuthStep =
       auth.value === "privateKey"
-        ? draft.value.authPlan.filter((p) => p.type === "privateKey")
-        : [
-            draft.value.authPlan.find((p) => p.type === auth.value) ?? {
-              type: auth.value as "password" | "keyboardInteractive",
-            },
-          ];
-    if (!plan.length) throw new Error("请先通过原生选择器授权私钥");
-    if (interactive.value && auth.value !== "keyboardInteractive")
-      plan.push({ type: "keyboardInteractive" });
-    if (
-      saveSecret.value &&
-      secret.value &&
-      auth.value !== "keyboardInteractive"
-    ) {
-      const credential = await desktop.saveCredential(
-        auth.value === "privateKey" ? "passphrase" : "password",
-        draft.value.name || draft.value.address,
-        secret.value,
-      );
-      const first = plan[0];
-      if (first?.type === "password") first.credentialId = credential.id;
-      else if (first?.type === "privateKey")
-        first.passphraseCredentialId = credential.id;
-      secret.value = "";
-    }
+        ? { type: "privateKey", credentialId: credentialId.value }
+        : { type: "password", credentialId: credentialId.value || undefined };
+    const plan: AuthStep[] = [first];
     draft.value = {
       ...draft.value,
       address: draft.value.address.trim(),
@@ -154,7 +193,15 @@ async function submit() {
         draft.value.name || draft.value.address,
       );
     else {
-      const saved = await hosts.save(draft.value, savedRevision.value);
+      // 主机提交后重试仅保存配色，不能因输入已清空再次覆盖专属密码。
+      const saved =
+        committedHost.value ??
+        (await hosts.save(
+          draft.value,
+          savedRevision.value,
+          auth.value === "password" && !credentialId.value ? secret.value : "",
+        ));
+      committedHost.value = saved;
       savedRevision.value = saved.revision;
       draft.value.id = saved.id;
       const next = clone(settings.value);
@@ -165,7 +212,9 @@ async function submit() {
     }
     emit("update:open", false);
   } catch (e) {
-    error.value = errorMessage(e);
+    error.value = committedHost.value
+      ? `主机已保存，配色保存失败；重试只保存配色，不会修改密码。${errorMessage(e)}`
+      : errorMessage(e);
   } finally {
     secret.value = "";
     busy.value = false;
@@ -175,103 +224,184 @@ async function submit() {
 <template>
   <AppDialog
     :open="open"
+    :locked="busy"
     :title="quick ? '快速连接' : host && !duplicate ? '编辑主机' : '新建主机'"
-    description="密码在连接时输入；私钥由原生选择器授权。"
+    description="选择密码或公钥认证；额外验证由服务器在连接时自动提示。"
     @update:open="emit('update:open', $event)"
-    ><form class="form-grid" @submit.prevent="submit">
-      <label class="span-2"
-        >名称<input
-          v-model="draft.name"
-          :required="!quick"
-          maxlength="120"
-          placeholder="例如：生产环境 · 上海"
-      /></label>
-      <label
-        >主机地址<input
-          v-model="draft.address"
-          required
-          maxlength="253"
-          placeholder="example.com / IPv6" /></label
-      ><label
-        >端口<input
-          v-model.number="draft.port"
-          type="number"
-          min="1"
-          max="65535"
-          required
-      /></label>
-      <label
-        >用户名<input
-          v-model="draft.username"
-          required
-          maxlength="256"
-          autocomplete="off" /></label
-      ><label
-        >认证方式<select v-model="auth">
-          <option value="password">密码</option>
-          <option value="privateKey">OpenSSH 私钥</option>
-          <option value="keyboardInteractive">交互认证 / OTP</option>
-        </select></label
-      >
-      <label v-if="auth !== 'keyboardInteractive'" class="check span-2"
-        ><input v-model="interactive" type="checkbox" />密码 /
-        私钥之后继续交互认证（OTP）</label
-      >
-      <div v-if="auth === 'privateKey'" class="span-2">
-        <button type="button" @click="selectKey">选择私钥文件</button>
-        <span class="muted">{{ keyName || "不读取或展示私钥正文" }}</span>
-      </div>
-      <div v-if="!quick && auth !== 'keyboardInteractive'" class="span-2">
-        <label class="check"
-          ><input v-model="saveSecret" type="checkbox" />保存密码 /
-          私钥口令到系统凭据库</label
-        ><input
-          v-if="saveSecret"
-          v-model="secret"
-          type="password"
-          autocomplete="new-password"
-          placeholder="系统凭据库不可用时将明确报错"
-        />
-      </div>
-      <label v-if="!quick" class="span-2"
-        >主机终端配色<select v-model="hostScheme">
-          <option :value="undefined">跟随全局默认</option>
-          <option
-            v-for="scheme in [
-              ...builtinSchemes,
-              ...settings.value.customSchemes,
-            ]"
-            :key="scheme.id"
-            :value="scheme.id"
-          >
-            {{ scheme.name }}
-          </option>
-        </select></label
-      >
-      <template v-if="!quick"
-        ><label
-          >分组<select v-model="draft.groupId">
-            <option :value="null">未分组</option>
-            <option
-              v-for="group in hosts.groups"
-              :key="group.id"
-              :value="group.id"
-            >
-              {{ group.name }}
-            </option>
-          </select></label
-        ><label>标签<input v-model="tagText" placeholder="生产, Linux" /></label
-        ><label class="check span-2"
-          ><input v-model="draft.favorite" type="checkbox" />加入收藏</label
-        ></template
-      >
-      <p v-if="error" class="error span-2" role="alert">{{ error }}</p>
-      <footer class="dialog-actions span-2">
-        <button type="button" @click="emit('update:open', false)">取消</button
-        ><button class="primary" :disabled="busy || !valid">
-          {{ busy ? "处理中…" : quick ? "连接" : "保存主机" }}
-        </button>
-      </footer>
-    </form></AppDialog
   >
+    <NForm
+      id="host-editor-form"
+      :disabled="fieldsLocked"
+      @submit.prevent="submit"
+    >
+      <fieldset class="host-fields form-grid" :disabled="fieldsLocked">
+        <div class="field span-2">
+          <AppLabel for="host-name">名称</AppLabel>
+          <AppInput
+            id="host-name"
+            v-model="draft.name"
+            :required="!quick"
+            maxlength="120"
+            placeholder="例如：生产环境 · 上海"
+          />
+        </div>
+        <div class="field">
+          <AppLabel for="host-address">主机地址</AppLabel>
+          <AppInput
+            id="host-address"
+            v-model="draft.address"
+            required
+            maxlength="253"
+            placeholder="example.com / IPv6"
+          />
+        </div>
+        <div class="field">
+          <AppLabel for="host-port">端口</AppLabel>
+          <AppNumberField
+            id="host-port"
+            v-model="draft.port"
+            :min="1"
+            :max="65535"
+            required
+          />
+        </div>
+        <div class="field">
+          <AppLabel for="host-username">用户名</AppLabel>
+          <AppInput
+            id="host-username"
+            v-model="draft.username"
+            required
+            maxlength="256"
+            autocomplete="off"
+          />
+        </div>
+        <div class="field">
+          <AppLabel for="host-auth">认证方式</AppLabel>
+          <AppSelect
+            id="host-auth"
+            v-model="auth"
+            :options="authOptions"
+            :disabled="fieldsLocked"
+          />
+        </div>
+        <p class="muted span-2 auth-hint">
+          连接时自动识别服务器要求的后续认证，需要验证码时会提示输入。
+        </p>
+        <div class="field span-2">
+          <AppLabel for="host-credential">{{
+            auth === "privateKey" ? "私钥凭据" : "密码凭据"
+          }}</AppLabel>
+          <AppSelect
+            id="host-credential"
+            v-model="credentialId"
+            :options="credentialOptions"
+            :disabled="fieldsLocked"
+          />
+          <p v-if="auth === 'privateKey'" class="muted auth-hint">
+            私钥及其可选解密密码统一在凭据页创建和管理。
+          </p>
+        </div>
+        <div v-if="auth === 'password' && !credentialId" class="field span-2">
+          <template v-if="!quick">
+            <AppLabel for="host-password">主机专属密码（可选）</AppLabel>
+            <AppInput
+              id="host-password"
+              v-model="secret"
+              type="password"
+              autocomplete="new-password"
+              :disabled="fieldsLocked"
+              placeholder="填写后随主机安全保存；留空则连接时询问"
+            />
+            <p class="muted auth-hint">
+              此密码仅用于当前主机，不进入可复用凭据库。{{
+                host?.hasPassword && !duplicate
+                  ? "当前已保存密码；留空保存会移除旧密码，改为连接时询问。"
+                  : duplicate && host?.hasPassword
+                    ? "复制主机不会复制原主机的专属密码。"
+                    : ""
+              }}
+            </p>
+          </template>
+          <p v-else class="muted auth-hint">
+            快速连接不保存专属密码，本次连接时会询问。
+          </p>
+        </div>
+        <div v-if="!quick" class="field span-2">
+          <AppLabel for="host-scheme">主机终端配色</AppLabel>
+          <AppSelect
+            id="host-scheme"
+            v-model="hostScheme"
+            :options="schemeOptions"
+            :disabled="fieldsLocked"
+          />
+        </div>
+        <template v-if="!quick">
+          <div class="field">
+            <AppLabel for="host-group">分组</AppLabel>
+            <AppSelect
+              id="host-group"
+              v-model="groupId"
+              :options="groupOptions"
+              :disabled="fieldsLocked"
+            />
+          </div>
+          <div class="field">
+            <AppLabel for="host-tags">标签</AppLabel>
+            <AppInput
+              id="host-tags"
+              v-model="tagText"
+              placeholder="生产, Linux"
+            />
+          </div>
+          <AppCheckbox
+            v-model="draft.favorite"
+            class="span-2"
+            :disabled="fieldsLocked"
+            >加入收藏</AppCheckbox
+          >
+        </template>
+        <p v-if="error" class="error span-2" role="alert">{{ error }}</p>
+      </fieldset>
+    </NForm>
+    <template #footer>
+      <NFlex justify="end">
+        <AppButton :disabled="busy" @click="emit('update:open', false)">{{
+          committedHost ? "关闭" : "取消"
+        }}</AppButton>
+        <AppButton
+          type="submit"
+          form="host-editor-form"
+          class="primary"
+          :disabled="busy || !valid"
+          >{{
+            busy
+              ? "处理中…"
+              : committedHost
+                ? "重试保存配色"
+                : quick
+                  ? "连接"
+                  : "保存主机"
+          }}</AppButton
+        >
+      </NFlex>
+    </template>
+  </AppDialog>
 </template>
+<style scoped>
+.host-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.auth-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+</style>

@@ -16,8 +16,7 @@ export interface TerminalSize {
 }
 export type AuthStep =
   | { type: "password"; credentialId?: string }
-  | { type: "privateKey"; keyFileRef: string; passphraseCredentialId?: string }
-  | { type: "keyboardInteractive" };
+  | { type: "privateKey"; credentialId: string };
 export interface SshConfig {
   configVersion: 1;
   address: string;
@@ -32,8 +31,9 @@ export interface HostProfile extends Omit<SshConfig, "configVersion"> {
   favorite: boolean;
   tags: string[];
   revision: number;
+  hasPassword: boolean;
 }
-export type HostDraft = Omit<HostProfile, "id" | "revision"> & {
+export type HostDraft = Omit<HostProfile, "id" | "revision" | "hasPassword"> & {
   id: string | null;
 };
 export interface HostGroup {
@@ -117,5 +117,12 @@ export interface CredentialMetadata {
   status: string;
   id: string;
   label: string;
-  kind: string;
+  kind: "password" | "privateKey";
+}
+export interface CredentialDraft {
+  kind: "password" | "privateKey";
+  label: string;
+  password?: string;
+  keyFileRef?: string;
+  passphrase?: string;
 }

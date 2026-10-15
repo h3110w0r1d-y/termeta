@@ -1,3 +1,19 @@
+pub const TERMINAL_FONTS: &[&str] = &[
+    "DejaVu Sans Mono",
+    "Droid Sans Mono",
+    "Ubuntu Mono",
+    "Anonymous Pro",
+    "Inconsolata",
+    "Fira Mono",
+    "Source Code Pro",
+    "PT Mono",
+    "Cascadia Code",
+    "Fira Code",
+    "JetBrains Mono",
+    "Meslo",
+];
+pub const DEFAULT_TERMINAL_FONT: &str = "JetBrains Mono";
+
 use serde_json::Value;
 use terminal_core::{Result, SessionError};
 
@@ -21,6 +37,7 @@ pub fn validate(settings: &Value) -> Result<()> {
     let allowed = [
         "schemaVersion",
         "appearance",
+        "tabPosition",
         "fontFamily",
         "fontSize",
         "scrollback",
@@ -37,6 +54,10 @@ pub fn validate(settings: &Value) -> Result<()> {
             settings["appearance"].as_str(),
             Some("system" | "dark" | "light")
         )
+        // 兼容尚未保存布局偏好的旧设置；新值只允许顶部或左侧标签栏。
+        || object.get("tabPosition").is_some_and(|value| {
+            !matches!(value.as_str(), Some("top" | "left"))
+        })
         || !settings["fontSize"]
             .as_f64()
             .is_some_and(|n| (10.0..=32.0).contains(&n))
@@ -45,7 +66,7 @@ pub fn validate(settings: &Value) -> Result<()> {
             .is_some_and(|n| (1000..=50000).contains(&n))
         || !settings["fontFamily"]
             .as_str()
-            .is_some_and(|s| !s.is_empty() && s.len() <= 256 && !s.chars().any(char::is_control))
+            .is_some_and(|s| TERMINAL_FONTS.contains(&s))
         || !settings["confirmClose"].is_boolean()
         || !settings["multilinePaste"].is_boolean()
     {
@@ -224,20 +245,47 @@ pub fn validate(settings: &Value) -> Result<()> {
     }
     Ok(())
 }
-fn builtin(id: &str) -> bool {
-    // 与前端内置方案名单共同维护，未知引用不能静默回退。
-    [
-        "dark",
-        "light",
-        "ocean",
-        "forest",
-        "amber",
-        "violet",
-        "contrast-dark",
-        "contrast-light",
-    ]
-    .contains(&id)
+#[derive(serde::Deserialize)]
+struct BuiltinPaletteId {
+    id: String,
 }
+fn builtin(id: &str) -> bool {
+    // 与前端读取同一静态资源，避免新增配色后遗漏后端白名单。
+    static PALETTES: std::sync::OnceLock<Vec<BuiltinPaletteId>> = std::sync::OnceLock::new();
+    PALETTES
+        .get_or_init(|| {
+            serde_json::from_str(include_str!("../../resources/terminal-palettes.json"))
+                .expect("内置配色资源必须为有效 JSON")
+        })
+        .iter()
+        .any(|palette| palette.id == id)
+}
+pub fn normalize_legacy_schemes(settings: &mut Value) {
+    fn replacement(id: &str) -> Option<&'static str> {
+        match id {
+            "light" | "contrast-light" => Some("nord-light"),
+            "dark" | "forest" | "amber" | "violet" | "contrast-dark" => Some("nord-dark"),
+            _ => None,
+        }
+    }
+    // 仅收敛已移除的项目预设；Ocean 的新配色同名同 ID，未知引用仍由校验拒绝。
+    if let Some(default) = settings.get_mut("defaultSchemeId") {
+        if let Some(next) = default.as_str().and_then(replacement) {
+            *default = Value::String(next.into());
+        }
+    }
+    if let Some(hosts) = settings
+        .get_mut("hostSchemes")
+        .and_then(Value::as_object_mut)
+    {
+        for scheme in hosts.values_mut() {
+            if let Some(next) = scheme.as_str().and_then(replacement) {
+                *scheme = Value::String(next.into());
+            }
+        }
+    }
+}
+
 fn command(id: &str) -> bool {
     [
         "workspace.newConnection",

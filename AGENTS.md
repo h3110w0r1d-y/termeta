@@ -19,22 +19,25 @@ Termvexa 是基于 Tauri 2 + Rust + Vue 3 + TypeScript 的桌面终端客户端�
 
 | 项目 | 状态 |
 | --- | --- |
-| Tauri 2 + Vue 3 + TypeScript | 已替换 greet 模板为模块化 SSH 工作区，代码实现待集成验证 |
+| Tauri 2 + Vue 3 + TypeScript | 已重构为固定首页/SFTP + SSH Tab 工作区，支持顶部/左侧标签布局；源码待集成验证 |
 | 首期 M1/M2 | core/ssh/storage/security、桌面命令、主机管理、多标签、认证、设置已落源码；未通过运行验收 |
-| 终端生命周期 | TerminalRegistry 按 terminalId 保活；断线/失败保留；重连排空旧流后追加；全屏/IME/三平台待验证 |
-| UI、快捷键、配色 | 已接入 Reka UI、xterm 与 Pinia；快捷键编辑、8 内置配色、自定义 JSON 和热应用已实现待验证 |
-| 存储与凭据 | SQLx SQLite migration、主机/分组/信任/历史/app 设置；OS keyring，禁止明文回退；实际系统服务待验证 |
+| 终端生命周期 | TerminalRegistry 按 terminalId 保活；断线/失败保留；补充根页面滚动隔离、宿主背景同步与修饰键跳底修复；macOS Option+左右键映射 Meta-b/f 跳词；链接激活保留 mouseup 冒泡并延后打开浏览器，修复回窗后残留拖选，待运行复验；全屏/IME/三平台待验证 |
+| UI、快捷键、配色 | 首页侧栏含主机/凭据/内嵌设置，移除品牌/页脚装饰，三页共用页头；主机页显隐由原生容器承接，修复切页内容叠加；工作区标签由 WorkspaceTabs 自定义 DOM 实现，同一连接重复打开按 (2)/(3) 递增，会话区按内容占位并可收缩滚动，36px方形新建按钮紧随其后、空白弹性区隔开末尾连接数，侧栏适配纵向排列；支持横纵布局、溢出滚动、键盘与现有右键菜单，SSH 标签悬停以整项统一高亮，悬停/激活背景通过 useThemeVars 使用 Naive UI buttonColor2/buttonColor2Hover，激活优先，关闭按钮使用 NIcon/SVG 与主题 closeColorHover 半透明悬停层；横向标签上下居中，标签高36px、关闭按钮24px且上下及右侧留白6px，四角圆角跟随 Naive UI borderRadius，固定区与会话区用分隔线区分，拖拽排序尚未实现；SSH 标签菜单替代工具栏；界面默认禁止无关文本选中，弹窗操作统一 footer；配色选项自适应网格、名称与色块分行，自定义折叠于网格下方、末尾保存；设置操作固定于滚动正文下方；已以用户提供的64套提取配色替换8套自有预设，默认 Nord Dark；终端与配色预览关闭粗体自动提亮，保留普通/高亮 ANSI 色语义；共享 terminal/theme.ts 在未显式指定选区文字色时将透明选区覆盖文字，适配固定 xterm 6 DOM 图层，待运行复验；Naive UI、快捷键与配色待运行验证；已内置12种本地终端字体，固定下拉选项及当前值使用对应实际字体预览，字体加载/三平台待复验 |
+| 存储与凭据 | 新 schema 基线1；公共凭据仅密码/私钥（含可选解密密码），主机可引用或直接保存专属密码；OS keyring，无明文回退；未做旧库兼容 |
 | 安全边界 | 自定义命令 AppManifest/ACL、main owner 校验、导航限制与 CSP 已落配置；不表示已通过安全审计 |
-| Local / Serial / SFTP / 隧道 / 分屏 | 保留设计，未实现，未暴露可用入口 |
-| 验证 | 用户提供 macOS 启动日志：进入 setup 后因迁移校验和不匹配失败；已修源码待复验。代理仍仅静态检查，禁止主动编译/运行 |
+| SSH 认证 | 界面仅密码/公钥认证；按服务器方法与部分成功自动衔接 OTP，删除手动追加开关；待互通验证 |
+| Local / Serial / SFTP / 隧道 / 分屏 | SFTP 固定双栏布局已落源码，用户确认实际文件操作仍留 M3；其余保留设计 |
+| 验证 | 用户已进入终端并反馈滚动/背景/修饰键问题，修复待复验；长按回车空白已由用户确认是 zsh 行为。代理仍仅静态检查，禁止主动编译/运行 |
 
-已移除 greet、移动端入口宏和宽泛默认 opener 权限；原生私钥选择只返回引用，凭据接口不返回秘密。根 Cargo workspace 统一四个领域 crate 与 Tauri 壳，锁文件在仓库根目录。代理没有启动应用、连接真实主机或执行 Rust 编译/测试；用户已尝试 macOS 启动但尚未成功进入工作区，三平台验证未完成。
+已移除 greet、移动端入口宏和宽泛默认 opener 权限；原生私钥选择只返回引用，凭据接口不返回秘密。根 Cargo workspace 统一四个领域 crate 与 Tauri 壳，锁文件在仓库根目录。代理没有启动应用、连接真实主机或执行 Rust 编译/测试；用户已反馈实际终端体验，三平台验证未完成。
+
+凭据与主机模型按用户要求重构且不考虑旧数据库兼容迁移：主机直接密码非空自动保存为专属 OS item，显式空值移除并改为连接时询问，无记住开关；元数据更新省略密码则保留。私钥正文与可选解密密码整体导入凭据库，不再独立保存口令凭据，连接不依赖原文件。新基线独立使用 `termvexa-credentials-v1.sqlite3`，旧 `termvexa.sqlite3` 与系统凭据不修改或删除，也不迁移；用户已确认旧路径因版本 2 高于新 schema 1 导致启动失败，路径隔离修复待复验。
 
 ## 4. 架构约定
 
 当前已建立 `src/modules/`、`src/services/desktop/`、`src-tauri/src/commands/` 及 core/ssh/storage/security 四个 crate。完整目标结构见 [架构文档](docs/03-architecture.md)，后续领域仍是计划。
 
-- `src/modules/*`：hosts、terminal、workspace、settings，以及后续 files/transfers；Vue/Pinia 只保存轻量状态，不保存终端输出或文件正文字节。CommandRegistry/KeymapService 统一动作与快捷键，TerminalThemeService 独立管理终端配色。
+- `src/modules/*`：hosts、credentials、terminal、workspace、settings，以及后续 files/transfers；Vue/Pinia 只保存轻量状态，不保存终端输出或文件正文字节。CommandRegistry/KeymapService 统一动作与快捷键，TerminalThemeService 独立管理终端配色。
 - `src/services/desktop/`：唯一 Tauri IPC 门面；组件不直接调用 `invoke`。
 - `src-tauri/src/`：命令 DTO、窗口所有权校验、Channel 桥接、依赖组装；不承载协议核心逻辑。
 - `crates/terminal-core/`：不依赖 Tauri/Vue/russh 的会话模型、能力、actor 控制、生命周期和扩展协议。
@@ -44,9 +47,13 @@ Termvexa 是基于 Tauri 2 + Rust + Vue 3 + TypeScript 的桌面终端客户端�
 
 会话采用**每会话 actor + 有界字节队列 + 独立取消信号**；重连创建新的后端 session ID，但保留同一 Tab、terminalId 与 xterm 实例，在原缓冲中追加输出。断线、连接失败和后端终态均不得自动关闭 Tab、清空或销毁终端；历史继续可滚动、选择、复制和搜索。TerminalRegistry 按 terminalId 持有实例，不能以 sessionId 变化触发重建。输出走二进制 Channel，控制事件走类型化 Channel，使用消费 ACK 实现端到端背压。所有凭据、信任与网络操作由 Rust 管理。
 
-前端控件采用 **Reka UI primitives + 项目封装组件 + CSS 变量/自定义样式** 的方向。终端宿主与工作区生命周期由应用掌控；Reka 的隐藏/卸载行为不得销毁终端。release 已锁定，三平台集成尚未验证，详见 UI 选型文档。
+首页和 SFTP 为不可关闭的固定 Tab，SSH 标签随后；设置 `tabPosition` 控制顶部/左侧布局，旧设置默认顶部。首页内侧栏为主机、凭据、设置。固定页面不创建 session/xterm，切换页面与布局不卸载终端。SFTP 本期仅未连接双栏布局，无文件服务或传输。认证按服务器协商自动补充 Keyboard-interactive，不由用户配置追加 OTP。
 
-快捷键设置分应用内全局与终端类别（含修饰键点击链接）；系统后台热键另行 opt-in。Cmd+L 的 Local 动作待 M4 工厂可用才启用。终端配色独立于应用主题，至少 8 个内置方案，支持任意取色与 JSON 导入，热切换不清历史。SFTP 左/右/底部可隐藏面板与双栏 Tab 共用后端，远端互传默认有界内存中转，上传/下载/互传均检查覆盖并确认；原生拖出必须单独验证，不能用 Web DnD 替代。
+前端统一采用 **Naive UI 2.45.3**，已放弃并移除 Reka UI。工作区顶部/侧栏标签按用户要求使用自定义 WorkspaceTabs，为后续拖拽/菜单扩展保留独立组件与稳定 terminalId；其余所有有库对应能力的交互控件优先直接使用 Naive UI；项目封装只做薄适配。使用 NConfigProvider/库主题与现成样式，不另造控件皮肤，仅保留业务布局、尺寸和终端必要 CSS。终端宿主与工作区生命周期由应用掌控，Tab 显隐不得销毁 xterm。系统文件授权与 xterm 不由 UI 库替代。三平台集成尚未验证，详见 UI 选型文档。
+
+首页主机页保活显隐必须挂在原生 DOM 容器，不能直接给以观察器为根的滚动组件施加 v-show；主机/凭据页各用独立 NScrollbar，设置占满可用高度；三页统一 NH1/NText 页头与页面间距，不显示 eyebrow 或首页品牌/页脚装饰。配色选项以 NGrid 自适应平铺，网格自然展开，不限高且不设独立滚动，随设置正文统一滚动；搜索/导入位于上方，自定义内容用 NCollapse 默认折叠在网格下方，保存为自定义位于编辑区末尾。点击卡片选择全局配色草稿，最终由底部保存设置持久化；展开自定义后才初始化预览。内嵌 AppDialog 将 NScrollbar 正文和底部 footer 分开，设置操作区始终可见。弹窗操作使用 AppDialog 的 `#footer` 并转发到 NModal card footer，正文由库的 content-scrollable 管理，按钮不能放进滚动正文。界面装饰文字默认不可选，输入/编辑区、终端自身选区和显式可复制正文保留选择能力。
+
+快捷键设置分应用内全局与终端类别（含修饰键点击链接）；系统后台热键另行 opt-in。Cmd+L 的 Local 动作待 M4 工厂可用才启用。终端字体固定为12个随应用分发的家族，默认 JetBrains Mono；字体、来源清单和许可证位于 `public/fonts/`，CSS 别名与异步字宽重算避免系统字体版本差异；旧自由字体串读取时归一为默认项，保存由 Rust 白名单校验。终端配色独立于应用主题，内置64套从用户指定解包数据静态提取的方案，默认 Nord Dark；前后端共用 `resources/terminal-palettes.json`，提取脚本与来源摘要随仓库保留；旧自有预设已移除，旧明暗引用读取时分别归一至 Nord Light/Dark，同名 Ocean 使用提取值，用户自定义方案保留。配色支持任意取色与 JSON 导入，热切换不清历史。SFTP 左/右/底部可隐藏面板与双栏 Tab 共用后端，远端互传默认有界内存中转，上传/下载/互传均检查覆盖并确认；原生拖出必须单独验证，不能用 Web DnD 替代。
 
 ## 5. 文档索引与阅读顺序
 
@@ -65,7 +72,7 @@ Termvexa 是基于 Tauri 2 + Rust + Vue 3 + TypeScript 的桌面终端客户端�
 | [10-roadmap.md](docs/10-roadmap.md) | 里程碑、任务依赖、风险、进度 |
 | [11-validation.md](docs/11-validation.md) | 后续验证方案、测试矩阵、性能目标 |
 | [12-decisions.md](docs/12-decisions.md) | 架构决策与变更条件 |
-| [13-ui-stack.md](docs/13-ui-stack.md) | Reka UI 官方预研、控件映射、桌面适配与集成边界 |
+| [13-ui-stack.md](docs/13-ui-stack.md) | Naive UI 固定版本、控件映射、主题与桌面集成边界 |
 | [14-shortcuts.md](docs/14-shortcuts.md) | 全局/终端快捷键、修饰键点击、冲突/焦点/配置与原生边界 |
 | [15-terminal-themes.md](docs/15-terminal-themes.md) | 内置/自定义配色、取色编辑、导入导出与热应用 |
 | [17-implementation-status.md](docs/17-implementation-status.md) | 首期源码交付、静态验证证据、已知限制与运行验收入口 |

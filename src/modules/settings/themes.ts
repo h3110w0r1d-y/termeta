@@ -3,55 +3,20 @@ import { parseJson } from "../../services/data/json";
 import { clone } from "../../services/data/clone";
 import type { ITheme } from "@xterm/xterm";
 import type { Scheme } from "./model";
-const ansi = [
-  "#18202c",
-  "#ef6b73",
-  "#9ccf83",
-  "#e5c07b",
-  "#74a9e8",
-  "#ba95da",
-  "#7ac6cd",
-  "#c5cbd3",
-  "#677386",
-  "#ff8e97",
-  "#b7e59f",
-  "#f9d79a",
-  "#91c5ff",
-  "#d6b4f3",
-  "#9ee2e8",
-  "#f4f7fc",
-];
-const presets = [
-  ["dark", "Termvexa Dark", "#111722", "#d5deed", "#81b1ed"],
-  ["light", "Termvexa Light", "#fafbfe", "#25334a", "#376db7"],
-  ["ocean", "Ocean", "#081e2b", "#c0e5ee", "#70d5e2"],
-  ["forest", "Forest", "#11251e", "#d0e2ce", "#a5ce8f"],
-  ["amber", "Amber", "#231c12", "#e8d4aa", "#efc476"],
-  ["violet", "Violet", "#201a31", "#dfd3f0", "#bfa2ee"],
-  ["contrast-dark", "High Contrast Dark", "#000000", "#ffffff", "#ffff00"],
-  ["contrast-light", "High Contrast Light", "#ffffff", "#000000", "#0000cc"],
-] as const;
-export const builtinSchemes: Scheme[] = presets.map(
-  ([id, name, background, foreground, cursor]) => ({
-    schemaVersion: 1,
-    id,
-    name,
-    source: "builtin",
-    colors: {
-      background,
-      foreground,
-      cursor,
-      cursorAccent: background,
-      selectionBackground: "#6085ab80",
-      selectionInactiveBackground: "#6085ab40",
-      ansi: [...ansi],
-    },
-  }),
-);
+import palettes from "../../../resources/terminal-palettes.json";
+// 名称和终端色值由用户提供的配色数组静态提取，映射及摘要见 resources 中的来源记录。
+export const builtinSchemes: Scheme[] = palettes.map((palette): Scheme => ({
+  ...palette,
+  schemaVersion: 1,
+  source: "builtin",
+}));
+export const defaultSchemeId = "nord-dark";
+export const defaultScheme = builtinSchemes.find(
+  (s) => s.id === defaultSchemeId,
+)!;
 export function resolveScheme(id: string, custom: Scheme[]) {
   return (
-    [...builtinSchemes, ...custom].find((s) => s.id === id) ??
-    builtinSchemes[0]!
+    [...builtinSchemes, ...custom].find((s) => s.id === id) ?? defaultScheme
   );
 }
 export function toXtermTheme(scheme: Scheme): ITheme {
@@ -115,7 +80,7 @@ export function parseScheme(text: string): Scheme {
   const raw = value as Record<string, unknown>;
   if (raw.schemaVersion !== undefined && raw.schemaVersion !== 1)
     throw new Error("不支持的配色版本");
-  const base = clone(builtinSchemes[0]!);
+  const base = clone(defaultScheme);
   let colors: unknown = raw.colors;
   if (!colors) {
     const converted = toXtermTheme(base) as Record<string, unknown>;

@@ -48,8 +48,7 @@ interface SshConfigV1 {
 }
 type AuthStepV1 =
   | { type: "password"; credentialId?: string }
-  | { type: "privateKey"; keyFileRef: string; passphraseCredentialId?: string }
-  | { type: "keyboardInteractive" };
+  | { type: "privateKey"; credentialId: string };
 ```
 
 首期公开 OpenTarget 只接受 SSH。Local/Serial 配置在对应阶段新增受校验分支，不先允许任意对象。未传 password ref 时由认证 challenge 获取秘密，open_session 不需要明文密码字段。
@@ -80,7 +79,7 @@ type AuthStepV1 =
 | `list_credentials` / `delete_credential` | id | 仅元数据；无通用 get_secret 命令 |
 | `get_settings` / `save_settings` | 版本化设置 DTO | 校验范围；无原始 SQL |
 
-keyFileRef 由后端文件选择流程签发并绑定 owner，持久化后转为受控文件引用；普通 invoke 不允许任意路径读取。密钥授权、状态变更与用户操作关联，不能仅相信“这个路径来自文件选择框”的前端声明。
+keyFileRef 由后端文件选择流程签发并绑定 owner，作为导入私钥凭据的受控文件引用；普通 invoke 不允许任意路径读取。密钥授权、状态变更与用户操作关联，不能仅相信“这个路径来自文件选择框”的前端声明。
 
 ## 4. 控制事件
 
@@ -190,10 +189,18 @@ M3 的端点、列表、属性、传输、冲突、原生拖拽使用独立命�
 
 ## 11. 首期实际接口补充（2026-10-15）
 
-以 [Rust 命令](../src-tauri/src/commands/mod.rs) 与 [TS 门面](../src/services/desktop/client.ts) 为实际边界。`open_session` 额外接收 `terminalId`，快照包含 terminalId；owner 只取注入窗口身份。`write_session` 返回 `{acceptedSeq}`；`resize_session` 返回接受的 `{cols,rows}`。`save_host({host,expectedRevision})` / `save_host_group({group,expectedRevision})` 使用乐观锁，删除携带 revision。
+以 [Rust 命令](../src-tauri/src/commands/mod.rs) 与 [TS 门面](../src/services/desktop/client.ts) 为实际边界。`open_session` 额外接收 `terminalId`，快照包含 terminalId；owner 只取注入窗口身份。`write_session` 返回 `{acceptedSeq}`；`resize_session` 返回接受的 `{cols,rows}`。`save_host({host,expectedRevision,password?})` / `save_host_group({group,expectedRevision})` 使用乐观锁，删除携带 revision。
 
-`respond_auth_challenge` 当前只接受 `savePolicy:"never"`；保存秘密为主机编辑的显式 `save_credential({kind,label,secret}) -> {id}`，无读取秘密给 UI 的命令；交互 OTP 不保存。新增原生 `export_json({name,value})` 保存对话框、历史 `list_history` / `clear_history` 与中断凭据 `recover_credential({id})`。私钥选择可取消返回 null，只返回 keyFileRef/name。
+`respond_auth_challenge` 当前只接受 `savePolicy:"never"`；公共凭据保存为凭据页的显式 `save_credential({kind,label,password?,keyFileRef?,passphrase?}) -> {id}`，无读取秘密给 UI 的命令；交互 OTP 不保存。新增原生 `export_json({name,value})` 保存对话框、历史 `list_history` / `clear_history` 与中断凭据 `recover_credential({id})`。私钥选择可取消返回 null，只返回 keyFileRef/name；该引用用于导入 privateKey 凭据，不用于会话配置。
 
-设置通过 `get_settings` / `save_settings({settings})` 操作版本 1 的整体 app JSON；包含 customSchemes、hostSchemes 和 keymap，尚无独立配色命令族。拒绝未来设置版本和非法动作/颜色。AppManifest、handler、capability 共用中心命令名单并做静态集合检查；后续仍须实际验证 ACL 拒绝路径。
+`save_host.password` 省略/null 表示元数据更新保留已有专属密码，显式 `""` 表示移除，非空表示替换；主机编辑总显式提交字符串。HostDraft 不含秘密，主机公共结果新增 hasPassword 且隐藏专属credentialId。私钥凭据参数只接受 keyFileRef 与可选passphrase，密码凭据只接受password，不接受混合类型；所有secret只作为提交参数，不回传。保存主机后的旧秘密清理失败不回滚已经提交的主机结果，deleting登记留待重试。
+
+设置通过 `get_settings` / `save_settings({settings})` 操作版本 1 的整体 app JSON；包含 customSchemes、hostSchemes、keymap 和 tabPosition（top/left，旧记录缺失兼容），尚无独立配色命令族。拒绝未来设置版本和非法动作/颜色。AppManifest、handler、capability 共用中心命令名单并做静态集合检查；后续仍须实际验证 ACL 拒绝路径。
 
 输出 forwarder 结束后发布 ended，终态 ACK 保留 3 秒排空窗口；会话快照/幂等摘要最多 1024 个、最长 10 分钟。五分钟未消费/窗口失联取消，系统睡眠时间跳跃重置失联预算。更细的 60 秒 stalled/90 秒 suspected UI 尚未实现。前端每 64 KiB 或 16 ms 合并解析后 ACK。各预算是代码初值，不是性能测量结果。
+
+认证提交成功后前端只移除匹配 sessionId/challengeId 的提示，不能按 sessionId 删除随后到达的下一轮 OTP；会话终态/关闭仍清除该会话全部提示。自动 MFA 复用现有 AuthChallenge，无新增 IPC 命令。
+
+终端字体设置补充（2026-10-15）：`app.fontFamily` 保存固定12项规范名称，名单见 [桌面字体设计](09-desktop-ux.md#6-字体主题与可访问性)。`save_settings` 拒绝名单外值；`get_settings` 对旧版有效字符串但不在名单中的值，仅在返回值中归一为 JetBrains Mono，其余字段仍完整校验，不执行自动持久化。字体二进制从应用自带静态资源加载，不通过 IPC 返回字体正文或访问系统字体目录。
+
+内置配色引用补充（2026-10-15）：64项内置 ID 从 resources/terminal-palettes.json 读取，前后端共享；保存设置仍拒绝未知或悬空引用。get_settings 对移除的旧预设引用只归一返回值：dark/forest/amber/violet/contrast-dark → nord-dark，light/contrast-light → nord-light；ocean 采用同 ID 的提取配色。未修改用户自定义方案 ID，不自动写库。

@@ -20,11 +20,15 @@ pub trait HostTrustStore: Send + Sync {
     /// 实现必须在事务内重查 endpoint，禁止并发确认覆盖已有的不同密钥。
     async fn trust(&self, key: &HostKey) -> Result<()>;
 }
+pub struct PrivateKeyMaterial {
+    pub private_key: Zeroizing<String>,
+    pub passphrase: Option<Zeroizing<String>>,
+}
 #[async_trait]
 pub trait CredentialStore: Send + Sync {
     async fn secret(&self, owner: &str, credential_id: &str) -> Result<Zeroizing<String>>;
-    /// 返回已授权且限大小读取的私钥文本，不能把前端任意路径作为引用。
-    async fn key_file(&self, owner: &str, key_file_ref: &str) -> Result<Zeroizing<String>>;
+    /// 私钥与可选解密口令归属于同一个凭据，不向界面返回秘密。
+    async fn private_key(&self, owner: &str, credential_id: &str) -> Result<PrivateKeyMaterial>;
 }
 pub trait SessionSink: Send + Sync {
     fn output(&self, frame: Vec<u8>) -> Result<()>;

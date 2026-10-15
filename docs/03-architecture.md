@@ -43,6 +43,8 @@ flowchart TB
 
 首期一个主窗口；所有 session 绑定创建窗口。为未来多窗口保留 owner 标识，但不提前实现拖出标签或跨窗口转移。
 
+凭据库分 password/privateKey，主机专属密码与公共凭据通过 owner_profile_id 隔离。安全服务协调 OS 秘密与 SQLite 引用的两阶段保存/清理；core 只定义不含序列化能力的 PrivateKeyMaterial 端口返回值。私钥导入后不依赖源文件，会话配置只含一种主要认证及凭据引用；主机公共 DTO 隐藏专属 ID，Rust 内部组装实际连接配置，临时连接只准用公共凭据。前端密码仅存在短期表单与 IPC 参数，不进入 Pinia 主机对象。
+
 ## 3. Rust 编译依赖
 
 ```text
@@ -109,13 +111,13 @@ termvexa/
 
 ## 5. 前端与终端生命周期
 
-`WorkspaceStore` 的 tab 为版本化判别联合：terminal Tab 持有 pane/terminalId，M3 sftp Tab 持有左右 browserId/端点引用；SFTP Tab 不创建虚假 xterm。terminal Tab 可挂附属 fileBrowserId 与 dock 位置。`WorkspaceStore` 保存上述视图映射；`SessionStore` 保存每次后端连接尝试的状态、尺寸、错误和能力；`TerminalRegistry` 按稳定 terminalId 用普通 Map 管理 xterm 实例、当前 session 绑定、连接代次、订阅与输入队列，不深度响应式化。terminalId 在断线、失败和重连时保持不变，不能用后端 sessionId 作为终端 Vue 组件的 key。
+当前 `WorkspaceStore.tabs` 仅保存终端元数据，`tabIds` 将固定 `home`、`sftp` 与 terminalId 组合为导航顺序；固定页不占用 SessionManager，`active` 在固定页为空。`homeSection` 管理主机/凭据/设置。`tabPosition` 只改变 CSS 布局，终端宿主始终挂载。后续完整工作区的 tab 采用版本化判别联合：terminal Tab 持有 pane/terminalId，M3 sftp Tab 持有左右 browserId/端点引用；SFTP Tab 不创建虚假 xterm。terminal Tab 可挂附属 fileBrowserId 与 dock 位置。`WorkspaceStore` 保存上述视图映射；`SessionStore` 保存每次后端连接尝试的状态、尺寸、错误和能力；`TerminalRegistry` 按稳定 terminalId 用普通 Map 管理 xterm 实例、当前 session 绑定、连接代次、订阅与输入队列，不深度响应式化。terminalId 在断线、失败和重连时保持不变，不能用后端 sessionId 作为终端 Vue 组件的 key。
 
 建立连接前先创建 Tab、terminalId 与终端宿主并装好 Channel handlers，即使 open_session 同步失败也保留视图。握手期间展示状态，Connected 前关闭远端键盘写入，但保留滚动/选择/复制/搜索。切标签不卸载 xterm；隐藏终端继续解析和 ACK，只减少不必要的渲染与 resize。ResizeObserver 只对可见且非零尺寸的宿主调用 fit。
 
 后端终态只回收连接及其订阅，不清空/销毁终端，也不移除 Tab；只有用户关闭 Tab/窗口才 dispose 视图。重连串行结束旧连接的数据排空，在原终端加入可信本地状态分界，再绑定新 session/Channel，继续追加到同一 xterm。旧 session 的 ACK、帧序号与 offset 不得延续到新连接，也不能让其迟到状态覆盖新状态；见 [IPC 规则](06-ipc-and-streaming.md)。
 
-UI 以 Reka UI primitives 封装到 `src/components/ui/`，工作区与 xterm 宿主留在业务模块。样式用 CSS tokens；Reka Tabs/Presence 的隐藏卸载策略不能拥有终端的生命周期。系统原生菜单/文件选择继续由 Tauri 负责，详见 [UI 选型](13-ui-stack.md)。
+UI 使用 Naive UI 现成组件及 `src/components/ui/` 薄适配，NConfigProvider 管理主题，页面只保留必要布局。工作区与 xterm 宿主留在业务模块，独立于 NTabs/TabPane 显隐生命周期。系统原生菜单/文件选择继续由 Tauri 负责，详见 [UI 选型](13-ui-stack.md)。
 
 ## 6. 扩展接口
 

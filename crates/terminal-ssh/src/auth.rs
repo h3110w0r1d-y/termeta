@@ -1,6 +1,7 @@
 use crate::{host_key::HostKeyHandler, network, ssh_error};
 use russh::{
-    client::{Handle, KeyboardInteractiveAuthResponse},
+    MethodKind,
+    client::{AuthResult, Handle, KeyboardInteractiveAuthResponse},
     keys::{HashAlg, PrivateKey, PrivateKeyWithHashAlg},
 };
 use std::{sync::Arc, time::Duration};
@@ -25,11 +26,29 @@ async fn authenticate_plan(
     context: &DriverContext,
     credentials: &dyn CredentialStore,
 ) -> Result<()> {
+    // 先查询服务端支持的方法，避免仅支持 PAM 的主机先弹出无效的密码表单。
+    // 此请求发生在主机身份校验之后，不读取或发送任何秘密。
+    let mut remaining = match network(
+        "authentication",
+        connection.authenticate_none(config.username.clone()),
+    )
+    .await?
+    {
+        AuthResult::Success => return Ok(()),
+        AuthResult::Failure {
+            remaining_methods, ..
+        } => remaining_methods,
+    };
     let mut rounds = 0;
     let mut submissions = 0;
+    let mut interactive_started = false;
     for step in &config.auth_plan {
-        match step {
+        let result = match step {
             AuthStep::Password { credential_id } => {
+                if !remaining.contains(&MethodKind::Password) {
+                    continue;
+                }
+                let mut outcome = None;
                 for attempt in 0..3 {
                     if submissions >= 3 {
                         break;
@@ -49,22 +68,31 @@ async fn authenticate_plan(
                             .authenticate_password(config.username.clone(), password.as_str()),
                     )
                     .await?;
-                    match result {
-                        russh::client::AuthResult::Success => return Ok(()),
-                        russh::client::AuthResult::Failure {
-                            partial_success: true,
-                            ..
-                        } => break,
-                        _ if submissions >= 3 => break,
-                        _ => {}
+                    let stop = match &result {
+                        AuthResult::Success => return Ok(()),
+                        AuthResult::Failure {
+                            remaining_methods,
+                            partial_success,
+                        } => *partial_success || !remaining_methods.contains(&MethodKind::Password),
+                    };
+                    outcome = Some(result);
+                    if stop {
+                        break;
                     }
                 }
+                match outcome {
+                    Some(result) => result,
+                    None => continue,
+                }
             }
-            AuthStep::PrivateKey {
-                key_file_ref,
-                passphrase_credential_id,
-            } => {
-                let text = credentials.key_file(&context.owner, key_file_ref).await?;
+            AuthStep::PrivateKey { credential_id } => {
+                if !remaining.contains(&MethodKind::PublicKey) {
+                    continue;
+                }
+                let material = credentials
+                    .private_key(&context.owner, credential_id)
+                    .await?;
+                let text = material.private_key;
                 if text.len() > 1024 * 1024 {
                     return Err(ssh_error(
                         "LIMIT_EXCEEDED",
@@ -72,11 +100,7 @@ async fn authenticate_plan(
                         "私钥文件超过 1 MiB 限制",
                     ));
                 }
-                let passphrase = match passphrase_credential_id {
-                    Some(id) => Some(credentials.secret(&context.owner, id).await?),
-                    None => None,
-                };
-                let mut key = decode(text.clone(), passphrase).await;
+                let mut key = decode(text.clone(), material.passphrase).await;
                 for attempt in 0..3 {
                     if key.is_ok() {
                         break;
@@ -115,7 +139,7 @@ async fn authenticate_plan(
                 } else {
                     None
                 };
-                if network(
+                network(
                     "authentication",
                     connection.authenticate_publickey(
                         config.username.clone(),
@@ -123,68 +147,114 @@ async fn authenticate_plan(
                     ),
                 )
                 .await?
-                .success()
-                {
-                    return Ok(());
-                }
             }
-            AuthStep::KeyboardInteractive => {
-                let mut response = network(
-                    "authentication",
-                    connection.authenticate_keyboard_interactive_start(
-                        config.username.clone(),
-                        None::<String>,
-                    ),
-                )
-                .await?;
-                loop {
-                    match response {
-                        KeyboardInteractiveAuthResponse::Success => return Ok(()),
-                        KeyboardInteractiveAuthResponse::Failure { .. } => break,
-                        KeyboardInteractiveAuthResponse::InfoRequest {
-                            name,
-                            instructions,
-                            prompts,
-                        } => {
-                            rounds += 1;
-                            if rounds > 8 {
-                                return Err(ssh_error(
-                                    "LIMIT_EXCEEDED",
-                                    "authentication",
-                                    "认证交互超过 8 轮限制",
-                                ));
-                            }
-                            let prompts = prompts
-                                .into_iter()
-                                .map(|prompt| AuthPrompt {
-                                    text: prompt.prompt,
-                                    echo: prompt.echo,
-                                })
-                                .collect();
-                            let answers =
-                                context.challenges.auth(name, instructions, prompts).await?;
-                            // russh 的协议接口要求拥有字符串；这些不可避免的短期副本从不记录或持久化。
-                            response = network(
-                                "authentication",
-                                connection.authenticate_keyboard_interactive_respond(
-                                    answers
-                                        .iter()
-                                        .map(|answer| answer.as_str().to_owned())
-                                        .collect(),
-                                ),
-                            )
-                            .await?;
-                        }
+        };
+        match result {
+            AuthResult::Success => return Ok(()),
+            AuthResult::Failure {
+                remaining_methods,
+                partial_success,
+            } => {
+                remaining = remaining_methods;
+                // 已接受首个因素时立即继续服务端挑战，不重发密码或要求用户预先勾选 OTP。
+                if partial_success
+                    && !interactive_started
+                    && remaining.contains(&MethodKind::KeyboardInteractive)
+                {
+                    interactive_started = true;
+                    match keyboard_interactive(connection, config, context, &mut rounds).await? {
+                        AuthResult::Success => return Ok(()),
+                        AuthResult::Failure {
+                            remaining_methods, ..
+                        } => remaining = remaining_methods,
                     }
                 }
             }
         }
     }
+    // 密码协议不可用或被拒绝时，允许服务端自身的 PAM/OTP 表单完成认证。
+    // 不将已保存的密码自动填入任意挑战，也不枚举未配置的本地私钥。
+    if !interactive_started && remaining.contains(&MethodKind::KeyboardInteractive) {
+        if keyboard_interactive(connection, config, context, &mut rounds)
+            .await?
+            .success()
+        {
+            return Ok(());
+        }
+    }
     Err(ssh_error(
         "AUTH_FAILED",
         "authentication",
-        "服务器未接受配置的认证方式或仍要求额外认证因素",
+        "服务器未接受配置的认证方式或仍要求不支持的额外认证因素",
     ))
+}
+
+async fn keyboard_interactive(
+    connection: &mut Handle<HostKeyHandler>,
+    config: &SshConfig,
+    context: &DriverContext,
+    rounds: &mut usize,
+) -> Result<AuthResult> {
+    // 每组最多启动三次，所有重试共用八轮挑战预算，防止恶意服务端无限索取输入。
+    for attempt in 0..3 {
+        let mut response = network(
+            "authentication",
+            connection
+                .authenticate_keyboard_interactive_start(config.username.clone(), None::<String>),
+        )
+        .await?;
+        loop {
+            match response {
+                KeyboardInteractiveAuthResponse::Success => return Ok(AuthResult::Success),
+                KeyboardInteractiveAuthResponse::Failure {
+                    remaining_methods,
+                    partial_success,
+                } => {
+                    if attempt < 2 && remaining_methods.contains(&MethodKind::KeyboardInteractive) {
+                        break;
+                    }
+                    return Ok(AuthResult::Failure {
+                        remaining_methods,
+                        partial_success,
+                    });
+                }
+                KeyboardInteractiveAuthResponse::InfoRequest {
+                    name,
+                    instructions,
+                    prompts,
+                } => {
+                    *rounds += 1;
+                    if *rounds > 8 {
+                        return Err(ssh_error(
+                            "LIMIT_EXCEEDED",
+                            "authentication",
+                            "认证交互超过 8 轮限制",
+                        ));
+                    }
+                    let prompts = prompts
+                        .into_iter()
+                        .map(|prompt| AuthPrompt {
+                            text: prompt.prompt,
+                            echo: prompt.echo,
+                        })
+                        .collect();
+                    let answers = context.challenges.auth(name, instructions, prompts).await?;
+                    // russh 要求拥有字符串；短期副本不记录或持久化，OTP 仅用于本次响应。
+                    response = network(
+                        "authentication",
+                        connection.authenticate_keyboard_interactive_respond(
+                            answers
+                                .iter()
+                                .map(|answer| answer.as_str().to_owned())
+                                .collect(),
+                        ),
+                    )
+                    .await?;
+                }
+            }
+        }
+    }
+    Err(ssh_error("AUTH_FAILED", "authentication", "交互认证未完成"))
 }
 async fn password_prompt(context: &DriverContext, attempt: usize) -> Result<Zeroizing<String>> {
     let answers = context

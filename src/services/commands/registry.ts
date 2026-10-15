@@ -176,13 +176,15 @@ export class CommandRegistry {
       event.defaultPrevented ||
       event.isComposing ||
       event.getModifierState("AltGraph") ||
-      document.querySelector("[data-modal-open]")
+      document.querySelector("[data-modal-open], [data-ui-popup-open]")
     )
       return false;
     const target = event.target as HTMLElement;
     if (
       !terminal &&
-      target.closest("input,textarea,select,[contenteditable=true]")
+      target.closest(
+        "input,textarea,select,[role=combobox],[role=slider],[role=spinbutton],[contenteditable=true]",
+      )
     )
       return false;
     const candidates = bindings.filter(

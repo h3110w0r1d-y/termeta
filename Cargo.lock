@@ -5729,10 +5729,13 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "keyring",
+ "serde",
+ "serde_json",
  "terminal-core",
  "terminal-storage",
  "thiserror 2.0.21",
  "tokio",
+ "uuid",
  "zeroize",
 ]
 

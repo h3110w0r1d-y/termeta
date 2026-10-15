@@ -1,0 +1,460 @@
+{
+  "checkedAt": "2026-10-15",
+  "policy": "核查官方 latest release；无独立 Release 则固定官方分发提交。不修改字体字节，不进行子集化或格式转换。",
+  "families": [
+    {
+      "family": "DejaVu Sans Mono",
+      "version": "2.37",
+      "homepage": "https://dejavu-fonts.github.io/",
+      "source": "https://github.com/dejavu-fonts/dejavu-fonts/releases/tag/version_2_37",
+      "license": "Bitstream Vera + DejaVu public domain",
+      "notes": "",
+      "files": [
+        {
+          "path": "dejavu-sans-mono/DejaVuSansMono.ttf",
+          "bytes": 340712,
+          "sha256": "b4a6c3e4faab8773f4ff761d56451646409f29abedd68f05d38c2df667d3c582",
+          "fontVersion": "Version 2.37",
+          "weight": "400",
+          "style": "normal",
+          "copyright": "Copyright (c) 2003 by Bitstream, Inc. All Rights Reserved.\nDejaVu changes are in public domain\n"
+        },
+        {
+          "path": "dejavu-sans-mono/DejaVuSansMono-Bold.ttf",
+          "bytes": 331992,
+          "sha256": "bce60f1b4421acd9ea51ba6623d7024ecbe6817a953e3654df62a5e6bdf8f769",
+          "fontVersion": "Version 2.37",
+          "weight": "700",
+          "style": "normal",
+          "copyright": "Copyright (c) 2003 by Bitstream, Inc. All Rights Reserved.\nDejaVu changes are in public domain\n"
+        },
+        {
+          "path": "dejavu-sans-mono/DejaVuSansMono-Oblique.ttf",
+          "bytes": 251932,
+          "sha256": "742097840c541870e8d6dc5c9b37bb1ceeea6c0dedd1d475faf903ef9df734b0",
+          "fontVersion": "Version 2.37",
+          "weight": "400",
+          "style": "italic",
+          "copyright": "Copyright (c) 2003 by Bitstream, Inc. All Rights Reserved.\nDejaVu changes are in public domain\n"
+        },
+        {
+          "path": "dejavu-sans-mono/DejaVuSansMono-BoldOblique.ttf",
+          "bytes": 253580,
+          "sha256": "91713a71d550bba22c2a6b2bb2a9ad8f9a159e12e4e9f0a5b2677998ba21213e",
+          "fontVersion": "Version 2.37",
+          "weight": "700",
+          "style": "italic",
+          "copyright": "Copyright (c) 2003 by Bitstream, Inc. All Rights Reserved.\nDejaVu changes are in public domain\n"
+        }
+      ],
+      "licenseFiles": ["dejavu-sans-mono/LICENSE"]
+    },
+    {
+      "family": "Droid Sans Mono",
+      "version": "1.00",
+      "homepage": "https://android.googlesource.com/platform/frameworks/base/",
+      "source": "https://github.com/aosp-mirror/platform_frameworks_base/tree/1cdfff555f4a21f71ccc978290e2e212e2f8b168/data/fonts",
+      "license": "Apache-2.0",
+      "notes": "无独立新版 Release，采用核查时官方 AOSP main 的固定提交；只有常规体。",
+      "files": [
+        {
+          "path": "droid-sans-mono/DroidSansMono.ttf",
+          "bytes": 108128,
+          "sha256": "db19a1fdaba41cc4a2fec0330e5c15e71c6dd68a3ef074f4f28268828b45c862",
+          "fontVersion": "Version 1.00",
+          "weight": "400",
+          "style": "normal",
+          "copyright": "Digitized data copyright © 2007, Google Corporation."
+        }
+      ],
+      "licenseFiles": [
+        "droid-sans-mono/LICENSE.txt",
+        "droid-sans-mono/NOTICE.txt"
+      ]
+    },
+    {
+      "family": "Ubuntu Mono",
+      "version": "0.83",
+      "homepage": "https://design.ubuntu.com/font",
+      "source": "https://assets.ubuntu.com/v1/0cef8205-ubuntu-font-family-0.83.zip",
+      "license": "Ubuntu Font Licence 1.0",
+      "notes": "经典 Ubuntu Mono，不是 Ubuntu Sans Mono。",
+      "files": [
+        {
+          "path": "ubuntu-mono/UbuntuMono-R.ttf",
+          "bytes": 205748,
+          "sha256": "b35dd9d2131d5d83a9b87fe9ad22c6288fa3d17688d43302c14da29812417d63",
+          "fontVersion": "Version 0.80",
+          "weight": "400",
+          "style": "normal",
+          "copyright": "Copyright 2011 Canonical Ltd.  Licensed under the Ubuntu Font Licence 1.0"
+        },
+        {
+          "path": "ubuntu-mono/UbuntuMono-B.ttf",
+          "bytes": 191400,
+          "sha256": "11f15c3a6bbd998a8695fdefb3475931c3789aa035d7546f2efe78e83b352f6b",
+          "fontVersion": "Version 0.80",
+          "weight": "700",
+          "style": "normal",
+          "copyright": "Copyright 2011 Canonical Ltd.  Licensed under the Ubuntu Font Licence 1.0"
+        },
+        {
+          "path": "ubuntu-mono/UbuntuMono-RI.ttf",
+          "bytes": 210216,
+          "sha256": "960b2bc286c2ff7d49073303858c65e1fc9013c17a971b61123b02c39454ef75",
+          "fontVersion": "Version 0.80",
+          "weight": "400",
+          "style": "italic",
+          "copyright": "Copyright 2011 Canonical Ltd.  Licensed under the Ubuntu Font Licence 1.0"
+        },
+        {
+          "path": "ubuntu-mono/UbuntuMono-BI.ttf",
+          "bytes": 216208,
+          "sha256": "bd255784bb87b5c41513a12a86f0f9cf061bce4e8256d3bfe7234611002e8f48",
+          "fontVersion": "Version 0.80",
+          "weight": "700",
+          "style": "italic",
+          "copyright": "Copyright 2011 Canonical Ltd.  Licensed under the Ubuntu Font Licence 1.0"
+        }
+      ],
+      "licenseFiles": [
+        "ubuntu-mono/LICENCE.txt",
+        "ubuntu-mono/copyright.txt",
+        "ubuntu-mono/TRADEMARKS.txt"
+      ]
+    },
+    {
+      "family": "Anonymous Pro",
+      "version": "1.003",
+      "homepage": "https://www.marksimonson.com/fonts/view/anonymous-pro",
+      "source": "https://github.com/google/fonts/tree/b7c8331cf620346575487ef8db0e2c729f014675/ofl/anonymouspro",
+      "license": "OFL-1.1",
+      "notes": "作者官网拒绝抓取，采用 Google Fonts 官方分发的固定提交。",
+      "files": [
+        {
+          "path": "anonymous-pro/AnonymousPro-Regular.ttf",
+          "bytes": 158100,
+          "sha256": "46d8b9a5f4b38fc9d30f3cdd676d4c6f78a9bef949bb1a8304216cc731eb87f8",
+          "fontVersion": "Version 1.003",
+          "weight": "400",
+          "style": "normal",
+          "copyright": "Copyright (c) Mark Simonson 2009-2010. All rights reserved."
+        },
+        {
+          "path": "anonymous-pro/AnonymousPro-Bold.ttf",
+          "bytes": 153616,
+          "sha256": "52895657e7d48860089ebfac63a27244f37a2218ec9c5019a0b37fe885c0fc0c",
+          "fontVersion": "Version 1.003",
+          "weight": "700",
+          "style": "normal",
+          "copyright": "Copyright (c) Mark Simonson 2009-2010. All rights reserved."
+        },
+        {
+          "path": "anonymous-pro/AnonymousPro-Italic.ttf",
+          "bytes": 144424,
+          "sha256": "bc13ac34e9994128c61b54bf4e78a8adb439b543ea0b19761d159342599f441a",
+          "fontVersion": "Version 1.003",
+          "weight": "400",
+          "style": "italic",
+          "copyright": "Copyright (c) Mark Simonson 2009-2010. All rights reserved."
+        },
+        {
+          "path": "anonymous-pro/AnonymousPro-BoldItalic.ttf",
+          "bytes": 141924,
+          "sha256": "4e811e1e3b60fc763fb24acd27781e72241a8380beb0ffa5e07af2b87133496d",
+          "fontVersion": "Version 1.003",
+          "weight": "700",
+          "style": "italic",
+          "copyright": "Copyright (c) Mark Simonson 2009-2010. All rights reserved."
+        }
+      ],
+      "licenseFiles": ["anonymous-pro/OFL.txt"]
+    },
+    {
+      "family": "Inconsolata",
+      "version": "3.000",
+      "homepage": "https://github.com/googlefonts/Inconsolata",
+      "source": "https://github.com/googlefonts/Inconsolata/releases/tag/v3.000",
+      "license": "OFL-1.1",
+      "notes": "官方可变字体，字宽轴使用默认等宽设置；无独立斜体。",
+      "files": [
+        {
+          "path": "inconsolata/inconsolata.ttf",
+          "bytes": 318964,
+          "sha256": "33dd95333e9e51ed75c18ccd340f4f7166773ff5303ddedb9d084a623f829d08",
+          "fontVersion": "Version 3.000",
+          "weight": "200 900",
+          "style": "normal",
+          "copyright": "Copyright 2006 The Inconsolata Project Authors (https://github.com/cyrealtype/Inconsolata)"
+        }
+      ],
+      "licenseFiles": ["inconsolata/OFL.txt"]
+    },
+    {
+      "family": "Fira Mono",
+      "version": "3.206 (Fira release 4.202)",
+      "homepage": "https://github.com/mozilla/Fira",
+      "source": "https://github.com/mozilla/Fira/tree/4.202",
+      "license": "OFL-1.1",
+      "notes": "Fira 发布号与 Mono 字体内部版本号不同；无独立斜体。",
+      "files": [
+        {
+          "path": "fira-mono/FiraMono-Regular.ttf",
+          "bytes": 174632,
+          "sha256": "8c86f2963208a353c3435e28ecb38a99ab68f14d7433ba00c1822cef9a9c1b44",
+          "fontVersion": "Version 3.206",
+          "weight": "400",
+          "style": "normal",
+          "copyright": "Digitized data copyright © 2012-2015, The Mozilla Foundation and Telefonica S.A."
+        },
+        {
+          "path": "fira-mono/FiraMono-Bold.ttf",
+          "bytes": 206548,
+          "sha256": "2a28efd740e8da1da75d40ac79f0db4f60a0f1aead0b15ca16b4694a11b45fc6",
+          "fontVersion": "Version 3.206",
+          "weight": "700",
+          "style": "normal",
+          "copyright": "Digitized data copyright © 2012-2015, The Mozilla Foundation and Telefonica S.A."
+        }
+      ],
+      "licenseFiles": ["fira-mono/LICENSE.txt"]
+    },
+    {
+      "family": "Source Code Pro",
+      "version": "2.042 upright / 1.062 italic",
+      "homepage": "https://github.com/adobe-fonts/source-code-pro",
+      "source": "https://github.com/adobe-fonts/source-code-pro/releases/tag/2.042R-u/1.062R-i/1.026R-vf",
+      "license": "OFL-1.1",
+      "notes": "",
+      "files": [
+        {
+          "path": "source-code-pro/SourceCodePro-Regular.ttf",
+          "bytes": 210312,
+          "sha256": "74bd80d3e42a08517cd7e1108ba3d86f2da29ac0f3065be95e0357956ab9db37",
+          "fontVersion": "Version 2.042;hotconv 1.1.0;makeotfexe 2.6.0",
+          "weight": "400",
+          "style": "normal",
+          "copyright": "© 2023 Adobe (http://www.adobe.com/), with Reserved Font Name ‘Source’"
+        },
+        {
+          "path": "source-code-pro/SourceCodePro-Bold.ttf",
+          "bytes": 206804,
+          "sha256": "b2095e0d657e6d28dc32444a9dacabab0c9241d0bf39d96371756cc9bdbc3a5f",
+          "fontVersion": "Version 2.042;hotconv 1.1.0;makeotfexe 2.6.0",
+          "weight": "700",
+          "style": "normal",
+          "copyright": "© 2023 Adobe (http://www.adobe.com/), with Reserved Font Name ‘Source’"
+        },
+        {
+          "path": "source-code-pro/SourceCodePro-It.ttf",
+          "bytes": 166548,
+          "sha256": "9c9e0f4d016210a3c5bdfba5262637c5b26ddff4ccc382ebbc781de5961d0042",
+          "fontVersion": "Version 1.062;hotconv 1.1.0;makeotfexe 2.6.0",
+          "weight": "400",
+          "style": "italic",
+          "copyright": "© 2023 Adobe (http://www.adobe.com/), with Reserved Font Name ‘Source’"
+        },
+        {
+          "path": "source-code-pro/SourceCodePro-BoldIt.ttf",
+          "bytes": 169140,
+          "sha256": "1b49d9304012bf8db9e5dd4104183d5c122c445d0570a2259125f71977595b90",
+          "fontVersion": "Version 1.062;hotconv 1.1.0;makeotfexe 2.6.0",
+          "weight": "700",
+          "style": "italic",
+          "copyright": "© 2023 Adobe (http://www.adobe.com/), with Reserved Font Name ‘Source’"
+        }
+      ],
+      "licenseFiles": ["source-code-pro/LICENSE.md"]
+    },
+    {
+      "family": "PT Mono",
+      "version": "1.001W OFL",
+      "homepage": "https://www.paratype.com/fonts/pt/pt-mono",
+      "source": "https://github.com/google/fonts/tree/b7c8331cf620346575487ef8db0e2c729f014675/ofl/ptmono",
+      "license": "OFL-1.1",
+      "notes": "采用 Google Fonts 官方分发的固定提交；仅包含该开源分发提供的常规体。",
+      "files": [
+        {
+          "path": "pt-mono/PTM55FT.ttf",
+          "bytes": 185912,
+          "sha256": "cbe732b3b8fd211fd986ebdfc9b870ddeca4faab0bb5425fc509b37f9b4ac804",
+          "fontVersion": "Version 1.001W OFL",
+          "weight": "400",
+          "style": "normal",
+          "copyright": "Copyright © 2010 ParaType Inc., ParaType Ltd. All rights reserved."
+        }
+      ],
+      "licenseFiles": ["pt-mono/OFL.txt"]
+    },
+    {
+      "family": "Cascadia Code",
+      "version": "2407.24",
+      "homepage": "https://github.com/microsoft/cascadia-code",
+      "source": "https://github.com/microsoft/cascadia-code/releases/tag/v2407.24",
+      "license": "OFL-1.1",
+      "notes": "使用原版 Cascadia Code，非 Nerd Font 或 Powerline 派生版本。",
+      "files": [
+        {
+          "path": "cascadia-code/CascadiaCode-Regular.ttf",
+          "bytes": 598060,
+          "sha256": "c33ef522cdfeff99907fb54f3e97152bb18bfb9b56ec2fef4d4ceec51c8974a4",
+          "fontVersion": "Version 2407.024; ttfautohint (v1.8.4)",
+          "weight": "400",
+          "style": "normal",
+          "copyright": "© 2021 Microsoft Corporation. All Rights Reserved."
+        },
+        {
+          "path": "cascadia-code/CascadiaCode-Bold.ttf",
+          "bytes": 604696,
+          "sha256": "58197c5c3ba2967d4780b0ef8aee72d0cbbfa42885ddede9ec96fa7a1df5aead",
+          "fontVersion": "Version 2407.024; ttfautohint (v1.8.4)",
+          "weight": "700",
+          "style": "normal",
+          "copyright": "© 2021 Microsoft Corporation. All Rights Reserved."
+        },
+        {
+          "path": "cascadia-code/CascadiaCode-Italic.ttf",
+          "bytes": 453184,
+          "sha256": "1f0676937792fe550effeafb7f4622080c2a5d62715d1245d471258fa1a23b8c",
+          "fontVersion": "Version 2407.024; ttfautohint (v1.8.4)",
+          "weight": "400",
+          "style": "italic",
+          "copyright": "© 2021 Microsoft Corporation. All Rights Reserved."
+        },
+        {
+          "path": "cascadia-code/CascadiaCode-BoldItalic.ttf",
+          "bytes": 458632,
+          "sha256": "aff1984cbbdd990137691ae9567b87e7b1190f6a4e146017c6a0893ca4b000e7",
+          "fontVersion": "Version 2407.024; ttfautohint (v1.8.4)",
+          "weight": "700",
+          "style": "italic",
+          "copyright": "© 2021 Microsoft Corporation. All Rights Reserved."
+        }
+      ],
+      "licenseFiles": ["cascadia-code/LICENSE.txt"]
+    },
+    {
+      "family": "Fira Code",
+      "version": "6.2",
+      "homepage": "https://github.com/tonsky/FiraCode",
+      "source": "https://github.com/tonsky/FiraCode/releases/tag/6.2",
+      "license": "OFL-1.1",
+      "notes": "无独立斜体；内置字体不代表 xterm 自动支持编程连字。",
+      "files": [
+        {
+          "path": "fira-code/FiraCode-Regular.woff2",
+          "bytes": 103240,
+          "sha256": "a6ce59520b90e15d7062ffef214f94c8add5a4085c0bbb1683602ef227a4d1fe",
+          "fontVersion": "Version 6.002",
+          "weight": "400",
+          "style": "normal",
+          "copyright": "Copyright 2014-2021 The Fira Code Project Authors (https://github.com/tonsky/FiraCode)"
+        },
+        {
+          "path": "fira-code/FiraCode-Bold.woff2",
+          "bytes": 107788,
+          "sha256": "d778c19803c672d294663e9283c7b752cc125ab266f0ddb8e53b039da92caf67",
+          "fontVersion": "Version 6.002",
+          "weight": "700",
+          "style": "normal",
+          "copyright": "Copyright 2014-2021 The Fira Code Project Authors (https://github.com/tonsky/FiraCode)"
+        }
+      ],
+      "licenseFiles": ["fira-code/LICENSE.txt"]
+    },
+    {
+      "family": "JetBrains Mono",
+      "version": "2.304",
+      "homepage": "https://www.jetbrains.com/lp/mono/",
+      "source": "https://github.com/JetBrains/JetBrainsMono/releases/tag/v2.304",
+      "license": "OFL-1.1",
+      "notes": "",
+      "files": [
+        {
+          "path": "jetbrains-mono/JetBrainsMono-Regular.woff2",
+          "bytes": 92164,
+          "sha256": "a9cb1cd82332b23a47e3a1239d25d13c86d16c4220695e34b243effa999f45f2",
+          "fontVersion": "Version 2.304; ttfautohint (v1.8.4.7-5d5b)",
+          "weight": "400",
+          "style": "normal",
+          "copyright": "Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)"
+        },
+        {
+          "path": "jetbrains-mono/JetBrainsMono-Bold.woff2",
+          "bytes": 94588,
+          "sha256": "c503cc5ec5f8b2c7666b7ecda1adf44bd45f2e6579b2eba0fc292150416588a2",
+          "fontVersion": "Version 2.304; ttfautohint (v1.8.4.7-5d5b)",
+          "weight": "700",
+          "style": "normal",
+          "copyright": "Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)"
+        },
+        {
+          "path": "jetbrains-mono/JetBrainsMono-Italic.woff2",
+          "bytes": 95864,
+          "sha256": "cb6a1b246318ed3885d7dffa14a2609297fe80e9b8e500bea33b52fa312a36a4",
+          "fontVersion": "Version 2.304; ttfautohint (v1.8.4.7-5d5b)",
+          "weight": "400",
+          "style": "italic",
+          "copyright": "Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)"
+        },
+        {
+          "path": "jetbrains-mono/JetBrainsMono-BoldItalic.woff2",
+          "bytes": 98152,
+          "sha256": "3a013466c0eee979fb9d42c2d7a8887cd3645dc8b897cfc5b71781cf982efc5a",
+          "fontVersion": "Version 2.304; ttfautohint (v1.8.4.7-5d5b)",
+          "weight": "700",
+          "style": "italic",
+          "copyright": "Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)"
+        }
+      ],
+      "licenseFiles": ["jetbrains-mono/OFL.txt"]
+    },
+    {
+      "family": "Meslo",
+      "version": "1.2.1",
+      "homepage": "https://github.com/andreberg/Meslo-Font",
+      "source": "https://github.com/andreberg/Meslo-Font/tree/09a431d546d211130352c28eb0466e5d7d5aeaf0/dist/v1.2.1",
+      "license": "Apache-2.0 (author README)",
+      "notes": "固定选择 Meslo LG S 小行距版本，不是 MesloLGS NF。保留作者版权与商标说明。",
+      "files": [
+        {
+          "path": "meslo/MesloLGS-Regular.ttf",
+          "bytes": 636152,
+          "sha256": "9f142c57ab4fd32f0af16b750e42fe3421013ac83d384439aff9eed0f89b884a",
+          "fontVersion": "1.210",
+          "weight": "400",
+          "style": "normal",
+          "copyright": "Copyright © 2009 Apple Inc. Copyright ©  2006 by Tavmjong Bah. Copyright © 2003 by Bitstream, Inc. All Rights Reserved."
+        },
+        {
+          "path": "meslo/MesloLGS-Bold.ttf",
+          "bytes": 642348,
+          "sha256": "7ff31389389b91d9b7055fd16bb19ae3f27c182adef0a022b30e45d0363faea1",
+          "fontVersion": "1.210",
+          "weight": "700",
+          "style": "normal",
+          "copyright": "Copyright © 2009 Apple Inc. Copyright ©  2006 by Tavmjong Bah. Copyright © 2003 by Bitstream, Inc. All Rights Reserved."
+        },
+        {
+          "path": "meslo/MesloLGS-Italic.ttf",
+          "bytes": 587116,
+          "sha256": "5672ab7f097a22b5d58573a3853b3fec410cb37476bd6b4985a7064fded3440a",
+          "fontVersion": "1.210",
+          "weight": "400",
+          "style": "italic",
+          "copyright": "Copyright © 2009 Apple Inc. Copyright ©  2006 by Tavmjong Bah. Copyright © 2003 by Bitstream, Inc. All Rights Reserved."
+        },
+        {
+          "path": "meslo/MesloLGS-BoldItalic.ttf",
+          "bytes": 593032,
+          "sha256": "314606876141d09d70d23d06e616f963601d73cc34adfbb6cb165d6ec61f336b",
+          "fontVersion": "1.210",
+          "weight": "700",
+          "style": "italic",
+          "copyright": "Copyright © 2009 Apple Inc. Copyright ©  2006 by Tavmjong Bah. Copyright © 2003 by Bitstream, Inc. All Rights Reserved."
+        }
+      ],
+      "licenseFiles": ["meslo/LICENSE.txt", "meslo/meslo-readme.txt"]
+    }
+  ]
+}

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { NFlex } from "naive-ui";
+import AppButton from "../../components/ui/AppButton.vue";
 import AppDialog from "../../components/ui/AppDialog.vue";
 import { pendingPaste, resolvePaste } from "./paste";
 </script>
@@ -11,12 +13,14 @@ import { pendingPaste, resolvePaste } from "./paste";
     ><template v-if="pendingPaste"
       ><p>即将粘贴 {{ pendingPaste.lines }} 行；控制字符以原始文本显示。</p>
       <pre class="paste-preview">{{ pendingPaste.text }}</pre>
-      <footer class="dialog-actions">
-        <button @click="resolvePaste(false)">取消</button
-        ><button class="primary" @click="resolvePaste(true)">
+    </template>
+    <template #footer>
+      <NFlex justify="end">
+        <AppButton @click="resolvePaste(false)">取消</AppButton
+        ><AppButton class="primary" @click="resolvePaste(true)">
           确认粘贴到当前连接
-        </button>
-      </footer></template
+        </AppButton>
+      </NFlex></template
     ></AppDialog
   >
 </template>

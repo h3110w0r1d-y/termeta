@@ -36,6 +36,7 @@ export interface Binding {
 export interface AppSettings {
   schemaVersion: 1;
   appearance: "dark" | "light" | "system";
+  tabPosition: "top" | "left";
   fontFamily: string;
   fontSize: number;
   scrollback: number;

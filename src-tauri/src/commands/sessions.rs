@@ -66,17 +66,12 @@ pub async fn open_session(
                 .get_host(&profile_id)
                 .await
                 .map_err(storage_error)?;
-            (
-                SshConfig {
-                    config_version: 1,
-                    address: host.address,
-                    port: host.port,
-                    username: host.username,
-                    auth_plan: host.auth_plan,
-                },
-                Some(profile_id),
-                host.name,
-            )
+            let config = state
+                .store
+                .get_host_connection(&profile_id)
+                .await
+                .map_err(storage_error)?;
+            (config, Some(profile_id), host.name)
         }
         OpenTarget::Ephemeral { kind, config } => {
             if kind != "ssh" {
@@ -85,6 +80,35 @@ pub async fn open_session(
                     "opening",
                     "首期仅提供 SSH 连接",
                 ));
+            }
+            // 临时连接只能引用公共库，不能冒用任何主机的专属秘密。
+            for step in &config.auth_plan {
+                let id = match step {
+                    AuthStep::Password { credential_id } => credential_id.as_deref(),
+                    AuthStep::PrivateKey { credential_id } => Some(credential_id.as_str()),
+                };
+                if let Some(id) = id {
+                    let credential = state
+                        .store
+                        .get_credential(id)
+                        .await
+                        .map_err(storage_error)?;
+                    let expected_kind = if matches!(step, AuthStep::Password { .. }) {
+                        "password"
+                    } else {
+                        "privateKey"
+                    };
+                    if credential.owner_profile_id.is_some()
+                        || credential.kind != expected_kind
+                        || credential.status != "ready"
+                    {
+                        return Err(SessionError::new(
+                            "INVALID_CONFIG",
+                            "validation",
+                            "临时连接只能引用匹配的公共凭据",
+                        ));
+                    }
+                }
             }
             let name = format!("{}@{}", config.username, config.address);
             (config, None, name)

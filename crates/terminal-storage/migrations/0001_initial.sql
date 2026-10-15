@@ -4,13 +4,16 @@ CREATE TABLE host_groups (
  revision INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
 );
 CREATE TABLE credentials (
- id TEXT PRIMARY KEY NOT NULL, kind TEXT NOT NULL CHECK(kind IN ('password','passphrase')),
- label TEXT NOT NULL, store_backend TEXT NOT NULL DEFAULT 'os', store_account TEXT NOT NULL UNIQUE,
- status TEXT NOT NULL CHECK(status IN ('pending','ready','deleting','unavailable')),
- created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+ id TEXT PRIMARY KEY NOT NULL, kind TEXT NOT NULL CHECK(kind IN ('password','privateKey')),
+ label TEXT NOT NULL, owner_profile_id TEXT,
+ store_backend TEXT NOT NULL DEFAULT 'os', store_account TEXT NOT NULL UNIQUE,
+ status TEXT NOT NULL CHECK(status IN ('pending','ready','deleting')),
+ created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+ CHECK(owner_profile_id IS NULL OR kind='password')
 );
 CREATE TABLE key_files (
  id TEXT PRIMARY KEY NOT NULL, path TEXT NOT NULL UNIQUE, display_name TEXT NOT NULL,
+ content_fingerprint TEXT NOT NULL,
  created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
 );
 CREATE TABLE connection_profiles (
@@ -27,15 +30,12 @@ CREATE TABLE ssh_profiles (
 );
 CREATE TABLE profile_auth_steps (
  id TEXT PRIMARY KEY NOT NULL, profile_id TEXT NOT NULL REFERENCES connection_profiles(id) ON DELETE CASCADE,
- sort_order INTEGER NOT NULL, method TEXT NOT NULL CHECK(method IN ('password','privateKey','keyboardInteractive')),
+ sort_order INTEGER NOT NULL, method TEXT NOT NULL CHECK(method IN ('password','privateKey')),
  credential_id TEXT REFERENCES credentials(id) ON DELETE RESTRICT,
- key_file_id TEXT REFERENCES key_files(id) ON DELETE RESTRICT,
- passphrase_credential_id TEXT REFERENCES credentials(id) ON DELETE RESTRICT,
- step_json TEXT NOT NULL,
- CHECK((method='password' AND key_file_id IS NULL AND passphrase_credential_id IS NULL)
- OR (method='privateKey' AND key_file_id IS NOT NULL AND credential_id IS NULL)
- OR (method='keyboardInteractive' AND key_file_id IS NULL AND credential_id IS NULL AND passphrase_credential_id IS NULL))
+ CHECK(method='password' OR credential_id IS NOT NULL),
+ UNIQUE(profile_id,sort_order)
 );
+CREATE INDEX credentials_owner ON credentials(owner_profile_id);
 CREATE TABLE tags (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL UNIQUE);
 CREATE TABLE profile_tags (
  profile_id TEXT NOT NULL REFERENCES connection_profiles(id) ON DELETE CASCADE,

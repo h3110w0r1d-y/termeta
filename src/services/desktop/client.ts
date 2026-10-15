@@ -4,6 +4,7 @@ import type { AppSettings } from "../../modules/settings/model";
 import type {
   AuthChallenge,
   CredentialMetadata,
+  CredentialDraft,
   HistoryEntry,
   HostDraft,
   HostGroup,
@@ -26,8 +27,11 @@ export const desktop = {
   ) => getCurrentWindow().onCloseRequested(callback),
   closeWindow: () => getCurrentWindow().close(),
   listHosts: () => invoke<HostProfile[]>("list_hosts"),
-  saveHost: (host: HostDraft, expectedRevision: number | null) =>
-    invoke<HostProfile>("save_host", { host, expectedRevision }),
+  saveHost: (
+    host: HostDraft,
+    expectedRevision: number | null,
+    password?: string,
+  ) => invoke<HostProfile>("save_host", { host, expectedRevision, password }),
   deleteHost: (id: string, revision: number) =>
     invoke<void>("delete_host", { id, revision }),
   listGroups: () => invoke<HostGroup[]>("list_host_groups"),
@@ -46,11 +50,8 @@ export const desktop = {
     ),
   listKnownHosts: () => invoke<KnownHost[]>("list_known_hosts"),
   revokeKnownHost: (id: string) => invoke<void>("revoke_known_host", { id }),
-  saveCredential: (
-    kind: "password" | "passphrase",
-    label: string,
-    secret: string,
-  ) => invoke<{ id: string }>("save_credential", { kind, label, secret }),
+  saveCredential: (payload: CredentialDraft) =>
+    invoke<{ id: string }>("save_credential", { ...payload }),
   listHistory: () => invoke<HistoryEntry[]>("list_history"),
   clearHistory: () => invoke<void>("clear_history"),
   recoverCredential: (id: string) => invoke<void>("recover_credential", { id }),

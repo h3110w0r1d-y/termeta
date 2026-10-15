@@ -21,7 +21,7 @@
 | --- | --- | --- | --- |
 | 桌面框架 | Tauri 2，沿用 | Commands、Channels、自定义命令 ACL | WebView 差异、最低系统版本、权限配置 |
 | 前端 | Vue 3 + TypeScript；引入 Pinia 管理元数据 | 现有项目、Pinia 官方介绍 | 不将 xterm/输出放入深层响应式状态 |
-| UI | 采用 Reka UI primitives + 项目封装组件 + 自定义 CSS 的方向；Tailwind 可选 | 已补查官方介绍、样式、组合、Tabs、Dialog、Context Menu、Splitter、Tree | 具体 release/WebView 未验证；Tree 文档标 Alpha；终端生命周期与 Dock 不由控件库管理 |
+| UI | Naive UI 2.45.3 现成组件/主题，替代 Reka UI | 已核对 npm 元数据、包内类型/实现、MIT 许可证与 peer/engines | Node >=20、Vue ^3.0.0；三平台 WebView 未验证；终端生命周期独立 |
 | 终端 | `@xterm/xterm` + fit/search；WebGL 可选 | xterm 官方 API、addons、编码与流控 | 必须测试 WKWebView/WebView2/WebKitGTK；有非 WebGL 回退 |
 | SSH | russh，文档上符合，进入 M1 集成验证 | client Handler/Handle/Channel/Config | 版本更新快、算法与私钥格式需 fixtures、编译后端需核验 |
 | 异步 | Tokio + tokio-util 取消信号 | Tokio 官方阻塞任务说明 | 共用 Tauri 提供的 Tokio 执行环境，避免套建 runtime |
@@ -118,7 +118,7 @@ Pinia 适合 Vue 共享状态；仅管理主机列表、会话摘要与偏好。
 | SP-04 | SQLx SQLite feature、迁移、路径、备份在三平台是否一致？ | 更换版本/隔离存储实现，不暴露 SQL 给前端 |
 | SP-05 | 关闭是否打断满队列/无 ACK/远端无响应？KeepAlive 是否仍正常？ | 调整 actor/任务拓扑，未通过不进入 MVP |
 | SP-06 | 后续 PTY/串口在设备阻塞时如何唤醒退出？ | 评估专用线程、平台取消 API、tokio-serial |
-| SP-07 | Reka/xterm 组合能否在三种 WebView 中保持终端跨重连不清空，并正确处理焦点、Portal、CSP 和旧流模式边界？ | 调整控件/流适配层；不能用清屏或重建终端规避 |
+| SP-07 | Naive UI/xterm 组合能否在三种 WebView 中保持终端跨重连不清空，并正确处理焦点、Portal、CSP 和旧流模式边界？ | 调整控件/流适配层；不能用清屏或重建终端规避 |
 | SP-08 | 应用内全局/终端按键与点击手势能否配置、消除冲突/重复执行，并兼容 IME/菜单？ | 调整 router/焦点适配；系统后台另在 M5 验证，不牺牲远端默认控制键 |
 | SP-09 | 所选 xterm release 是否映射全部已编辑 palette 字段、可热应用，导入可往返且安全？ | 调整映射或版本，不能静默忽略颜色，不以重建终端热更新 |
 | SP-10 | SFTP-only、双栏各端点组合、metadata/冲突/取消/中转与共享连接公平性是否满足？ | 调整 provider/独立连接/能力策略；不跳过身份或覆盖检查 |
@@ -126,7 +126,7 @@ Pinia 适合 Vue 共享状态；仅管理主机列表、会话摘要与偏好。
 
 SP-01~05、SP-07~09 未执行；SP-10/11 到 M3，SP-06 到 M4，系统后台快捷键到 M5。执行规则和证据记录见 [验证计划](11-validation.md)。
 
-## 10. Reka UI 补充评估
+## 10. Reka UI 历史评估（已被 Naive UI 取代）
 
 2026-10-15 按用户对高度自定义桌面 UI 的要求追加官方资料核查，方向从“可选候选”更新为“采用基础控件方案，具体集成待验证”。详见 [UI 选型](13-ui-stack.md)。当前 package.json 仍只有模板依赖，不能说前端已经接入 Reka。
 
@@ -158,3 +158,18 @@ SP-01~05、SP-07~09 未执行；SP-10/11 到 M3，SP-06 到 M4，系统后台快
 pnpm audit报告0个已知公告；OSV对688个Rust锁依赖查询发现RSA/GLib/停止维护条目，影响路径和未关闭门槛见 [实施状态](17-implementation-status.md#4-依赖与公告核查)。锁文件还含未启用的SQLx/MySQL可选依赖，按cargo tree启用features判断实际可达性。未编译或运行三平台，MSRV声明不等于完整组合已通过。
 
 启动反馈修正：2026-10-15，JS 的 @tauri-apps/api 不再使用宽泛 ^2，固定 2.11.0 与 Rust tauri2.11.5 同 minor。未使用的 JS plugin-opener 已移除，原生 opener2.5.5 通过受控命令保留。pnpm 锁文件同步，未升级原生栈或主动启动项目。
+
+## 13. Naive UI 固定版本核查（2026-10-15）
+
+按用户最新要求用 naive-ui 2.45.3 替换 reka-ui。已核对注册信息与本地固定包：MIT，Node >=20，Vue peer ^3.0.0，无 Rust features/MSRV 影响；NModal/NSelect/NInput/NInputNumber/NTabs/NColorPicker 等 API 以包内声明和实现为准。依赖按需静态导入，不新增图标库或 Tailwind。执行 pnpm add --save-exact naive-ui@2.45.3 --ignore-scripts，删除依赖使用禁用脚本配置；锁文件同步。
+
+本轮 pnpm audit --json 返回 0 个已知公告；不代表没有供应链风险，也不关闭既有 Rust 公告。未执行构建、启动、性能或三平台兼容性验证，未宣称包体积收益。来源与控件分工见 [UI 选型](13-ui-stack.md)。此前第10节及首期依赖记录是历史证据，当前依赖以 package.json/pnpm-lock.yaml 为准。
+
+
+## 14. 凭据材料封装依赖（2026-10-15）
+
+terminal-security 复用锁文件已有 serde 1.0.228（derive）、serde_json 1.0.154 和 uuid 1.22.0（v4），使用精确版本声明；分别用于私钥材料的单项 JSON 系统凭据封装及新项目 ID，不更换 keyring 后端。锁文件同步直接依赖，无新增未核对的库版本。三者许可为 MIT OR Apache-2.0；serde 声明 MSRV 1.56、serde_json 1.71、uuid 1.85，未提高既有 russh 1.89 基线。敏感材料使用 Zeroizing，接口不序列化返回材料。仅检查锁文件解析与源码；三平台系统凭据单项容量和完整依赖组合的编译/运行兼容性待验证。
+
+## 15. 内置终端字体核查（2026-10-15）
+
+从 DejaVu、Mozilla、Adobe、Microsoft、Fira Code、JetBrains 官方 GitHub 的 latest 正式 Release、Canonical 官方字体包、Meslo 作者仓库和 AOSP 官方镜像获取字体；Anonymous Pro 与 PT Mono 采用 Google Fonts 官方固定分发提交。详情见 [字体来源清单](../public/fonts/README.md) 和 [含 SHA-256 的 manifest](../public/fonts/manifest.json)。未引入运行时字体下载服务或额外 npm/Rust 依赖，下载后用 fontTools 静态读取字体表和内部版本，不执行应用。采用原始字体文件，未重打包转换/子集化。许可分别为 OFL、Ubuntu Font Licence、Apache-2.0、Bitstream Vera/DejaVu，逐家族附原许可与版权。官方站点不能完整验证的分发情况已单独记录，不将仓库 head 说成独立发布版本。

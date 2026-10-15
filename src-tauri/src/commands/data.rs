@@ -26,10 +26,16 @@ pub async fn save_host(
     state: State<'_, AppState>,
     mut host: HostDraft,
     expected_revision: Option<i64>,
+    password: Option<String>,
 ) -> Result<HostProfile> {
+    let password = password.map(zeroize::Zeroizing::new);
     owner(&window)?;
     host.revision = expected_revision;
-    state.store.save_host(host).await.map_err(storage_error)
+    state
+        .vault
+        .save_host(host, password)
+        .await
+        .map_err(security_error)
 }
 #[tauri::command]
 pub async fn delete_host(
@@ -43,7 +49,10 @@ pub async fn delete_host(
         .store
         .delete_host(&id, revision)
         .await
-        .map_err(storage_error)
+        .map_err(storage_error)?;
+    // 数据库删除已提交；系统秘密未能即时删除时保持待清理状态。
+    let _ = state.vault.reconcile_deletions().await;
+    Ok(())
 }
 #[tauri::command]
 pub async fn list_host_groups(
@@ -112,11 +121,16 @@ pub async fn save_credential(
     state: State<'_, AppState>,
     kind: String,
     label: String,
-    secret: String,
+    password: Option<String>,
+    key_file_ref: Option<String>,
+    passphrase: Option<String>,
 ) -> Result<serde_json::Value> {
-    let secret = zeroize::Zeroizing::new(secret);
+    let password = password.map(zeroize::Zeroizing::new);
+    let passphrase = passphrase
+        .map(zeroize::Zeroizing::new)
+        .filter(|value| !value.is_empty());
     owner(&window)?;
-    if !matches!(kind.as_str(), "password" | "passphrase")
+    if !matches!(kind.as_str(), "password" | "privateKey")
         || label.is_empty()
         || label.len() > 128
         || label.chars().any(char::is_control)
@@ -127,11 +141,31 @@ pub async fn save_credential(
             "凭据类型或标签无效",
         ));
     }
-    let id = state
-        .vault
-        .save(&kind, &label, secret)
-        .await
-        .map_err(security_error)?;
+    let id = match kind.as_str() {
+        "password" if key_file_ref.is_none() && passphrase.is_none() => {
+            state
+                .vault
+                .save_password(&label, password.unwrap_or_default())
+                .await
+        }
+        "privateKey" if password.is_none() => {
+            let key_file_ref = key_file_ref.ok_or_else(|| {
+                SessionError::new("INVALID_CONFIG", "validation", "缺少授权私钥引用")
+            })?;
+            state
+                .vault
+                .save_private_key(&label, &key_file_ref, passphrase)
+                .await
+        }
+        _ => {
+            return Err(SessionError::new(
+                "INVALID_CONFIG",
+                "validation",
+                "凭据内容与类型不匹配",
+            ));
+        }
+    }
+    .map_err(security_error)?;
     Ok(serde_json::json!({"id":id}))
 }
 #[tauri::command]
@@ -164,8 +198,19 @@ pub async fn get_settings(
             "设置来自不支持的版本，已停止写入",
         ));
     }
-    crate::settings::validate(&setting.value)?;
-    Ok(Some(setting.value))
+    let mut value = setting.value;
+    // 旧版自定义字体串收敛到内置默认项，只改本次返回值，保存仍走完整校验。
+    if let Some(font) = value.get_mut("fontFamily") {
+        if font
+            .as_str()
+            .is_some_and(|name| !crate::settings::TERMINAL_FONTS.contains(&name))
+        {
+            *font = serde_json::Value::String(crate::settings::DEFAULT_TERMINAL_FONT.into());
+        }
+    }
+    crate::settings::normalize_legacy_schemes(&mut value);
+    crate::settings::validate(&value)?;
+    Ok(Some(value))
 }
 #[tauri::command]
 pub async fn save_settings(
@@ -196,6 +241,9 @@ pub async fn save_settings(
         .map_err(storage_error)
 }
 pub fn security_error(error: terminal_security::SecurityError) -> SessionError {
+    if let terminal_security::SecurityError::Metadata(error) = error {
+        return storage_error(error);
+    }
     SessionError::new(
         "CREDENTIAL_UNAVAILABLE",
         "authentication",

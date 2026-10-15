@@ -1,22 +1,18 @@
 <script setup lang="ts">
+import { NList, NListItem, NThing, NEmpty, NAlert } from "naive-ui";
+import AppButton from "../../components/ui/AppButton.vue";
 import { ref, onMounted } from "vue";
 import { confirmAction } from "../../components/ui/confirmation";
 import { desktop, errorMessage } from "../../services/desktop/client";
-import type {
-  KnownHost,
-  CredentialMetadata,
-  HistoryEntry,
-} from "../../services/desktop/types";
+import type { KnownHost, HistoryEntry } from "../../services/desktop/types";
 const error = ref(""),
   known = ref<KnownHost[]>([]),
-  credentials = ref<CredentialMetadata[]>([]),
   history = ref<HistoryEntry[]>([]);
 onMounted(loadSecurity);
 async function loadSecurity() {
   try {
-    [known.value, credentials.value, history.value] = await Promise.all([
+    [known.value, history.value] = await Promise.all([
       desktop.listKnownHosts(),
-      desktop.listCredentials(),
       desktop.listHistory(),
     ]);
   } catch (e) {
@@ -41,67 +37,43 @@ async function revoke(id: string) {
       error.value = errorMessage(e);
     }
 }
-async function deleteCredential(id: string) {
-  if (await confirmAction("删除系统凭据？主机引用可能需要重新填写。"))
-    try {
-      await desktop.deleteCredential(id);
-      await loadSecurity();
-    } catch (e) {
-      error.value = errorMessage(e);
-    }
-}
 </script>
 <template>
   <div>
     <h3>已信任的 SSH 主机</h3>
-    <p v-if="!known.length" class="muted">尚未保存主机信任。</p>
-    <article v-for="host in known" :key="host.id" class="security-row">
-      <div>
-        <strong>{{ host.canonicalHost + ":" + host.port }}</strong
-        ><small>{{ host.keyAlgorithm }} · {{ host.fingerprintSha256 }}</small>
-      </div>
-      <button class="danger" @click="revoke(host.id)">撤销信任</button>
-    </article>
-    <h3>连接历史</h3>
-    <button @click="clearHistory">清空历史</button>
-    <p v-if="!history.length" class="muted">尚无连接历史。</p>
-    <article v-for="item in history" :key="item.id" class="security-row">
-      <div>
-        <strong>{{ item.displayName }}</strong
-        ><small
-          >{{ item.endpoint }} ·
-          {{ new Date(item.startedAt).toLocaleString() }} ·
-          {{ item.endReason || "进行中" }} {{ item.errorCode }}</small
-        >
-      </div>
-    </article>
-    <h3>系统凭据</h3>
-    <p v-if="!credentials.length" class="muted">
-      尚未保存凭据，或系统凭据库不可用。
-    </p>
-    <article
-      v-for="credential in credentials"
-      :key="credential.id"
-      class="security-row"
+    <NEmpty v-if="!known.length" description="尚未保存主机信任。" />
+    <NList v-else bordered
+      ><NListItem v-for="host in known" :key="host.id"
+        ><NThing
+          class="selectable-text"
+          :title="host.canonicalHost + ':' + host.port"
+          :description="host.keyAlgorithm + ' · ' + host.fingerprintSha256"
+        /><template #suffix
+          ><AppButton class="danger" @click="revoke(host.id)"
+            >撤销信任</AppButton
+          ></template
+        ></NListItem
+      ></NList
     >
-      <div>
-        <strong>{{ credential.label }}</strong
-        ><small>{{ credential.kind }} · {{ credential.id }}</small>
-      </div>
-      <button
-        v-if="credential.status === 'pending'"
-        @click="
-          desktop
-            .recoverCredential(credential.id)
-            .then(loadSecurity)
-            .catch((e) => (error = errorMessage(e)))
-        "
-      >
-        恢复一致性</button
-      ><button class="danger" @click="deleteCredential(credential.id)">
-        删除凭据
-      </button>
-    </article>
+    <h3>连接历史</h3>
+    <AppButton :disabled="!history.length" @click="clearHistory"
+      >清空历史</AppButton
+    >
+    <NEmpty v-if="!history.length" description="尚无连接历史。" />
+    <NList v-else bordered
+      ><NListItem v-for="item in history" :key="item.id"
+        ><NThing
+          :title="item.displayName"
+          :description="
+            item.endpoint +
+            ' · ' +
+            new Date(item.startedAt).toLocaleString() +
+            ' · ' +
+            (item.endReason || '进行中') +
+            ' ' +
+            (item.errorCode || '')
+          " /></NListItem
+    ></NList>
   </div>
-  <p v-if="error" class="error" role="alert">{{ error }}</p>
+  <NAlert v-if="error" type="error">{{ error }}</NAlert>
 </template>

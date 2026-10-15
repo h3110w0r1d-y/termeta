@@ -17,7 +17,7 @@ use std::{
 };
 use thiserror::Error;
 
-const SCHEMA_VERSION: i64 = 2;
+const SCHEMA_VERSION: i64 = 1;
 
 #[derive(Debug, Error)]
 pub enum StorageError {

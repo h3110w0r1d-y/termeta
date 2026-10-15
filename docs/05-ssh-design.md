@@ -4,7 +4,7 @@
 
 ## 1. 连接配置
 
-`SshProfile`：address、port（默认 22）、username、authPlan、terminalType（默认 xterm-256color）、初始 rows/cols、timeoutPolicy、keepAlivePolicy、algorithmPolicyRef。保存记录只包含 credentialRef 或经过选择授权的私钥文件引用，不包含密码、私钥内容或 OTP。
+`SshProfile`：address、port（默认 22）、username、authPlan、terminalType（默认 xterm-256color）、初始 rows/cols、timeoutPolicy、keepAlivePolicy、algorithmPolicyRef。保存记录只包含公共或主机专属 credentialRef；私钥从凭据库读取，不在连接时引用原文件，不包含密码、私钥内容或 OTP。
 
 address 输入不支持夹带端口或 shell 片段；UI 分别处理端口，允许域名/IPv4/IPv6，后端拒绝控制字符与嵌入 NUL。IPv6 展示时加括号，但 canonical key 不依赖字符串拼接猜测。DNS 用于定位网络目标，不能代替 SSH 主机身份校验。
 
@@ -69,21 +69,21 @@ Challenge 绑定 session、owner、key digest 和 endpoint；超时、取消、�
 
 ## 4. 认证策略
 
-`authPlan` 是有序且有上限的认证步骤集合，不是无限尝试所有本地密钥。
+`authPlan` 只保存一个主要认证方式及凭据引用，不保留旧版有序步骤兼容；不是无限尝试所有本地密钥。用户无需配置“密码 / 私钥之后继续交互认证（OTP）”。主机身份通过后，后端先发送不携带秘密的 `none` 请求查询可用认证方法，再按服务端 `remaining_methods` 与 `partial_success` 协商。服务器若允许 `none`，直接完成认证。
 
 | 方式 | 首期行为 | 数据边界 |
 | --- | --- | --- |
-| 密码 | 显式选择，单次输入或读取 OS 凭据引用 | 不写入主机配置/SQLite/Pinia 持久化 |
-| 私钥 | OpenSSH Ed25519 与 RSA-SHA2 优先；从授权文件在 Rust 读取/解密 | 前端仅见文件名/公钥指纹，完整私钥不回传 |
-| 加密私钥口令 | 通过 masked challenge 输入，可选择保存口令 | 不是私钥本体；不复用为账号密码 |
+| 密码 | 读取公共/主机专属 OS 密码，未设置则 challenge 询问 | 不写入主机配置/SQLite/Pinia 持久化 |
+| 私钥 | OpenSSH Ed25519 与 RSA-SHA2 优先；从 privateKey 凭据读取正文及可选解密密码 | 前端仅见文件名/公钥指纹，完整私钥不回传 |
+| 私钥解密密码 | 可随私钥凭据保存；缺失/错误时通过 masked challenge 本次补充 | 不再独立建凭据；本次补充不自动保存 |
 | Keyboard-interactive | 显示 banner/name/instructions 与每轮 prompts，按 echo 标记输入 | echo=false 必须掩码；OTP 永不持久化 |
 | partial success | 保留已完成因素，继续服务器要求的下一步 | 不把多因素要求误报成错误密码 |
 
-认证由服务器与配置共同决定；密码 auth 和 Keyboard-interactive 是不同协议步骤。常见 password+OTP 需要真实服务器验证；文档有方法并不表示应用已兼容任意 PAM/MFA。
+认证由服务器与配置共同决定；密码 auth 和 Keyboard-interactive 是不同协议步骤。密码 / 私钥部分成功且服务器要求 Keyboard-interactive 时立即进入服务端挑战；仅支持 Keyboard-interactive 的主机不会先索要无效的密码或私钥口令。主认证失败后如服务器仍提供交互认证，也允许自动进入 PAM 表单。配置不含 Keyboard-interactive 步骤，后端不会重复启动已处理的挑战组。保存的密码不会自动填入服务端任意提示；OTP 不持久化。常见 password+OTP 需要真实服务器验证；文档有方法并不表示应用已兼容任意 PAM/MFA。
 
-首期允许最大 3 次用户提交重试、最多 8 轮交互 challenge（均为可调初始上限），每轮设置期限；服务端提示数量、单条长度和总字节数均需限额。拒绝复用旧 challenge。不要将完整 server banner 当作可信富文本，所有提示按普通文本显示。
+首期密码提交共享最多 3 次预算，私钥口令最多 3 次重新输入；交互认证最多启动 3 次，所有交互尝试共享最多 8 轮 challenge（均为初始上限），每轮设置期限；服务端提示数量、单条长度和总字节数均需限额。拒绝复用旧 challenge。不要将完整 server banner 当作可信富文本，所有提示按普通文本显示。
 
-M1 可以仅实现单次密码验证纵向切片；M2 才要求私钥、口令保存与多轮交互完整。Agent、Pageant、证书、FIDO、安全密钥、PPK/PEM 全格式与 GSSAPI 不纳入 M2 承诺；不支持时明确说明，不默认调用系统 ssh 回退。
+M1 可以仅实现单次密码验证纵向切片；M2 才要求私钥凭据、可选解密密码与多轮交互完整。Agent、Pageant、证书、FIDO、安全密钥、PPK/PEM 全格式与 GSSAPI 不纳入 M2 承诺；不支持时明确说明，不默认调用系统 ssh 回退。
 
 ## 5. PTY、Shell 与数据
 
@@ -127,8 +127,12 @@ ProxyJump 后续通过明确 hop 列表，为每一跳独立校验密钥与认�
 
 ## 首期源码与差异（2026-10-15）
 
-实现分别见 terminal-ssh 的 connection/host_key/auth/driver 模块。已实现密码重试、加密 OpenSSH 私钥口令重试和最多 8 轮 Keyboard-interactive，可按 authPlan 组合因素；UI 支持密码/私钥后追加交互认证。系统凭据通过主机编辑单独显式保存，认证弹窗只用于本次。
+实现分别见 terminal-ssh 的 connection/host_key/auth/driver 模块。已实现密码重试、加密 OpenSSH 私钥口令重试和最多 8 轮 Keyboard-interactive。2026-10-15 重构后，后端依据服务端可用方法与部分成功自动续接 OTP / PAM，使用单一主要 authPlan，界面仅提供密码/公钥，既不提供独立交互认证选项，也不要求预设追加交互认证。公共密码/私钥在凭据页保存；主机直接密码非空自动保存为专属项，空值连接时询问；认证弹窗只用于本次。
 
 固定配置使用 256 KiB SSH window、32 KiB maximum packet、16 channel 消息容量、30 秒 KeepAlive 与 max=3。russh 接收任意包会重置保活计数，且超出 max 才断开，不能称“精确 90 秒”。库内部 channel 满时可能影响协议调度，SP-05 仍是未通过门槛。独立 socket shutdown 确保取消不依赖输出 ACK。
 
 已从默认 host-key 算法排除 RSA/SHA-1；RSA 私钥仅选择服务器明确支持的 SHA-2 签名。此算法选择不修复 RSA 实现侧信道公告，详见 [实施状态的公告记录](17-implementation-status.md#4-依赖与公告核查)。没有真实握手/认证/PTY 验证记录。
+
+本次静态核查：对照本机已下载的 russh 0.64.1 源码核对 `authenticate_none`、`AuthResult`、`MethodKind` 与交互结果 API；对修改文件执行 rustfmt 格式检查与差异检查。未执行编译、Rust 测试、SSH 连接或运行验收。后续需验证公共/专属密码、加密/无密码私钥、密码+OTP、私钥+OTP、仅 PAM、错误密码/OTP 重试与取消/超时。
+
+本轮按用户要求不考虑旧数据库与认证配置兼容：删除静态 KeyboardInteractive 枚举和独立 passphrase 凭据引用。连接时自动 KI 协商保持有效。

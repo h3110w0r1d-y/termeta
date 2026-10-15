@@ -1,7 +1,30 @@
 <script setup lang="ts">
+import {
+  NConfigProvider,
+  NGlobalStyle,
+  NAlert,
+  NMenu,
+  NDropdown,
+  darkTheme,
+  zhCN,
+  dateZhCN,
+} from "naive-ui";
+import AppButton from "./components/ui/AppButton.vue";
+import AppInput from "./components/ui/AppInput.vue";
+import AppScrollArea from "./components/ui/AppScrollArea.vue";
 import { confirmAction } from "./components/ui/confirmation";
-import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
+import {
+  computed,
+  nextTick,
+  onMounted,
+  onBeforeUnmount,
+  ref,
+  watch,
+} from "vue";
 import ConfirmationDialog from "./components/ui/ConfirmationDialog.vue";
+import CredentialsPage from "./modules/credentials/CredentialsPage.vue";
+import WorkspaceTabs from "./modules/workspace/WorkspaceTabs.vue";
+import SftpWorkspace from "./modules/workspace/SftpWorkspace.vue";
 import HostsSidebar from "./modules/hosts/HostsSidebar.vue";
 import HostEditor from "./modules/hosts/HostEditor.vue";
 import SettingsDialog from "./modules/settings/SettingsDialog.vue";
@@ -12,7 +35,7 @@ import ChallengeDialog from "./modules/terminal/ChallengeDialog.vue";
 import { useHosts } from "./modules/hosts/store";
 import { useSettings } from "./modules/settings/store";
 import { useWorkspace, stateLabels, isActive } from "./modules/workspace/store";
-import { terminalRegistry } from "./modules/terminal/registry";
+import { schemeForTab, terminalRegistry } from "./modules/terminal/registry";
 import { commands } from "./services/commands/registry";
 import { desktop, errorMessage } from "./services/desktop/client";
 import type { HostProfile, SshConfig } from "./services/desktop/types";
@@ -23,13 +46,28 @@ const editorOpen = ref(false),
   quick = ref(false),
   editing = ref<HostProfile>(),
   duplicate = ref(false),
-  settingsOpen = ref(false),
   initError = ref(""),
   findOpen = ref(false),
   query = ref("");
 const connected = computed(
   () => workspace.tabs.filter((t) => t.state === "connected").length,
 );
+const terminalBackground = computed(() =>
+  workspace.active
+    ? schemeForTab(workspace.active).colors.background
+    : undefined,
+);
+const systemAppearance = window.matchMedia("(prefers-color-scheme: dark)");
+const systemDark = ref(systemAppearance.matches);
+const naiveTheme = computed(() =>
+  settings.value.appearance === "dark" ||
+  (settings.value.appearance === "system" && systemDark.value)
+    ? darkTheme
+    : null,
+);
+function updateSystemAppearance(event: MediaQueryListEvent) {
+  systemDark.value = event.matches;
+}
 let heartbeat: ReturnType<typeof setInterval> | undefined,
   unlisten: (() => void) | undefined,
   closingWindow = false;
@@ -42,6 +80,7 @@ function edit(host?: HostProfile, copy = false) {
 function quickConnect() {
   editing.value = undefined;
   quick.value = true;
+  duplicate.value = false;
   editorOpen.value = true;
 }
 function connect(host: HostProfile) {
@@ -53,6 +92,9 @@ function ephemeral(config: SshConfig, title: string) {
 async function closeTab(id: string) {
   const tab = workspace.tabs.find((t) => t.terminalId === id);
   if (!tab) return;
+  const restoreTabFocus = !!document.activeElement?.closest(
+    "[data-workspace-tab], .workspace-tab-close",
+  );
   if (
     isActive(tab.state) &&
     settings.value.confirmClose &&
@@ -63,6 +105,14 @@ async function closeTab(id: string) {
     await terminalRegistry.dispose(id);
     workspace.dismiss(tab.sessionId ?? "");
     workspace.remove(id);
+    if (restoreTabFocus) {
+      await nextTick();
+      document
+        .querySelector<HTMLElement>(
+          '[data-workspace-tab][aria-selected="true"]',
+        )
+        ?.focus({ preventScroll: true });
+    }
   } catch (e) {
     tab.error = errorMessage(e);
   }
@@ -77,32 +127,55 @@ function perform(action: () => void | Promise<void>) {
     initError.value = errorMessage(e);
   }
 }
-function disconnectActive() {
-  if (workspace.active)
-    perform(() => terminalRegistry.disconnect(workspace.active!.terminalId));
-}
-function reconnectActive() {
-  if (workspace.active)
-    perform(() => terminalRegistry.connect(workspace.active!));
-}
-function tabKey(event: KeyboardEvent) {
-  const index = workspace.tabs.findIndex(
-    (t) => t.terminalId === workspace.activeId,
-  );
-  let next = index;
-  if (event.key === "ArrowRight") next = (index + 1) % workspace.tabs.length;
-  else if (event.key === "ArrowLeft")
-    next = (index - 1 + workspace.tabs.length) % workspace.tabs.length;
-  else if (event.key === "Home") next = 0;
-  else if (event.key === "End") next = workspace.tabs.length - 1;
-  else return;
+const tabMenu = ref({ show: false, id: "", x: 0, y: 0 });
+const menuTab = computed(() =>
+  workspace.tabs.find((tab) => tab.terminalId === tabMenu.value.id),
+);
+const tabMenuOptions = computed(() => [
+  { label: "搜索历史", key: "find" },
+  {
+    label: "终端配色",
+    key: "theme",
+    children: [
+      { label: "跟随主机 / 默认配色", key: "scheme:default" },
+      ...[...builtinThemeOptions, ...settings.value.customSchemes].map(
+        (scheme) => ({ label: scheme.name, key: `scheme:${scheme.id}` }),
+      ),
+    ],
+  },
+  isActive(menuTab.value?.state ?? "closed")
+    ? { label: "断开", key: "disconnect" }
+    : { label: "重新连接", key: "reconnect" },
+]);
+function openTabMenu(event: MouseEvent | KeyboardEvent, id: string) {
   event.preventDefault();
-  workspace.activeId = workspace.tabs[next]!.terminalId;
-  requestAnimationFrame(() =>
-    document
-      .querySelector<HTMLButtonElement>("[role=tab][aria-selected=true]")
-      ?.focus(),
-  );
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  tabMenu.value = {
+    show: true,
+    id,
+    x: event instanceof MouseEvent ? event.clientX : rect.left,
+    y: event instanceof MouseEvent ? event.clientY : rect.bottom,
+  };
+}
+async function selectTabAction(key: string) {
+  tabMenu.value.show = false;
+  const tab = menuTab.value;
+  if (!tab) return;
+  if (key === "disconnect")
+    perform(() => terminalRegistry.disconnect(tab.terminalId));
+  else if (key === "reconnect") perform(() => terminalRegistry.connect(tab));
+  else if (key === "find") {
+    workspace.activeId = tab.terminalId;
+    await nextTick();
+    findOpen.value = true;
+  } else if (key.startsWith("scheme:")) {
+    tab.schemeId = key === "scheme:default" ? undefined : key.slice(7);
+    terminalRegistry.apply();
+  }
+}
+async function focusTerminal(id: string) {
+  await nextTick();
+  terminalRegistry.focus(id);
 }
 function closeFind() {
   findOpen.value = false;
@@ -127,22 +200,25 @@ watch(
 watch(
   () => workspace.activeId,
   () => {
+    tabMenu.value.show = false;
     findOpen.value = false;
     query.value = "";
   },
+  { flush: "post" },
 );
 watch(
   () => workspace.active?.schemeId,
   () => terminalRegistry.apply(),
 );
 onMounted(async () => {
+  systemAppearance.addEventListener("change", updateSystemAppearance);
   commands.register("workspace.newConnection", quickConnect);
   commands.register("workspace.closeTab", () => {
     if (workspace.active) void closeTab(workspace.active.terminalId);
   });
   commands.register("workspace.nextTab", () => workspace.cycle(1));
   commands.register("workspace.previousTab", () => workspace.cycle(-1));
-  commands.register("settings.open", () => (settingsOpen.value = true));
+  commands.register("settings.open", () => workspace.openHome("settings"));
   commands.register("terminal.copy", () => {
     if (workspace.active)
       perform(() => terminalRegistry.copy(workspace.active!.terminalId));
@@ -192,175 +268,168 @@ onMounted(async () => {
   }
 });
 onBeforeUnmount(() => {
+  systemAppearance.removeEventListener("change", updateSystemAppearance);
   document.removeEventListener("keydown", globalKey);
   if (heartbeat) clearInterval(heartbeat);
   unlisten?.();
 });
 </script>
 <template>
-  <div class="app-shell">
-    <HostsSidebar
-      @connect="connect"
-      @edit="edit"
-      @quick="quickConnect"
-      @settings="commands.execute('settings.open')"
-    />
-    <main class="workspace">
-      <header class="workspace-header">
-        <div>
-          <span class="eyebrow">WORKSPACE</span>
-          <h1>连接，让工作流畅发生。</h1>
-        </div>
-        <span class="connection-count"
-          ><i class="status-dot" />{{ connected }} 个已连接</span
-        ><button @click="commands.execute('workspace.newConnection')">
-          ＋ 新建连接
-        </button>
-      </header>
-      <div v-if="initError" class="app-error" role="alert">
-        {{ initError
-        }}<button class="icon-button" @click="initError = ''">✕</button>
-      </div>
-      <template v-if="workspace.tabs.length"
-        ><nav
-          class="tab-bar"
-          role="tablist"
-          aria-label="终端标签"
-          @keydown="tabKey"
+  <NConfigProvider :theme="naiveTheme" :locale="zhCN" :date-locale="dateZhCN">
+    <NGlobalStyle />
+    <div
+      class="app-shell"
+      :class="{ 'tabs-left': settings.value.tabPosition === 'left' }"
+    >
+      <WorkspaceTabs
+        :tabs="workspace.tabs"
+        :active-id="workspace.activeId"
+        :position="settings.value.tabPosition"
+        :connected="connected"
+        @activate="workspace.activeId = $event"
+        @focus-terminal="focusTerminal"
+        @close="closeTab"
+        @menu="openTabMenu"
+        @create="commands.execute('workspace.newConnection')"
+      />
+      <NDropdown
+        :show="tabMenu.show"
+        :x="tabMenu.x"
+        :y="tabMenu.y"
+        :options="tabMenuOptions"
+        :menu-props="() => ({ 'data-ui-popup-open': '' })"
+        trigger="manual"
+        display-directive="if"
+        placement="bottom-start"
+        @select="selectTabAction"
+        @clickoutside="tabMenu.show = false"
+        @update:show="tabMenu.show = $event"
+      />
+      <main class="workspace">
+        <NAlert
+          v-if="initError"
+          type="error"
+          closable
+          @close="initError = ''"
+          >{{ initError }}</NAlert
         >
-          <div
-            v-for="tab in workspace.tabs"
-            :key="tab.terminalId"
-            class="terminal-tab"
-            :class="{ active: workspace.activeId === tab.terminalId }"
-          >
-            <button
-              role="tab"
-              :aria-selected="workspace.activeId === tab.terminalId"
-              :tabindex="workspace.activeId === tab.terminalId ? 0 : -1"
-              @click="workspace.activeId = tab.terminalId"
+        <section
+          id="page-home"
+          aria-labelledby="workspace-tab-home"
+          v-show="workspace.activeId === 'home'"
+          class="home-workspace"
+          role="tabpanel"
+          aria-label="首页"
+        >
+          <aside class="home-navigation">
+            <NMenu
+              :value="workspace.homeSection"
+              :options="[
+                { key: 'hosts', label: '主机' },
+                { key: 'credentials', label: '凭据' },
+                { key: 'settings', label: '设置' },
+              ]"
+              @update:value="workspace.openHome($event)"
+            />
+          </aside>
+          <div class="home-content">
+            <!-- 显隐挂在原生容器上，避免滚动组件内部的观察器根节点丢失指令。 -->
+            <div
+              v-show="workspace.homeSection === 'hosts'"
+              class="home-page-scroll"
             >
-              <i class="status-dot" :class="tab.state" />{{ tab.title }}</button
-            ><button
+              <AppScrollArea label="主机内容">
+                <HostsSidebar
+                  @connect="connect"
+                  @edit="edit"
+                  @quick="quickConnect"
+                />
+              </AppScrollArea>
+            </div>
+            <AppScrollArea
+              v-if="workspace.homeSection === 'credentials'"
+              class="home-page-scroll"
+              label="凭据内容"
+            >
+              <CredentialsPage />
+            </AppScrollArea>
+            <SettingsDialog
+              v-if="workspace.homeSection === 'settings'"
+              :embedded="true"
+              :open="true"
+            />
+          </div>
+        </section>
+        <SftpWorkspace v-show="workspace.activeId === 'sftp'" />
+        <!-- 终端宿主始终留在同一组件树内；页面与布局切换仅改变可见性。 -->
+        <section
+          v-show="!!workspace.active"
+          class="terminal-workspace"
+          aria-label="终端工作区"
+        >
+          <div v-if="findOpen && workspace.active" class="find-bar">
+            <AppInput
+              v-model="query"
+              autofocus
+              aria-label="搜索终端历史"
+              placeholder="搜索终端历史…"
+              @keydown.enter.prevent="
+                terminalRegistry.find(
+                  workspace.active.terminalId,
+                  query,
+                  $event.shiftKey,
+                )
+              "
+              @keydown.esc="closeFind()"
+            />
+            <AppButton
+              @click="
+                terminalRegistry.find(workspace.active.terminalId, query, true)
+              "
+            >
+              上一个</AppButton
+            ><AppButton
+              @click="terminalRegistry.find(workspace.active.terminalId, query)"
+            >
+              下一个</AppButton
+            ><AppButton
               class="icon-button"
-              :aria-label="'关闭 ' + tab.title"
-              @click="closeTab(tab.terminalId)"
+              aria-label="关闭搜索"
+              @click="closeFind()"
             >
-              ×
-            </button>
+              ✕
+            </AppButton>
           </div>
-          <button
-            class="icon-button"
-            aria-label="新建连接"
-            @click="commands.execute('workspace.newConnection')"
+          <NAlert v-if="workspace.active?.error" type="error">
+            {{ workspace.active.error }}
+          </NAlert>
+          <div
+            class="terminal-stage"
+            :style="{ '--terminal-background': terminalBackground }"
           >
-            ＋
-          </button>
-        </nav>
-        <div v-if="workspace.active" class="terminal-toolbar">
-          <span :class="{ error: workspace.active.state === 'failed' }">{{
-            stateLabels[workspace.active.state]
-          }}</span>
-          <div class="toolbar-actions">
-            <select
-              v-model="workspace.active.schemeId"
-              aria-label="当前终端配色"
-            >
-              <option :value="undefined">跟随默认配色</option>
-              <option
-                v-for="scheme in [
-                  ...builtinThemeOptions,
-                  ...settings.value.customSchemes,
-                ]"
-                :key="scheme.id"
-                :value="scheme.id"
-              >
-                {{ scheme.name }}
-              </option></select
-            ><button
-              title="搜索历史"
-              @click="commands.execute('terminal.find')"
-            >
-              搜索</button
-            ><button
-              v-if="isActive(workspace.active.state)"
-              @click="disconnectActive()"
-            >
-              断开</button
-            ><button v-else @click="reconnectActive()">重新连接</button>
+            <TerminalPane
+              v-for="tab in workspace.tabs"
+              :key="tab.terminalId"
+              :tab="tab"
+              :active="workspace.activeId === tab.terminalId"
+            />
           </div>
-        </div>
-        <div v-if="findOpen && workspace.active" class="find-bar">
-          <input
-            v-model="query"
-            autofocus
-            placeholder="搜索终端历史…"
-            @keydown.enter.prevent="
-              terminalRegistry.find(
-                workspace.active.terminalId,
-                query,
-                $event.shiftKey,
-              )
-            "
-            @keydown.esc="closeFind()"
-          /><button
-            @click="
-              terminalRegistry.find(workspace.active.terminalId, query, true)
-            "
-          >
-            上一个</button
-          ><button
-            @click="terminalRegistry.find(workspace.active.terminalId, query)"
-          >
-            下一个</button
-          ><button class="icon-button" @click="closeFind()">✕</button>
-        </div>
-        <div v-if="workspace.active?.error" class="session-error" role="alert">
-          {{ workspace.active.error }}
-        </div>
-        <div class="terminal-stage">
-          <TerminalPane
-            v-for="tab in workspace.tabs"
-            :key="tab.terminalId"
-            :tab="tab"
-            :active="workspace.activeId === tab.terminalId"
-          />
-        </div>
-        <footer v-if="workspace.active" class="status-bar">
-          <span>SSH · {{ stateLabels[workspace.active.state] }}</span
-          ><span
-            >{{ workspace.active.size.cols }} ×
-            {{ workspace.active.size.rows }} · UTF-8</span
-          ><span>历史在断线后保留</span>
-        </footer></template
-      >
-      <section v-else class="welcome">
-        <div class="welcome-glyph">›_</div>
-        <span class="eyebrow">YOUR NEXT CONNECTION STARTS HERE</span>
-        <h2>一个安静、专注的终端工作区</h2>
-        <p>
-          管理你的 SSH 主机，用熟悉的终端连接远方。<br />主机身份由你核验，凭据始终留在本机。
-        </p>
-        <div class="button-row">
-          <button class="primary" @click="edit()">＋ 添加第一台主机</button
-          ><button @click="commands.execute('workspace.newConnection')">
-            快速连接
-          </button>
-        </div>
-        <div class="welcome-features">
-          <span>◈ 主机密钥核验</span><span>▤ 多标签会话</span
-          ><span>◐ 独立终端配色</span>
-        </div>
-      </section>
-    </main>
-    <HostEditor
-      v-model:open="editorOpen"
-      :host="editing"
-      :quick="quick"
-      :duplicate="duplicate"
-      @connect="ephemeral"
-    /><SettingsDialog
-      v-model:open="settingsOpen"
-    /><ChallengeDialog /><PasteDialog /><ConfirmationDialog />
-  </div>
+          <footer v-if="workspace.active" class="status-bar">
+            <span>SSH · {{ stateLabels[workspace.active.state] }}</span
+            ><span
+              >{{ workspace.active.size.cols }} ×
+              {{ workspace.active.size.rows }} · UTF-8</span
+            ><span>历史在断线后保留</span>
+          </footer>
+        </section>
+      </main>
+      <HostEditor
+        v-model:open="editorOpen"
+        :host="editing"
+        :quick="quick"
+        :duplicate="duplicate"
+        @connect="ephemeral"
+      /><ChallengeDialog /><PasteDialog /><ConfirmationDialog />
+    </div>
+  </NConfigProvider>
 </template>

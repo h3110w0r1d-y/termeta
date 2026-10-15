@@ -32,6 +32,7 @@ pub struct HostProfile {
     pub favorite: bool,
     pub tags: Vec<String>,
     pub auth_plan: Vec<AuthStep>,
+    pub has_password: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -93,6 +94,8 @@ impl KeyFile {
 #[serde(rename_all = "camelCase")]
 pub struct CredentialRecord {
     pub id: String,
+    #[serde(skip)]
+    pub owner_profile_id: Option<String>,
     pub kind: String,
     pub label: String,
     pub status: String,

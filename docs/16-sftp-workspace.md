@@ -131,3 +131,7 @@ FileProvider 语义包含 list/stat/lstat、受界 openRead/openWrite、mkdir、
 - [drag-rs 维护者仓库](https://github.com/crabnebula-dev/drag-rs) / [插件说明](https://docs.crabnebula.dev/plugins/drag-rs/)：仅原生拖出候选，版本/许可/维护状态/三平台行为待验证。
 
 SP-10 必须覆盖独立 SFTP 无 Shell、左右两侧自由选端点、远端中转受界内存、面板三位置与隐藏保活、属性/权限错误、覆盖确认与 TOCTOU、取消/失败旧目标保护、路径与符号链接。SP-11 必须覆盖三平台外部拖入/拖出及限制披露。SFTP 相关功能为 M3/P0，不属于已实现的 M2 SSH MVP；原生拖出未验证通过的平台不得宣称该项交付完成。
+
+## 首期固定入口边界（2026-10-15）
+
+用户确认本轮只实现固定 SFTP Tab 与双栏未连接布局，实际文件浏览、端点连接和传输仍属 M3。该标签固定在首页之后、SSH 标签之前且不可关闭；侧栏模式固定在顶部。页面明确标记尚未开放，不产生 SSH/SFTP 会话、不列出伪文件、不提供无后端的上传下载操作。此布局不代表 M3-06 或任何 SFTP P0 已完成。

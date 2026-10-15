@@ -1,12 +1,18 @@
+import { applyTerminalTheme } from "./theme";
 import { confirmPaste } from "./paste";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { desktop, errorMessage } from "../../services/desktop/client";
-import { commands, modifierMatches } from "../../services/commands/registry";
+import {
+  commands,
+  isMac,
+  modifierMatches,
+} from "../../services/commands/registry";
 import { useSettings } from "../settings/store";
-import { resolveScheme, toXtermTheme } from "../settings/themes";
+import { loadTerminalFont, terminalFontFamily } from "../settings/fonts";
+import { builtinSchemes, resolveScheme } from "../settings/themes";
 import { useWorkspace, type TerminalTab } from "../workspace/store";
 import type {
   SessionEvent,
@@ -39,6 +45,7 @@ interface Entry {
   connecting: boolean;
   disposed: boolean;
   lastSize: string;
+  fontRequest?: string;
 }
 const entries = new Map<string, Entry>();
 function localLine(entry: Entry, message: string) {
@@ -163,8 +170,15 @@ function event(
     if (seq <= stream.eventSeq) return;
     stream.eventSeq = seq;
   }
-  if (value.type === "stateChanged") update(tab, value.snapshot);
-  else if (
+  if (value.type === "stateChanged") {
+    const wasConnected = tab.state === "connected";
+    update(tab, value.snapshot);
+    if (!wasConnected && tab.state === "connected") {
+      // 认证期间布局可能已改变；PTY 建立后必须补发当前可见尺寸。
+      entry.lastSize = "";
+      fit(entry, tab);
+    }
+  } else if (
     value.type === "hostKeyChallenge" ||
     value.type === "authChallenge"
   ) {
@@ -262,19 +276,37 @@ function input(entry: Entry, tab: TerminalTab, bytes: Uint8Array) {
 }
 function settings(entry: Entry, tab: TerminalTab) {
   const s = useSettings().value;
-  entry.term.options.theme = toXtermTheme(
-    resolveScheme(
-      tab.schemeId ??
-        (tab.target.source === "saved"
-          ? s.hostSchemes[tab.target.profileId]
-          : undefined) ??
-        s.defaultSchemeId,
-      s.customSchemes,
-    ),
-  );
-  entry.term.options.fontFamily = s.fontFamily;
+  applyTerminalTheme(entry.term, entry.host, schemeForTab(tab));
+  const family = terminalFontFamily(s.fontFamily);
+  const request = `${s.fontSize}px ${family}`;
+  if (entry.fontRequest !== request) {
+    entry.fontRequest = request;
+    void loadTerminalFont(s.fontFamily, s.fontSize)
+      .then(() => {
+        // 迟到的加载不能覆盖较新的选择，也不能访问已关闭的终端。
+        if (entry.disposed || entry.fontRequest !== request) return;
+        entry.term.options.fontFamily = family;
+        fit(entry, tab);
+      })
+      .catch(() => {
+        if (entry.disposed || entry.fontRequest !== request) return;
+        entry.fontRequest = undefined;
+        tab.error = "内置终端字体加载失败，请重新应用设置或重启应用。";
+      });
+  }
   entry.term.options.fontSize = s.fontSize;
   entry.term.options.scrollback = s.scrollback;
+}
+export function schemeForTab(tab: TerminalTab) {
+  const s = useSettings().value;
+  return resolveScheme(
+    tab.schemeId ??
+      (tab.target.source === "saved"
+        ? s.hostSchemes[tab.target.profileId]
+        : undefined) ??
+      s.defaultSchemeId,
+    s.customSchemes,
+  );
 }
 function fit(entry: Entry, tab: TerminalTab) {
   if (entry.host.clientWidth < 10 || entry.host.clientHeight < 10) return;
@@ -285,18 +317,20 @@ function fit(entry: Entry, tab: TerminalTab) {
   };
   tab.size = size;
   const key = `${size.cols}:${size.rows}`;
-  if (entry.lastSize !== key) {
+  if (entry.lastSize !== key && tab.sessionId && tab.state === "connected") {
     entry.lastSize = key;
-    if (tab.sessionId && tab.state === "connected")
-      void desktop.resize(tab.sessionId, size).catch((error) => {
-        tab.error = errorMessage(error);
-      });
+    void desktop.resize(tab.sessionId, size).catch((error) => {
+      entry.lastSize = "";
+      tab.error = errorMessage(error);
+    });
   }
 }
 export const terminalRegistry = {
   mount(tab: TerminalTab, host: HTMLElement) {
     if (entries.has(tab.terminalId)) return;
     const term = new Terminal({
+      // 粗体仅改变字重，避免普通 ANSI 色被自动替换为高亮色。
+      drawBoldTextInBrightColors: false,
       convertEol: false,
       cursorBlink: true,
       allowProposedApi: false,
@@ -323,10 +357,14 @@ export const terminalRegistry = {
         /^https?:\/\//i.test(url)
       ) {
         e.preventDefault();
-        e.stopPropagation();
-        void desktop.openUrl(url).catch((error) => {
-          tab.error = errorMessage(error);
-        });
+        // 链接在 mouseup 激活，必须继续冒泡，让 xterm 的 document 监听结束拖选。
+        // 下一轮任务再打开浏览器，避免窗口失焦早于鼠标松开事件的清理。
+        setTimeout(() => {
+          if (entry.disposed) return;
+          void desktop.openUrl(url).catch((error) => {
+            tab.error = errorMessage(error);
+          });
+        }, 0);
       }
     };
     term.loadAddon(new WebLinksAddon(activate));
@@ -346,11 +384,32 @@ export const terminalRegistry = {
     settings(entry, tab);
     term.open(host);
     entry.observer.observe(host);
-    term.attachCustomKeyEventHandler((e) =>
-      e.type === "keydown"
-        ? !commands.route(e, useSettings().value.keymap.bindings, true)
-        : true,
-    );
+    term.attachCustomKeyEventHandler((e) => {
+      if (e.type !== "keydown") return true;
+      // 单独按修饰键不应结束输入法组合、清除选区或改变滚屏位置。
+      if (["Meta", "Control", "Alt", "Shift"].includes(e.key)) return false;
+      if (commands.route(e, useSettings().value.keymap.bindings, true))
+        return false;
+      if (
+        isMac &&
+        e.altKey &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.shiftKey &&
+        !e.isComposing &&
+        !e.defaultPrevented &&
+        !e.getModifierState("AltGraph") &&
+        !document.querySelector("[data-modal-open], [data-ui-popup-open]") &&
+        (e.key === "ArrowLeft" || e.key === "ArrowRight")
+      ) {
+        // macOS 跳词使用 Shell 常见的 Meta-b/f，避免发送未绑定的修饰方向键序列。
+        e.preventDefault();
+        e.stopPropagation();
+        term.input(e.key === "ArrowLeft" ? "\x1bb" : "\x1bf", true);
+        return false;
+      }
+      return true;
+    });
     term.onData((data) => input(entry, tab, new TextEncoder().encode(data)));
     term.onBinary((data) =>
       input(
@@ -458,14 +517,7 @@ export const terminalRegistry = {
       if (e) {
         const available = [
           ...useSettings().value.customSchemes.map((s) => s.id),
-          "dark",
-          "light",
-          "ocean",
-          "forest",
-          "amber",
-          "violet",
-          "contrast-dark",
-          "contrast-light",
+          ...builtinSchemes.map((s) => s.id),
         ];
         if (tab.schemeId && !available.includes(tab.schemeId))
           tab.schemeId = undefined;
@@ -479,6 +531,13 @@ export const terminalRegistry = {
       tab = useWorkspace().tabs.find((t) => t.terminalId === id);
     if (e && tab) {
       requestAnimationFrame(() => {
+        // 快速切换到首页或弹出认证时，迟到的焦点任务不能抢回隐藏终端。
+        if (
+          e.disposed ||
+          useWorkspace().activeId !== id ||
+          document.querySelector("[data-modal-open], [data-ui-popup-open]")
+        )
+          return;
         fit(e, tab);
         e.term.focus();
       });

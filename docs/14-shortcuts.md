@@ -89,3 +89,7 @@ interface ShortcutBindingV1 {
 ## 首期实现映射（2026-10-15）
 
 src/services/commands/registry.ts 统一命令/默认绑定/校验/路由；ShortcutSettings 支持分类、录制、多绑定、禁用、恢复和 JSON。未启用 Local/SFTP/系统后台动作，未实现原生菜单；平台按键/IME/终端鼠标去重仍待 SP-08。 具体交付及限制见 [首期实施状态](17-implementation-status.md)。
+
+macOS 跳词兼容（2026-10-15）：在终端中，仅无其他修饰键的 Option+ArrowLeft/ArrowRight 映射为 ESC b / ESC f（Meta-b/f），经 xterm input 与既有输入队列发送远端；自定义快捷键优先。IME、AltGraph、模态/菜单打开时不做此映射，不开启全局 macOptionIsMeta，避免改变 Option+字符的键盘布局语义。Windows/Linux 与其他方向键组合仍沿用 xterm；最终跳词行为由远端行编辑器绑定决定。
+
+链接松开事件边界（2026-10-15）：xterm 的链接激活发生在 mouseup，回调不得 stopPropagation，否则 document 上的选区服务无法撤销拖选监听。受控打开链接仅 preventDefault，并延后到下一轮任务调用 Rust opener，保证鼠标松开清理先于窗口失焦；自动识别 URL 与 OSC 8 共用该规则，已释放终端不再触发延迟打开。

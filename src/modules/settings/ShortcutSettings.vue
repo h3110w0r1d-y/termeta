@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import { NTabs, NTab } from "naive-ui";
+import AppCheckbox from "../../components/ui/AppCheckbox.vue";
+import AppSelect from "../../components/ui/AppSelect.vue";
+import AppInput from "../../components/ui/AppInput.vue";
+import AppButton from "../../components/ui/AppButton.vue";
 import { computed, ref } from "vue";
 import {
   commandDefinitions,
@@ -14,6 +19,7 @@ import { clone } from "../../services/data/clone";
 import { confirmAction } from "../../components/ui/confirmation";
 import { errorMessage } from "../../services/desktop/client";
 import type { AppSettings } from "./model";
+const keyFile = ref<HTMLInputElement>();
 const draft = defineModel<AppSettings>("settings", { required: true });
 const newId = () => crypto.randomUUID();
 const error = ref(""),
@@ -89,30 +95,25 @@ async function importKeys(event: Event) {
 <template>
   <div>
     <div class="button-row">
-      <button
-        :class="{ selected: category === 'application' }"
-        @click="category = 'application'"
+      <NTabs v-model:value="category" type="segment" aria-label="快捷键分类"
+        ><NTab name="application">全局快捷键</NTab
+        ><NTab name="terminal">终端快捷键</NTab></NTabs
       >
-        全局快捷键</button
-      ><button
-        :class="{ selected: category === 'terminal' }"
-        @click="category = 'terminal'"
-      >
-        终端快捷键</button
-      ><input v-model="shortcutSearch" placeholder="搜索动作或按键…" />
+      <AppInput v-model="shortcutSearch" placeholder="搜索动作或按键…" />
     </div>
     <div v-for="b in bindings" :key="b.id" class="shortcut-row">
-      <label class="check"
-        ><input v-model="b.enabled" type="checkbox" />{{
-          commandDefinitions.find((d) => d[0] === b.commandId)?.[1]
-        }}</label
+      <AppCheckbox v-model="b.enabled">{{
+        commandDefinitions.find((d) => d[0] === b.commandId)?.[1]
+      }}</AppCheckbox
       ><template v-if="b.trigger.type === 'pointer'"
-        ><select v-model="b.trigger.modifiers[0]">
-          <option value="Primary">Cmd / Ctrl + 点击</option>
-          <option value="Alt">Alt + 点击</option>
-          <option value="Shift">Shift + 点击</option>
-        </select></template
-      ><button
+        ><AppSelect
+          v-model="b.trigger.modifiers[0]"
+          :options="[
+            { value: 'Primary', label: 'Cmd / Ctrl + 点击' },
+            { value: 'Alt', label: 'Alt + 点击' },
+            { value: 'Shift', label: 'Shift + 点击' },
+          ]" /></template
+      ><AppButton
         v-else
         :class="{ recording: recording === b.id }"
         @click="recording = b.id"
@@ -120,8 +121,8 @@ async function importKeys(event: Event) {
       >
         {{
           recording === b.id ? "按组合键，Esc 取消" : keyLabel(b) || "未绑定"
-        }}</button
-      ><button
+        }}</AppButton
+      ><AppButton
         class="icon-button"
         title="增加同动作绑定"
         @click="
@@ -132,17 +133,17 @@ async function importKeys(event: Event) {
           })
         "
       >
-        ＋</button
-      ><button
+        ＋</AppButton
+      ><AppButton
         class="icon-button"
         title="恢复此动作默认"
         @click="resetBinding(b)"
       >
         ↺
-      </button>
-      <button class="icon-button" title="删除绑定" @click="removeBinding(b)">
+      </AppButton>
+      <AppButton class="icon-button" title="删除绑定" @click="removeBinding(b)">
         ×
-      </button>
+      </AppButton>
     </div>
     <p v-if="conflict(draft.keymap.bindings)" class="error">
       {{ conflict(draft.keymap.bindings) }}
@@ -152,11 +153,17 @@ async function importKeys(event: Event) {
       动作尚不可用；系统后台热键未启用。
     </p>
     <div class="button-row">
-      <button @click="draft.keymap.bindings = defaults()">全部恢复默认</button
-      ><button @click="exportKeys">导出配置</button
-      ><label class="file-button"
-        >导入配置<input type="file" accept=".json" @change="importKeys"
-      /></label>
+      <AppButton @click="draft.keymap.bindings = defaults()"
+        >全部恢复默认</AppButton
+      ><AppButton @click="exportKeys">导出配置</AppButton
+      ><AppButton @click="keyFile?.click()">导入配置</AppButton
+      ><input
+        ref="keyFile"
+        hidden
+        type="file"
+        accept=".json,application/json"
+        @change="importKeys"
+      />
     </div>
   </div>
   <p v-if="error" class="error" role="alert">{{ error }}</p>
