@@ -6,6 +6,7 @@ import type { TerminalTab } from "../workspace/store";
 import { stateLabels } from "../workspace/store";
 import { schemeForTab, terminalRegistry } from "./registry";
 import { terminalDisplayTitle } from "./title";
+import SftpPanel from "../files/SftpPanel.vue";
 const props = defineProps<{
   tab: TerminalTab;
   active: boolean;
@@ -24,6 +25,14 @@ const displayTitle = computed(() =>
   terminalDisplayTitle(props.tab.title, props.tab.remoteTitle),
 );
 const host = ref<HTMLElement>();
+const sftpMounted = ref(false);
+watch(
+  () => props.tab.sftpOpen,
+  (open) => {
+    if (open) sftpMounted.value = true;
+  },
+  { immediate: true },
+);
 onMounted(() => {
   if (host.value) terminalRegistry.mount(props.tab, host.value);
   if (props.active) terminalRegistry.focus(props.tab.terminalId);
@@ -128,6 +137,13 @@ function menuKey(event: KeyboardEvent) {
         </NIcon>
       </AppButton>
     </header>
-    <div ref="host" class="terminal-host" />
+    <div class="terminal-pane-body">
+      <div ref="host" class="terminal-host" />
+      <SftpPanel
+        v-if="sftpMounted"
+        v-show="!!tab.sftpOpen && !split"
+        :tab="tab"
+      />
+    </div>
   </div>
 </template>

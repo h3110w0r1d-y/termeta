@@ -1,6 +1,6 @@
 # 系统架构与模块边界
 
-日期：2026-10-15。首期四个 crate 与桌面工作区已落源码；以下同时保留后续目标结构。实现待验证，实际差异见 [实施状态](17-implementation-status.md)。
+日期：2026-10-15。当前六个领域 crate 与桌面工作区已落源码（files/sftp首批实现见末尾）；以下同时保留后续目标结构。实现待验证，实际差异见 [实施状态](17-implementation-status.md)。
 
 ## 1. 总体结构
 
@@ -20,7 +20,7 @@ flowchart TB
   SSH --> Ports[core 中定义的 TrustStore / CredentialStore 接口]
   Ports -. 注入实现 .-> Store
   Ports -. 注入实现 .-> Security
-  App -. M3 .-> Files[terminal-files / 传输与冲突策略]
+  App --> Files[terminal-files / 传输与冲突策略]
   Files --> Providers[FileProvider 端口]
   Providers -. 注入 .-> Sftp[terminal-sftp / russh-sftp]
   Providers -. 注入 .-> LocalFiles[本地文件适配 / 根授权]
@@ -32,14 +32,14 @@ flowchart TB
 
 ## 2. 关键分层
 
-| 层 | 负责 | 不负责 |
-| --- | --- | --- |
-| 视图与交互 | 主机、标签、错误、信任与认证弹窗、终端焦点 | 网络连接、私钥解析、数据库 SQL |
-| 前端服务 | 类型化 IPC、输入排队、帧解析、ACK、错误映射 | 存储密码或把字节塞入 Pinia |
-| Tauri 适配/应用服务 | DTO 校验、窗口上下文、组装依赖、Channel、业务编排 | 实现 SSH 协议或持有全局协议大锁 |
-| 通用会话 core | ID、状态、能力、actor 控制、限额、取消、输出事件 | Tauri 类型、WebView、russh/PTY 细节 |
-| 传输适配器 | 具体协议连接、I/O、resize、专用控制、资源释放 | UI、任意 SQL、全局 UI event 广播 |
-| 存储与安全 | 持久化、迁移、凭据库、数据脱敏 | 终端渲染、自动执行用户命令 |
+| 层                  | 负责                                              | 不负责                              |
+| ------------------- | ------------------------------------------------- | ----------------------------------- |
+| 视图与交互          | 主机、标签、错误、信任与认证弹窗、终端焦点        | 网络连接、私钥解析、数据库 SQL      |
+| 前端服务            | 类型化 IPC、输入排队、帧解析、ACK、错误映射       | 存储密码或把字节塞入 Pinia          |
+| Tauri 适配/应用服务 | DTO 校验、窗口上下文、组装依赖、Channel、业务编排 | 实现 SSH 协议或持有全局协议大锁     |
+| 通用会话 core       | ID、状态、能力、actor 控制、限额、取消、输出事件  | Tauri 类型、WebView、russh/PTY 细节 |
+| 传输适配器          | 具体协议连接、I/O、resize、专用控制、资源释放     | UI、任意 SQL、全局 UI event 广播    |
+| 存储与安全          | 持久化、迁移、凭据库、数据脱敏                    | 终端渲染、自动执行用户命令          |
 
 首期一个主窗口；所有 session 绑定创建窗口。为未来多窗口保留 owner 标识，但不提前实现拖出标签或跨窗口转移。
 
@@ -54,7 +54,7 @@ src-tauri ──> terminal-core
           └─> terminal-security > terminal-core
 
 后续 terminal-local / terminal-serial ──> terminal-core
-M3 src-tauri ──> terminal-files（FileProvider / TransferManager / 冲突）
+src-tauri ──> terminal-files（FileProvider / 受界复制）
              └─> terminal-sftp ──> terminal-files + terminal-ssh
 本地文件适配隔离于 terminal-files 平台模块，不依赖 portable-pty
 后续 terminal-tunnel ──> terminal-ssh（受控连接服务 API）
@@ -64,54 +64,27 @@ core 的模型与端口允许使用 serde、bytes、Tokio 通道、async-trait �
 
 采用每会话 actor 单独持有协议对象，manager 只保存轻量句柄。读取会话表的锁只用于查找、复制句柄，不跨 await。I/O 与流桥接分离，细节见 [会话模型](04-session-model.md)。
 
-## 4. 目标目录（分阶段创建）
+## 4. 目录职责
 
-```text
-termvexa/
-├── AGENTS.md
-├── docs/
-├── src/
-│   ├── app/                  # 应用壳、全局布局、样式 token
-│   ├── components/           # 通用控件
-│   ├── modules/
-│   │   ├── hosts/            # 列表、分组、编辑器
-│   │   ├── terminal/         # xterm 宿主、输入、搜索、流消费
-│   │   ├── workspace/        # 标签、pane、布局；不持有网络资源
-│   │   ├── credentials/      # 元数据、选择和删除，不提供秘密读取
-│   │   ├── settings/          # 快捷键、终端配色与应用偏好
-│   │   ├── files/             # M3 共享 FileBrowser、侧栏/双栏
-│   │   └── transfers/         # M3 任务、进度、覆盖 challenge
-│   ├── services/desktop/     # invoke/Channel 唯一入口
-│   ├── services/commands/    # CommandRegistry、KeymapService、ShortcutRouter
-│   ├── services/themes/      # TerminalThemeService；独立于应用 CSS 主题
-│   ├── stores/               # Pinia 轻量状态
-│   └── types/                # IPC DTO；与 Rust 契约同步
-├── Cargo.toml                # 未来虚拟 workspace 根
-├── crates/
-│   ├── terminal-core/src/    # models, ports, manager, actor, errors
-│   ├── terminal-ssh/src/     # factory, connection, auth, host_key, driver
-│   ├── terminal-storage/
-│   │   ├── src/              # repositories, migrations, backup
-│   │   └── migrations/
-│   └── terminal-security/    # 系统凭据适配和秘密类型
-├── src-tauri/
-│   ├── src/
-│   │   ├── commands/         # session, host, trust, credentials, settings
-│   │   ├── application/      # 用例服务与依赖装配
-│   │   ├── ipc/              # DTO、二进制帧、流桥接
-│   │   ├── state.rs
-│   │   └── lib.rs
-│   ├── permissions/
-│   ├── capabilities/
-│   └── Cargo.toml
-└── package.json
-```
+| 路径                                       | 当前职责                             |
+| ------------------------------------------ | ------------------------------------ |
+| src/modules/hosts、credentials、settings   | 主机、凭据元数据、设置               |
+| src/modules/terminal、workspace            | xterm 实例、输入路由、标签组与分屏   |
+| src/modules/files                          | 单终端 SFTP 浏览和轻量传输队列       |
+| src/services/desktop                       | 唯一 invoke/Channel 门面             |
+| src/services/commands                      | 命令注册、快捷键与焦点路由           |
+| crates/terminal-core、terminal-ssh         | 通用会话及 SSH 协议                  |
+| crates/terminal-storage、terminal-security | SQLite 与 OS 凭据                    |
+| crates/terminal-files、terminal-sftp       | 文件 DTO/有界复制与 SFTP provider    |
+| src-tauri/src/commands、ipc、state.rs      | owner 校验、原生交互、流桥与依赖装配 |
 
-首期创建 core/ssh，再随持久化与凭据任务创建 storage/security；M3 再创建 terminal-files/terminal-sftp，不创建只有占位内容的 local/serial/sftp crate。根 workspace 使用 resolver 3 配合 edition 2024 的候选方案；最终工具链版本待 SP 验证。workspace 落地时把现有 src-tauri/Cargo.toml 的 release profile 移到根，统一 Cargo.lock，核对 Tauri 相对路径与命令 hooks；本次不修改。
+根 Cargo workspace 使用 resolver 3、edition 2024，统一 release profile 和 Cargo.lock。Local、Serial、独立 TransferManager、双栏端点及连接租约尚未创建或完成，开发对应功能时再引入实际模块。
 
 ## 5. 前端与终端生命周期
 
-当前 `WorkspaceStore.tabs` 仅保存终端元数据，`tabIds` 将固定 `home`、`sftp` 与 terminalId 组合为导航顺序；固定页不占用 SessionManager，`active` 在固定页为空。`homeSection` 管理主机/凭据/设置。`tabPosition` 只改变 CSS 布局，终端宿主始终挂载。后续完整工作区的 tab 采用版本化判别联合：terminal Tab 持有 pane/terminalId，M3 sftp Tab 持有左右 browserId/端点引用；SFTP Tab 不创建虚假 xterm。terminal Tab 可挂附属 fileBrowserId 与 dock 位置。`WorkspaceStore` 保存上述视图映射；`SessionStore` 保存每次后端连接尝试的状态、尺寸、错误和能力；`TerminalRegistry` 按稳定 terminalId 用普通 Map 管理 xterm 实例、当前 session 绑定、连接代次、订阅与输入队列，不深度响应式化。terminalId 在断线、失败和重连时保持不变，不能用后端 sessionId 作为终端 Vue 组件的 key。
+`WorkspaceStore.tabs` 保存终端元数据，groups 保存标签组/布局树与聚焦 terminalId，tabIds 包含固定 home/sftp 和动态组 ID。activeId 为组 ID，active 为聚焦终端；固定页不创建 session/xterm。homeSection 管理首页导航，tabPosition 只改变布局。
+
+`TerminalRegistry` 用普通 Map 按稳定 terminalId 保存 xterm、当前 session 绑定、代次、订阅和输入队列，不深度响应式化。重连只更换 sessionId，不改 Vue key。未来独立双栏将使用单独端点/浏览器引用，不伪造终端；目前固定 SFTP 页仍是占位。
 
 建立连接前先创建 Tab、terminalId 与终端宿主并装好 Channel handlers，即使 open_session 同步失败也保留视图。握手期间展示状态，Connected 前关闭远端键盘写入，但保留滚动/选择/复制/搜索。切标签不卸载 xterm；隐藏终端继续解析和 ACK，只减少不必要的渲染与 resize。ResizeObserver 只对可见且非零尺寸的宿主调用 fit。
 
@@ -134,9 +107,9 @@ UI 使用 Naive UI 现成组件及 `src/components/ui/` 薄适配，NConfigProvi
 
 M1/M2 默认一个 terminal session 拥有一个 SSH connection 和一个 Shell channel，关闭时一并回收。提前区分 connectionId 与 sessionId，但不做跨主机池化。
 
-M3 引入受控 `SshConnectionService` 为 Shell/SFTP/隧道分配 channel 和租约；应用会话/文件浏览器/传输任务各自持有租约，最后一个租约释放后才关闭 connection。独立 SFTP 只打开 subsystem，不分配 PTY/Shell；认证 challenge 从 session-only 扩展为类型化资源归属，仍共用信任和凭据端口。共享需要实现公平调度、背压隔离、错误广播和“关闭终端但保留传输”的 UX；不得把 russh Handle 暴露给前端或通用 files crate。具体政策见 [SFTP 设计](16-sftp-workspace.md)。
+后续独立 SFTP/隧道计划引入受控 `SshConnectionService` 为 Shell/SFTP/隧道分配 channel 和租约；应用会话/文件浏览器/传输任务各自持有租约，最后一个租约释放后才关闭 connection。独立 SFTP 只打开 subsystem，不分配 PTY/Shell；认证 challenge 从 session-only 扩展为类型化资源归属，仍共用信任和凭据端口。共享需要实现公平调度、背压隔离、错误广播和“关闭终端但保留传输”的 UX；不得把 russh Handle 暴露给前端或通用 files crate。具体政策见 [SFTP 设计](16-sftp-workspace.md)。
 
-FileProvider 是文件领域接口，不扩充 TerminalSession；TransferManager 负责两端读写、冲突/取消与有界中转。两种 SFTP 界面复用 files/transfers 服务，远端互传不经过 xterm/WebView、不默认落盘。原生拖出由壳的平台适配器负责，独立于网页内部拖拽。
+FileProvider 是文件领域接口，不扩充 TerminalSession；当前批次由壳编排。未来独立 TransferManager 再统一两端读写、冲突/取消与有界中转，供附属侧栏和双栏共享。远端互传设计不经过 xterm/WebView、不默认落盘。原生拖出由壳的平台适配器负责，独立于网页内部拖拽。
 
 ## 8. 错误与观测
 
@@ -146,20 +119,28 @@ core 统一错误码与阶段，协议错误在适配器映射；应用层增加
 
 CommandRegistry 统一菜单、按钮与按键动作，KeymapService 合并平台默认/用户覆盖，ShortcutRouter 按焦点/IME/模态上下文只消费一次。全局默认应用内前台，系统后台注册为可选适配；Cmd+L 的 Local 动作由工厂能力启用。详见 [快捷键](14-shortcuts.md)。
 
-当前配色优先级由 terminal/registry.ts 的 schemeForTab 解析，settings/themes.ts 转换 xterm ITheme，terminal/theme.ts 的 applyTerminalTheme 统一实际终端与预览的选区合成适配；TerminalThemeService 是目标职责名，不表示已有同名类。ThemeRepository 管持久化用户方案，应用 CSS tokens 单独管理 UI 明暗主题。颜色热应用到原 xterm，不 clear/reset/dispose；导入在后端按 schema 校验。详见 [终端配色](15-terminal-themes.md)。
+当前配色优先级由 terminal/registry.ts 的 schemeForTab 解析，settings/themes.ts 转换 xterm ITheme，terminal/theme.ts 的 applyTerminalTheme 统一实际终端与预览的选区合成适配；TerminalThemeService 是目标职责名，不表示已有同名类。用户方案随设置整体持久化，应用 CSS tokens 单独管理 UI 明暗主题。颜色热应用到原 xterm，不 clear/reset/dispose；导入在后端按 schema 校验。详见 [终端配色](15-terminal-themes.md)。
 
-## 首期落地边界（2026-10-15）
+## 当前源码边界
 
-四个领域 crate、Tauri commands/state 与 Vue modules 已创建。当前只注入 SshFactory，不为未实现的 Local/Serial 构建空工厂；仍通过 SessionFactory trait 隔离协议。原生壳只做 DTO/owner/资源桥接，具体握手、认证、PTY 与 socket 取消在 terminal-ssh。SQLite 复合写使用 BEGIN IMMEDIATE，不在应用全局锁内等待数据库。
+六个领域 crate、Tauri commands/state 与 Vue modules 已创建。当前只注入 SshFactory，不为未实现的 Local/Serial 构建空工厂；仍通过 SessionFactory trait 隔离协议。原生壳只做 DTO/owner/资源桥接，具体握手、认证、PTY 与 socket 取消在 terminal-ssh。SQLite 复合写使用 BEGIN IMMEDIATE，不在应用全局锁内等待数据库。
 
-UI tokens 目前集中 `src/styles.css`，项目交互封装为 `src/components/ui/`；命令注册表在 `src/services/commands/`，只有 `src/services/desktop/` 能调用 invoke。终端注册表和设置/主机/工作区分模块维护；设置面板拆为配色、快捷键、安全子组件。未创建文件/传输/Local/Serial crate。实际交付与限制见 [实施状态](17-implementation-status.md)。
+UI tokens 目前集中 `src/styles.css`，项目交互封装为 `src/components/ui/`；命令注册表在 `src/services/commands/`，只有 `src/services/desktop/` 能调用 invoke。终端注册表和设置/主机/工作区分模块维护；设置面板拆为配色、快捷键、安全子组件。尚无独立 transfers 模块或 Local/Serial crate。实际交付与限制见 [实施状态](17-implementation-status.md)。
 
-## 10. 终端工作区布局（2026-10-15）
+## 10. 终端工作区布局
 
 M2-13 提前引入内存分屏。WorkspaceStore.tabs 继续表示所有终端，groups 独立维护标签顺序、二叉布局树和 focusedTerminalId；activeId 是组ID，active 是聚焦终端。layout.ts 提供无副作用树/矩形操作，useTabDrag.ts 处理 Pointer Events 与命中，TerminalStage 扁平 keyed 渲染全部宿主。布局树不决定组件父子层级，因此合并/排序/缩放不重建 xterm 或后端会话。App 协调组关闭与单窗格关闭，菜单/命令路由到聚焦叶子；无新增 IPC、存储或协议层职责。契约与限制见 [终端工作区](18-terminal-workspaces.md)。
 
-窗格迁移补充：拖动来源为 `WorkspaceDragSource`（tab/tabId 或 pane/terminalId），同一个指针控制器处理标题拖动、标签插入与悬停切页。纯函数 `relocateTerminal` 先校验双方并计算收缩/分割结果，Store同步提交；窗格拖回标签栏新建组ID但保留terminalId、终端元数据与会话，避免原组ID碰撞。
+窗格迁移：拖动来源为 `WorkspaceDragSource`（tab/tabId 或 pane/terminalId），同一个指针控制器处理标题拖动、标签插入与悬停切页。纯函数 `relocateTerminal` 先校验双方并计算收缩/分割结果，Store同步提交；窗格拖回标签栏新建组ID但保留terminalId、终端元数据与会话，避免原组ID碰撞。
 
-## 11. 工作区输入广播（2026-10-15）
+## 11. 工作区输入广播
 
 M2-14只扩展前端输入路由。WorkspaceTab增加内存broadcast/broadcastRevision，成员重组关闭并递增版本。inputOrigin薄适配固定xterm用户输入标记，inputRouter分发用户键盘/IME并隔离鼠标/自动应答；Registry提供连接过滤和现有FIFO端口，每目标独立粘贴/远端滚轮编码。禁止通过目标term.input再次广播，不改SessionManager/SSH/IPC/存储。模块边界与升级条件见 [工作区广播](18-terminal-workspaces.md)。
+
+## 12. 单终端文件服务
+
+当前新增terminal-files与terminal-sftp两个实际实现crate：前者定义元数据DTO、首批FileProvider及FileReader/FileWriter和64 KiB受界copy_file；后者通过SSH的SshChannels取得已认证会话的独立子系统流，实现RawSftpSession浏览和文件操作。factory驱动并行轮询终端与有界channel请求，不在PTY输出ACK路径等待文件传输；注册守卫随会话驱动释放。
+
+壳持有按sessionId缓存的浏览器、原生文件选择与4任务并发限额，每命令校验owner/session状态；浏览器内每次只允许1个操作，不在全局锁内等待协议/磁盘/对话框。当前独立认证/连接租约与完整TransferManager仍未实现，Shell结束会关闭同一SSH传输，不支持关闭Tab后后台传输。30秒维护周期清理结束会话的浏览器注册并取消残留任务。前端TerminalPane内稳定宿主与SftpPanel并列，首次开启才挂载、随后显隐，既有ResizeObserver负责终端尺寸变化；WorkspaceStore中sftpOpen是仅内存的布局合并约束，不持久化。
+
+拖放分层：`src-tauri/src/file_drag.rs`登记原生拖入短期owner-bound引用并广播无路径事件；`file_drag_macos.rs`封装AppKit文件承诺和拖动生命周期，不承担SSH协议。`commands/file_drag.rs`校验main/session/许可并为原生承诺注入受界下载回调；`commands/files.rs`复用批次扫描、覆盖原生确认及直接上传。`terminal-sftp`仅提供元数据/目录合并/安全新建或确认后截断写入，`terminal-files`仍只承载协议无关DTO与64KiB复制。Vue批次队列仅轻量状态，正文继续留Rust。5个SFTP命令均纳入单份AppManifest名单和ACL，Windows/Linux拖出当前明确不支持，不引入第二套任意路径接口。

@@ -1,7 +1,12 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { listen } from "@tauri-apps/api/event";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import type { AppSettings } from "../../modules/settings/model";
 import type {
+  DirectoryPage,
+  SftpLocalDrop,
+  SftpDropPosition,
+  TransferProgress,
   AuthChallenge,
   CredentialMetadata,
   CredentialDraft,
@@ -18,6 +23,75 @@ import type {
 
 // 原生交互只通过此门面，组件不能获得通用 invoke 或任意文件读取能力。
 export const desktop = {
+  sftpList: (sessionId: string, path: string, more = false) =>
+    invoke<DirectoryPage>("sftp_list", { sessionId, path, more }),
+  sftpTransfer(
+    sessionId: string,
+    transferId: string,
+    directory: string,
+    name: string | null,
+    upload: boolean,
+    progress: (value: TransferProgress) => void,
+  ) {
+    const onProgress = new Channel<TransferProgress>();
+    onProgress.onmessage = progress;
+    return invoke<boolean>("sftp_transfer", {
+      sessionId,
+      transferId,
+      directory,
+      name,
+      upload,
+      onProgress,
+    });
+  },
+  sftpDropUpload(
+    sessionId: string,
+    transferId: string,
+    dropId: string,
+    directory: string,
+    progress: (value: TransferProgress) => void,
+  ) {
+    const onProgress = new Channel<TransferProgress>();
+    onProgress.onmessage = progress;
+    return invoke<boolean>("sftp_drop_upload", {
+      sessionId,
+      transferId,
+      dropId,
+      directory,
+      onProgress,
+    });
+  },
+  onSftpLocalHover: (callback: (position: SftpDropPosition) => void) =>
+    listen<{ position: SftpDropPosition }>("sftp-local-hover", (event) =>
+      callback(event.payload.position),
+    ),
+  onSftpLocalDrop: (callback: (drop: SftpLocalDrop) => void) =>
+    listen<SftpLocalDrop>("sftp-local-drop", (event) =>
+      callback(event.payload),
+    ),
+  onSftpLocalLeave: (callback: () => void) =>
+    listen("sftp-local-leave", callback),
+  sftpStartDrag(
+    sessionId: string,
+    transferId: string,
+    directory: string,
+    names: string[],
+    directories: string[],
+    progress: (value: TransferProgress) => void,
+  ) {
+    const onProgress = new Channel<TransferProgress>();
+    onProgress.onmessage = progress;
+    return invoke<boolean>("sftp_start_drag", {
+      sessionId,
+      transferId,
+      directory,
+      names,
+      directories,
+      onProgress,
+    });
+  },
+  sftpCancel: (sessionId: string, transferId: string) =>
+    invoke<void>("sftp_cancel", { sessionId, transferId }),
   exportJson: (name: string, value: unknown) =>
     invoke<boolean>("export_json", { name, value }),
   onCloseRequested: (

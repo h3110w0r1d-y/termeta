@@ -1,10 +1,11 @@
-import { shallowRef } from "vue";
+import { ref } from "vue";
 interface DialogRequest {
   message: string;
   input?: string;
   resolve: (value: string | null) => void;
 }
-export const currentConfirmation = shallowRef<DialogRequest>();
+// 输入框直接绑定请求的input字段，需要跟踪嵌套更新以同步受控组件的值。
+export const currentConfirmation = ref<DialogRequest>();
 const queue: DialogRequest[] = [];
 function request(message: string, input?: string): Promise<string | null> {
   return new Promise((resolve) => {

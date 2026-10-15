@@ -71,19 +71,19 @@ Challenge 绑定 session、owner、key digest 和 endpoint；超时、取消、�
 
 `authPlan` 只保存一个主要认证方式及凭据引用，不保留旧版有序步骤兼容；不是无限尝试所有本地密钥。用户无需配置“密码 / 私钥之后继续交互认证（OTP）”。主机身份通过后，后端先发送不携带秘密的 `none` 请求查询可用认证方法，再按服务端 `remaining_methods` 与 `partial_success` 协商。服务器若允许 `none`，直接完成认证。
 
-| 方式 | 首期行为 | 数据边界 |
-| --- | --- | --- |
-| 密码 | 读取公共/主机专属 OS 密码，未设置则 challenge 询问 | 不写入主机配置/SQLite/Pinia 持久化 |
-| 私钥 | OpenSSH Ed25519 与 RSA-SHA2 优先；从 privateKey 凭据读取正文及可选解密密码 | 前端仅见文件名/公钥指纹，完整私钥不回传 |
-| 私钥解密密码 | 可随私钥凭据保存；缺失/错误时通过 masked challenge 本次补充 | 不再独立建凭据；本次补充不自动保存 |
-| Keyboard-interactive | 显示 banner/name/instructions 与每轮 prompts，按 echo 标记输入 | echo=false 必须掩码；OTP 永不持久化 |
-| partial success | 保留已完成因素，继续服务器要求的下一步 | 不把多因素要求误报成错误密码 |
+| 方式                 | 首期行为                                                                   | 数据边界                                |
+| -------------------- | -------------------------------------------------------------------------- | --------------------------------------- |
+| 密码                 | 读取公共/主机专属 OS 密码，未设置则 challenge 询问                         | 不写入主机配置/SQLite/Pinia 持久化      |
+| 私钥                 | OpenSSH Ed25519 与 RSA-SHA2 优先；从 privateKey 凭据读取正文及可选解密密码 | 前端仅见文件名/公钥指纹，完整私钥不回传 |
+| 私钥解密密码         | 可随私钥凭据保存；缺失/错误时通过 masked challenge 本次补充                | 不再独立建凭据；本次补充不自动保存      |
+| Keyboard-interactive | 显示 banner/name/instructions 与每轮 prompts，按 echo 标记输入             | echo=false 必须掩码；OTP 永不持久化     |
+| partial success      | 保留已完成因素，继续服务器要求的下一步                                     | 不把多因素要求误报成错误密码            |
 
 认证由服务器与配置共同决定；密码 auth 和 Keyboard-interactive 是不同协议步骤。密码 / 私钥部分成功且服务器要求 Keyboard-interactive 时立即进入服务端挑战；仅支持 Keyboard-interactive 的主机不会先索要无效的密码或私钥口令。主认证失败后如服务器仍提供交互认证，也允许自动进入 PAM 表单。配置不含 Keyboard-interactive 步骤，后端不会重复启动已处理的挑战组。保存的密码不会自动填入服务端任意提示；OTP 不持久化。常见 password+OTP 需要真实服务器验证；文档有方法并不表示应用已兼容任意 PAM/MFA。
 
 首期密码提交共享最多 3 次预算，私钥口令最多 3 次重新输入；交互认证最多启动 3 次，所有交互尝试共享最多 8 轮 challenge（均为初始上限），每轮设置期限；服务端提示数量、单条长度和总字节数均需限额。拒绝复用旧 challenge。不要将完整 server banner 当作可信富文本，所有提示按普通文本显示。
 
-M1 可以仅实现单次密码验证纵向切片；M2 才要求私钥凭据、可选解密密码与多轮交互完整。Agent、Pageant、证书、FIDO、安全密钥、PPK/PEM 全格式与 GSSAPI 不纳入 M2 承诺；不支持时明确说明，不默认调用系统 ssh 回退。
+Agent、Pageant、证书、FIDO、安全密钥、PPK/PEM 全格式与 GSSAPI 不纳入 M2 承诺；不支持时明确说明，不默认调用系统 ssh 回退。
 
 ## 5. PTY、Shell 与数据
 
@@ -97,17 +97,17 @@ M1 可以仅实现单次密码验证纵向切片；M2 才要求私钥凭据、�
 
 ## 6. 超时与保活初始策略
 
-| 阶段 | 初始值（待测） | 处理 |
-| --- | --- | --- |
-| DNS | 10 秒 | 独立取消/错误阶段 |
-| TCP | 总预算 15 秒 | 多地址尝试共享预算，含 IPv6/IPv4 回退 |
-| SSH 握手 | 20 秒 | 与等待用户确认分开计时 |
-| 主机信任 | 120 秒 | 超时拒绝，提示重新连接 |
-| 认证交互 | 每轮 120 秒，总交互预算 10 分钟 | 防无限 challenge；用户可随时取消 |
-| 非交互认证请求 | 30 秒 | 明确失败，避免重复提交秘密 |
-| PTY / Shell | 每步 10 秒 | 请求拒绝与超时分开 |
-| KeepAlive | 30 秒空闲探测，连续 3 次无回复判定 | 实际语义按选定 russh release 验证 |
-| 关闭 | 3 秒资源回收预算 | 到期释放 transport 并报告清理结果 |
+| 阶段           | 初始值（待测）                     | 处理                                  |
+| -------------- | ---------------------------------- | ------------------------------------- |
+| DNS            | 10 秒                              | 独立取消/错误阶段                     |
+| TCP            | 总预算 15 秒                       | 多地址尝试共享预算，含 IPv6/IPv4 回退 |
+| SSH 握手       | 20 秒                              | 与等待用户确认分开计时                |
+| 主机信任       | 120 秒                             | 超时拒绝，提示重新连接                |
+| 认证交互       | 每轮 120 秒，总交互预算 10 分钟    | 防无限 challenge；用户可随时取消      |
+| 非交互认证请求 | 30 秒                              | 明确失败，避免重复提交秘密            |
+| PTY / Shell    | 每步 10 秒                         | 请求拒绝与超时分开                    |
+| KeepAlive      | 30 秒空闲探测，连续 3 次无回复判定 | 实际语义按选定 russh release 验证     |
+| 关闭           | 3 秒资源回收预算                   | 到期释放 transport 并报告清理结果     |
 
 握手等待信任时不继续消耗 20 秒网络超时；要么拆分阶段定时器，要么显式暂停并保留 120 秒挑战期限。KeepAlive 不等于“用户 N 秒没按键就退出”；默认不设用户活动空闲断线。系统睡眠唤醒后若存活性不明，呈现检测状态，失败后终止旧 session，等待用户重连。
 
@@ -123,16 +123,10 @@ M1 可以仅实现单次密码验证纵向切片；M2 才要求私钥凭据、�
 
 新旧连接之间通过可信本地状态消息标识时间与重连结果，不把错误当作新远端输出；旧流排空、代次隔离及终端模式边界见 IPC/交互文档。保留显示历史不代表恢复原远端 Shell；远端任务恢复仍需 tmux/screen 等远端能力。
 
-ProxyJump 后续通过明确 hop 列表，为每一跳独立校验密钥与认证；不接受任意 ProxyCommand 自动执行。SFTP/隧道走独立服务与 connection 租约，见架构文档，不向通用终端加入 listFiles/startTunnel 等方法。
+ProxyJump 后续通过明确 hop 列表，为每一跳独立校验密钥与认证；不接受任意 ProxyCommand 自动执行。单终端 SFTP 经独立子系统复用已认证连接，生命周期仍绑定终端；独立 SFTP/隧道连接租约为后续设计，见架构文档，不向通用终端加入 listFiles/startTunnel 等方法。
 
-## 首期源码与差异（2026-10-15）
+## 9. 源码与验证边界
 
-实现分别见 terminal-ssh 的 connection/host_key/auth/driver 模块。已实现密码重试、加密 OpenSSH 私钥口令重试和最多 8 轮 Keyboard-interactive。2026-10-15 重构后，后端依据服务端可用方法与部分成功自动续接 OTP / PAM，使用单一主要 authPlan，界面仅提供密码/公钥，既不提供独立交互认证选项，也不要求预设追加交互认证。公共密码/私钥在凭据页保存；主机直接密码非空自动保存为专属项，空值连接时询问；认证弹窗只用于本次。
+实现位于 terminal-ssh 的 connection/host_key/auth/driver。固定配置为 256 KiB SSH window、32 KiB maximum packet、16 条 channel 消息、30 秒 KeepAlive 与 max=3；russh 收到包会重置保活计数，且超出 max 才断开，不能解释为精确 90 秒。库内部 channel 满时的协议公平性仍须 SP-05 验证，socket shutdown 取消不依赖输出 ACK。
 
-固定配置使用 256 KiB SSH window、32 KiB maximum packet、16 channel 消息容量、30 秒 KeepAlive 与 max=3。russh 接收任意包会重置保活计数，且超出 max 才断开，不能称“精确 90 秒”。库内部 channel 满时可能影响协议调度，SP-05 仍是未通过门槛。独立 socket shutdown 确保取消不依赖输出 ACK。
-
-已从默认 host-key 算法排除 RSA/SHA-1；RSA 私钥仅选择服务器明确支持的 SHA-2 签名。此算法选择不修复 RSA 实现侧信道公告，详见 [实施状态的公告记录](17-implementation-status.md#4-依赖与公告核查)。没有真实握手/认证/PTY 验证记录。
-
-本次静态核查：对照本机已下载的 russh 0.64.1 源码核对 `authenticate_none`、`AuthResult`、`MethodKind` 与交互结果 API；对修改文件执行 rustfmt 格式检查与差异检查。未执行编译、Rust 测试、SSH 连接或运行验收。后续需验证公共/专属密码、加密/无密码私钥、密码+OTP、私钥+OTP、仅 PAM、错误密码/OTP 重试与取消/超时。
-
-本轮按用户要求不考虑旧数据库与认证配置兼容：删除静态 KeyboardInteractive 枚举和独立 passphrase 凭据引用。连接时自动 KI 协商保持有效。
+已静态核对 russh 0.64.1 的认证、交互及 PTY/Shell API。当前源码不等于认证互通验收：公共/专属密码、加密/无密码私钥、密码或私钥加 OTP、仅 PAM、错误重试、取消与超时仍须真实服务器验证。RSA 算法选择不消除实现侧信道风险，依赖公告见 [实施状态](17-implementation-status.md)。

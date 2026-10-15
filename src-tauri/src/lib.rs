@@ -1,4 +1,5 @@
 mod commands;
+mod file_drag;
 mod settings;
 mod state;
 
@@ -57,10 +58,15 @@ pub fn run() {
                 // 恢复仅限先前明确请求删除且已登记的项目；失败保留元数据供用户重试。
                 let _ = recover_vault.reconcile_deletions().await;
             });
-            let sessions =
-                SessionManager::new(Arc::new(SshFactory::new(store.clone(), vault.clone())));
+            let factory = SshFactory::new(store.clone(), vault.clone());
+            let ssh_channels = factory.channels();
+            let sessions = SessionManager::new(Arc::new(factory));
+            app.manage(file_drag::LocalDropRegistry::default());
             app.manage(AppState {
                 sessions,
+                ssh_channels,
+                sftp: Mutex::new(std::collections::HashMap::new()),
+                transfers: Arc::new(tokio::sync::Semaphore::new(4)),
                 store,
                 vault,
                 heartbeat: Mutex::new(Instant::now()),
@@ -82,6 +88,16 @@ pub fn run() {
                     if heartbeat.elapsed() > Duration::from_secs(300) {
                         state.sessions.close_owner("main");
                     }
+                    state.sftp.lock().unwrap().retain(|id, browser| {
+                        let alive = state
+                            .sessions
+                            .get("main", id)
+                            .is_ok_and(|s| s.state == terminal_core::SessionState::Connected);
+                        if !alive {
+                            browser.cancel();
+                        }
+                        alive
+                    });
                     last_tick = now;
                 }
             });
@@ -92,13 +108,24 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            file_drag::on_window_event(window, event);
             if matches!(event, tauri::WindowEvent::Destroyed) {
                 if let Some(state) = window.try_state::<AppState>() {
                     state.sessions.close_owner(window.label());
+                    if window.label() == "main" {
+                        for browser in state.sftp.lock().unwrap().values() {
+                            browser.cancel();
+                        }
+                    }
                 }
             }
         })
         .invoke_handler(tauri::generate_handler![
+            commands::sftp_drop_upload,
+            commands::sftp_start_drag,
+            commands::sftp_list,
+            commands::sftp_transfer,
+            commands::sftp_cancel,
             commands::available_session_kinds,
             commands::open_session,
             commands::write_session,

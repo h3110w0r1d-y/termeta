@@ -102,6 +102,13 @@ async function closeTerminals(ids: string[], title: string) {
     "[data-workspace-tab], .workspace-tab-close",
   );
   try {
+    if (
+      terminals.some((tab) => tab.sftpTransferring) &&
+      !(await confirmAction(
+        "此终端有 SFTP 传输正在进行，关闭将取消传输，确定继续？",
+      ))
+    )
+      return;
     const running = terminals.filter(needsCloseConfirmation);
     if (
       running.length > 0 &&
@@ -214,9 +221,14 @@ async function selectTabAction(key: string) {
   tabMenu.value.show = false;
   const tab = menuTab.value;
   if (!tab) return;
-  if (key === "disconnect")
+  if (key === "disconnect") {
+    if (
+      tab.sftpTransferring &&
+      !(await confirmAction("断开 SSH 将取消当前 SFTP 传输，确定继续？"))
+    )
+      return;
     perform(() => terminalRegistry.disconnect(tab.terminalId));
-  else if (key === "reconnect") perform(() => terminalRegistry.connect(tab));
+  } else if (key === "reconnect") perform(() => terminalRegistry.connect(tab));
   else if (key === "find") {
     workspace.focusTerminal(tab.terminalId);
     await nextTick();
@@ -292,6 +304,11 @@ onMounted(async () => {
     unlisten = await desktop.onCloseRequested(async (event) => {
       if (closingWindow) return;
       event.preventDefault();
+      if (
+        workspace.tabs.some((tab) => tab.sftpTransferring) &&
+        !(await confirmAction("关闭窗口将取消正在进行的 SFTP 传输，确定继续？"))
+      )
+        return;
       const running = workspace.tabs.filter(needsCloseConfirmation);
       if (
         running.length > 0 &&
@@ -472,6 +489,25 @@ onBeforeUnmount(() => {
               >{{ workspace.active.size.cols }} ×
               {{ workspace.active.size.rows }} · UTF-8</span
             ><span>历史在断线后保留</span>
+            <AppButton
+              class="status-sftp-toggle"
+              size="tiny"
+              :variant="workspace.active.sftpOpen ? 'primary' : 'default'"
+              :aria-pressed="!!workspace.active.sftpOpen"
+              :disabled="
+                workspace.activeGroup?.root.kind !== 'terminal' ||
+                !!workspace.drag ||
+                (!workspace.active.sftpOpen &&
+                  workspace.active.state !== 'connected')
+              "
+              :title="
+                workspace.activeGroup?.root.kind === 'split'
+                  ? 'Workspace 中不可用'
+                  : '显示或隐藏此终端的 SFTP 侧栏'
+              "
+              @click="workspace.toggleSftp()"
+              >SFTP</AppButton
+            >
           </footer>
         </section>
       </main>

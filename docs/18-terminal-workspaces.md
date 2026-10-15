@@ -1,6 +1,6 @@
 # 终端标签排序、分屏与输入广播
 
-日期：2026-10-15。范围：按用户要求提前至 M2-13 的内存布局功能。**源码已实施，尚未完成编译/运行或桌面验收。** 不改变 SSH、IPC、存储与凭据契约。
+内存标签布局、分屏和输入广播已落源码，当前版本尚未完成运行与桌面验收。布局不持久化，不改变SSH与凭据契约。
 
 ## 1. 交互规则
 
@@ -39,15 +39,15 @@ type LayoutNode =
 
 ## 3. 模块入口
 
-| 文件 | 职责 |
-| --- | --- |
-| [layout.ts](../src/modules/workspace/layout.ts) | 纯数据树操作、叶子收缩、矩形/分隔线计算、方向命中 |
-| [store.ts](../src/modules/workspace/store.ts) | 标签组、终端归属、排序/合并、焦点与关闭锁 |
-| [useTabDrag.ts](../src/modules/workspace/useTabDrag.ts) | Pointer Events、拖动阈值、命中、自动滚动与清理 |
-| [WorkspaceTabs.vue](../src/modules/workspace/WorkspaceTabs.vue) | 横纵导航、插入标记与拖动浮层 |
-| [TerminalStage.vue](../src/modules/workspace/TerminalStage.vue) | 扁平宿主、绿色预览与可调整分隔线 |
-| [TerminalPane.vue](../src/modules/terminal/TerminalPane.vue) | 窗格焦点、标题/菜单/关闭、自身配色 |
-| [App.vue](../src/App.vue) | 组/窗格关闭协调、命令路由与删除来源标签后的焦点恢复 |
+| 文件                                                            | 职责                                                |
+| --------------------------------------------------------------- | --------------------------------------------------- |
+| [layout.ts](../src/modules/workspace/layout.ts)                 | 纯数据树操作、叶子收缩、矩形/分隔线计算、方向命中   |
+| [store.ts](../src/modules/workspace/store.ts)                   | 标签组、终端归属、排序/合并、焦点与关闭锁           |
+| [useTabDrag.ts](../src/modules/workspace/useTabDrag.ts)         | Pointer Events、拖动阈值、命中、自动滚动与清理      |
+| [WorkspaceTabs.vue](../src/modules/workspace/WorkspaceTabs.vue) | 横纵导航、插入标记与拖动浮层                        |
+| [TerminalStage.vue](../src/modules/workspace/TerminalStage.vue) | 扁平宿主、绿色预览与可调整分隔线                    |
+| [TerminalPane.vue](../src/modules/terminal/TerminalPane.vue)    | 窗格焦点、标题/菜单/关闭、自身配色                  |
+| [App.vue](../src/App.vue)                                       | 组/窗格关闭协调、命令路由与删除来源标签后的焦点恢复 |
 
 采用 Pointer Events，不依赖 HTML5 外部拖放，不修改 Tauri 原生文件拖放配置，不接受外部序列化会话数据。菜单与关闭确认继续使用 Naive UI；标签、终端宿主和分屏几何属于业务布局。
 
@@ -55,9 +55,9 @@ type LayoutNode =
 
 [纯数据用例](../tests/workspace-layout.test.mjs)覆盖四向分割、嵌套矩形覆盖/不重叠、不变性、删除收缩、比例限制与无效目标。**仅完成语法静态检查，未执行测试。** 运行入口见 [测试说明](../tests/README.md)。前端类型检查和源码格式检查不等于 WebView 拖动或 SSH 保活验收，实际验证项见 [验证方案](11-validation.md)。
 
-顺序、布局、分隔比例与焦点仅保存在当前窗口内存；没有保存/恢复、跨窗口拖动或组整体合并。文件/SFTP 拖放与本功能无关，仍留 M3。没有新增依赖、数据库表或 Rust/TS IPC DTO。
+顺序、布局、分隔比例与焦点仅保存在当前窗口内存；没有保存/恢复、跨窗口拖动或组整体合并。文件/SFTP拖放使用独立原生桥，不参与标签/窗格拖动，见 [SFTP设计](16-sftp-workspace.md)。标签布局本身不新增数据库表或IPC DTO。
 
-## 5. 当前工作区输入广播（M2-14，2026-10-15）
+## 5. 工作区输入广播
 
 每个分屏标题的关闭按钮右侧增加一入三出图标，使用Naive UI按钮/主题，`aria-pressed`表示开关；同组所有按钮共享状态，点击切换并将输入焦点交回所选终端。开启时聚焦窗格实线，其他窗格虚线且颜色与主题一致。默认关闭、仅内存保存；拖入、拖出、同组重排和关闭窗格自动关闭，缩放分割线/标签排序不改变状态。切换其他标签不向隐藏组分发输入。
 
@@ -69,18 +69,24 @@ type LayoutNode =
 
 实现分工：
 
-| 入口 | 职责 |
-| --- | --- |
-| [inputOrigin.ts](../src/modules/terminal/inputOrigin.ts) | 固定xterm 6.0.0输入来源桥接、DOM滚轮事件作用域、订阅清理 |
-| [inputRouter.ts](../src/modules/terminal/inputRouter.ts) | 单源去重/用户输入分发、鼠标排除、方向键适配与本地递归保护 |
-| [registry.ts](../src/modules/terminal/registry.ts) | 连接过滤、会话FIFO、每目标粘贴/滚轮编码与代次校验 |
-| [store.ts](../src/modules/workspace/store.ts) | 组共享开关/版本、当前组目标列表、成员变化重置 |
-| [TerminalPane.vue](../src/modules/terminal/TerminalPane.vue) | 图标开关、状态语义与虚实线展示 |
+| 入口                                                         | 职责                                                      |
+| ------------------------------------------------------------ | --------------------------------------------------------- |
+| [inputOrigin.ts](../src/modules/terminal/inputOrigin.ts)     | 固定xterm 6.0.0输入来源桥接、DOM滚轮事件作用域、订阅清理  |
+| [inputRouter.ts](../src/modules/terminal/inputRouter.ts)     | 单源去重/用户输入分发、鼠标排除、方向键适配与本地递归保护 |
+| [registry.ts](../src/modules/terminal/registry.ts)           | 连接过滤、会话FIFO、每目标粘贴/滚轮编码与代次校验         |
+| [store.ts](../src/modules/workspace/store.ts)                | 组共享开关/版本、当前组目标列表、成员变化重置             |
+| [TerminalPane.vue](../src/modules/terminal/TerminalPane.vue) | 图标开关、状态语义与虚实线展示                            |
 
 **版本边界：** 公开onData混合用户输入与自动应答，onKey不覆盖IME。因此薄适配只订阅固定版本内部`_core.coreService.onUserInput`同步事件，在紧随的公开onData中消费标记，不修改库方法/源码，不启用proposed API。能力缺失时单终端输入仍工作，拒绝开启广播并显示错误；升级xterm必须复核事件顺序、IME、设备应答及二进制鼠标。此依赖局限于一个文件。
 
 [广播纯逻辑用例](../tests/terminal-broadcast.test.mjs)覆盖键盘/IME字节、自动应答/鼠标隔离、方向键模式、目标去重、粘贴/滚轮递归保护和来源标记降级。已编写但未执行，不代表桌面/SSH/vim实际互通已通过。无新增依赖、IPC/数据库/凭据变更，广播不持久化。
 
-OSC标题显示（2026-10-15）：xterm公开onTitleChange接收OSC 0/2，TerminalTab.remoteTitle仅存内存，title.ts集中清理控制/双向格式字符并限制160个Unicode码点，统一格式为原名称 (远端标题)。普通Tab保留原名称与(n)编号，Workspace标签展示聚焦窗格标题后缀，分屏标题各自展示。空标题及正常结束排空后清除后缀，重连在接入新流前清除旧值。原始输出不改写，订阅由xterm生命周期管理。该信息取决于远端是否发送标题，可包含目录/程序名，并非可靠命令检测。
+## 6. 标题与关闭提醒
 
-动态关闭提醒（2026-10-15）：activity.ts统一维护本次连接的首次OSC标题和执行阶段；OSC 133 C置为执行中，A/B/D置为非执行中，未知标记忽略。判定规则为：已连接且（执行中，或当前标题与首次收到的标题不一致）。即使收到D结束，标题不同仍按用户要求提醒；空标题也是有效首次标题，未收到标题且无C不提醒。不从键盘输入猜测命令。Tab/关闭快捷键/窗格/窗口均复用规则；Workspace/窗口只提示一次并显示可能执行命令的终端数量。保留confirmClose总开关，未执行则直接释放连接和历史；重连重新建立标题基准，结束后重置，不持久化。
+xterm公开onTitleChange接收OSC 0/2，TerminalTab.remoteTitle仅存内存，title.ts集中清理控制/双向格式字符并限制160个Unicode码点，统一格式为原名称 (远端标题)。普通Tab保留原名称与(n)编号，Workspace标签展示聚焦窗格标题后缀，分屏标题各自展示。空标题及正常结束排空后清除后缀，重连在接入新流前清除旧值。原始输出不改写，订阅由xterm生命周期管理。该信息取决于远端是否发送标题，可包含目录/程序名，并非可靠命令检测。
+
+activity.ts统一维护本次连接的首次OSC标题和执行阶段；OSC 133 C置为执行中，A/B/D置为非执行中，未知标记忽略。判定规则为：已连接且（执行中，或当前标题与首次收到的标题不一致）。即使收到D结束，标题不同仍按用户要求提醒；空标题也是有效首次标题，未收到标题且无C不提醒。不从键盘输入猜测命令。Tab/关闭快捷键/窗格/窗口均复用规则；Workspace/窗口只提示一次并显示可能执行命令的终端数量。保留confirmClose总开关，未执行则直接释放连接和历史；重连重新建立标题基准，结束后重置，不持久化。
+
+## 7. SFTP面板与合并互斥
+
+单终端底部SFTP开关在Workspace内禁用。TerminalTab.sftpOpen为仅内存状态；canSplit对来源terminalId和目标组成员同时检查，只要开启侧栏就拒绝分屏，因此不能拖成新Workspace、拖入其他Workspace，也不接受其他窗格拖入形成Workspace。标签栏排序仍允许，隐藏侧栏后恢复合并。合并不销毁终端，已隐藏的文件浏览器与任务仍绑定原session。外部文件通过原生拖放上传到当前目录；macOS支持普通文件和目录的文件承诺拖出，接收后才显示传输；Windows/Linux原生拖出未实现。文件拖放不触发标签分屏；具体文件能力与待验收边界见 [SFTP设计](16-sftp-workspace.md)。

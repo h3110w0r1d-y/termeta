@@ -1,15 +1,16 @@
-# 工作区布局测试
+# 静态用例与验证边界
 
-`workspace-layout.test.mjs` 使用 Node 内置测试与断言模块，不新增依赖。需要 Node **22.18+**，通过其原生 TypeScript 类型擦除能力直接导入 `src/modules/workspace/layout.ts`。
+Node用例使用内置测试/断言模块，直接导入TypeScript需要Node **22.18+**。遵循仓库约束，只有用户明确授权后才能执行测试；目前未执行这些用例，源码/语法检查不能代表WebView、SSH或桌面集成已通过。
 
-遵循仓库约束，需用户明确授权后才执行：
+| 文件                          | 覆盖范围                                                                              |
+| ----------------------------- | ------------------------------------------------------------------------------------- |
+| `workspace-layout.test.mjs`   | 四向/嵌套布局、叶子唯一归属、来源收缩、迁移与无效目标、比例限制及原数据不变性         |
+| `terminal-broadcast.test.mjs` | 用户输入/设备应答/鼠标隔离、目标去重、光标模式、粘贴/滚轮递归保护、来源桥接降级与清理 |
+
+授权后的执行入口：
 
 ```sh
-node --test tests/workspace-layout.test.mjs
+node --test tests/workspace-layout.test.mjs tests/terminal-broadcast.test.mjs
 ```
 
-当前仅完成源码、语法与格式静态检查，**尚未执行测试**。这些用例只验证纯数据布局规则，不代表 SSH、WebView、拖动手势或桌面集成已通过验证。
-
-迁移用例同时覆盖同树窗格重排、跨组来源收缩、单叶来源清除，以及自身/无效/重复目标拒绝；断言原树不变且每个终端只出现一次。
-
-`terminal-broadcast.test.mjs`覆盖输入路由、目标去重、设备应答/鼠标隔离、光标模式、粘贴/滚轮递归保护，以及固定xterm来源桥接的能力降级/清理。仅语法静态检查，未执行；用户明确授权后可用 `node --test tests/terminal-broadcast.test.mjs`，需要Node22.18+。这些模拟事件用例不能替代xterm/WebView/真实SSH/vim互通验证。
+Rust单元测试随对应crate源码保存，执行会编译，同样需要明确授权。实际终端、IME、vim、文件拖放及Finder文件承诺须另行运行验收，见 [验证方案](../docs/11-validation.md)。

@@ -22,6 +22,8 @@ export interface TerminalTab extends TerminalActivity {
   target: OpenTarget;
   state: SessionState;
   sessionId?: string;
+  sftpOpen?: boolean;
+  sftpTransferring?: boolean;
   revision: number;
   error: string;
   schemeId?: string;
@@ -208,6 +210,12 @@ export const useWorkspace = defineStore("workspace", () => {
       incoming.terminalId !== targetTerminalId &&
       (source.kind === "pane" || incoming.group.id !== target.id) &&
       terminalIds(target.root).includes(targetTerminalId) &&
+      !tabs.value.some(
+        (tab) =>
+          tab.sftpOpen &&
+          (tab.terminalId === incoming.terminalId ||
+            terminalIds(target.root).includes(tab.terminalId)),
+      ) &&
       !groupIsClosing(incoming.group) &&
       !groupIsClosing(target)
     );
@@ -316,6 +324,18 @@ export const useWorkspace = defineStore("workspace", () => {
       ? terminalIds(group.root)
       : [id];
   }
+  function toggleSftp() {
+    const tab = active.value;
+    if (
+      !tab ||
+      activeGroup.value?.root.kind !== "terminal" ||
+      drag.value ||
+      closingTerminalIds.value.includes(tab.terminalId)
+    )
+      return;
+    if (!tab.sftpOpen && tab.state !== "connected") return;
+    tab.sftpOpen = !tab.sftpOpen;
+  }
   function resizeSplit(id: string, ratio: number) {
     if (activeGroup.value)
       activeGroup.value.root = setSplitRatio(activeGroup.value.root, id, ratio);
@@ -364,6 +384,7 @@ export const useWorkspace = defineStore("workspace", () => {
     canSplit,
     mergeTerminal,
     toggleBroadcast,
+    toggleSftp,
     inputTargets,
     resizeSplit,
     cancelDrag,

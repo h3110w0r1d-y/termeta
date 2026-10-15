@@ -126,3 +126,36 @@ export interface CredentialDraft {
   keyFileRef?: string;
   passphrase?: string;
 }
+
+export interface FileEntry {
+  name: string;
+  kind: "directory" | "file" | "symlink" | "other";
+  linkTarget: string | null;
+  targetKind: "directory" | "file" | "other" | null;
+  size: string | null;
+  modified: number | null;
+  permissions: number | null;
+}
+export interface DirectoryPage {
+  path: string;
+  // 每页最多100个远端条目，..导航行由视图独立生成。
+  entries: FileEntry[];
+  hasMore: boolean;
+}
+// 原生桥归一后的WebView逻辑坐标。
+export interface SftpDropPosition {
+  x: number;
+  y: number;
+}
+export interface SftpLocalDrop {
+  error?: string;
+  dropId: string;
+  position: SftpDropPosition;
+}
+export interface TransferProgress {
+  currentName?: string;
+  completedFiles?: number;
+  totalFiles?: number;
+  transferred: string;
+  total: string | null;
+}

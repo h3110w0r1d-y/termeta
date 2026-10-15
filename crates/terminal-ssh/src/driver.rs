@@ -4,7 +4,7 @@ use std::{collections::VecDeque, time::Duration};
 use terminal_core::*;
 
 pub(crate) async fn run(
-    connection: &mut client::Handle<HostKeyHandler>,
+    connection: &client::Handle<HostKeyHandler>,
     mut context: DriverContext,
 ) -> Result<SessionEnd> {
     let mut channel = network("opening", connection.channel_open_session()).await?;

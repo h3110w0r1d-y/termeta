@@ -1,17 +1,17 @@
 # 数据存储与凭据设计
 
-日期：2026-10-15。按用户确认的新模型重构，状态为“实现待验证”。本轮不做旧数据库兼容升级；重写初始 schema，不自动删除、转换或重置用户现有数据库。编译、应用启动、实际数据库与系统凭据库均未验证。
+日期：2026-10-15。当前凭据模型为“实现待验证”，不兼容迁移旧数据库，不自动删除、转换或重置用户现有数据库。编译、应用启动、实际数据库与系统凭据库均未验证。
 
 ## 1. 数据边界
 
 应用数据使用 Tauri 平台应用数据目录，新凭据模型数据库为 `termvexa-credentials-v1.sqlite3`（文件名标识模型代际，内部 schemaVersion 当前为 1）；OS 凭据 service 为 `com.h3110w0r1d.termvexa`。SQLite 不加密，主机地址、用户名、授权文件路径和历史仍属敏感元数据。
 
-| 存储 | 内容 | 禁止 |
-| --- | --- | --- |
-| SQLite | 主机、分组、公共/专属凭据元数据与引用、设置、信任和连接历史 | 密码、私钥正文、解密密码、OTP、终端正文 |
-| OS 凭据库 | 可复用密码；私钥正文与可选解密密码的同一秘密记录；主机专属密码 | 凭据服务不可用时回退为明文 |
-| 用户私钥文件 | 仅作为用户授权的导入来源，Rust 受控读取 | 前端读取正文、连接时依赖原文件仍存在 |
-| 内存 | 表单短期输入、解密材料、认证答案、有限终端缓冲 | 秘密写入 Pinia 持久状态、日志或导出 |
+| 存储         | 内容                                                           | 禁止                                    |
+| ------------ | -------------------------------------------------------------- | --------------------------------------- |
+| SQLite       | 主机、分组、公共/专属凭据元数据与引用、设置、信任和连接历史    | 密码、私钥正文、解密密码、OTP、终端正文 |
+| OS 凭据库    | 可复用密码；私钥正文与可选解密密码的同一秘密记录；主机专属密码 | 凭据服务不可用时回退为明文              |
+| 用户私钥文件 | 仅作为用户授权的导入来源，Rust 受控读取                        | 前端读取正文、连接时依赖原文件仍存在    |
+| 内存         | 表单短期输入、解密材料、认证答案、有限终端缓冲                 | 秘密写入 Pinia 持久状态、日志或导出     |
 
 私钥凭据保存成功后由 OS 凭据库提供完整材料；删除或移动导入来源文件不应破坏已导入凭据。SQLite 的 key_files 只保存授权来源和内容摘要，不保存私钥。
 
@@ -38,15 +38,15 @@
 
 初始 DDL 见 [0001_initial.sql](../crates/terminal-storage/migrations/0001_initial.sql)，当前全新 schema 基线为 1；此前 0002 升级脚本不属于新模型。不为旧库改写迁移记录或自动清库。
 
-| 表 | 关键字段与约束 |
-| --- | --- |
-| connection_profiles / ssh_profiles | 主机元数据、地址/端口/用户、revision；不保存秘密 |
-| profile_auth_steps | profile_id、method、credential_id；只允许 password/privateKey，一个主要步骤 |
-| credentials | id、kind=password/privateKey、label、owner_profile_id、store_account、status、时间 |
-| key_files | id、path、display_name、content_fingerprint；原生选择器签发的导入授权 |
-| host_groups / tags / profile_tags | 分组防环、标签与关联 |
-| known_hosts | endpoint、算法、完整公钥、SHA256 指纹；不能只按指纹决定信任 |
-| settings / session_history | 非秘密偏好、连接摘要；正文不落库 |
+| 表                                 | 关键字段与约束                                                                     |
+| ---------------------------------- | ---------------------------------------------------------------------------------- |
+| connection_profiles / ssh_profiles | 主机元数据、地址/端口/用户、revision；不保存秘密                                   |
+| profile_auth_steps                 | profile_id、method、credential_id；只允许 password/privateKey，一个主要步骤        |
+| credentials                        | id、kind=password/privateKey、label、owner_profile_id、store_account、status、时间 |
+| key_files                          | id、path、display_name、content_fingerprint；原生选择器签发的导入授权              |
+| host_groups / tags / profile_tags  | 分组防环、标签与关联                                                               |
+| known_hosts                        | endpoint、算法、完整公钥、SHA256 指纹；不能只按指纹决定信任                        |
+| settings / session_history         | 非秘密偏好、连接摘要；正文不落库                                                   |
 
 `owner_profile_id=NULL` 表示公共凭据；非空只允许 password，表示该主机的专属秘密。该列不随主机删除级联消失，以便保留待清理 OS item 的登记。引用绑定与所有权由同一 SQLite 写事务校验；跨主机专属引用、公共列表泄露专属条目和将专属 ID 当作公共引用均拒绝。
 
@@ -68,13 +68,13 @@ SQLite 与系统凭据库不能原子提交。凭据状态为 pending → ready 
 
 采用 SQLx SQLite 小连接池、WAL/FULL、foreign_keys、busy timeout。复合写使用 BEGIN IMMEDIATE 和 revision 乐观锁，不在应用全局 Mutex 内等待数据库。主机绑定、新旧专属密码切换、引用拒删须在同一事务内复查，避免元数据更新与密码替换竞态。
 
-本轮用户明确排除旧数据库兼容迁移：schema 与 Rust/TS 契约同时重构，移除旧 passphrase/文件认证步骤。桌面启动固定使用独立新文件 `termvexa-credentials-v1.sqlite3`，不打开旧 `termvexa.sqlite3`，避免旧版本 2 与新 schema 1 冲突。新库首次启动为空，主机、设置、信任等需重新配置；旧库与其 WAL/SHM、OS 凭据和备份原样保留，不自动导入或清理。不能通过忽略版本/校验和保护来复用旧库。保留未来版本只读预检、迁移校验与失败保留机制，后续正式发布迁移仍需独立设计。
+当前不做旧数据库兼容迁移：schema 与 Rust/TS 契约同时重构，移除旧 passphrase/文件认证步骤。桌面启动固定使用独立新文件 `termvexa-credentials-v1.sqlite3`，不打开旧 `termvexa.sqlite3`，避免旧版本 2 与新 schema 1 冲突。新库首次启动为空，主机、设置、信任等需重新配置；旧库与其 WAL/SHM、OS 凭据和备份原样保留，不自动导入或清理。不能通过忽略版本/校验和保护来复用旧库。保留未来版本只读预检、迁移校验与失败保留机制，后续正式发布迁移仍需独立设计。
 
 ## 7. 数据维护与后续范围
 
 连接历史初始按 90 天清理、最多列出 1000 条；异常退出的未结束记录标 appInterrupted，不自动重连。终端滚屏按 terminalId 留在窗口内存，与 session_history 分开。SQLite 行删除不表示 WAL、备份和介质中安全擦除。
 
-SFTP/Local/Serial/隧道仍保持原里程碑，不因本轮凭据重构引入实际文件传输或本地终端。
+单终端 SFTP 任务和浏览状态只驻内存，不保存文件正文；Local/Serial/隧道尚未实现。
 
 ## 8. 快捷键、配色与 SFTP 偏好
 
@@ -84,9 +84,9 @@ SFTP/Local/Serial/隧道仍保持原里程碑，不因本轮凭据重构引入�
 
 应用标签栏位置保存在 `app.tabPosition`（`top` / `left`），旧设置缺失时前端补为 `top`，Rust 兼容缺失但拒绝其他值。固定首页/SFTP 与当前首页菜单不新增数据库表；该设置不新增数据库表。
 
-以下是 M3 扩展设计，当前没有 SFTP 表、传输历史或文件服务。SFTP 偏好计划记录默认左/右/底部位置、显隐/尺寸、隐藏文件/排序，允许 profile 或视图覆盖。独立双栏布局只存端点类型/profileRef 与用户选择保存的路径；本地 rootGrant/connectionRef/entryRef 是运行授权，重启不能直接复用。重新选择/授权后才打开，默认不连接远端。
+当前没有 SFTP 持久表或传输历史，已实现文件服务的状态仅驻内存。以下为后续持久化设计。SFTP 偏好计划记录默认左/右/底部位置、显隐/尺寸、隐藏文件/排序，允许 profile 或视图覆盖。独立双栏布局只存端点类型/profileRef 与用户选择保存的路径；本地 rootGrant/connectionRef/entryRef 是运行授权，重启不能直接复用。重新选择/授权后才打开，默认不连接远端。
 
-传输任务为运行态；历史只留可选最小摘要，路径也属于敏感元数据。重启把残留任务记为 interrupted，不自动执行上传/覆盖/删除、不自动信任旧冲突 challenge。原生拖出 staging 仅保存应用管理的残留登记用于安全清理，文件正文不进 DB/备份；普通远端中转不落本地磁盘。详见 [16](16-sftp-workspace.md)。
+传输任务为运行态；历史只留可选最小摘要，路径也属于敏感元数据。若后续持久化任务，重启须标为 interrupted，不自动重新上传或覆盖，也不复用旧覆盖同意。macOS拖出当前按承诺目标直接下载，不持久化拖动授权或文件正文。未来如引入受控缓存，须独立登记并限制残留清理范围；远端中转不默认落盘。详见 [16](16-sftp-workspace.md)。
 
 ## 9. 实现与验证边界
 

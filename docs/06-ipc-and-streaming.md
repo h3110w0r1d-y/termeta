@@ -13,11 +13,22 @@
 ```ts
 type SessionKind = "ssh" | "local" | "serial";
 type SessionState =
-  | "created" | "connecting" | "awaitingHostKey"
-  | "authenticating" | "awaitingAuth" | "opening"
-  | "connected" | "closing" | "closed" | "failed" | "disconnected";
+  | "created"
+  | "connecting"
+  | "awaitingHostKey"
+  | "authenticating"
+  | "awaitingAuth"
+  | "opening"
+  | "connected"
+  | "closing"
+  | "closed"
+  | "failed"
+  | "disconnected";
 
-interface TerminalSize { cols: number; rows: number }
+interface TerminalSize {
+  cols: number;
+  rows: number;
+}
 interface SessionSnapshot {
   protocolVersion: 1;
   requestId: string;
@@ -59,25 +70,25 @@ type AuthStepV1 =
 
 以下为目标命令名，M1/M2 按需实现、登记 ACL；不是一次全部暴露。
 
-| 命令 | 主要参数 | 返回/语义 |
-| --- | --- | --- |
-| `available_session_kinds` | 无 | 注册工厂与能力，仅展示可用类型 |
-| `open_session` | protocolVersion、requestId、target、size、onOutput、onControl | Created 快照；连接异步进行；同 owner/requestId 幂等 |
-| `write_session` | sessionId、inputSeq、bytes | acceptedSeq；只确认后端有序接收，不承诺远端已执行 |
-| `resize_session` | sessionId、size | 最新接受尺寸；合并重复 |
-| `ack_session_output` | sessionId、consumedOffset（十进制字符串） | void；累计确认解析后的输出 |
-| `respond_host_key` | sessionId、challengeId、decision | 接受/拒绝响应；decision 为 reject/allowOnce/trustAndSave |
-| `respond_auth_challenge` | sessionId、challengeId、answers、savePolicy | masked 答案只短暂经 IPC；不得记录 |
-| `cancel_auth_challenge` | sessionId、challengeId | 取消认证并关闭本次连接 |
-| `close_session` | sessionId、reason | 受理后的当前快照；资源结束由终态事件确认 |
-| `list_sessions` / `get_session` | 可选 sessionId | 当前 owner 的快照/终态缓存 |
-| `session_client_heartbeat` | 无或已拥有 session ID 列表 | 窗口级失联检测；不能由前端指定 owner |
-| `list_hosts` / `save_host` / `delete_host` | 查询/版本化 Host DTO/id | 参数化 repository CRUD；save 使用 revision 乐观锁 |
-| `list_host_groups` / `save_host_group` / `delete_host_group` | 分组 DTO/id | 防环；默认移动子项后删除 |
-| `list_known_hosts` / `revoke_known_host` | endpoint 查询/信任记录 id | 替换策略需二次显式操作，不在连接流程静默覆盖 |
-| `select_private_key_file` | 原生文件选择 | opaque keyFileRef、名称、公钥元数据（可解析时）；不返回私钥 |
-| `list_credentials` / `delete_credential` | id | 仅元数据；无通用 get_secret 命令 |
-| `get_settings` / `save_settings` | 版本化设置 DTO | 校验范围；无原始 SQL |
+| 命令                                                         | 主要参数                                                      | 返回/语义                                                   |
+| ------------------------------------------------------------ | ------------------------------------------------------------- | ----------------------------------------------------------- |
+| `available_session_kinds`                                    | 无                                                            | 注册工厂与能力，仅展示可用类型                              |
+| `open_session`                                               | protocolVersion、requestId、target、size、onOutput、onControl | Created 快照；连接异步进行；同 owner/requestId 幂等         |
+| `write_session`                                              | sessionId、inputSeq、bytes                                    | acceptedSeq；只确认后端有序接收，不承诺远端已执行           |
+| `resize_session`                                             | sessionId、size                                               | 最新接受尺寸；合并重复                                      |
+| `ack_session_output`                                         | sessionId、consumedOffset（十进制字符串）                     | void；累计确认解析后的输出                                  |
+| `respond_host_key`                                           | sessionId、challengeId、decision                              | 接受/拒绝响应；decision 为 reject/allowOnce/trustAndSave    |
+| `respond_auth_challenge`                                     | sessionId、challengeId、answers、savePolicy                   | masked 答案只短暂经 IPC；不得记录                           |
+| `cancel_auth_challenge`                                      | sessionId、challengeId                                        | 取消认证并关闭本次连接                                      |
+| `close_session`                                              | sessionId、reason                                             | 受理后的当前快照；资源结束由终态事件确认                    |
+| `list_sessions` / `get_session`                              | 可选 sessionId                                                | 当前 owner 的快照/终态缓存                                  |
+| `session_client_heartbeat`                                   | 无或已拥有 session ID 列表                                    | 窗口级失联检测；不能由前端指定 owner                        |
+| `list_hosts` / `save_host` / `delete_host`                   | 查询/版本化 Host DTO/id                                       | 参数化 repository CRUD；save 使用 revision 乐观锁           |
+| `list_host_groups` / `save_host_group` / `delete_host_group` | 分组 DTO/id                                                   | 防环；默认移动子项后删除                                    |
+| `list_known_hosts` / `revoke_known_host`                     | endpoint 查询/信任记录 id                                     | 替换策略需二次显式操作，不在连接流程静默覆盖                |
+| `select_private_key_file`                                    | 原生文件选择                                                  | opaque keyFileRef、名称、公钥元数据（可解析时）；不返回私钥 |
+| `list_credentials` / `delete_credential`                     | id                                                            | 仅元数据；无通用 get_secret 命令                            |
+| `get_settings` / `save_settings`                             | 版本化设置 DTO                                                | 校验范围；无原始 SQL                                        |
 
 keyFileRef 由后端文件选择流程签发并绑定 owner，作为导入私钥凭据的受控文件引用；普通 invoke 不允许任意路径读取。密钥授权、状态变更与用户操作关联，不能仅相信“这个路径来自文件选择框”的前端声明。
 
@@ -85,13 +96,13 @@ keyFileRef 由后端文件选择流程签发并绑定 owner，作为导入私钥
 
 事件统一含 protocolVersion、requestId、sessionId、eventSeq；`eventSeq` 在控制 Channel 内递增，`stateRevision` 防止迟到快照覆盖新状态。
 
-| 事件 type | 负载 | 行为 |
-| --- | --- | --- |
-| `stateChanged` | snapshot | 更新 UI 元数据 |
-| `hostKeyChallenge` | challengeId、endpoint、algorithm、fingerprint、expiresAt | 唯一活动 challenge；完整 key 留在后端 |
-| `authChallenge` | challengeId、name、instructions、prompts[{text,echo}]、expiresAt | 普通文本显示；按 echo 控制输入 |
-| `notice` | code、messageKey、脱敏 details | 限流、合并重复提示 |
-| `ended` | finalState、reason、exitCode/exitSignal、finalOffset、outputComplete、error? | 无新输出生成；按 finalOffset 协调前端排空 |
+| 事件 type          | 负载                                                                         | 行为                                      |
+| ------------------ | ---------------------------------------------------------------------------- | ----------------------------------------- |
+| `stateChanged`     | snapshot                                                                     | 更新 UI 元数据                            |
+| `hostKeyChallenge` | challengeId、endpoint、algorithm、fingerprint、expiresAt                     | 唯一活动 challenge；完整 key 留在后端     |
+| `authChallenge`    | challengeId、name、instructions、prompts[{text,echo}]、expiresAt             | 普通文本显示；按 echo 控制输入            |
+| `notice`           | code、messageKey、脱敏 details                                               | 限流、合并重复提示                        |
+| `ended`            | finalState、reason、exitCode/exitSignal、finalOffset、outputComplete、error? | 无新输出生成；按 finalOffset 协调前端排空 |
 
 首次输出可能晚于 Connected 控制事件；`ended` 也可能先于最后数据帧被 JS 收到。前端不得看到 ended 就直接销毁输出 handler，要消费至 finalOffset 或达到关闭排空期限。显式关闭允许 outputComplete=false 并明确舍弃剩余显示。
 
@@ -111,16 +122,16 @@ finalOffset 为 forwarder 停止后冻结的最后一次成功提交 Channel 的
 
 一个 Channel 消息对应一帧，不依赖 TCP 包边界。一条输出 Channel 只绑定一个 session，不在每帧重复长 ID。头部固定 24 字节，小端序：
 
-| 偏移 | 长度 | 字段 | 约束 |
-| --- | --- | --- | --- |
-| 0 | 1 | version | 1 |
-| 1 | 1 | flags | v1 为 0；未知位拒绝 |
-| 2 | 2 | reserved | 0 |
-| 4 | 4 | frameSeq | u32，从 1 递增，不在同一 session 内回绕 |
-| 8 | 8 | endOffset | u64；本帧之后的累计 payload 字节数 |
-| 16 | 4 | payloadLength | u32，1–32768 |
-| 20 | 4 | reserved | 0 |
-| 24 | N | payload | 原始终端字节，不做换行或字符转换 |
+| 偏移 | 长度 | 字段          | 约束                                    |
+| ---- | ---- | ------------- | --------------------------------------- |
+| 0    | 1    | version       | 1                                       |
+| 1    | 1    | flags         | v1 为 0；未知位拒绝                     |
+| 2    | 2    | reserved      | 0                                       |
+| 4    | 4    | frameSeq      | u32，从 1 递增，不在同一 session 内回绕 |
+| 8    | 8    | endOffset     | u64；本帧之后的累计 payload 字节数      |
+| 16   | 4    | payloadLength | u32，1–32768                            |
+| 20   | 4    | reserved      | 0                                       |
+| 24   | N    | payload       | 原始终端字节，不做换行或字符转换        |
 
 startOffset = endOffset - payloadLength；必须等于上一帧 endOffset。JS 用 DataView 读 u64（BigInt），传回 JSON ACK 时转十进制字符串，不把 u64 塞入 JS number。frameSeq 耗尽前显式终止并提示，而非回绕后误判；这是长时间极端吞吐场景的边界，后续可升级协议。
 
@@ -142,16 +153,16 @@ SSH channel + 内部有限缓冲
 
 初始调参值，不是测试结果：
 
-| 参数 | 初始值 | 说明 |
-| --- | --- | --- |
-| 单帧 payload | 4–32 KiB；不足不等待凑满 | 交互尾部约 4 ms 内刷新，实际待测 |
-| 未 ACK 输出信用 | 256 KiB / session | 帧发送前预留信用；Tauri send 成功不释放信用 |
-| driver 输出队列 | 512 KiB / session | 字节信号量 + 消息数双限，不能仅限制消息数量 |
-| 输入队列 | 64 KiB / session | 超过限额暂停粘贴或报错，不静默丢字节 |
-| 单次 write payload | 最大 16 KiB | 前端分片，单 writer 串行 invoke |
-| ACK 批次 | 累计 64 KiB 或约 16 ms | 以 write callback 为依据；定时器受后台节流影响 |
-| 已连接会话上限 | 默认 20；并行连接尝试 4 | 终态摘要不占活动配额；用户后续可调 |
-| 全局应用流缓冲预算 | 32 MiB | 包含输出队列/信用/输入配额，独立于 xterm scrollback |
+| 参数               | 初始值                   | 说明                                                |
+| ------------------ | ------------------------ | --------------------------------------------------- |
+| 单帧 payload       | 4–32 KiB；不足不等待凑满 | 交互尾部约 4 ms 内刷新，实际待测                    |
+| 未 ACK 输出信用    | 256 KiB / session        | 帧发送前预留信用；Tauri send 成功不释放信用         |
+| driver 输出队列    | 512 KiB / session        | 字节信号量 + 消息数双限，不能仅限制消息数量         |
+| 输入队列           | 64 KiB / session         | 超过限额暂停粘贴或报错，不静默丢字节                |
+| 单次 write payload | 最大 16 KiB              | 前端分片，单 writer 串行 invoke                     |
+| ACK 批次           | 累计 64 KiB 或约 16 ms   | 以 write callback 为依据；定时器受后台节流影响      |
+| 已连接会话上限     | 默认 20；并行连接尝试 4  | 终态摘要不占活动配额；用户后续可调                  |
+| 全局应用流缓冲预算 | 32 MiB                   | 包含输出队列/信用/输入配额，独立于 xterm scrollback |
 
 `sentOffset - consumedOffset <= outputCredit`。累计 ACK 必须单调、<= 已发送最大 offset、落在合法连续消费位置；重复 ACK 可忽略，未来 ACK/跨 session ACK 拒绝。后端用已发送帧端点确认合法边界。前端必须只确认**连续**已经完成解析的字节，不能对未解析帧提前 ACK。
 
@@ -171,7 +182,7 @@ write ACK 仅说明后端接纳；中途失联时输入可能已经部分送到�
 
 ## 8. 后台标签、失联与关闭
 
-隐藏标签继续解析/ACK；只减少渲染与无意义 fit，不暂停整个消费管线。WebView 挂起可能延迟 ACK，先背压；初始 60 秒无消费进度显示 stalled，窗口确认存活时允许宽限至 5 分钟，之后以 CONSUMER_STALLED 取消。控制面窗口心跳初始 15 秒，90 秒失联进入疑似状态，仍适用 5 分钟宽限；睡眠唤醒需重置检测窗口，不能把系统睡眠直接判为协议错误。这些时间要在真实后台节流环境中调优。
+隐藏标签继续解析/ACK，只减少渲染与无意义 fit。WebView 挂起时先背压，五分钟未消费或窗口失联取消；控制面心跳用于发现失联，系统睡眠时间跳跃重置预算。具体阈值需在真实后台节流环境调优。
 
 Channel send 错误、窗口已销毁或主动 close 立即取消对应流，释放信用等待与网络任务。正常退出可排空至 finalOffset，显式关闭在 3 秒预算后可放弃显示尾部，标记 outputComplete=false。v1 不支持热重载后重新 attach 原 stream；UI 清楚提示需要重新连接。
 
@@ -181,13 +192,11 @@ Channel send 错误、窗口已销毁或主动 close 立即取消对应流，释
 
 ## 10. 快捷键、配色与文件领域扩展
 
-M2 的版本化设置增加 keymap 与终端默认 scheme 引用。规划 `list_terminal_schemes` / `save_terminal_scheme` / `delete_terminal_scheme` / `import_terminal_schemes` / `export_terminal_scheme`，后端校验字段/颜色/版本/引用与 revision；导入只接受原生选定文件或受大小限制的文本，不提供任意文件读写。快捷键只引用 CommandRegistry 已注册 commandId，链接动作走 `open_external_url` 的 http/https 白名单和用户手势校验，不能传任意 opener 参数。
+快捷键及终端配色存入版本化设置，通过 get_settings/save_settings 整体读写。后端校验动作、颜色、版本及引用；前端 JSON 导入有大小限制，不提供任意文件读写。快捷键只引用 CommandRegistry 已注册 commandId，链接动作走 open_external_url 的 http/https 白名单，不接受任意 opener 参数。
 
-M3 的端点、列表、属性、传输、冲突、原生拖拽使用独立命令族，完整草案见 [16 的 IPC 清单](16-sftp-workspace.md#8-受控-ipc-草案)。FileEndpoint/entryRef/transferId 与 sessionId 分属资源域，均检验 owner；SFTP-only 认证使用 connection 归属，不伪造终端 session。文件正文留在 Rust，列表分页、进度节流走独立类型化 Channel，不复用终端 binary frame/ACK，也不把文件 bytes 放入 Vue 状态。订阅事件 revision 与快照协调，窗口失联时队列状态保留有界，明确取消/租约策略。
+文件服务使用独立命令与进度 Channel，不复用终端 binary frame/ACK。正文只在 Rust 流动。当前单终端 SFTP 契约见第 12 节；独立端点、连接租约、持久任务订阅仍是后续设计。
 
-原生拖入授权从原生事件建立，拖出只接受后端准备的 staging ref；普通 JS 路径不能冒充用户文件授权。所有新命令按实际里程碑纳入 AppManifest/ACL，SFTP 命令族当前没有注册或实现。
-
-## 11. 首期实际接口补充（2026-10-15）
+## 11. 数据、设置与控制接口
 
 以 [Rust 命令](../src-tauri/src/commands/mod.rs) 与 [TS 门面](../src/services/desktop/client.ts) 为实际边界。`open_session` 额外接收 `terminalId`，快照包含 terminalId；owner 只取注入窗口身份。`write_session` 返回 `{acceptedSeq}`；`resize_session` 返回接受的 `{cols,rows}`。`save_host({host,expectedRevision,password?})` / `save_host_group({group,expectedRevision})` 使用乐观锁，删除携带 revision。
 
@@ -197,12 +206,36 @@ M3 的端点、列表、属性、传输、冲突、原生拖拽使用独立命�
 
 设置通过 `get_settings` / `save_settings({settings})` 操作版本 1 的整体 app JSON；包含 customSchemes、hostSchemes、keymap 和 tabPosition（top/left，旧记录缺失兼容），尚无独立配色命令族。拒绝未来设置版本和非法动作/颜色。AppManifest、handler、capability 共用中心命令名单并做静态集合检查；后续仍须实际验证 ACL 拒绝路径。
 
-输出 forwarder 结束后发布 ended，终态 ACK 保留 3 秒排空窗口；会话快照/幂等摘要最多 1024 个、最长 10 分钟。五分钟未消费/窗口失联取消，系统睡眠时间跳跃重置失联预算。更细的 60 秒 stalled/90 秒 suspected UI 尚未实现。前端每 64 KiB 或 16 ms 合并解析后 ACK。各预算是代码初值，不是性能测量结果。
+输出 forwarder 结束后发布 ended，终态 ACK 保留 3 秒排空窗口；会话快照/幂等摘要最多 1024 个、最长 10 分钟。五分钟未消费/窗口失联取消，系统睡眠时间跳跃重置失联预算。前端每 64 KiB 或 16 ms 合并解析后 ACK。各预算是代码初值，不是性能测量结果。
 
 认证提交成功后前端只移除匹配 sessionId/challengeId 的提示，不能按 sessionId 删除随后到达的下一轮 OTP；会话终态/关闭仍清除该会话全部提示。自动 MFA 复用现有 AuthChallenge，无新增 IPC 命令。
 
-终端字体设置补充（2026-10-15）：`app.fontFamily` 保存固定12项规范名称，名单见 [桌面字体设计](09-desktop-ux.md#6-字体主题与可访问性)。`save_settings` 拒绝名单外值；`get_settings` 对旧版有效字符串但不在名单中的值，仅在返回值中归一为 DejaVu Sans Mono，其余字段仍完整校验，不执行自动持久化。字体二进制从应用自带静态资源加载，不通过 IPC 返回字体正文或访问系统字体目录。
+终端字体：`app.fontFamily` 保存固定12项规范名称，名单见 [桌面字体设计](09-desktop-ux.md#6-字体主题与可访问性)。`save_settings` 拒绝名单外值；`get_settings` 对旧版有效字符串但不在名单中的值，仅在返回值中归一为 DejaVu Sans Mono，其余字段仍完整校验，不执行自动持久化。字体二进制从应用自带静态资源加载，不通过 IPC 返回字体正文或访问系统字体目录。
 
-内置配色引用补充（2026-10-15）：64项内置 ID 从 resources/terminal-palettes.json 读取，前后端共享；保存设置仍拒绝未知或悬空引用。get_settings 对移除的旧预设引用只归一返回值：dark/forest/amber/violet/contrast-dark → nord-dark，light/contrast-light → nord-light；ocean 采用同 ID 的提取配色。未修改用户自定义方案 ID，不自动写库。
+内置配色：64项内置 ID 从 resources/terminal-palettes.json 读取，前后端共享；保存设置仍拒绝未知或悬空引用。get_settings 对移除的旧预设引用只归一返回值：dark/forest/amber/violet/contrast-dark → nord-dark，light/contrast-light → nord-light；ocean 采用同 ID 的提取配色。未修改用户自定义方案 ID，不自动写库。
 
-工作区广播（2026-10-15）：复用每目标原有write_session和FIFO，不增加广播IPC命令或跨会话事务。输入只复制到当前组已连接目标，每目标编号/限额/错误独立；源只写一次。粘贴确认/剪贴板等待期校验组广播版本与会话代次，旧输入不跨重连；任一目标失败不重放，也不保证多机同时执行。
+工作区广播：复用每目标原有write_session和FIFO，不增加广播IPC命令或跨会话事务。输入只复制到当前组已连接目标，每目标编号/限额/错误独立；源只写一次。粘贴确认/剪贴板等待期校验组广播版本与会话代次，旧输入不跨重连；任一目标失败不重放，也不保证多机同时执行。
+
+## 12. 单终端 SFTP
+
+5 个命令均注册于 command_names/AppManifest、invoke_handler 和 main capability，逐次校验本地 main 窗口、owner、session 归属及状态。取消可用于结束中的会话，以便释放旧任务。
+
+| 命令             | 入参                                                             | 返回                                              |
+| ---------------- | ---------------------------------------------------------------- | ------------------------------------------------- |
+| sftp_list        | sessionId、path、more                                            | DirectoryPage { path, entries, hasMore }          |
+| sftp_transfer    | sessionId、transferId、directory、name、upload、onProgress       | bool；上传原生多选，下载单文件保存对话框          |
+| sftp_drop_upload | sessionId、transferId、dropId、directory、onProgress             | bool；消费原生拖入授权                            |
+| sftp_start_drag  | sessionId、transferId、directory、names、directories、onProgress | bool；macOS 原生文件/目录承诺，其他平台返回不支持 |
+| sftp_cancel      | sessionId、transferId                                            | void；只取消匹配任务，旧 ID 不取消后续任务        |
+
+transferId 为 UUID。FileEntry 包含 name、kind(file/directory/symlink/other)、linkTarget、targetKind、size(十进制字符串或 null)、modified(u32 秒或 null)、permissions(u32 或 null)。链接目标和类型查询失败可独立为空，不改写链接自身元数据。命令范围仅浏览与上传下载。
+
+目录每页最多 100 个远端条目，跨 READDIR 包补齐并缓存余项；hasMore 表示缓存或句柄尚有后续，必要时空页确认 EOF。前端的置顶 `..` 不计分页，根目录禁用。链接元数据只查本页，每批最多 8 项；逻辑路径保留 `/bin` 等链接前缀，折叠 `.`、`..` 与重复斜杠，相对路径以服务器 REALPATH(".") 为基准，OPENDIR 和后续文件访问直接使用逻辑绝对路径。
+
+TransferProgress 包含 transferred/total 字节十进制字符串及可选 currentName/completedFiles/totalFiles。字节为当前文件进度，计数为当前批次；不传正文或本地路径。普通传输约 150 ms 节流，命令成功才标完成。上传预扫描最多 64 层/10000 项，前端最多等待 32 批次。文件覆盖由 Rust 原生逐项确认，目录合并；失败不回滚已完成文件。
+
+原生拖入签发一次性 dropId，绑定 owner，5 分钟有效，最多 16 个引用、每批 1000 根路径；满额淘汰最旧未消费项。事件 sftp-local-hover {position}、sftp-local-drop {dropId,position,error?}、sftp-local-leave 不泄露本地路径。position 为壳归一后的 WebView 逻辑坐标，前端不得再次除 DPR；超限返回错误。仅当前可见面板消费，目标固定当前目录，确认目标后提交。排队过期须重新拖入，没有任意本地路径读取 IPC。
+
+macOS 拖出 names 最多 100 个普通文件或真实目录根，directories 必须为其子集且仅为类型提示，Rust 在兑现时复核。原生手势启动须左键仍按住，不能排队到手势结束后。Finder 请求内容才发第一条进度并创建下载记录；无内容请求的取消不留任务。内部落点拒绝，原生拖出期间屏蔽上传事件及授权登记。命令在 Copy 会话结束且全部承诺完成后成功返回；取消返回 false，失败返回错误。目录使用独立句柄有界递归，不扰动侧栏分页，不跟随源链接。
+
+传输始终绑定原 sessionId，隐藏不取消；断线/关闭终端取消，重连不重放或关联新会话。尚无持久任务恢复、通用冲突 challenge、独立端点或连接租约。以上仅为源码契约，未完成编译与平台运行验收。

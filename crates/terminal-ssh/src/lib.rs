@@ -1,8 +1,10 @@
 //! SSH 适配器：主机身份校验完成前不读取或发送认证秘密。
 mod auth;
+mod channels;
 mod connection;
 mod driver;
 mod host_key;
+pub use channels::SshChannels;
 
 use async_trait::async_trait;
 use std::sync::Arc;
@@ -11,10 +13,18 @@ use terminal_core::*;
 pub struct SshFactory {
     trust: Arc<dyn HostTrustStore>,
     credentials: Arc<dyn CredentialStore>,
+    channels: SshChannels,
 }
 impl SshFactory {
     pub fn new(trust: Arc<dyn HostTrustStore>, credentials: Arc<dyn CredentialStore>) -> Self {
-        Self { trust, credentials }
+        Self {
+            trust,
+            credentials,
+            channels: SshChannels::default(),
+        }
+    }
+    pub fn channels(&self) -> SshChannels {
+        self.channels.clone()
     }
 }
 #[async_trait]
@@ -41,7 +51,15 @@ impl SessionFactory for SshFactory {
         )
         .await?;
         context.events.state(SessionState::Opening)?;
-        driver::run(&mut connection, context).await
+        let snapshot = context.events.snapshot();
+        let (requests, _registration) =
+            self.channels.register(&snapshot.session_id, &context.owner);
+        let channels = channels::serve(&connection, requests);
+        tokio::pin!(channels);
+        tokio::select! {
+            result = driver::run(&connection, context) => result,
+            _ = &mut channels => Err(SessionError::cancelled()),
+        }
     }
 }
 

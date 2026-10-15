@@ -12,6 +12,9 @@ use terminal_storage::SqliteStore;
 
 pub struct AppState {
     pub sessions: SessionManager,
+    pub ssh_channels: terminal_ssh::SshChannels,
+    pub sftp: Mutex<std::collections::HashMap<String, Arc<terminal_sftp::SftpBrowser>>>,
+    pub transfers: Arc<tokio::sync::Semaphore>,
     pub store: Arc<SqliteStore>,
     pub vault: Arc<CredentialVault>,
     pub heartbeat: Mutex<Instant>,

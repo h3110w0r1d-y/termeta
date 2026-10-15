@@ -261,9 +261,14 @@ pub fn close_session(
             "未知关闭原因",
         ));
     }
-    state
+    let snapshot = state
         .sessions
-        .close_with_reason(&owner(&window)?, &session_id, &reason)
+        .close_with_reason(&owner(&window)?, &session_id, &reason)?;
+    // 关闭SSH时立即取消等待选择器/覆盖确认/原生文件承诺，不等待维护周期。
+    if let Some(browser) = state.sftp.lock().unwrap().remove(&session_id) {
+        browser.cancel();
+    }
+    Ok(snapshot)
 }
 #[tauri::command]
 pub fn list_sessions(

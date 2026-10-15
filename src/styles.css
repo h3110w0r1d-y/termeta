@@ -347,11 +347,10 @@ p {
 .terminal-pane {
   position: absolute;
   inset: 0;
-  padding: 14px 8px 10px 14px;
 }
 .terminal-host {
-  height: 100%;
-  width: 100%;
+  height: auto;
+  margin: 14px 8px 10px 14px;
   overflow: hidden;
   background: var(--terminal-background);
 }
@@ -361,6 +360,7 @@ p {
   overscroll-behavior: none;
 }
 .status-bar {
+  align-items: center;
   border-top: 1px solid var(--border);
   display: flex;
   gap: 20px;
@@ -689,7 +689,6 @@ p {
   background: var(--terminal-background);
 }
 .terminal-pane.split-pane {
-  padding: 4px 6px 6px;
   /* 外框只占位，状态线内缩到边框内侧，避开视口裁剪边界的小数像素。 */
   border: 1px solid transparent;
   isolation: isolate;
@@ -710,13 +709,16 @@ p {
   flex: 1;
   min-height: 0;
 }
+.terminal-pane.split-pane .terminal-host {
+  margin: 0 6px 6px;
+}
 .terminal-pane-heading {
   display: flex;
   flex-shrink: 0;
   align-items: center;
   gap: 4px;
   height: 26px;
-  margin-bottom: 4px;
+  margin: 4px 6px;
 }
 .terminal-pane-title {
   /* 状态点与文字按容器居中，避免行内基线使圆点偏下。 */
@@ -832,4 +834,19 @@ p {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.terminal-pane-body {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.terminal-pane-body > .terminal-host {
+  width: 0;
+  min-width: 0;
+}
+.status-bar > .status-sftp-toggle {
+  margin-left: auto;
 }

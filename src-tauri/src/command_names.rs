@@ -1,5 +1,10 @@
 // 命令注册与构建期 ACL 共用同一份名单，避免权限契约漂移。
 pub const COMMANDS: &[&str] = &[
+    "sftp_drop_upload",
+    "sftp_start_drag",
+    "sftp_list",
+    "sftp_transfer",
+    "sftp_cancel",
     "available_session_kinds",
     "open_session",
     "write_session",

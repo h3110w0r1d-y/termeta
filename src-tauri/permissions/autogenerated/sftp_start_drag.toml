@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-sftp-start-drag"
+description = "Enables the sftp_start_drag command without any pre-configured scope."
+commands.allow = ["sftp_start_drag"]
+
+[[permission]]
+identifier = "deny-sftp-start-drag"
+description = "Denies the sftp_start_drag command without any pre-configured scope."
+commands.deny = ["sftp_start_drag"]
