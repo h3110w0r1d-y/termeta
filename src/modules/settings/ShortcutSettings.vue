@@ -1,0 +1,163 @@
+<script setup lang="ts">
+import { computed, ref } from "vue";
+import {
+  commandDefinitions,
+  defaults,
+  keyLabel,
+  validateBindings,
+  conflict,
+} from "../../services/commands/registry";
+import { downloadJson } from "./themes";
+import { parseJson } from "../../services/data/json";
+import type { Binding, Modifier } from "./model";
+import { clone } from "../../services/data/clone";
+import { confirmAction } from "../../components/ui/confirmation";
+import { errorMessage } from "../../services/desktop/client";
+import type { AppSettings } from "./model";
+const draft = defineModel<AppSettings>("settings", { required: true });
+const newId = () => crypto.randomUUID();
+const error = ref(""),
+  recording = ref(""),
+  shortcutSearch = ref(""),
+  category = ref("application");
+const bindings = computed(() =>
+  draft.value.keymap.bindings.filter(
+    (b) =>
+      b.scope === category.value &&
+      (
+        (commandDefinitions.find((d) => d[0] === b.commandId)?.[1] ??
+          b.commandId) +
+        " " +
+        keyLabel(b)
+      )
+        .toLowerCase()
+        .includes(shortcutSearch.value.toLowerCase()),
+  ),
+);
+function record(event: KeyboardEvent, binding: Binding) {
+  event.preventDefault();
+  event.stopPropagation();
+  if (event.isComposing) return;
+  if (event.key === "Escape") {
+    recording.value = "";
+    return;
+  }
+  if (["Control", "Meta", "Alt", "Shift"].includes(event.key)) return;
+  const modifiers: Modifier[] = [];
+  if (event.ctrlKey) modifiers.push("Control");
+  if (event.metaKey) modifiers.push("Meta");
+  if (event.altKey) modifiers.push("Alt");
+  if (event.shiftKey) modifiers.push("Shift");
+  binding.trigger = { type: "key", key: event.key, modifiers };
+  binding.enabled = true;
+  recording.value = "";
+}
+function resetBinding(binding: Binding) {
+  const original = defaults().find((d) => d.commandId === binding.commandId)!;
+  Object.assign(binding, clone(original), { id: binding.id });
+}
+function removeBinding(binding: Binding) {
+  draft.value.keymap.bindings = draft.value.keymap.bindings.filter(
+    (b) => b.id !== binding.id,
+  );
+}
+async function exportKeys() {
+  try {
+    await downloadJson("termvexa-keymap.json", draft.value.keymap);
+  } catch (e) {
+    error.value = errorMessage(e);
+  }
+}
+async function importKeys(event: Event) {
+  try {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    if (file.size > 1048576) throw new Error("文件过大");
+    const raw = parseJson(await file.text()) as {
+      schemaVersion: number;
+      bindings: unknown;
+    };
+    if (raw.schemaVersion !== 1) throw new Error("快捷键版本不支持");
+    const result = validateBindings(raw.bindings);
+    if (await confirmAction(`导入 ${result.length} 个绑定并替换当前编辑内容？`))
+      draft.value.keymap = { schemaVersion: 1, bindings: result };
+  } catch (e) {
+    error.value = errorMessage(e);
+  }
+}
+</script>
+<template>
+  <div>
+    <div class="button-row">
+      <button
+        :class="{ selected: category === 'application' }"
+        @click="category = 'application'"
+      >
+        全局快捷键</button
+      ><button
+        :class="{ selected: category === 'terminal' }"
+        @click="category = 'terminal'"
+      >
+        终端快捷键</button
+      ><input v-model="shortcutSearch" placeholder="搜索动作或按键…" />
+    </div>
+    <div v-for="b in bindings" :key="b.id" class="shortcut-row">
+      <label class="check"
+        ><input v-model="b.enabled" type="checkbox" />{{
+          commandDefinitions.find((d) => d[0] === b.commandId)?.[1]
+        }}</label
+      ><template v-if="b.trigger.type === 'pointer'"
+        ><select v-model="b.trigger.modifiers[0]">
+          <option value="Primary">Cmd / Ctrl + 点击</option>
+          <option value="Alt">Alt + 点击</option>
+          <option value="Shift">Shift + 点击</option>
+        </select></template
+      ><button
+        v-else
+        :class="{ recording: recording === b.id }"
+        @click="recording = b.id"
+        @keydown="record($event, b)"
+      >
+        {{
+          recording === b.id ? "按组合键，Esc 取消" : keyLabel(b) || "未绑定"
+        }}</button
+      ><button
+        class="icon-button"
+        title="增加同动作绑定"
+        @click="
+          draft.keymap.bindings.push({
+            ...clone(b),
+            id: newId(),
+            enabled: false,
+          })
+        "
+      >
+        ＋</button
+      ><button
+        class="icon-button"
+        title="恢复此动作默认"
+        @click="resetBinding(b)"
+      >
+        ↺
+      </button>
+      <button class="icon-button" title="删除绑定" @click="removeBinding(b)">
+        ×
+      </button>
+    </div>
+    <p v-if="conflict(draft.keymap.bindings)" class="error">
+      {{ conflict(draft.keymap.bindings) }}
+    </p>
+    <p class="muted">
+      Ctrl+C 等远端控制键若被配置，将被本地截获。Local
+      动作尚不可用；系统后台热键未启用。
+    </p>
+    <div class="button-row">
+      <button @click="draft.keymap.bindings = defaults()">全部恢复默认</button
+      ><button @click="exportKeys">导出配置</button
+      ><label class="file-button"
+        >导入配置<input type="file" accept=".json" @change="importKeys"
+      /></label>
+    </div>
+  </div>
+  <p v-if="error" class="error" role="alert">{{ error }}</p>
+</template>

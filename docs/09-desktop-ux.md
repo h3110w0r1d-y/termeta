@@ -103,3 +103,9 @@ SSH 终端的 SFTP 面板可打开/隐藏，支持左/右/底部位置与尺寸�
 ## 9. UI 基础组件方案
 
 采用 Reka UI primitives 作为交互基础，项目在 `src/components/ui/` 封装自己的 Dialog、Menu、Select、Tooltip 等组件，结合 CSS tokens/自定义样式形成紧凑桌面视觉。终端标签工作区与宿主由应用管理，不直接依赖 TabsContent 默认显隐生命周期。Tree 等 Alpha 控件先隔离验证，文件选择与系统菜单由 Tauri 原生能力提供。完整官方预研、组件映射与集成约束见 [UI 选型](13-ui-stack.md)。
+
+## 首期源码映射（2026-10-15）
+
+App.vue组装HostsSidebar、HostEditor、TerminalPane、ChallengeDialog与SettingsDialog；统一Reka确认/输入/粘贴预览，主机信任默认拒绝，宿主按terminalId保活。主机编辑支持显式系统凭据保存及私钥/密码后追加OTP；窗口/Tab关闭与断开分离，重连保留原实例及有界全屏文本快照。错误与文本状态不替换终端。
+
+目前无原生系统菜单、后台快捷键、Tab拖拽排序/分屏，SFTP等保持后续设计。剪贴板、键盘/IME、焦点、缩放和三平台验收均待执行；源码UI完成不代替体验验证。见 [实施状态](17-implementation-status.md)。

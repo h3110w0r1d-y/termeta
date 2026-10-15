@@ -148,3 +148,13 @@ SP-01~05、SP-07~09 未执行；SP-10/11 到 M3，SP-06 到 M4，系统后台快
 远端 A→B 采用两个 SFTP 流在 Rust 有界中转，从 API 能力看可行，但吞吐/内存/取消/共享 transport 公平性都属于 SP-10。原生拖出可先准备真实 staging 文件再开始拖，是否支持更顺畅的延迟文件提供必须经 SP-11，不用 JS 全量文件替代。
 
 链接识别沿用 xterm web-links/显式超链接方向，但本轮未确认 addon 所选 release 的事件回调签名；修饰键手势由应用策略提供，不能把未经核对的方法名写成可直接复制的实现。
+
+## 12. 首期落地版本核查（2026-10-15）
+
+前文为 M0 候选观察，现已落地：russh 0.64.1（Apache-2.0，MSRV1.89，关闭默认features，启用ring+rsa）、Tauri2.11.5/build2.6.3、SQLx0.8.6（MIT OR Apache-2.0，sqlite/runtime-tokio/migrate/macros，关闭默认features）、keyring3.6.3（MIT OR Apache-2.0，MSRV1.75，macOS apple-native、Windows windows-native、Linux sync-secret-service/crypto-rust/vendored）。keyring-core 4.x 是前期方向，本轮由 ADR-017 明确选择 3.6.3 适配器，不混用新文档 API。
+
+已下载并阅读固定 release 源码核对 Handler、认证、PTY/Shell确认、Channel raw Response、宏注册/ACL、SQLx事务和keyring后端。前端 xterm6.0.0、Fit0.11.0、Search0.16.0、WebLinks0.12.0、Reka2.11.0、Pinia4.1.0，以锁文件和包内类型为准，安装禁用scripts。xterm/Reka/Pinia主包许可证MIT；传递notice清单待发布阶段完整生成。
+
+pnpm audit报告0个已知公告；OSV对688个Rust锁依赖查询发现RSA/GLib/停止维护条目，影响路径和未关闭门槛见 [实施状态](17-implementation-status.md#4-依赖与公告核查)。锁文件还含未启用的SQLx/MySQL可选依赖，按cargo tree启用features判断实际可达性。未编译或运行三平台，MSRV声明不等于完整组合已通过。
+
+启动反馈修正：2026-10-15，JS 的 @tauri-apps/api 不再使用宽泛 ^2，固定 2.11.0 与 Rust tauri2.11.5 同 minor。未使用的 JS plugin-opener 已移除，原生 opener2.5.5 通过受控命令保留。pnpm 锁文件同步，未升级原生栈或主动启动项目。

@@ -1,6 +1,6 @@
 # SSH 连接、安全信任与认证
 
-日期：2026-10-15。首期直连 SSH2，底层引擎为待集成验证的 russh。
+日期：2026-10-15。首期直连 SSH2 已按 russh 0.64.1 源码实现；未编译或连接真实主机。依赖公告与待验收项见 [实施状态](17-implementation-status.md)。
 
 ## 1. 连接配置
 
@@ -124,3 +124,11 @@ M1 可以仅实现单次密码验证纵向切片；M2 才要求私钥、口令�
 新旧连接之间通过可信本地状态消息标识时间与重连结果，不把错误当作新远端输出；旧流排空、代次隔离及终端模式边界见 IPC/交互文档。保留显示历史不代表恢复原远端 Shell；远端任务恢复仍需 tmux/screen 等远端能力。
 
 ProxyJump 后续通过明确 hop 列表，为每一跳独立校验密钥与认证；不接受任意 ProxyCommand 自动执行。SFTP/隧道走独立服务与 connection 租约，见架构文档，不向通用终端加入 listFiles/startTunnel 等方法。
+
+## 首期源码与差异（2026-10-15）
+
+实现分别见 terminal-ssh 的 connection/host_key/auth/driver 模块。已实现密码重试、加密 OpenSSH 私钥口令重试和最多 8 轮 Keyboard-interactive，可按 authPlan 组合因素；UI 支持密码/私钥后追加交互认证。系统凭据通过主机编辑单独显式保存，认证弹窗只用于本次。
+
+固定配置使用 256 KiB SSH window、32 KiB maximum packet、16 channel 消息容量、30 秒 KeepAlive 与 max=3。russh 接收任意包会重置保活计数，且超出 max 才断开，不能称“精确 90 秒”。库内部 channel 满时可能影响协议调度，SP-05 仍是未通过门槛。独立 socket shutdown 确保取消不依赖输出 ACK。
+
+已从默认 host-key 算法排除 RSA/SHA-1；RSA 私钥仅选择服务器明确支持的 SHA-2 签名。此算法选择不修复 RSA 实现侧信道公告，详见 [实施状态的公告记录](17-implementation-status.md#4-依赖与公告核查)。没有真实握手/认证/PTY 验证记录。

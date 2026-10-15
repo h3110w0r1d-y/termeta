@@ -133,3 +133,19 @@ SSH 终端可配置左/右/底部的 SFTP 面板；另有左右两侧均可选�
 | 2026-10-15 | 建立 ADR-001~012 与需求、研究、架构、接口、存储、安全和验收基线 | 文档已编写；业务实现与运行验证未开始 |
 | 2026-10-15 | 修订 ADR-009：同 Tab/原 xterm 重连追加与失败保留；更新 ADR-002 并追加 ADR-013：Reka 采用方向 | 用户需求已同步文档；实现与 SP-07 尚未开始 |
 | 2026-10-15 | ADR-014~016：自定义快捷键/独立配色/SFTP 双入口与安全传输；细化 ADR-010 | 文档已同步；M2/M3 实现与 SP-08~11 未执行 |
+
+## ADR-017：首期实际依赖与凭据适配
+
+日期：2026-10-15。状态：源码采用，集成待验证；细化/调整 ADR-004/007。
+
+采用 russh 0.64.1（ring+rsa）、Tauri 2.11.5/build 2.6.3、SQLx 0.8.6、keyring 3.6.3 的显式平台后端。与前期 keyring-core 4.x 方向不同，本轮选择可核对源码的 3.6.3 adapter，macOS apple-native、Windows windows-native、Linux sync-secret-service/crypto-rust；不使用 mock，不把 OS 服务不可用降级到明文。独立 CredentialStore 允许将来替换该适配器，不影响领域和前端契约。私钥选择登记 SHA256 内容授权摘要，后续变化拒绝，摘要不等于 SSH 主机公钥指纹。
+
+理由：先交付单一可审阅的业务适配器、明确 release/API/features，避免混用新版文档和旧配置。影响：SP-03/跨平台待执行；OS 操作不可强行取消，运行在专用阻塞池。Rust 公告查询发现 RSA/GLib 与停止维护条目，详见实施记录；未解决前不能宣称通过安全发布门槛。锁文件解析成功不代表安全或可编译。
+
+## ADR-018：首期设置聚合与公开保存凭据用例
+
+日期：2026-10-15。状态：源码采用，运行待验证；细化 ADR-008/014/015。
+
+自定义配色、keymap 和 hostSchemes 存为版本化 app JSON，暂不创建独立颜色/主机偏好表与命令族。Rust 校验字段白名单、容量、引用和动作；前端在设置弹窗提交后统一应用。仅 main 窗口可调用，设置尚无多窗口 revision。后续多窗口/同步需求出现时新增 migration/use case，不能静默修改已发布 schema。
+
+认证 challenge 固定 only-once，凭据保存独立为主机编辑中的 save_credential；避免把 OTP/任意服务器提示当成可保存秘密。新增 list/clear history、recover credential 用例同步 ACL。全屏结束保留有界纯文本快照，重连在同一 xterm 上追加，图形/样式精确保真不作当前承诺；需 SP-07 实测。

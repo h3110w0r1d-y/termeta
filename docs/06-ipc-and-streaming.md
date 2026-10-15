@@ -1,6 +1,6 @@
 # IPC 契约与终端数据流
 
-日期：2026-10-15。协议版本 1，设计草案；没有已注册命令。任何变化需同步 Rust/TS、权限与文档。
+日期：2026-10-15。协议版本 1，首期命令/Channel/ACL 已落源码，尚未运行验证。Rust/TS 实际入口及差异见 [实施状态](17-implementation-status.md)。
 
 ## 1. 控制面与数据面
 
@@ -186,4 +186,14 @@ M2 的版本化设置增加 keymap 与终端默认 scheme 引用。规划 `list_
 
 M3 的端点、列表、属性、传输、冲突、原生拖拽使用独立命令族，完整草案见 [16 的 IPC 清单](16-sftp-workspace.md#8-受控-ipc-草案)。FileEndpoint/entryRef/transferId 与 sessionId 分属资源域，均检验 owner；SFTP-only 认证使用 connection 归属，不伪造终端 session。文件正文留在 Rust，列表分页、进度节流走独立类型化 Channel，不复用终端 binary frame/ACK，也不把文件 bytes 放入 Vue 状态。订阅事件 revision 与快照协调，窗口失联时队列状态保留有界，明确取消/租约策略。
 
-原生拖入授权从原生事件建立，拖出只接受后端准备的 staging ref；普通 JS 路径不能冒充用户文件授权。所有新命令按实际里程碑纳入 AppManifest/ACL，当前没有注册或实现。
+原生拖入授权从原生事件建立，拖出只接受后端准备的 staging ref；普通 JS 路径不能冒充用户文件授权。所有新命令按实际里程碑纳入 AppManifest/ACL，SFTP 命令族当前没有注册或实现。
+
+## 11. 首期实际接口补充（2026-10-15）
+
+以 [Rust 命令](../src-tauri/src/commands/mod.rs) 与 [TS 门面](../src/services/desktop/client.ts) 为实际边界。`open_session` 额外接收 `terminalId`，快照包含 terminalId；owner 只取注入窗口身份。`write_session` 返回 `{acceptedSeq}`；`resize_session` 返回接受的 `{cols,rows}`。`save_host({host,expectedRevision})` / `save_host_group({group,expectedRevision})` 使用乐观锁，删除携带 revision。
+
+`respond_auth_challenge` 当前只接受 `savePolicy:"never"`；保存秘密为主机编辑的显式 `save_credential({kind,label,secret}) -> {id}`，无读取秘密给 UI 的命令；交互 OTP 不保存。新增原生 `export_json({name,value})` 保存对话框、历史 `list_history` / `clear_history` 与中断凭据 `recover_credential({id})`。私钥选择可取消返回 null，只返回 keyFileRef/name。
+
+设置通过 `get_settings` / `save_settings({settings})` 操作版本 1 的整体 app JSON；包含 customSchemes、hostSchemes 和 keymap，尚无独立配色命令族。拒绝未来设置版本和非法动作/颜色。AppManifest、handler、capability 共用中心命令名单并做静态集合检查；后续仍须实际验证 ACL 拒绝路径。
+
+输出 forwarder 结束后发布 ended，终态 ACK 保留 3 秒排空窗口；会话快照/幂等摘要最多 1024 个、最长 10 分钟。五分钟未消费/窗口失联取消，系统睡眠时间跳跃重置失联预算。更细的 60 秒 stalled/90 秒 suspected UI 尚未实现。前端每 64 KiB 或 16 ms 合并解析后 ACK。各预算是代码初值，不是性能测量结果。

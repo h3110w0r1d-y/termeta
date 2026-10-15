@@ -1,0 +1,230 @@
+use crate::{host_key::HostKeyHandler, network, ssh_error};
+use russh::{
+    client::{Handle, KeyboardInteractiveAuthResponse},
+    keys::{HashAlg, PrivateKey, PrivateKeyWithHashAlg},
+};
+use std::{sync::Arc, time::Duration};
+use terminal_core::*;
+
+pub(crate) async fn authenticate(
+    connection: &mut Handle<HostKeyHandler>,
+    config: &SshConfig,
+    context: &DriverContext,
+    credentials: &dyn CredentialStore,
+) -> Result<()> {
+    tokio::time::timeout(
+        Duration::from_secs(600),
+        authenticate_plan(connection, config, context, credentials),
+    )
+    .await
+    .map_err(|_| ssh_error("AUTH_TIMEOUT", "authentication", "认证总时限已到"))?
+}
+async fn authenticate_plan(
+    connection: &mut Handle<HostKeyHandler>,
+    config: &SshConfig,
+    context: &DriverContext,
+    credentials: &dyn CredentialStore,
+) -> Result<()> {
+    let mut rounds = 0;
+    let mut submissions = 0;
+    for step in &config.auth_plan {
+        match step {
+            AuthStep::Password { credential_id } => {
+                for attempt in 0..3 {
+                    if submissions >= 3 {
+                        break;
+                    }
+                    let password = if attempt == 0 {
+                        match credential_id {
+                            Some(id) => credentials.secret(&context.owner, id).await?,
+                            None => password_prompt(context, attempt).await?,
+                        }
+                    } else {
+                        password_prompt(context, attempt).await?
+                    };
+                    submissions += 1;
+                    let result = network(
+                        "authentication",
+                        connection
+                            .authenticate_password(config.username.clone(), password.as_str()),
+                    )
+                    .await?;
+                    match result {
+                        russh::client::AuthResult::Success => return Ok(()),
+                        russh::client::AuthResult::Failure {
+                            partial_success: true,
+                            ..
+                        } => break,
+                        _ if submissions >= 3 => break,
+                        _ => {}
+                    }
+                }
+            }
+            AuthStep::PrivateKey {
+                key_file_ref,
+                passphrase_credential_id,
+            } => {
+                let text = credentials.key_file(&context.owner, key_file_ref).await?;
+                if text.len() > 1024 * 1024 {
+                    return Err(ssh_error(
+                        "LIMIT_EXCEEDED",
+                        "authentication",
+                        "私钥文件超过 1 MiB 限制",
+                    ));
+                }
+                let passphrase = match passphrase_credential_id {
+                    Some(id) => Some(credentials.secret(&context.owner, id).await?),
+                    None => None,
+                };
+                let mut key = decode(text.clone(), passphrase).await;
+                for attempt in 0..3 {
+                    if key.is_ok() {
+                        break;
+                    }
+                    let answers = context
+                        .challenges
+                        .auth(
+                            "私钥口令".into(),
+                            if attempt == 0 {
+                                "请输入所选私钥的解密口令；口令仅用于本次连接。"
+                            } else {
+                                "私钥解密未成功，请核对口令与文件格式。"
+                            }
+                            .into(),
+                            vec![AuthPrompt {
+                                text: "私钥口令".into(),
+                                echo: false,
+                            }],
+                        )
+                        .await?;
+                    key = decode(text.clone(), answers.into_iter().next()).await;
+                }
+                let key = key?;
+                // RSA None 会选择 SHA-1；无法确认 SHA-2 支持时明确拒绝，绝不静默回退。
+                let hash = if key.algorithm().is_rsa() {
+                    match network("authentication", connection.best_supported_rsa_hash()).await? {
+                        Some(Some(hash @ (HashAlg::Sha256 | HashAlg::Sha512))) => Some(hash),
+                        _ => {
+                            return Err(ssh_error(
+                                "UNSUPPORTED_OPERATION",
+                                "authentication",
+                                "服务器未声明支持 RSA-SHA2 签名",
+                            ));
+                        }
+                    }
+                } else {
+                    None
+                };
+                if network(
+                    "authentication",
+                    connection.authenticate_publickey(
+                        config.username.clone(),
+                        PrivateKeyWithHashAlg::new(Arc::new(key), hash),
+                    ),
+                )
+                .await?
+                .success()
+                {
+                    return Ok(());
+                }
+            }
+            AuthStep::KeyboardInteractive => {
+                let mut response = network(
+                    "authentication",
+                    connection.authenticate_keyboard_interactive_start(
+                        config.username.clone(),
+                        None::<String>,
+                    ),
+                )
+                .await?;
+                loop {
+                    match response {
+                        KeyboardInteractiveAuthResponse::Success => return Ok(()),
+                        KeyboardInteractiveAuthResponse::Failure { .. } => break,
+                        KeyboardInteractiveAuthResponse::InfoRequest {
+                            name,
+                            instructions,
+                            prompts,
+                        } => {
+                            rounds += 1;
+                            if rounds > 8 {
+                                return Err(ssh_error(
+                                    "LIMIT_EXCEEDED",
+                                    "authentication",
+                                    "认证交互超过 8 轮限制",
+                                ));
+                            }
+                            let prompts = prompts
+                                .into_iter()
+                                .map(|prompt| AuthPrompt {
+                                    text: prompt.prompt,
+                                    echo: prompt.echo,
+                                })
+                                .collect();
+                            let answers =
+                                context.challenges.auth(name, instructions, prompts).await?;
+                            // russh 的协议接口要求拥有字符串；这些不可避免的短期副本从不记录或持久化。
+                            response = network(
+                                "authentication",
+                                connection.authenticate_keyboard_interactive_respond(
+                                    answers
+                                        .iter()
+                                        .map(|answer| answer.as_str().to_owned())
+                                        .collect(),
+                                ),
+                            )
+                            .await?;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Err(ssh_error(
+        "AUTH_FAILED",
+        "authentication",
+        "服务器未接受配置的认证方式或仍要求额外认证因素",
+    ))
+}
+async fn password_prompt(context: &DriverContext, attempt: usize) -> Result<Zeroizing<String>> {
+    let answers = context
+        .challenges
+        .auth(
+            "SSH 密码".into(),
+            if attempt == 0 {
+                "密码仅用于本次连接，不会自动保存。"
+            } else {
+                "上次密码未被接受，请重新输入。"
+            }
+            .into(),
+            vec![AuthPrompt {
+                text: "密码".into(),
+                echo: false,
+            }],
+        )
+        .await?;
+    answers
+        .into_iter()
+        .next()
+        .ok_or_else(|| ssh_error("AUTH_FAILED", "authentication", "缺少密码响应"))
+}
+async fn decode(
+    text: Zeroizing<String>,
+    passphrase: Option<Zeroizing<String>>,
+) -> Result<PrivateKey> {
+    tokio::task::spawn_blocking(move || {
+        russh::keys::decode_secret_key(
+            text.as_str(),
+            passphrase.as_ref().map(|value| value.as_str()),
+        )
+        .map_err(|_| {
+            ssh_error(
+                "AUTH_FAILED",
+                "authentication",
+                "私钥格式不受支持或解密口令错误",
+            )
+        })
+    })
+    .await
+    .map_err(|_| ssh_error("AUTH_FAILED", "authentication", "私钥解析工作器不可用"))?
+}

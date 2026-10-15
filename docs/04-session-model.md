@@ -1,6 +1,6 @@
 # 统一会话模型与生命周期
 
-日期：2026-10-15。设计契约，尚未实现。
+日期：2026-10-15。core 会话管理、流控与 SSH 驱动已实现待验证；领域测试仅编写未运行。源码与实际差异见 [实施状态](17-implementation-status.md)。
 
 ## 1. 概念与标识
 
@@ -128,3 +128,7 @@ close 在任意阶段幂等；立即设置取消信号并拒绝新输入，撤�
 统一 `code`、`phase`、`retryable`、`requestId`、`sessionId`、脱敏 details。建议码：INVALID_CONFIG、UNSUPPORTED_SESSION_KIND、UNSUPPORTED_OPERATION、FORBIDDEN、LIMIT_EXCEEDED、DNS_FAILED、CONNECT_TIMEOUT、HANDSHAKE_FAILED、HOST_KEY_UNKNOWN、HOST_KEY_CHANGED、AUTH_FAILED、AUTH_TIMEOUT、PTY_REJECTED、SHELL_REJECTED、IO_FAILED、INPUT_DELIVERY_UNKNOWN、CONSUMER_STALLED、CANCELLED、STORAGE_FAILED、CREDENTIAL_STORE_UNAVAILABLE、PROTOCOL_MISMATCH。
 
 retryable 只表示用户可以重新尝试连接，不表示允许自动重放 write。不能把原始 Error/Debug 直接序列化给前端。
+
+## 首期代码映射（2026-10-15）
+
+[types](../crates/terminal-core/src/types.rs) 定义状态/配置/事件，[ports](../crates/terminal-core/src/ports.rs) 定义工厂/信任/凭据/消费端，[manager](../crates/terminal-core/src/manager.rs) 管理 owner/幂等/配额与任务，[session](../crates/terminal-core/src/session.rs) 管理 challenge/状态，[stream](../crates/terminal-core/src/stream.rs) 管理字节预算与 ACK。非 SSH 工厂注册仍为后续扩展；不宣称目标抽象全部实例化。fake driver 测试已编写，未执行；取消/信用耗尽/终态跨 Channel 次序仍需授权验收。

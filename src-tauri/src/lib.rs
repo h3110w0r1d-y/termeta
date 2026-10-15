@@ -1,14 +1,135 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
+mod commands;
+mod settings;
+mod state;
+
+use state::AppState;
+use std::{
+    sync::{Arc, Mutex},
+    time::{Duration, Instant},
+};
+use tauri::Manager;
+use terminal_core::SessionManager;
+use terminal_security::CredentialVault;
+use terminal_ssh::SshFactory;
+use terminal_storage::SqliteStore;
+
+// 发布窗口只允许应用资源导航；开发服务仅在调试配置可用。
+fn local_navigation(url: &url::Url) -> bool {
+    (url.scheme() == "tauri" && url.host_str() == Some("localhost") && url.port().is_none())
+        || (matches!(url.scheme(), "http" | "https")
+            && url.host_str() == Some("tauri.localhost")
+            && url.port().is_none())
+        || (cfg!(debug_assertions)
+            && url.scheme() == "http"
+            && url.host_str() == Some("localhost")
+            && url.port() == Some(1420))
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
+        .plugin(
+            tauri_plugin_opener::Builder::new()
+                .open_js_links_on_click(false)
+                .build(),
+        )
+        .plugin(tauri_plugin_dialog::init())
+        .setup(|app| {
+            let path = app.path().app_data_dir()?;
+            std::fs::create_dir_all(&path)?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700))?;
+            }
+            let store = Arc::new(tauri::async_runtime::block_on(SqliteStore::open(
+                path.join("termvexa.sqlite3"),
+            ))?);
+            let vault = Arc::new(CredentialVault::new(store.clone()));
+            let recover_vault = vault.clone();
+            tauri::async_runtime::spawn(async move {
+                // 恢复仅限先前明确请求删除且已登记的项目；失败保留元数据供用户重试。
+                let _ = recover_vault.reconcile_deletions().await;
+            });
+            let sessions =
+                SessionManager::new(Arc::new(SshFactory::new(store.clone(), vault.clone())));
+            app.manage(AppState {
+                sessions,
+                store,
+                vault,
+                heartbeat: Mutex::new(Instant::now()),
+                open_gates: Mutex::new(std::collections::HashMap::new()),
+            });
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let mut interval = tokio::time::interval(Duration::from_secs(30));
+                let mut last_tick = Instant::now();
+                loop {
+                    interval.tick().await;
+                    let state = handle.state::<AppState>();
+                    let now = Instant::now();
+                    let mut heartbeat = state.heartbeat.lock().unwrap();
+                    // 睡眠后的大时间跳跃重新开始失联预算，避免把系统挂起当作前端崩溃。
+                    if now.duration_since(last_tick) > Duration::from_secs(90) {
+                        *heartbeat = now;
+                    }
+                    if heartbeat.elapsed() > Duration::from_secs(300) {
+                        state.sessions.close_owner("main");
+                    }
+                    last_tick = now;
+                }
+            });
+            tauri::WebviewWindowBuilder::from_config(app, &app.config().app.windows[0])?
+                .on_navigation(local_navigation)
+                .on_new_window(|_, _| tauri::webview::NewWindowResponse::Deny)
+                .build()?;
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::Destroyed) {
+                if let Some(state) = window.try_state::<AppState>() {
+                    state.sessions.close_owner(window.label());
+                }
+            }
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::available_session_kinds,
+            commands::open_session,
+            commands::write_session,
+            commands::resize_session,
+            commands::ack_session_output,
+            commands::respond_host_key,
+            commands::respond_auth_challenge,
+            commands::cancel_auth_challenge,
+            commands::close_session,
+            commands::list_sessions,
+            commands::get_session,
+            commands::session_client_heartbeat,
+            commands::list_hosts,
+            commands::save_host,
+            commands::delete_host,
+            commands::list_host_groups,
+            commands::save_host_group,
+            commands::delete_host_group,
+            commands::list_known_hosts,
+            commands::revoke_known_host,
+            commands::select_private_key_file,
+            commands::list_credentials,
+            commands::save_credential,
+            commands::delete_credential,
+            commands::get_settings,
+            commands::save_settings,
+            commands::open_external_url,
+            commands::export_json,
+            commands::list_history,
+            commands::clear_history,
+            commands::recover_credential,
+        ])
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .expect("Termvexa 初始化失败；请检查应用数据目录与桌面环境");
 }

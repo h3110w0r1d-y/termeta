@@ -19,20 +19,20 @@ Termvexa 是基于 Tauri 2 + Rust + Vue 3 + TypeScript 的桌面终端客户端�
 
 | 项目 | 状态 |
 | --- | --- |
-| Tauri 2 + Vue 3 + TypeScript + Vite 模板 | 已存在，UI 为 greet 示例 |
-| 前期需求、架构、接口、安全、路线与验证规划 | 已编写，见下方索引 |
-| 开发协作规则 | 已明确中文代码注释；允许按需安装依赖，仍禁止主动构建/运行 |
-| 断线/失败保留终端、原终端重连追加、Reka UI 评估 | 已同步设计；Reka UI 作为基础控件方案，尚未安装/验证 |
-| 快捷键分类与自定义、终端配色、SFTP 侧栏/双栏 Tab | 已细化需求与技术契约，见 14–16；未实现，原生拖出待验证 |
-| SSH / xterm.js / 会话管理 / SQLite / 凭据存储 | 未实现、未接入依赖 |
-| Local / Serial / SFTP / 隧道 / 分屏 | 仅扩展设计，未实现 |
-| 构建、测试、性能和跨平台验证 | 本轮未执行；不得将文档预研写成实现完成 |
+| Tauri 2 + Vue 3 + TypeScript | 已替换 greet 模板为模块化 SSH 工作区，代码实现待集成验证 |
+| 首期 M1/M2 | core/ssh/storage/security、桌面命令、主机管理、多标签、认证、设置已落源码；未通过运行验收 |
+| 终端生命周期 | TerminalRegistry 按 terminalId 保活；断线/失败保留；重连排空旧流后追加；全屏/IME/三平台待验证 |
+| UI、快捷键、配色 | 已接入 Reka UI、xterm 与 Pinia；快捷键编辑、8 内置配色、自定义 JSON 和热应用已实现待验证 |
+| 存储与凭据 | SQLx SQLite migration、主机/分组/信任/历史/app 设置；OS keyring，禁止明文回退；实际系统服务待验证 |
+| 安全边界 | 自定义命令 AppManifest/ACL、main owner 校验、导航限制与 CSP 已落配置；不表示已通过安全审计 |
+| Local / Serial / SFTP / 隧道 / 分屏 | 保留设计，未实现，未暴露可用入口 |
+| 验证 | 用户提供 macOS 启动日志：进入 setup 后因迁移校验和不匹配失败；已修源码待复验。代理仍仅静态检查，禁止主动编译/运行 |
 
-现有配置需要在后续实现时处理：`csp: null`、默认 `core:default`/`opener:default`、只有 `greet` 的命令注册；尚无自定义命令 ACL 配置。模板中的移动端入口宏不表示本项目支持移动端。
+已移除 greet、移动端入口宏和宽泛默认 opener 权限；原生私钥选择只返回引用，凭据接口不返回秘密。根 Cargo workspace 统一四个领域 crate 与 Tauri 壳，锁文件在仓库根目录。代理没有启动应用、连接真实主机或执行 Rust 编译/测试；用户已尝试 macOS 启动但尚未成功进入工作区，三平台验证未完成。
 
 ## 4. 架构约定
 
-当前目录只有 `src/` 前端与 `src-tauri/` 原生壳。目标结构在 [架构文档](docs/03-architecture.md) 中；尚未创建的路径均是计划。
+当前已建立 `src/modules/`、`src/services/desktop/`、`src-tauri/src/commands/` 及 core/ssh/storage/security 四个 crate。完整目标结构见 [架构文档](docs/03-architecture.md)，后续领域仍是计划。
 
 - `src/modules/*`：hosts、terminal、workspace、settings，以及后续 files/transfers；Vue/Pinia 只保存轻量状态，不保存终端输出或文件正文字节。CommandRegistry/KeymapService 统一动作与快捷键，TerminalThemeService 独立管理终端配色。
 - `src/services/desktop/`：唯一 Tauri IPC 门面；组件不直接调用 `invoke`。
@@ -44,7 +44,7 @@ Termvexa 是基于 Tauri 2 + Rust + Vue 3 + TypeScript 的桌面终端客户端�
 
 会话采用**每会话 actor + 有界字节队列 + 独立取消信号**；重连创建新的后端 session ID，但保留同一 Tab、terminalId 与 xterm 实例，在原缓冲中追加输出。断线、连接失败和后端终态均不得自动关闭 Tab、清空或销毁终端；历史继续可滚动、选择、复制和搜索。TerminalRegistry 按 terminalId 持有实例，不能以 sessionId 变化触发重建。输出走二进制 Channel，控制事件走类型化 Channel，使用消费 ACK 实现端到端背压。所有凭据、信任与网络操作由 Rust 管理。
 
-前端控件采用 **Reka UI primitives + 项目封装组件 + CSS 变量/自定义样式** 的方向。终端宿主与工作区生命周期由应用掌控；Reka 的隐藏/卸载行为不得销毁终端。具体 release 与三平台集成尚未验证，详见 UI 选型文档。
+前端控件采用 **Reka UI primitives + 项目封装组件 + CSS 变量/自定义样式** 的方向。终端宿主与工作区生命周期由应用掌控；Reka 的隐藏/卸载行为不得销毁终端。release 已锁定，三平台集成尚未验证，详见 UI 选型文档。
 
 快捷键设置分应用内全局与终端类别（含修饰键点击链接）；系统后台热键另行 opt-in。Cmd+L 的 Local 动作待 M4 工厂可用才启用。终端配色独立于应用主题，至少 8 个内置方案，支持任意取色与 JSON 导入，热切换不清历史。SFTP 左/右/底部可隐藏面板与双栏 Tab 共用后端，远端互传默认有界内存中转，上传/下载/互传均检查覆盖并确认；原生拖出必须单独验证，不能用 Web DnD 替代。
 
@@ -68,6 +68,7 @@ Termvexa 是基于 Tauri 2 + Rust + Vue 3 + TypeScript 的桌面终端客户端�
 | [13-ui-stack.md](docs/13-ui-stack.md) | Reka UI 官方预研、控件映射、桌面适配与集成边界 |
 | [14-shortcuts.md](docs/14-shortcuts.md) | 全局/终端快捷键、修饰键点击、冲突/焦点/配置与原生边界 |
 | [15-terminal-themes.md](docs/15-terminal-themes.md) | 内置/自定义配色、取色编辑、导入导出与热应用 |
+| [17-implementation-status.md](docs/17-implementation-status.md) | 首期源码交付、静态验证证据、已知限制与运行验收入口 |
 | [16-sftp-workspace.md](docs/16-sftp-workspace.md) | SFTP 可停靠面板、独立双栏、拖入拖出、属性与安全传输 |
 
 开发前至少阅读本文、目标模块文档及路线。接口冲突应修订文档与实现，不临时增加第二套契约。

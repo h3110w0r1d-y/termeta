@@ -1,10 +1,10 @@
 # UI 技术选型与 Reka UI 桌面适配评估
 
-核查日期：2026-10-15。结论：**适合采用 Reka UI 作为基础交互控件，配合项目组件封装与自定义样式建设桌面 UI**。当前只完成官方资料核查和方案更新，未安装包、冻结 release 或运行三平台验证。
+核查日期：2026-10-15。结论：**适合采用 Reka UI 作为基础交互控件，配合项目组件封装与自定义样式建设桌面 UI**。已接入 Reka UI 2.11.0 并封装 Dialog/确认与输入服务，完成前端静态类型检查，未运行三平台验证。
 
 ## 1. 当前状态与目标方案
 
-现有前端只有 Vue 3 模板，没有已接入的产品组件库。前一版文档将 Reka 视为可选候选；本次根据用户“高度自定义、适合桌面应用”的要求，将方向明确为：
+前期模板现已替换为模块化工作区，已接入 Reka Dialog 及项目封装；其余 primitive 按需求选用。前一版文档将 Reka 视为可选候选；本次根据用户“高度自定义、适合桌面应用”的要求，将方向明确为：
 
 ```text
 Vue 3 + TypeScript
@@ -92,10 +92,14 @@ Portal 到根节点的菜单/对话框统一 overlay-root 与 z-index tokens，�
 - SP-07 验证三平台 WebView：原终端跨失败/重连保活、上下文菜单焦点、IME/快捷键冲突、Portal 主题、缩放、CSP 与 Splitter resize。
 - 局部组件不能满足需求时替换该适配器，不要求整个终端/存储架构跟着更换；具体未通过项保留待验证状态。
 
-当前结论可用于后续开发基线。依赖可按开发任务需要主动安装，仍不得主动构建/运行项目；本轮未安装。进度与执行约束见 [路线](10-roadmap.md) 和 [AGENTS.md](../AGENTS.md)。
+当前结论可用于后续开发基线。依赖可按开发任务需要主动安装，仍不得主动构建/运行项目；本轮已安装并静态核对，未运行集成。进度与执行约束见 [路线](10-roadmap.md) 和 [AGENTS.md](../AGENTS.md)。
 
 ## 8. 新增交互专项边界
 
 [快捷键](14-shortcuts.md) 中的 CommandRegistry/KeymapService/ShortcutRouter 由应用拥有，Reka 焦点与键盘行为需接入统一优先级。[配色编辑](15-terminal-themes.md) 的预览、取色、导入和持久化属于项目业务；内置颜色控件不是选用 Reka 的必要前提。
 
 [SFTP](16-sftp-workspace.md) 两种布局复用同一 FileBrowser/TransferQueue，左右/底部停靠可用 Splitter 受控尺寸实现。文件列表虚拟化、内部拖拽、OS drop/drag-out 各自验证，不能因存在 Splitter/Tree 就承诺完整桌面文件管理能力。
+
+## 首期实际集成（2026-10-15）
+
+Reka UI 2.11.0 用于 AppDialog、共享确认/输入和粘贴预览；简单控件使用原生元素。SettingsDialog拆为ThemeSettings、ShortcutSettings、SecuritySettings，配色控件独立ColorField。终端生命周期由TerminalRegistry管理，不依赖Dialog/Tabs显隐。CSS tokens位于src/styles.css。vue-tsc/Prettier静态通过，CSP/Portal/焦点/IME/SP-07~09未运行验证。

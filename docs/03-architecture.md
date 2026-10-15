@@ -1,6 +1,6 @@
 # 系统架构与模块边界
 
-日期：2026-10-15。以下是目标架构；当前仍是 Tauri 模板。
+日期：2026-10-15。首期四个 crate 与桌面工作区已落源码；以下同时保留后续目标结构。实现待验证，实际差异见 [实施状态](17-implementation-status.md)。
 
 ## 1. 总体结构
 
@@ -145,3 +145,9 @@ core 统一错误码与阶段，协议错误在适配器映射；应用层增加
 CommandRegistry 统一菜单、按钮与按键动作，KeymapService 合并平台默认/用户覆盖，ShortcutRouter 按焦点/IME/模态上下文只消费一次。全局默认应用内前台，系统后台注册为可选适配；Cmd+L 的 Local 动作由工厂能力启用。详见 [快捷键](14-shortcuts.md)。
 
 TerminalThemeService 解析全局/profile/当前终端方案优先级并转换 xterm ITheme；ThemeRepository 管持久化用户方案，应用 CSS tokens 单独管理 UI 明暗主题。颜色热应用到原 xterm，不 clear/reset/dispose；导入在后端按 schema 校验。详见 [终端配色](15-terminal-themes.md)。
+
+## 首期落地边界（2026-10-15）
+
+四个领域 crate、Tauri commands/state 与 Vue modules 已创建。当前只注入 SshFactory，不为未实现的 Local/Serial 构建空工厂；仍通过 SessionFactory trait 隔离协议。原生壳只做 DTO/owner/资源桥接，具体握手、认证、PTY 与 socket 取消在 terminal-ssh。SQLite 复合写使用 BEGIN IMMEDIATE，不在应用全局锁内等待数据库。
+
+UI tokens 目前集中 `src/styles.css`，项目交互封装为 `src/components/ui/`；命令注册表在 `src/services/commands/`，只有 `src/services/desktop/` 能调用 invoke。终端注册表和设置/主机/工作区分模块维护；设置面板拆为配色、快捷键、安全子组件。未创建文件/传输/Local/Serial crate。实际交付与限制见 [实施状态](17-implementation-status.md)。

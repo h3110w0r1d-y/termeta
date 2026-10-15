@@ -1,6 +1,6 @@
 # Terminal 配色方案、编辑与导入
 
-日期：2026-10-15。M2/P0 需求，尚未实现。终端配色独立于应用界面“系统/深色/浅色”模式；用户可以使用浅色 UI + 深色终端或相反组合。
+日期：2026-10-15。M2/P0 的 8 预设、颜色编辑/JSON、三级引用与热应用已落源码，未运行/视觉验收。终端配色独立于应用界面“系统/深色/浅色”模式；用户可以使用浅色 UI + 深色终端或相反组合。
 
 ## 1. 内置方案与作用范围
 
@@ -81,3 +81,7 @@ interface TerminalColorSchemeV1 {
 官方 ITheme 提供背景/前景、光标、选择、ANSI 与扩展颜色字段；项目统一模型需按最终锁定 release 映射，当前页面不等于已完成集成。[xterm ITheme](https://xtermjs.org/docs/api/terminal/interfaces/itheme/)
 
 验收：至少 8 个内置方案；任意自选颜色和 ANSI 逐格编辑；原终端热切换不清历史；全局/profile/临时优先级；JSON 导入预览/重名/无效颜色/超限拒绝；导出再导入保持颜色；删除引用方案有明确替代；应用主题与终端方案可独立设置。新增 SP-09 验证，详见验证计划。
+
+## 首期实现映射（2026-10-15）
+
+src/modules/settings/themes.ts 定义8个自有预设和xterm映射，ThemeSettings/ColorField实现编辑/取色/HEX/RGB/JSON。app设置中hostSchemes保存主机覆盖，当前terminal覆盖仅内存；方案保留上限64。背景/ANSI使用HEX6，选择色可带透明度；运行热更新/对比度/传递字段仍须SP-09验证。 具体交付及限制见 [首期实施状态](17-implementation-status.md)。

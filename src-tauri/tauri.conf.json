@@ -12,13 +12,18 @@
   "app": {
     "windows": [
       {
-        "title": "termvexa",
-        "width": 800,
-        "height": 600
+        "title": "Termvexa",
+        "width": 1280,
+        "height": 820,
+        "label": "main",
+        "minWidth": 900,
+        "minHeight": 600,
+        "create": false
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost data:; font-src 'self' data:; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'",
+      "devCsp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src ipc: http://ipc.localhost ws://localhost:1420 ws://localhost:1421 http://localhost:1420; img-src 'self' asset: http://asset.localhost data:; font-src 'self' data:; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'"
     }
   },
   "bundle": {

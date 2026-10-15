@@ -1,0 +1,22 @@
+[package]
+name = "terminal-security"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+terminal-core = { path = "../terminal-core" }
+terminal-storage = { path = "../terminal-storage" }
+async-trait = "0.1.89"
+tokio = { version = "1.48.0", features = ["sync", "rt"] }
+zeroize = "1.8.2"
+thiserror = "2.0.17"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "=3.6.3", default-features = false, features = ["apple-native"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "=3.6.3", default-features = false, features = ["windows-native"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "=3.6.3", default-features = false, features = ["sync-secret-service", "crypto-rust", "vendored"] }
+

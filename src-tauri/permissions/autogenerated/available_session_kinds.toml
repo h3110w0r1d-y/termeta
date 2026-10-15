@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-available-session-kinds"
+description = "Enables the available_session_kinds command without any pre-configured scope."
+commands.allow = ["available_session_kinds"]
+
+[[permission]]
+identifier = "deny-available-session-kinds"
+description = "Denies the available_session_kinds command without any pre-configured scope."
+commands.deny = ["available_session_kinds"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-respond-auth-challenge"
+description = "Enables the respond_auth_challenge command without any pre-configured scope."
+commands.allow = ["respond_auth_challenge"]
+
+[[permission]]
+identifier = "deny-respond-auth-challenge"
+description = "Denies the respond_auth_challenge command without any pre-configured scope."
+commands.deny = ["respond_auth_challenge"]
