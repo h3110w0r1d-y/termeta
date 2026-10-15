@@ -140,6 +140,14 @@ let pendingDrop = false;
 let dragStart:
   { x: number; y: number; names: string[]; directories: string[] } | undefined;
 let suppressClick = false;
+let filePointer: { element: HTMLElement; id: number } | undefined;
+function releaseFilePointer() {
+  const pointer = filePointer;
+  filePointer = undefined;
+  dragStart = undefined;
+  if (pointer?.element.hasPointerCapture(pointer.id))
+    pointer.element.releasePointerCapture(pointer.id);
+}
 const listSession = ref<string>();
 const connected = computed(
   () => props.tab.state === "connected" && !!props.tab.sessionId,
@@ -350,6 +358,10 @@ async function runQueue() {
     if (task.dragNames && !task.started && !cancelled)
       error.value = task.message;
   } finally {
+    if (task.dragNames) {
+      releaseFilePointer();
+      suppressClick = false;
+    }
     transferring.value = false;
     currentTransfer = undefined;
   }
@@ -427,6 +439,9 @@ async function receiveDrop(drop: SftpLocalDrop) {
   }
 }
 function startFileDrag(event: PointerEvent, row: FileEntry) {
+  // 新的按下属于新手势，不能继承上次原生拖动的点击抑制。
+  suppressClick = false;
+  releaseFilePointer();
   if (
     event.button !== 0 ||
     row.name === ".." ||
@@ -442,7 +457,9 @@ function startFileDrag(event: PointerEvent, row: FileEntry) {
   if (chosen.some((item) => item.kind !== "file" && item.kind !== "directory"))
     return;
   // 捕获指针，移出当前行后仍能跨过阈值并发起原生拖动。
-  (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+  const element = event.currentTarget as HTMLElement;
+  element.setPointerCapture(event.pointerId);
+  filePointer = { element, id: event.pointerId };
   dragStart = {
     x: event.clientX,
     y: event.clientY,
@@ -454,17 +471,14 @@ function startFileDrag(event: PointerEvent, row: FileEntry) {
 }
 function moveFileDrag(event: PointerEvent) {
   if (!dragStart || !(event.buttons & 1) || stale.value || busy.value) {
-    dragStart = undefined;
+    releaseFilePointer();
     return;
   }
   if (Math.hypot(event.clientX - dragStart.x, event.clientY - dragStart.y) < 6)
     return;
   event.preventDefault();
-  const element = event.currentTarget as HTMLElement;
-  if (element.hasPointerCapture(event.pointerId))
-    element.releasePointerCapture(event.pointerId);
   const start = dragStart;
-  dragStart = undefined;
+  releaseFilePointer();
   suppressClick = true;
   // 文件承诺由原生拖动会话提供，不构造浏览器下载链接或伪造文件路径。
   enqueue({
@@ -491,11 +505,12 @@ function rowProps(row: FileEntry) {
   return {
     onPointerdown: (event: PointerEvent) => startFileDrag(event, row),
     onPointermove: moveFileDrag,
-    onPointerup: () => {
-      dragStart = undefined;
-    },
-    onPointercancel: () => {
-      dragStart = undefined;
+    onPointerup: releaseFilePointer,
+    onPointercancel: releaseFilePointer,
+    onLostpointercapture: () => {
+      // 旧捕获的迟到事件不能清除新手势的指针状态。
+      if (filePointer && !filePointer.element.hasPointerCapture(filePointer.id))
+        releaseFilePointer();
     },
     onClick: (event: MouseEvent) => {
       if (suppressClick) {
@@ -564,6 +579,8 @@ onMounted(async () => {
   }
 });
 onBeforeUnmount(() => {
+  releaseFilePointer();
+  suppressClick = false;
   for (const unlisten of eventUnlisteners) unlisten();
   disposed = true;
   generation++;

@@ -234,7 +234,7 @@ transferId 为 UUID。FileEntry 包含 name、kind(file/directory/symlink/other)
 
 TransferProgress 包含 transferred/total 字节十进制字符串及可选 currentName/completedFiles/totalFiles。字节为当前文件进度，计数为当前批次；不传正文或本地路径。普通传输约 150 ms 节流，命令成功才标完成。上传预扫描最多 64 层/10000 项，前端最多等待 32 批次。文件覆盖由 Rust 原生逐项确认，目录合并；失败不回滚已完成文件。
 
-原生拖入签发一次性 dropId，绑定 owner，5 分钟有效，最多 16 个引用、每批 1000 根路径；满额淘汰最旧未消费项。事件 sftp-local-hover {position}、sftp-local-drop {dropId,position,error?}、sftp-local-leave 不泄露本地路径。position 为壳归一后的 WebView 逻辑坐标，前端不得再次除 DPR；超限返回错误。仅当前可见面板消费，目标固定当前目录，确认目标后提交。排队过期须重新拖入，没有任意本地路径读取 IPC。
+原生拖入签发一次性 dropId，绑定 owner，5 分钟有效，最多 16 个引用、每批 1000 根路径；满额淘汰最旧未消费项。事件 sftp-local-hover {position}、sftp-local-drop {dropId,position,error?}、sftp-local-leave 不泄露本地路径。position 为壳归一后的 WebView 逻辑坐标，前端不得再次除 DPR；超限返回错误。仅当前可见面板消费，目标固定当前目录，确认目标后提交。上传授权须有带真实路径的原生Enter与后续Drop配对，空路径或未配对的Drop直接忽略；拖出期间软件内Drop直接取消原生拖出命令，不能成为上传。排队过期须重新拖入，没有任意本地路径读取 IPC。
 
 macOS 拖出 names 最多 100 个普通文件或真实目录根，directories 必须为其子集且仅为类型提示，Rust 在兑现时复核。原生手势启动须左键仍按住，不能排队到手势结束后。Finder 请求内容才发第一条进度并创建下载记录；无内容请求的取消不留任务。内部落点拒绝，原生拖出期间屏蔽上传事件及授权登记。命令在 Copy 会话结束且全部承诺完成后成功返回；取消返回 false，失败返回错误。目录使用独立句柄有界递归，不扰动侧栏分页，不跟随源链接。
 

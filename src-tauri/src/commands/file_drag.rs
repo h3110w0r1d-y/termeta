@@ -46,9 +46,6 @@ pub async fn sftp_start_drag(
     if uuid::Uuid::parse_str(&transfer_id).is_err() || names.is_empty() || names.len() > 100 {
         return Err(file_error("拖出任务无效，每次最多100个文件或文件夹"));
     }
-    let _outgoing = window
-        .state::<crate::file_drag::LocalDropRegistry>()
-        .outgoing();
     let browser = browser(&state, &owner, &session_id).await?;
     let _operation = browser
         .operation
@@ -153,13 +150,23 @@ pub async fn sftp_start_drag(
             }
         })
         .collect();
+    // 命令独占拖出令牌；原生层只接收本次手势，不再从全局表隐式复用。
+    let outgoing = window
+        .state::<crate::file_drag::LocalDropRegistry>()
+        .begin_outgoing()
+        .map_err(|error| file_error(&error))?;
     let result = tokio::select! {
         biased;
         _ = cancel.cancelled() => Err(terminal_core::SessionError::cancelled()),
-        result = crate::file_drag::start_drag(window, files) => result.map_err(|error| file_error(&error)),
+        _ = outgoing.cancelled() => Ok(false),
+        result = crate::file_drag::start_drag(window.clone(), files, outgoing.clone()) => result.map_err(|error| file_error(&error)),
     };
+    outgoing.finish();
     cancel.cancel();
     // 取消先阻断迟到承诺，并等待正在运行的回调完成关闭/清理，再释放会话操作锁。
     let _drained = serial.lock().await;
+    crate::file_drag::finish_drag(&window, &outgoing)
+        .await
+        .map_err(|error| file_error(&error))?;
     result
 }
