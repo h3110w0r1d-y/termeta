@@ -3,15 +3,19 @@ import { normalizeRemoteTitle } from "./title";
 /** 只保留当前连接的提示信息，不保存命令正文或执行历史。 */
 export interface TerminalActivity {
   remoteTitle?: string;
-  initialRemoteTitle?: string;
+  initialTitlePrefix?: string;
   commandRunning?: boolean;
 }
 
 export function updateActivityTitle(activity: TerminalActivity, title: string) {
   const normalized = normalizeRemoteTitle(title);
-  // 空标题也算首次标题，不能把后续标题变化误当作基准初始化。
-  activity.initialRemoteTitle ??= normalized;
+  activity.initialTitlePrefix ??= titlePrefix(normalized);
   activity.remoteTitle = normalized || undefined;
+}
+
+/** 首个冒号之后通常是目录；目录变化不作为命令执行依据。 */
+function titlePrefix(title: string): string {
+  return title.split(":", 1)[0]!.trim();
 }
 
 export function updateShellActivity(
@@ -26,18 +30,19 @@ export function updateShellActivity(
 
 export function resetTerminalActivity(activity: TerminalActivity) {
   activity.remoteTitle = undefined;
-  activity.initialRemoteTitle = undefined;
+  activity.initialTitlePrefix = undefined;
   activity.commandRunning = false;
 }
 
-/** OSC 133执行中优先；否则仍按用户规则回退到首次标题比较。 */
+/** OSC 133 执行中或标题前缀偏离本次连接基准时提醒。 */
 export function needsCloseConfirmation(
   activity: TerminalActivity & { state: string },
 ): boolean {
-  if (activity.state !== "connected") return false;
   return (
-    !!activity.commandRunning ||
-    (activity.initialRemoteTitle !== undefined &&
-      (activity.remoteTitle ?? "") !== activity.initialRemoteTitle)
+    activity.state === "connected" &&
+    (!!activity.commandRunning ||
+      (activity.initialTitlePrefix !== undefined &&
+        titlePrefix(activity.remoteTitle ?? "") !==
+          activity.initialTitlePrefix))
   );
 }

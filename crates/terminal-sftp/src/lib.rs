@@ -1,4 +1,7 @@
 //! 独立 SFTP 子系统适配器；目录增量读取，文件字节不进入 WebView。
+mod copy;
+pub use copy::copy_between;
+
 use async_trait::async_trait;
 use russh_sftp::{
     client::{Config, RawSftpSession, error::Error},
@@ -78,6 +81,19 @@ impl SftpBrowser {
             }
         }
     }
+    /// 仅用于同端点自复制检查；浏览路径仍保持软链接逻辑路径。
+    pub async fn canonical_path(&self, path: &str) -> Result<String> {
+        validate_path(path)?;
+        self.raw
+            .realpath(path)
+            .await
+            .map_err(protocol_error)?
+            .files
+            .into_iter()
+            .next()
+            .map(|entry| entry.filename)
+            .ok_or_else(|| file_error("服务器未返回实际路径"))
+    }
     pub async fn metadata(&self, path: &str) -> Result<FileAttributes> {
         validate_path(path)?;
         self.raw
@@ -111,7 +127,7 @@ impl SftpBrowser {
             offset: 0,
         })
     }
-    /// 原生目录下载使用独立句柄，不改变侧栏分页游标；取消后仍关闭句柄。
+    /// 目录传输使用独立扫描句柄，不改变浏览器分页游标；取消后仍关闭句柄。
     pub async fn scan_directory(
         &self,
         path: &str,
@@ -120,7 +136,7 @@ impl SftpBrowser {
     ) -> Result<Vec<FileEntry>> {
         validate_path(path)?;
         if !self.metadata(path).await?.file_type().is_dir() {
-            return Err(file_error("目录下载源已变化，拒绝跟随软连接或特殊文件"));
+            return Err(file_error("目录传输源已变化，拒绝跟随软连接或特殊文件"));
         }
         if cancel.is_cancelled() {
             return Err(terminal_core::SessionError::cancelled());
@@ -142,14 +158,14 @@ impl SftpBrowser {
                             }
                             validate_name(&file.filename)?;
                             if entries.len() >= maximum {
-                                return Err(file_error("目录下载超过 10000 项限制"));
+                                return Err(file_error("目录传输超过 10000 项限制"));
                             }
                             let kind = match file.attrs.file_type() {
                                 russh_sftp::protocol::FileType::Dir => "directory",
                                 russh_sftp::protocol::FileType::File => "file",
                                 _ => {
                                     return Err(file_error(
-                                        "目录含软连接或特殊文件，当前不递归下载这些条目",
+                                        "目录含软连接或特殊文件，当前不递归传输这些条目",
                                     ));
                                 }
                             };

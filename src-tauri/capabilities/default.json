@@ -40,6 +40,8 @@
     "allow-list-history",
     "allow-clear-history",
     "allow-recover-credential",
+    "allow-sftp-connect",
+    "allow-sftp-copy",
     "allow-sftp-drop-upload",
     "allow-sftp-start-drag",
     "allow-sftp-list",

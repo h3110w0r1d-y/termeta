@@ -277,17 +277,7 @@ impl ChallengeBroker {
         instructions: String,
         prompts: Vec<AuthPrompt>,
     ) -> Result<Vec<Zeroizing<String>>> {
-        if name.len() > 1024
-            || instructions.len() > 8192
-            || prompts.len() > 16
-            || prompts.iter().map(|p| p.text.len()).sum::<usize>() > 16384
-        {
-            return Err(SessionError::new(
-                "LIMIT_EXCEEDED",
-                "authentication",
-                "服务端认证提示超过限制",
-            ));
-        }
+        validate_auth_challenge(&name, &instructions, &prompts)?;
         self.events.state(SessionState::AwaitingAuth)?;
         let reply = self
             .request(false, prompts.len(), |challenge_id, expires_at| {
@@ -306,4 +296,24 @@ impl ChallengeBroker {
             _ => unreachable!(),
         }
     }
+}
+
+/// 自动响应与用户交互共用提示限额，不能因跳过弹窗而绕过校验。
+pub fn validate_auth_challenge(
+    name: &str,
+    instructions: &str,
+    prompts: &[AuthPrompt],
+) -> Result<()> {
+    if name.len() > 1024
+        || instructions.len() > 8192
+        || prompts.len() > 16
+        || prompts.iter().map(|p| p.text.len()).sum::<usize>() > 16384
+    {
+        return Err(SessionError::new(
+            "LIMIT_EXCEEDED",
+            "authentication",
+            "服务端认证提示超过限制",
+        ));
+    }
+    Ok(())
 }

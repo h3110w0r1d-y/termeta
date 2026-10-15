@@ -25,6 +25,7 @@ import type { TerminalTab } from "../workspace/store";
 import { confirmAction } from "../../components/ui/confirmation";
 import FileEntryIcon from "./FileEntryIcon.vue";
 import { formatFileSize } from "./format";
+import { useSettings } from "../settings/store";
 const props = defineProps<{ tab: TerminalTab }>();
 const panel = ref<HTMLElement>();
 const workspace = useWorkspace();
@@ -101,7 +102,15 @@ function entryLabel(entry: FileEntry) {
     ? `${entry.name} -> ${entry.linkTarget}`
     : entry.name;
 }
-const hidden = ref(false);
+const settings = useSettings();
+const hidden = computed(() => settings.value.sftpShowHidden);
+async function updateHidden(show: boolean) {
+  try {
+    await settings.setSftpShowHidden(show);
+  } catch (cause) {
+    error.value = errorMessage(cause);
+  }
+}
 const loading = ref(false);
 const transferring = ref(false);
 const hasMore = ref(false);
@@ -670,7 +679,13 @@ onBeforeUnmount(() => {
       <NButton size="tiny" :disabled="busy || !connected" @click="load()"
         >刷新</NButton
       >
-      <NCheckbox v-model:checked="hidden" size="small">隐藏文件</NCheckbox>
+      <NCheckbox
+        :checked="hidden"
+        :disabled="settings.savingSftpHidden"
+        size="small"
+        @update:checked="updateHidden"
+        >显示隐藏文件</NCheckbox
+      >
     </NFlex>
     <NFlex>
       <NButton size="tiny" :disabled="loading || stale" @click="transfer(true)"

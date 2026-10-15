@@ -159,3 +159,12 @@ export interface TransferProgress {
   transferred: string;
   total: string | null;
 }
+
+export interface SftpCopyRequest {
+  sourceSessionId: string;
+  targetSessionId: string;
+  sourcePath: string;
+  targetPath: string;
+  names: string[];
+  transferId: string;
+}

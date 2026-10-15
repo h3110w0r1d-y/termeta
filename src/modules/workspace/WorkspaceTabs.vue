@@ -14,6 +14,7 @@ const emit = defineEmits<{
   activate: [id: string];
   focusTerminal: [id: string];
   close: [id: string];
+  doubleClick: [id: string];
   menu: [event: MouseEvent | KeyboardEvent, id: string];
   create: [];
 }>();
@@ -58,7 +59,9 @@ async function onKey(event: KeyboardEvent) {
   const id = target.dataset.workspaceTab!;
   const session = props.tabs.some((tab) => tab.id === id);
   if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
-    if (session) emit("menu", event, id);
+    event.preventDefault();
+    if (props.tabs.some((tab) => tab.id === id && !tab.split))
+      emit("menu", event, id);
     return;
   }
   if (event.altKey || event.ctrlKey || event.metaKey) return;
@@ -158,7 +161,7 @@ watch(
           :data-sort-tab="tab.id"
           @pointerdown="tabDrag.start($event, tab.id)"
           role="presentation"
-          @contextmenu="emit('menu', $event, tab.id)"
+          @contextmenu.prevent="!tab.split && emit('menu', $event, tab.id)"
         >
           <button
             type="button"
@@ -177,6 +180,7 @@ watch(
             "
             :title="tab.title + ' · ' + stateLabels[tab.state]"
             @click="activate(tab.id)"
+            @dblclick="emit('doubleClick', tab.id)"
           >
             <i class="status-dot" :class="tab.state" aria-hidden="true" /><span
               class="workspace-tab-title"

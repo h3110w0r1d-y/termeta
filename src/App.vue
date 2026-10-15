@@ -182,12 +182,29 @@ const terminalMenuProps = () => ({
 const menuTab = computed(() =>
   workspace.tabs.find((tab) => tab.terminalId === tabMenu.value.id),
 );
+const menuIsSingleTerminal = computed(
+  () => workspace.groupForTerminal(tabMenu.value.id)?.root.kind === "terminal",
+);
 const tabMenuOptions = computed(() => [
   {
     label: `终端：${menuTab.value?.title ?? ""}`,
     key: "target",
     disabled: true,
   },
+  ...(menuIsSingleTerminal.value
+    ? [
+        {
+          label: "复制标签页",
+          key: "duplicate",
+          disabled: !workspace.canDuplicateSession(tabMenu.value.id),
+        },
+        {
+          label: "拆分会话",
+          key: "split",
+          disabled: !workspace.canDuplicateSession(tabMenu.value.id, true),
+        },
+      ]
+    : []),
   { label: "搜索历史", key: "find" },
   {
     label: "终端配色",
@@ -204,8 +221,24 @@ const tabMenuOptions = computed(() => [
     : { label: "重新连接", key: "reconnect" },
 ]);
 function openTabMenu(event: MouseEvent | KeyboardEvent, id: string) {
+  event.preventDefault();
   const group = workspace.groups.find((item) => item.id === id);
-  if (group) openTerminalMenu(event, group.focusedTerminalId);
+  if (group?.root.kind === "terminal")
+    openTerminalMenu(event, group.focusedTerminalId);
+}
+function duplicateTerminal(id: string, split: boolean) {
+  if (!workspace.canDuplicateSession(id, split)) return;
+  workspace.duplicateSession(id, split);
+  perform(() => focusTerminal(workspace.activeId));
+}
+function doubleClickTab(id: string) {
+  const action = settings.value.tabDoubleClickAction;
+  if (action === "close") perform(() => closeTab(id));
+  else if (action === "duplicate" || action === "split") {
+    const group = workspace.groups.find((item) => item.id === id);
+    if (group?.root.kind === "terminal")
+      duplicateTerminal(group.root.terminalId, action === "split");
+  }
 }
 function openTerminalMenu(event: MouseEvent | KeyboardEvent, id: string) {
   event.preventDefault();
@@ -221,7 +254,9 @@ async function selectTabAction(key: string) {
   tabMenu.value.show = false;
   const tab = menuTab.value;
   if (!tab) return;
-  if (key === "disconnect") {
+  if (key === "duplicate" || key === "split") {
+    duplicateTerminal(tab.terminalId, key === "split");
+  } else if (key === "disconnect") {
     if (
       tab.sftpTransferring &&
       !(await confirmAction("断开 SSH 将取消当前 SFTP 传输，确定继续？"))
@@ -305,7 +340,8 @@ onMounted(async () => {
       if (closingWindow) return;
       event.preventDefault();
       if (
-        workspace.tabs.some((tab) => tab.sftpTransferring) &&
+        (workspace.fileTransferring ||
+          workspace.tabs.some((tab) => tab.sftpTransferring)) &&
         !(await confirmAction("关闭窗口将取消正在进行的 SFTP 传输，确定继续？"))
       )
         return;
@@ -361,6 +397,7 @@ onBeforeUnmount(() => {
         @activate="workspace.activateTab($event)"
         @focus-terminal="focusTerminal"
         @close="closeTab"
+        @double-click="doubleClickTab"
         @menu="openTabMenu"
         @create="commands.execute('workspace.newConnection')"
       />
@@ -414,6 +451,10 @@ onBeforeUnmount(() => {
             >
               <AppScrollArea label="主机内容">
                 <HostsSidebar
+                  :active="
+                    workspace.activeId === 'home' &&
+                    workspace.homeSection === 'hosts'
+                  "
                   @connect="connect"
                   @edit="edit"
                   @quick="quickConnect"

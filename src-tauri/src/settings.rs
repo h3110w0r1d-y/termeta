@@ -38,6 +38,8 @@ pub fn validate(settings: &Value) -> Result<()> {
         "schemaVersion",
         "appearance",
         "tabPosition",
+        "tabDoubleClickAction",
+        "sftpShowHidden",
         "fontFamily",
         "fontSize",
         "scrollback",
@@ -58,6 +60,12 @@ pub fn validate(settings: &Value) -> Result<()> {
         || object.get("tabPosition").is_some_and(|value| {
             !matches!(value.as_str(), Some("top" | "left"))
         })
+        // 旧设置缺失时双击无动作；仅允许声明式的内置标签动作。
+        || object.get("tabDoubleClickAction").is_some_and(|value| {
+            !matches!(value.as_str(), Some("none" | "close" | "duplicate" | "split"))
+        })
+        // 旧设置缺失时由前端默认隐藏；已保存的值必须是布尔值。
+        || object.get("sftpShowHidden").is_some_and(|value| !value.is_boolean())
         || !settings["fontSize"]
             .as_f64()
             .is_some_and(|n| (10.0..=32.0).contains(&n))

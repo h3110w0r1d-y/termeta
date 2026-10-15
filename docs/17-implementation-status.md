@@ -4,19 +4,19 @@
 
 ## 0. 当前功能总览（2026-10-15）
 
-| 功能         | 已落源码与入口                                                                                                                                                                                                    | 当前边界                                                                                                   |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| 主机与首页   | [主机](../src/modules/hosts/HostsSidebar.vue)、[应用](../src/App.vue)：分组/收藏/标签/搜索、快速连接，首页主机/凭据/设置保活                                                                                      | 页面、表单与重启持久化待验收                                                                               |
-| SSH 与认证   | [SSH](../crates/terminal-ssh/src/lib.rs)：密码/公钥、动态交互认证、信任与变更阻断、PTY/resize/KeepAlive                                                                                                           | 密码/加密私钥/OTP/失败矩阵待完成，专门睡眠恢复未实现                                                       |
-| 终端生命周期 | [registry](../src/modules/terminal/registry.ts)：稳定 terminalId/xterm、断线/失败保留、同实例手动重连、旧流隔离、消费 ACK                                                                                         | 历史/全屏/尾输出/压力与三平台待验收                                                                        |
-| 标签与分屏   | [WorkspaceTabs](../src/modules/workspace/WorkspaceTabs.vue)、[store](../src/modules/workspace/store.ts)：固定页、横纵标签、排序/嵌套分屏/比例、窗格拖回 Tab/跨组重排                                              | 布局只驻内存，无整组迁移/跨窗口/保存恢复                                                                   |
-| 工作区广播   | [inputRouter](../src/modules/terminal/inputRouter.ts)、[inputOrigin](../src/modules/terminal/inputOrigin.ts)：键盘/IME/粘贴/远端滚轮，点击与应答隔离                                                              | 默认关闭、重组关闭，固定 xterm 内部事件适配待实际验证                                                      |
-| 凭据与存储   | [storage](../crates/terminal-storage/src/lib.rs)、[security](../crates/terminal-security/src/vault.rs)：公共密码/私钥、主机专属密码、SQLite 元数据+OS keyring                                                     | schema 1 与独立新库，不迁移旧库；系统服务/容量/失败恢复待验收                                              |
-| 设置与 UI    | [设置](../src/modules/settings/SettingsDialog.vue)：Naive UI 2.45.3、页头/滚动/固定 footer、应用主题与设置保存                                                                                                    | 工作区标签自定义，其余优先库组件；小窗口/IME/焦点待验收                                                    |
-| 字体与配色   | [字体](../src/modules/settings/fonts.ts)、[主题](../src/modules/terminal/theme.ts)：12 本地家族默认 DejaVu Sans Mono，64 配色默认 Pro，JSON/自定义/多层覆盖/热应用                                                | 不清历史、粗体不提亮；字宽/选区/许可及来源发布处理待验证                                                   |
-| 快捷键       | [快捷键](../src/modules/settings/ShortcutSettings.vue)：分类、多绑定/录制/冲突/JSON、链接修饰键路由                                                                                                               | 系统后台热键未实现，Local 动作未启用                                                                       |
-| SFTP         | [SftpPanel](../src/modules/files/SftpPanel.vue)、[命令](../src-tauri/src/commands/files.rs)、[适配](../crates/terminal-sftp/src/lib.rs)：单终端浏览/上传/下载、覆盖确认、目录合并、原生拖入与 macOS 文件/目录拖出 | Workspace 禁用；固定双栏占位，独立租约/本地浏览/跨端点复制/Windows 与 Linux 拖出未实现，原生运行验收未完成 |
-| 安全与发布   | [命令入口](../src-tauri/src/commands/mod.rs)：manifest/ACL、owner、参数/URL 白名单、CSP、原生授权                                                                                                                 | 安全/性能/三平台/签名发布未通过，依赖风险见第4节                                                           |
+| 功能         | 已落源码与入口                                                                                                                                                                                                                  | 当前边界                                                                                                                                       |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| 主机与首页   | [主机](../src/modules/hosts/HostsSidebar.vue)、[应用](../src/App.vue)：分组/收藏/标签/搜索（返回首页默认主机页并自动聚焦）、快速连接、卡片右键操作与名称旁 SSH 标签，首页主机/凭据/设置保活                                     | 页面、表单与重启持久化待验收                                                                                                                   |
+| SSH 与认证   | [SSH](../crates/terminal-ssh/src/lib.rs)：密码/公钥、动态交互认证、PAM 保存密码单次自动响应、空白零输入轮免弹窗、信任与变更阻断、PTY/resize/KeepAlive                                                                           | 密码/加密私钥/OTP/失败矩阵待完成，专门睡眠恢复未实现                                                                                           |
+| 终端生命周期 | [registry](../src/modules/terminal/registry.ts)：稳定 terminalId/xterm、断线/失败保留、同实例手动重连、旧流隔离、消费 ACK                                                                                                       | 历史/全屏/尾输出/压力与三平台待验收                                                                                                            |
+| 标签与分屏   | [WorkspaceTabs](../src/modules/workspace/WorkspaceTabs.vue)、[store](../src/modules/workspace/store.ts)：固定页、横纵标签、排序/嵌套分屏/比例、窗格拖回 Tab/跨组重排、普通标签复制/拆分、双击动作设置；Workspace 标签无右键菜单 | 布局只驻内存，无整组迁移/跨窗口/保存恢复                                                                                                       |
+| 工作区广播   | [inputRouter](../src/modules/terminal/inputRouter.ts)、[inputOrigin](../src/modules/terminal/inputOrigin.ts)：键盘/IME/粘贴/远端滚轮，点击与应答隔离                                                                            | 默认关闭、重组关闭，固定 xterm 内部事件适配待实际验证                                                                                          |
+| 凭据与存储   | [storage](../crates/terminal-storage/src/lib.rs)、[security](../crates/terminal-security/src/vault.rs)：公共密码/私钥、主机专属密码、SQLite 元数据+OS keyring                                                                   | schema 1 与独立新库，不迁移旧库；系统服务/容量/失败恢复待验收                                                                                  |
+| 设置与 UI    | [设置](../src/modules/settings/SettingsDialog.vue)：Naive UI 2.45.3、页头/滚动/固定 footer、常规页等宽布局、标签位置单选/外观图标单选、配色页统一默认方案入口与设置保存                                                         | 工作区标签自定义，其余优先库组件；小窗口/IME/焦点待验收                                                                                        |
+| 字体与配色   | [字体](../src/modules/settings/fonts.ts)、[主题](../src/modules/terminal/theme.ts)：12 本地家族默认 DejaVu Sans Mono，64 配色默认 Pro，JSON/自定义/多层覆盖/热应用                                                              | 不清历史、粗体不提亮；字宽/选区/许可及来源发布处理待验证                                                                                       |
+| 快捷键       | [快捷键](../src/modules/settings/ShortcutSettings.vue)：分类、多绑定/录制/冲突/JSON、链接修饰键路由                                                                                                                             | 系统后台热键未实现，Local 动作未启用                                                                                                           |
+| SFTP         | [SftpPanel](../src/modules/files/SftpPanel.vue)、[命令](../src-tauri/src/commands/files.rs)、[适配](../crates/terminal-sftp/src/lib.rs)：单终端浏览/上传/下载、覆盖确认、目录合并、原生拖入与 macOS 文件/目录拖出               | 终端侧栏在Workspace禁用；固定双栏保存主机独立连接与对拷已落源码，待编译运行；通用租约/本地浏览/Windows 与 Linux 拖出未实现，原生运行验收未完成 |
+| 安全与发布   | [命令入口](../src-tauri/src/commands/mod.rs)：manifest/ACL、owner、参数/URL 白名单、CSP、原生授权                                                                                                                               | 安全/性能/三平台/签名发布未通过，依赖风险见第4节                                                                                               |
 
 ### 验证证据与剩余门槛
 
@@ -35,7 +35,7 @@
 - core：每会话 actor、owner/request 幂等、20 活动/4 建立并发、独立取消、输入去重、challenge 与终态摘要。
 - 数据面：24 字节帧头、32 KiB 帧、256 KiB 信用、512 KiB 输出字节预算、64 KiB 输入、解析后累计 ACK/finalOffset。
 - 存储：schema 1，独立 `termvexa-credentials-v1.sqlite3`；旧 `termvexa.sqlite3` 与真实 OS item 不迁移/删除。专属密码非空保存、显式空移除、省略保留；私钥正文和可选解密密码整体导入 OS item，不依赖源文件。
-- 前端：固定首页/SFTP，已打开终端独立保活；OSC 标题仅展示，关闭提示组合执行标记与首次标题比较；本地状态消息不无条件恢复旧光标。
+- 前端：固定首页/SFTP，已打开终端独立保活；OSC 标题展示，关闭提示依据 OSC 133 或标题首个冒号前缀变化；本地状态消息不无条件恢复旧光标。
 - 分屏：纯数据树计算矩形、扁平 keyed 宿主保活；广播只处理用户输入，成员重组关闭，不重放旧代次输入。
 
 Local/Serial、隧道/跳板/Agent、布局持久化与系统后台热键尚未实现。
@@ -50,13 +50,15 @@ Local/Serial、隧道/跳板/Agent、布局持久化与系统后台热键尚未�
 
 上传直接写最终文件，不依赖远端 hardlink/临时项；同名普通文件逐项原生确认后打开、核对类型、截断并以64 KiB块写入。中断可能留下不完整内容、旧文件无法回滚；SFTP v3 并发路径替换竞态仍存在，不能宣称原子覆盖。目录不会被删除来处理冲突。
 
-macOS 用 NSFilePromiseProvider 拖出普通文件/真实目录及混合多选（最多100根）；外部接受并请求写入后才显示下载记录，取消/内部松开不显示，也不触发上传。软件内Drop直接取消拖出，上传仅消费有真实路径的外部Enter/Drop配对，迟到或空路径回流忽略。主线程50ms松键检测独立于ended回调及Copy结束结果，软件内松键且未兑现时按取消收尾；外部松键后等待兑现，未兑现条目在无写入回调时有5秒等待上限，收尾后拒绝迟到兑现并恢复侧栏操作；命令返回前对已交接原生且已松键的手势补齐WebView mouseUp，前端清理指针捕获与点击抑制；用户已确认取消后首次点击及再次拖动恢复正常；拖出令牌现由命令统一持有并显式传入原生层，底层不重复校验条目上限，整理后的版本待运行复验。Finder授权新目标后才开始读取；目录独立游标、64层/10000项、不递归跟随链接/特殊项，不覆盖或删除已有本地目录，失败保留已完成内容并报告数量/路径。
+macOS 用 NSFilePromiseProvider 拖出普通文件/真实目录及混合多选（最多100根）；外部接受并请求写入后才显示下载记录，取消/内部松开不显示，也不触发上传。软件内Drop直接取消拖出，上传仅消费有真实路径的外部Enter/Drop配对，迟到或空路径回流忽略。主线程50ms松键检测独立于ended回调及Copy结束结果，软件内松键且未兑现时按取消收尾；外部松键后等待兑现，未兑现条目在无写入回调时有5秒等待上限，收尾后拒绝迟到兑现并恢复侧栏操作；命令返回前对已交接原生且已松键的手势补齐WebView mouseUp，前端清理指针捕获与点击抑制；用户已确认取消后首次点击及再次拖动恢复正常；拖出令牌现由命令统一持有并显式传入原生层，底层不重复校验条目上限；原生拖放完整矩阵仍待验收。Finder授权新目标后才开始读取；目录独立游标、64层/10000项、不递归跟随链接/特殊项，不覆盖或删除已有本地目录，失败保留已完成内容并报告数量/路径。
 
-普通文件下载以本地独占临时项+硬链接无覆盖发布，不支持硬链接时明确失败；下载按钮仍为单文件。前端最多32等待批次、20结束记录，全局4任务/每浏览器1操作；选择器/扫描/确认/读写可取消，隐藏继续，断线/重连不重放。Windows/Linux原生拖出、独立双栏/本地浏览/连接租约/跨端点传输未实现。
+“显示隐藏文件”在侧栏与双栏全局同步，自动保存至数据库app.sftpShowHidden，旧设置默认false；设置写入串行化，设置页旧草稿不会覆盖即时偏好，保存失败维持原值并提示。
+
+普通文件下载以本地独占临时项+硬链接无覆盖发布，不支持硬链接时明确失败；下载按钮仍为单文件。终端侧栏前端最多32等待批次、20结束记录，全局4任务/每浏览器1操作；选择器/扫描/确认/读写可取消，隐藏继续，断线/重连不重放。固定双栏从保存主机独立建立两条SSH/SFTP连接，复用主机信任与认证，不申请PTY/Shell；各自浏览器和分页游标，切页保活，断开/窗口退出释放。Pointer Events栏间拖动多选普通文件或真实目录到对侧当前目录；Rust以64 KiB流式中转，源树预扫描64层/10000项，同名文件确认覆盖、目录合并，进度与取消共用Channel，双端锁/一个全局传输许可。Windows/Linux原生拖出、本地浏览、通用共享连接租约尚未实现。
 
 ## 3. 静态验证证据
 
-历史实施中已执行相应文件的 `vue-tsc --noEmit`、Prettier、`cargo fmt`、清单/锁解析、固定 release API/ACL/DTO/文档链接与 `git diff --check`；依赖安装禁用生命周期脚本。具体交付以当轮实际检查为准，不把旧通过结果当当前重新验证。用户已确认原生拖出取消后交互恢复；本轮令牌持有与状态命名整理通过Rust格式及差异静态检查，代理未执行编译或Finder运行复验。
+历史实施中已执行相应文件的 `vue-tsc --noEmit`、Prettier、`cargo fmt`、清单/锁解析、固定 release API/ACL/DTO/文档链接与 `git diff --check`；依赖安装禁用生命周期脚本。具体交付以当轮实际检查为准，不把旧通过结果当当前重新验证。用户已确认原生拖出取消后交互恢复；本轮关闭提醒恢复 OSC 133 与标题首个冒号前缀比较，通过前端类型、格式和差异静态检查；未构建、运行或连接 SSH 验证。
 
 core 与文件流的测试源码存在但未运行。Rust格式解析不等于类型/宏展开通过，前端静态类型不等于 WebView/原生交互正确。当前版本完整编译和 Finder 原生行为仍待验收。
 

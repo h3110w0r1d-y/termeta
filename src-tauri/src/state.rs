@@ -12,6 +12,7 @@ use terminal_storage::SqliteStore;
 
 pub struct AppState {
     pub sessions: SessionManager,
+    pub file_sessions: SessionManager,
     pub ssh_channels: terminal_ssh::SshChannels,
     pub sftp: Mutex<std::collections::HashMap<String, Arc<terminal_sftp::SftpBrowser>>>,
     pub transfers: Arc<tokio::sync::Semaphore>,
@@ -73,6 +74,15 @@ impl SessionSink for DesktopSink {
 }
 
 impl AppState {
+    /// 资源归属仍由各会话表校验，文件连接与终端连接共用认证响应入口。
+    pub fn session_manager(&self, owner: &str, id: &str) -> Result<&SessionManager> {
+        if self.sessions.get(owner, id).is_ok() {
+            return Ok(&self.sessions);
+        }
+        self.file_sessions.get(owner, id)?;
+        Ok(&self.file_sessions)
+    }
+
     pub fn request_gate(&self, request_id: &str) -> Arc<tokio::sync::Mutex<()>> {
         let mut gates = self.open_gates.lock().unwrap();
         gates.retain(|_, gate| gate.strong_count() > 0);

@@ -37,6 +37,8 @@ export interface AppSettings {
   schemaVersion: 1;
   appearance: "dark" | "light" | "system";
   tabPosition: "top" | "left";
+  tabDoubleClickAction: "none" | "close" | "duplicate" | "split";
+  sftpShowHidden: boolean;
   fontFamily: string;
   fontSize: number;
   scrollback: number;

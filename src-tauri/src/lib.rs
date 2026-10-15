@@ -60,10 +60,12 @@ pub fn run() {
             });
             let factory = SshFactory::new(store.clone(), vault.clone());
             let ssh_channels = factory.channels();
+            let file_sessions = SessionManager::new(Arc::new(factory.for_files()));
             let sessions = SessionManager::new(Arc::new(factory));
             app.manage(file_drag::LocalDropRegistry::default());
             app.manage(AppState {
                 sessions,
+                file_sessions,
                 ssh_channels,
                 sftp: Mutex::new(std::collections::HashMap::new()),
                 transfers: Arc::new(tokio::sync::Semaphore::new(4)),
@@ -87,11 +89,12 @@ pub fn run() {
                     }
                     if heartbeat.elapsed() > Duration::from_secs(300) {
                         state.sessions.close_owner("main");
+                        state.file_sessions.close_owner("main");
                     }
                     state.sftp.lock().unwrap().retain(|id, browser| {
                         let alive = state
-                            .sessions
-                            .get("main", id)
+                            .session_manager("main", id)
+                            .and_then(|manager| manager.get("main", id))
                             .is_ok_and(|s| s.state == terminal_core::SessionState::Connected);
                         if !alive {
                             browser.cancel();
@@ -112,6 +115,7 @@ pub fn run() {
             if matches!(event, tauri::WindowEvent::Destroyed) {
                 if let Some(state) = window.try_state::<AppState>() {
                     state.sessions.close_owner(window.label());
+                    state.file_sessions.close_owner(window.label());
                     if window.label() == "main" {
                         for browser in state.sftp.lock().unwrap().values() {
                             browser.cancel();
@@ -121,6 +125,8 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            commands::sftp_connect,
+            commands::sftp_copy,
             commands::sftp_drop_upload,
             commands::sftp_start_drag,
             commands::sftp_list,

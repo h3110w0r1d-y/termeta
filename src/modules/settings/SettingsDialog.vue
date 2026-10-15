@@ -6,6 +6,9 @@ import {
   NFlex,
   NH1,
   NText,
+  NRadioGroup,
+  NRadioButton,
+  NIcon,
   type SelectRenderLabel,
 } from "naive-ui";
 import AppNumberField from "../../components/ui/AppNumberField.vue";
@@ -23,7 +26,6 @@ import { clone } from "../../services/data/clone";
 import { validateBindings } from "../../services/commands/registry";
 import { terminalRegistry } from "../terminal/registry";
 import { useSettings, defaultSettings } from "./store";
-import { builtinSchemes } from "./themes";
 import { terminalFontFamily, terminalFontOptions } from "./fonts";
 import type { AppSettings } from "./model";
 // NSelect 同时用此渲染器显示菜单与当前值；字体声明按可见选项自动加载本地资源。
@@ -141,35 +143,86 @@ async function save() {
               display-directive="show:lazy"
             >
               <div class="form-grid">
-                <AppLabel class="span-2"
-                  >标签栏位置<AppSelect
-                    v-model="draft.tabPosition"
+                <div class="ui-label">
+                  <span id="settings-tab-position-label">标签栏位置</span>
+                  <NRadioGroup
+                    v-model:value="draft.tabPosition"
+                    aria-labelledby="settings-tab-position-label"
+                  >
+                    <NRadioButton value="top">顶部</NRadioButton>
+                    <NRadioButton value="left">左侧</NRadioButton>
+                  </NRadioGroup>
+                </div>
+                <AppLabel>
+                  双击标签页
+                  <AppSelect
+                    v-model="draft.tabDoubleClickAction"
                     :options="[
-                      { value: 'top', label: '顶部标签栏' },
-                      { value: 'left', label: '左侧标签栏' },
+                      { value: 'none', label: '无动作' },
+                      { value: 'close', label: '关闭标签页' },
+                      { value: 'duplicate', label: '复制标签页' },
+                      { value: 'split', label: '拆分会话' },
                     ]"
-                  /><small class="muted"
-                    >首页与 SFTP 固定在标签栏起始位置，SSH 会话依次排列。</small
-                  ></AppLabel
-                >
+                  />
+                </AppLabel>
+                <div class="ui-label">
+                  <span id="settings-appearance-label">应用外观</span>
+                  <NRadioGroup
+                    v-model:value="draft.appearance"
+                    aria-labelledby="settings-appearance-label"
+                  >
+                    <NRadioButton value="dark" title="深色">
+                      <span class="appearance-option">
+                        <NIcon :size="16" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" fill="none">
+                            <path
+                              d="M20.9 13.3A9 9 0 0 1 10.7 3.1 9 9 0 1 0 20.9 13.3Z"
+                              stroke="currentColor"
+                              stroke-width="1.5"
+                              stroke-linejoin="round"
+                            />
+                          </svg> </NIcon
+                        ><span class="appearance-label">深色</span>
+                      </span>
+                    </NRadioButton>
+                    <NRadioButton value="light" title="浅色">
+                      <span class="appearance-option">
+                        <NIcon :size="16" aria-hidden="true">
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                          >
+                            <circle cx="12" cy="12" r="4" />
+                            <path
+                              d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"
+                            />
+                          </svg> </NIcon
+                        ><span class="appearance-label">浅色</span>
+                      </span>
+                    </NRadioButton>
+                    <NRadioButton value="system" title="跟随系统">
+                      <span class="appearance-option">
+                        <NIcon :size="16" aria-hidden="true">
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <rect x="3" y="4" width="18" height="13" rx="2" />
+                            <path d="M12 17v4m-4 0h8" />
+                          </svg> </NIcon
+                        ><span class="appearance-label">跟随系统</span>
+                      </span>
+                    </NRadioButton>
+                  </NRadioGroup>
+                </div>
                 <AppLabel
-                  >应用外观<AppSelect
-                    v-model="draft.appearance"
-                    :options="[
-                      { value: 'dark', label: '深色' },
-                      { value: 'light', label: '浅色' },
-                      { value: 'system', label: '跟随系统' },
-                    ]" /></AppLabel
-                ><AppLabel
-                  >默认终端方案<AppSelect
-                    v-model="draft.defaultSchemeId"
-                    :options="
-                      [...builtinSchemes, ...draft.customSchemes].map((s) => ({
-                        value: s.id,
-                        label: s.name,
-                      }))
-                    " /></AppLabel
-                ><AppLabel class="span-2"
                   >终端字体<AppSelect
                     v-model="draft.fontFamily"
                     :options="terminalFontOptions"
@@ -233,6 +286,19 @@ async function save() {
 </template>
 
 <style scoped>
+.appearance-option {
+  display: inline-flex;
+  align-items: center;
+}
+.appearance-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 fieldset.settings-body {
   border: 0;
   margin: 0;

@@ -318,6 +318,7 @@ export function useTabDrag(onMoved: (tabId: string) => void) {
     document.addEventListener("lostpointercapture", cancelPointer, true);
     document.addEventListener("keydown", keydown, true);
     document.addEventListener("click", click, true);
+    document.addEventListener("dblclick", click, true);
     window.addEventListener("blur", blur);
   });
   onBeforeUnmount(() => {
@@ -330,6 +331,7 @@ export function useTabDrag(onMoved: (tabId: string) => void) {
     document.removeEventListener("lostpointercapture", cancelPointer, true);
     document.removeEventListener("keydown", keydown, true);
     document.removeEventListener("click", click, true);
+    document.removeEventListener("dblclick", click, true);
     window.removeEventListener("blur", blur);
   });
   return { start };

@@ -200,9 +200,10 @@ pub fn respond_host_key(
     challenge_id: String,
     decision: HostKeyDecision,
 ) -> Result<()> {
+    let owner = owner(&window)?;
     state
-        .sessions
-        .respond_host_key(&owner(&window)?, &session_id, &challenge_id, decision)
+        .session_manager(&owner, &session_id)?
+        .respond_host_key(&owner, &session_id, &challenge_id, decision)
 }
 #[tauri::command]
 pub fn respond_auth_challenge(
@@ -220,9 +221,13 @@ pub fn respond_auth_challenge(
             "当前认证只允许本次使用",
         ));
     }
-    state
-        .sessions
-        .respond_auth(&owner(&window)?, &session_id, &challenge_id, answers)
+    let owner = owner(&window)?;
+    state.session_manager(&owner, &session_id)?.respond_auth(
+        &owner,
+        &session_id,
+        &challenge_id,
+        answers,
+    )
 }
 #[tauri::command]
 pub fn cancel_auth_challenge(
@@ -232,10 +237,10 @@ pub fn cancel_auth_challenge(
     challenge_id: String,
 ) -> Result<SessionSnapshot> {
     // challengeId 必须匹配当前活动挑战，不能取消旧弹窗所指代的新连接。
-    state
-        .sessions
-        .cancel_auth(&owner(&window)?, &session_id, &challenge_id)?;
-    state.sessions.close(&owner(&window)?, &session_id)
+    let owner = owner(&window)?;
+    let manager = state.session_manager(&owner, &session_id)?;
+    manager.cancel_auth(&owner, &session_id, &challenge_id)?;
+    manager.close(&owner, &session_id)
 }
 #[tauri::command]
 pub fn close_session(
@@ -261,9 +266,10 @@ pub fn close_session(
             "未知关闭原因",
         ));
     }
+    let owner = owner(&window)?;
     let snapshot = state
-        .sessions
-        .close_with_reason(&owner(&window)?, &session_id, &reason)?;
+        .session_manager(&owner, &session_id)?
+        .close_with_reason(&owner, &session_id, &reason)?;
     // 关闭SSH时立即取消等待选择器/覆盖确认/原生文件承诺，不等待维护周期。
     if let Some(browser) = state.sftp.lock().unwrap().remove(&session_id) {
         browser.cancel();

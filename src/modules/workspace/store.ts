@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
+import { clone } from "../../services/data/clone";
 import { terminalDisplayTitle } from "../terminal/title";
 import type { TerminalActivity } from "../terminal/activity";
 import {
@@ -19,6 +20,7 @@ import type {
 export interface TerminalTab extends TerminalActivity {
   terminalId: string;
   title: string;
+  baseTitle: string;
   target: OpenTarget;
   state: SessionState;
   sessionId?: string;
@@ -55,6 +57,8 @@ export const useWorkspace = defineStore("workspace", () => {
   const groups = ref<WorkspaceTab[]>([]);
   const activeId = ref("home");
   const homeSection = ref<"hosts" | "credentials" | "settings">("hosts");
+  const fileTransferring = ref(false);
+  const fileSessionTitles = ref<Record<string, string>>({});
   const challenges = ref<(AuthChallenge | HostKeyChallenge)[]>([]);
   const closingTerminalIds = ref<string[]>([]);
   const drag = ref<{ source: WorkspaceDragSource; x: number; y: number }>();
@@ -119,6 +123,7 @@ export const useWorkspace = defineStore("workspace", () => {
     const tab: TerminalTab = {
       terminalId: crypto.randomUUID(),
       title: number === 1 ? title : `${title} (${number})`,
+      baseTitle: title,
       target,
       state: "created",
       revision: 0,
@@ -139,6 +144,28 @@ export const useWorkspace = defineStore("workspace", () => {
   function groupForTerminal(id: string) {
     return groups.value.find((g) => terminalIds(g.root).includes(id));
   }
+  function canDuplicateSession(id: string, split = false) {
+    const tab = tabs.value.find((item) => item.terminalId === id);
+    return !!(
+      tab &&
+      groupForTerminal(id)?.root.kind === "terminal" &&
+      !closingTerminalIds.value.includes(id) &&
+      !drag.value &&
+      (!split || !tab.sftpOpen)
+    );
+  }
+  function duplicateSession(id: string, split = false) {
+    if (!canDuplicateSession(id, split)) return;
+    const source = tabs.value.find((tab) => tab.terminalId === id)!;
+    const group = groupForTerminal(id)!;
+    // 仅复制连接配置与配色；新终端独立认证，不复制历史或输入。
+    const created = add(source.baseTitle, clone(source.target));
+    created.schemeId = source.schemeId;
+    if (split) {
+      activeId.value = group.id;
+      mergeTerminal({ kind: "tab", tabId: created.terminalId }, id, "right");
+    }
+  }
   function focusTerminal(id: string) {
     const group = groupForTerminal(id);
     if (!group) return;
@@ -146,7 +173,9 @@ export const useWorkspace = defineStore("workspace", () => {
     activeId.value = group.id;
   }
   function activateTab(id: string) {
-    if (tabIds.value.includes(id)) activeId.value = id;
+    if (!tabIds.value.includes(id)) return;
+    if (id === "home" && activeId.value !== "home") homeSection.value = "hosts";
+    activeId.value = id;
   }
   function remove(id: string) {
     const removed = tabs.value.find((t) => t.terminalId === id);
@@ -163,8 +192,9 @@ export const useWorkspace = defineStore("workspace", () => {
         const at = groups.value.indexOf(group);
         groups.value = groups.value.filter((g) => g.id !== group.id);
         if (activeId.value === group.id)
-          activeId.value =
-            groups.value[Math.min(at, groups.value.length - 1)]?.id ?? "home";
+          activateTab(
+            groups.value[Math.min(at, groups.value.length - 1)]?.id ?? "home",
+          );
       }
     }
     if (removed) {
@@ -346,8 +376,9 @@ export const useWorkspace = defineStore("workspace", () => {
   }
   function cycle(direction: number) {
     const ids = tabIds.value;
-    activeId.value =
-      ids[(ids.indexOf(activeId.value) + direction + ids.length) % ids.length]!;
+    activateTab(
+      ids[(ids.indexOf(activeId.value) + direction + ids.length) % ids.length]!,
+    );
   }
   function openHome(section: "hosts" | "credentials" | "settings" = "hosts") {
     homeSection.value = section;
@@ -370,10 +401,14 @@ export const useWorkspace = defineStore("workspace", () => {
     activeGroup,
     active,
     challenges,
+    fileTransferring,
+    fileSessionTitles,
     closingTerminalIds,
     drag,
     dropTarget,
     add,
+    canDuplicateSession,
+    duplicateSession,
     remove,
     groupForTerminal,
     focusTerminal,

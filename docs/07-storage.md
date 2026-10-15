@@ -82,9 +82,9 @@ SQLite 与系统凭据库不能原子提交。凭据状态为 pending → ready 
 
 当前内置方案使用固定 ID，自定义/导入方案使用 UUID；`customSchemes`、`defaultSchemeId`、`hostSchemes`（profile ID → scheme ID）均保存在上述 `app` JSON，不创建独立配色/主机终端偏好表，不提供独立 revision/FK。壳层 `settings::validate` 校验配色引用与字段；设置整体原子替换，但尚无设置乐观锁，多窗口扩展前需处理覆盖冲突。主机删除后的偏好引用清理与数据库级 profile 引用完整性仍需补齐。当前 terminalId 的临时覆盖只驻内存；工作区需要恢复时持久化显式 scheme 引用，不保存实际输出。配色 JSON 见 [15](15-terminal-themes.md)，用户方案升级不覆盖。
 
-应用标签栏位置保存在 `app.tabPosition`（`top` / `left`），旧设置缺失时前端补为 `top`，Rust 兼容缺失但拒绝其他值。固定首页/SFTP 与当前首页菜单不新增数据库表；该设置不新增数据库表。
+应用标签栏位置保存在 `app.tabPosition`（`top` / `left`），旧设置缺失时前端补为 `top`，Rust 兼容缺失但拒绝其他值。`app.tabDoubleClickAction` 保存标签双击动作（`none` / `close` / `duplicate` / `split`），默认 `none`；旧设置缺失时补默认值，Rust 拒绝其他值。随设置页保存到现有 JSON，不新增表或修改 schema。固定首页/SFTP 与当前首页菜单不新增数据库表。
 
-当前没有 SFTP 持久表或传输历史，已实现文件服务的状态仅驻内存。以下为后续持久化设计。SFTP 偏好计划记录默认左/右/底部位置、显隐/尺寸、隐藏文件/排序，允许 profile 或视图覆盖。独立双栏布局只存端点类型/profileRef 与用户选择保存的路径；本地 rootGrant/connectionRef/entryRef 是运行授权，重启不能直接复用。重新选择/授权后才打开，默认不连接远端。
+当前没有 SFTP 持久表或传输历史。全局“显示隐藏文件”已保存为 app JSON 的 sftpShowHidden 布尔字段，旧设置缺失时默认false，无需修改数据库schema。终端侧栏和双栏共享该值，自动保存失败不改变生效状态；前端设置写入串行化，普通设置页保存保留即时偏好，避免旧草稿覆盖。其余文件浏览/任务状态仅驻内存。以下为后续持久化设计：SFTP 默认左/右/底部位置、显隐/尺寸和排序允许 profile 或视图覆盖。独立双栏布局只存端点类型/profileRef 与用户选择保存的路径；本地 rootGrant/connectionRef/entryRef 是运行授权，重启不能直接复用。重新选择/授权后才打开，默认不连接远端。
 
 传输任务为运行态；历史只留可选最小摘要，路径也属于敏感元数据。若后续持久化任务，重启须标为 interrupted，不自动重新上传或覆盖，也不复用旧覆盖同意。macOS拖出当前按承诺目标直接下载，不持久化拖动授权或文件正文。未来如引入受控缓存，须独立登记并限制残留清理范围；远端中转不默认落盘。详见 [16](16-sftp-workspace.md)。
 

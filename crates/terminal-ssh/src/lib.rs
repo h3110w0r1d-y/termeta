@@ -14,6 +14,7 @@ pub struct SshFactory {
     trust: Arc<dyn HostTrustStore>,
     credentials: Arc<dyn CredentialStore>,
     channels: SshChannels,
+    files_only: bool,
 }
 impl SshFactory {
     pub fn new(trust: Arc<dyn HostTrustStore>, credentials: Arc<dyn CredentialStore>) -> Self {
@@ -21,6 +22,16 @@ impl SshFactory {
             trust,
             credentials,
             channels: SshChannels::default(),
+            files_only: false,
+        }
+    }
+    /// 独立文件连接复用认证与子系统注册，不申请PTY或启动Shell。
+    pub fn for_files(&self) -> Self {
+        Self {
+            trust: self.trust.clone(),
+            credentials: self.credentials.clone(),
+            channels: self.channels.clone(),
+            files_only: true,
         }
     }
     pub fn channels(&self) -> SshChannels {
@@ -33,7 +44,13 @@ impl SessionFactory for SshFactory {
         "ssh"
     }
     fn capabilities(&self) -> SessionCapabilities {
-        SessionCapabilities::ssh()
+        let mut capabilities = SessionCapabilities::ssh();
+        if self.files_only {
+            capabilities.pty = false;
+            capabilities.resize = false;
+            capabilities.binary_output = false;
+        }
+        capabilities
     }
     fn validate(&self, config: &SshConfig) -> Result<()> {
         config.validate()
@@ -56,6 +73,20 @@ impl SessionFactory for SshFactory {
             self.channels.register(&snapshot.session_id, &context.owner);
         let channels = channels::serve(&connection, requests);
         tokio::pin!(channels);
+        if self.files_only {
+            context.events.state(SessionState::Connected)?;
+            let disconnected = async {
+                while !connection.is_closed() {
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                }
+                Err(ssh_error("IO_FAILED", "sftp", "SFTP连接已断开，请重新连接"))
+            };
+            return tokio::select! {
+                _ = context.cancel.cancelled() => Err(SessionError::cancelled()),
+                result = disconnected => result,
+                _ = &mut channels => Err(SessionError::cancelled()),
+            };
+        }
         tokio::select! {
             result = driver::run(&connection, context) => result,
             _ = &mut channels => Err(SessionError::cancelled()),

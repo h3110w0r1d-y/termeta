@@ -45,7 +45,7 @@ export const commandDefinitions = [
     isMac ? "Primary+F" : "Primary+Shift+F",
   ],
   ["terminal.scrollToBottom", "滚动到底部", "terminal", ""],
-  ["terminal.openLink", "打开链接（鼠标主键）", "terminal", ""],
+  ["terminal.openLink", "打开链接", "terminal", ""],
   [
     "workspace.newLocalTerminal",
     "新建本地终端（后续提供）",

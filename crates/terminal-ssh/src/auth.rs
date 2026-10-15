@@ -42,6 +42,10 @@ async fn authenticate_plan(
     let mut rounds = 0;
     let mut submissions = 0;
     let mut interactive_started = false;
+    let mut interactive_password = config.auth_plan.iter().find_map(|step| match step {
+        AuthStep::Password { credential_id } => credential_id.as_deref(),
+        AuthStep::PrivateKey { .. } => None,
+    });
     for step in &config.auth_plan {
         let result = match step {
             AuthStep::Password { credential_id } => {
@@ -61,6 +65,8 @@ async fn authenticate_plan(
                     } else {
                         password_prompt(context, attempt).await?
                     };
+                    // 已尝试密码协议后，PAM 回退不再自动重发已提交的密码。
+                    interactive_password = None;
                     submissions += 1;
                     let result = network(
                         "authentication",
@@ -162,7 +168,16 @@ async fn authenticate_plan(
                     && remaining.contains(&MethodKind::KeyboardInteractive)
                 {
                     interactive_started = true;
-                    match keyboard_interactive(connection, config, context, &mut rounds).await? {
+                    match keyboard_interactive(
+                        connection,
+                        config,
+                        context,
+                        credentials,
+                        interactive_password.take(),
+                        &mut rounds,
+                    )
+                    .await?
+                    {
                         AuthResult::Success => return Ok(()),
                         AuthResult::Failure {
                             remaining_methods, ..
@@ -173,11 +188,18 @@ async fn authenticate_plan(
         }
     }
     // 密码协议不可用或被拒绝时，允许服务端自身的 PAM/OTP 表单完成认证。
-    // 不将已保存的密码自动填入任意挑战，也不枚举未配置的本地私钥。
+    // 保存密码仅用于明确的密码提示，不枚举未配置的本地私钥。
     if !interactive_started && remaining.contains(&MethodKind::KeyboardInteractive) {
-        if keyboard_interactive(connection, config, context, &mut rounds)
-            .await?
-            .success()
+        if keyboard_interactive(
+            connection,
+            config,
+            context,
+            credentials,
+            interactive_password.take(),
+            &mut rounds,
+        )
+        .await?
+        .success()
         {
             return Ok(());
         }
@@ -193,6 +215,8 @@ async fn keyboard_interactive(
     connection: &mut Handle<HostKeyHandler>,
     config: &SshConfig,
     context: &DriverContext,
+    credentials: &dyn CredentialStore,
+    mut password_credential: Option<&str>,
     rounds: &mut usize,
 ) -> Result<AuthResult> {
     // 每组最多启动三次，所有重试共用八轮挑战预算，防止恶意服务端无限索取输入。
@@ -231,14 +255,28 @@ async fn keyboard_interactive(
                             "认证交互超过 8 轮限制",
                         ));
                     }
-                    let prompts = prompts
+                    let prompts: Vec<AuthPrompt> = prompts
                         .into_iter()
                         .map(|prompt| AuthPrompt {
                             text: prompt.prompt,
                             echo: prompt.echo,
                         })
                         .collect();
-                    let answers = context.challenges.auth(name, instructions, prompts).await?;
+                    validate_auth_challenge(&name, &instructions, &prompts)?;
+                    let answers = if prompts.is_empty()
+                        && name.trim().is_empty()
+                        && instructions.trim().is_empty()
+                    {
+                        // PAM 可在最终成功前发出空轮次，直接回零个响应，不创建空白弹窗。
+                        Vec::new()
+                    } else if is_password_prompt(&prompts)
+                        && let Some(id) = password_credential.take()
+                    {
+                        // 每次连接最多自动填入一次；重复提示或失败重试必须由用户输入。
+                        vec![credentials.secret(&context.owner, id).await?]
+                    } else {
+                        context.challenges.auth(name, instructions, prompts).await?
+                    };
                     // russh 要求拥有字符串；短期副本不记录或持久化，OTP 仅用于本次响应。
                     response = network(
                         "authentication",
@@ -256,6 +294,15 @@ async fn keyboard_interactive(
     }
     Err(ssh_error("AUTH_FAILED", "authentication", "交互认证未完成"))
 }
+fn is_password_prompt(prompts: &[AuthPrompt]) -> bool {
+    let [prompt] = prompts else { return false };
+    if prompt.echo {
+        return false;
+    }
+    let label = prompt.text.trim().trim_end_matches([':', '：']).trim();
+    label.eq_ignore_ascii_case("password") || label == "密码"
+}
+
 async fn password_prompt(context: &DriverContext, attempt: usize) -> Result<Zeroizing<String>> {
     let answers = context
         .challenges
@@ -297,4 +344,48 @@ async fn decode(
     })
     .await
     .map_err(|_| ssh_error("AUTH_FAILED", "authentication", "私钥解析工作器不可用"))?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_explicit_masked_password_prompts_allow_saved_password() {
+        for text in ["Password:", " password : ", "PASSWORD", "密码："] {
+            assert!(is_password_prompt(&[AuthPrompt {
+                text: text.into(),
+                echo: false
+            }]));
+        }
+        // 不能把保存密码发送给 OTP、复合提示、密码修改或回显字段。
+        for text in [
+            "Verification code:",
+            "OTP:",
+            "Password + OTP:",
+            "New password:",
+            "",
+            "Passcode:",
+        ] {
+            assert!(!is_password_prompt(&[AuthPrompt {
+                text: text.into(),
+                echo: false
+            }]));
+        }
+        assert!(!is_password_prompt(&[AuthPrompt {
+            text: "Password:".into(),
+            echo: true
+        }]));
+        assert!(!is_password_prompt(&[]));
+        assert!(!is_password_prompt(&[
+            AuthPrompt {
+                text: "Password:".into(),
+                echo: false
+            },
+            AuthPrompt {
+                text: "Verification code:".into(),
+                echo: false
+            },
+        ]));
+    }
 }

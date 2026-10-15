@@ -208,7 +208,7 @@ Channel send 错误、窗口已销毁或主动 close 立即取消对应流，释
 
 输出 forwarder 结束后发布 ended，终态 ACK 保留 3 秒排空窗口；会话快照/幂等摘要最多 1024 个、最长 10 分钟。五分钟未消费/窗口失联取消，系统睡眠时间跳跃重置失联预算。前端每 64 KiB 或 16 ms 合并解析后 ACK。各预算是代码初值，不是性能测量结果。
 
-认证提交成功后前端只移除匹配 sessionId/challengeId 的提示，不能按 sessionId 删除随后到达的下一轮 OTP；会话终态/关闭仍清除该会话全部提示。自动 MFA 复用现有 AuthChallenge，无新增 IPC 命令。
+认证提交成功后前端只移除匹配 sessionId/challengeId 的提示，不能按 sessionId 删除随后到达的下一轮 OTP；会话终态/关闭仍清除该会话全部提示。自动 MFA 复用现有 AuthChallenge，无新增 IPC 命令。后端自动处理空白零输入轮与唯一明确密码提示的一次保存密码响应，不向前端发送该轮 AuthChallenge 或密码正文；非空通知、OTP 和其他提示仍走现有事件。自动/人工轮次共用提示校验和挑战轮数上限。
 
 终端字体：`app.fontFamily` 保存固定12项规范名称，名单见 [桌面字体设计](09-desktop-ux.md#6-字体主题与可访问性)。`save_settings` 拒绝名单外值；`get_settings` 对旧版有效字符串但不在名单中的值，仅在返回值中归一为 DejaVu Sans Mono，其余字段仍完整校验，不执行自动持久化。字体二进制从应用自带静态资源加载，不通过 IPC 返回字体正文或访问系统字体目录。
 
@@ -239,3 +239,5 @@ TransferProgress 包含 transferred/total 字节十进制字符串及可选 curr
 macOS 拖出 names 最多 100 个普通文件或真实目录根，directories 必须为其子集且仅为类型提示，Rust 在兑现时复核。原生手势启动须左键仍按住，不能排队到手势结束后。Finder 请求内容才发第一条进度并创建下载记录；无内容请求的取消不留任务。内部落点拒绝，原生拖出期间屏蔽上传事件及授权登记。命令在 Copy 会话结束且全部承诺完成后成功返回；取消返回 false，失败返回错误。目录使用独立句柄有界递归，不扰动侧栏分页，不跟随源链接。
 
 传输始终绑定原 sessionId，隐藏不取消；断线/关闭终端取消，重连不重放或关联新会话。尚无持久任务恢复、通用冲突 challenge、独立端点或连接租约。以上仅为源码契约，未完成编译与平台运行验收。
+
+双栏文件工作区增加 `sftp_connect(profileId, requestId, onControl)`，返回 `SessionSnapshot`；连接属于文件专用会话表，不创建终端，复用现有控制事件及主机信任/认证响应。`sftp_copy(request, onProgress)` 的 request 为 sourceSessionId、targetSessionId、sourcePath、targetPath、names、transferId，返回空成功；只接受两个 owner-bound 文件会话，正文不进入IPC。列表和取消复用 `sftp_list` / `sftp_cancel`，关闭复用 `close_session`；认证与关闭根据资源所属会话表路由。所有新增命令同步 AppManifest/ACL/main capability。

@@ -6,7 +6,7 @@
 
 Windows、macOS、Linux 桌面客户端，采用 Tauri 2 + Rust + Vue 3 + TypeScript，通用控件为 Naive UI 2.45.3，工作区使用自定义标签。首期 SSH，Local/Serial、隧道/跳板/Agent 为后续范围。
 
-已落源码包括主机与凭据管理、SSH/动态认证/主机信任、终端保活与重连、标签排序和嵌套分屏、输入广播、快捷键、12种本地字体和64套终端配色。SFTP 仅提供浏览、上传下载：单终端侧栏、目录合并上传及 macOS 文件/目录承诺拖出；固定双栏仍为占位，Windows/Linux 原生拖出未实现。
+已落源码包括主机与凭据管理、SSH/动态认证/主机信任、终端保活与重连、标签排序和嵌套分屏、输入广播、快捷键、12种本地字体和64套终端配色。SFTP 提供单终端浏览/上传下载侧栏、目录合并上传及 macOS 文件/目录承诺拖出；固定双栏支持保存主机的独立 SSH/SFTP 连接与 Web 栏间文件/目录对拷，Windows/Linux 原生拖出未实现。
 
 断线与失败保留原 Tab、terminalId 和 xterm 缓冲，重连只替换后端连接。秘密由 Rust 与 OS keyring 管理；凭据库使用独立 `termvexa-credentials-v1.sqlite3`，不迁移或改动旧库。正文与文件数据不进入 Vue/Pinia。
 

@@ -12,7 +12,7 @@ const workspace = useWorkspace(),
   targetTitle = computed(
     () =>
       workspace.tabs.find((tab) => tab.sessionId === current.value?.sessionId)
-        ?.title,
+        ?.title ?? workspace.fileSessionTitles[current.value?.sessionId ?? ""],
   );
 const answers = ref<string[]>([]),
   authForm = ref<HTMLFormElement>(),

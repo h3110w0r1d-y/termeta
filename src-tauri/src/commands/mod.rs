@@ -10,3 +10,6 @@ pub use files::*;
 
 mod file_drag;
 pub use file_drag::*;
+
+mod file_workspace;
+pub use file_workspace::*;

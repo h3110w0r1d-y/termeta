@@ -78,13 +78,13 @@ core 的模型与端口允许使用 serde、bytes、Tokio 通道、async-trait �
 | crates/terminal-files、terminal-sftp       | 文件 DTO/有界复制与 SFTP provider    |
 | src-tauri/src/commands、ipc、state.rs      | owner 校验、原生交互、流桥与依赖装配 |
 
-根 Cargo workspace 使用 resolver 3、edition 2024，统一 release profile 和 Cargo.lock。Local、Serial、独立 TransferManager、双栏端点及连接租约尚未创建或完成，开发对应功能时再引入实际模块。
+根 Cargo workspace 使用 resolver 3、edition 2024，统一 release profile 和 Cargo.lock。Local、Serial、独立 TransferManager 及通用连接租约尚未创建或完成；双栏文件连接已由独立 SessionManager 和 files-only SSH 工厂管理，开发对应功能时再引入实际模块。
 
 ## 5. 前端与终端生命周期
 
 `WorkspaceStore.tabs` 保存终端元数据，groups 保存标签组/布局树与聚焦 terminalId，tabIds 包含固定 home/sftp 和动态组 ID。activeId 为组 ID，active 为聚焦终端；固定页不创建 session/xterm。homeSection 管理首页导航，tabPosition 只改变布局。
 
-`TerminalRegistry` 用普通 Map 按稳定 terminalId 保存 xterm、当前 session 绑定、代次、订阅和输入队列，不深度响应式化。重连只更换 sessionId，不改 Vue key。未来独立双栏将使用单独端点/浏览器引用，不伪造终端；目前固定 SFTP 页仍是占位。
+`TerminalRegistry` 用普通 Map 按稳定 terminalId 保存 xterm、当前 session 绑定、代次、订阅和输入队列，不深度响应式化。重连只更换 sessionId，不改 Vue key。独立双栏使用文件专用 SessionManager 与 files-only SSH 工厂，各连接有独立 SftpBrowser/分页游标，不创建终端 Tab 或 xterm。
 
 建立连接前先创建 Tab、terminalId 与终端宿主并装好 Channel handlers，即使 open_session 同步失败也保留视图。握手期间展示状态，Connected 前关闭远端键盘写入，但保留滚动/选择/复制/搜索。切标签不卸载 xterm；隐藏终端继续解析和 ACK，只减少不必要的渲染与 resize。ResizeObserver 只对可见且非零尺寸的宿主调用 fit。
 
@@ -107,9 +107,9 @@ UI 使用 Naive UI 现成组件及 `src/components/ui/` 薄适配，NConfigProvi
 
 M1/M2 默认一个 terminal session 拥有一个 SSH connection 和一个 Shell channel，关闭时一并回收。提前区分 connectionId 与 sessionId，但不做跨主机池化。
 
-后续独立 SFTP/隧道计划引入受控 `SshConnectionService` 为 Shell/SFTP/隧道分配 channel 和租约；应用会话/文件浏览器/传输任务各自持有租约，最后一个租约释放后才关闭 connection。独立 SFTP 只打开 subsystem，不分配 PTY/Shell；认证 challenge 从 session-only 扩展为类型化资源归属，仍共用信任和凭据端口。共享需要实现公平调度、背压隔离、错误广播和“关闭终端但保留传输”的 UX；不得把 russh Handle 暴露给前端或通用 files crate。具体政策见 [SFTP 设计](16-sftp-workspace.md)。
+当前双栏文件连接从保存主机读取配置，共用现有主机信任、凭据和多轮认证；files-only SSH 工厂只注册 SFTP channel，不运行终端驱动。认证/关闭按 owner-bound sessionId 在终端和文件会话表间路由。两条文件连接独立于终端，切页保持、断开/窗口退出关闭。后续共享 SFTP/隧道计划引入受控 `SshConnectionService` 为 Shell/SFTP/隧道分配 channel 和租约；应用会话/文件浏览器/传输任务各自持有租约，最后一个租约释放后才关闭 connection。独立 SFTP 只打开 subsystem，不分配 PTY/Shell；认证 challenge 从 session-only 扩展为类型化资源归属，仍共用信任和凭据端口。共享需要实现公平调度、背压隔离、错误广播和“关闭终端但保留传输”的 UX；不得把 russh Handle 暴露给前端或通用 files crate。具体政策见 [SFTP 设计](16-sftp-workspace.md)。
 
-FileProvider 是文件领域接口，不扩充 TerminalSession；当前批次由壳编排。未来独立 TransferManager 再统一两端读写、冲突/取消与有界中转，供附属侧栏和双栏共享。远端互传设计不经过 xterm/WebView、不默认落盘。原生拖出由壳的平台适配器负责，独立于网页内部拖拽。
+FileProvider 是文件领域接口，不扩充 TerminalSession；当前批次由壳编排。未来独立 TransferManager 再统一两端读写、冲突/取消与有界中转，供附属侧栏和双栏共享。双栏远端互传通过 terminal-sftp::copy_between 和 terminal-files::copy_file 实现，不经过 xterm/WebView、不落盘；单批同时锁定两端操作并占一个全局传输许可。原生拖出由壳的平台适配器负责，独立于网页内部拖拽。
 
 ## 8. 错误与观测
 

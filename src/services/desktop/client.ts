@@ -4,6 +4,7 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 import type { AppSettings } from "../../modules/settings/model";
 import type {
   DirectoryPage,
+  SftpCopyRequest,
   SftpLocalDrop,
   SftpDropPosition,
   TransferProgress,
@@ -23,6 +24,27 @@ import type {
 
 // 原生交互只通过此门面，组件不能获得通用 invoke 或任意文件读取能力。
 export const desktop = {
+  sftpConnect(
+    profileId: string,
+    requestId: string,
+    control: (value: SessionEvent) => void,
+  ) {
+    const onControl = new Channel<SessionEvent>();
+    onControl.onmessage = control;
+    return invoke<SessionSnapshot>("sftp_connect", {
+      profileId,
+      requestId,
+      onControl,
+    });
+  },
+  sftpCopy(
+    request: SftpCopyRequest,
+    progress: (value: TransferProgress) => void,
+  ) {
+    const onProgress = new Channel<TransferProgress>();
+    onProgress.onmessage = progress;
+    return invoke<void>("sftp_copy", { request, onProgress });
+  },
   sftpList: (sessionId: string, path: string, more = false) =>
     invoke<DirectoryPage>("sftp_list", { sessionId, path, more }),
   sftpTransfer(

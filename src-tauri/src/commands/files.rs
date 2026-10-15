@@ -14,7 +14,7 @@ use terminal_files::{
 use terminal_sftp::SftpBrowser;
 
 pub(super) fn connected(state: &AppState, owner: &str, id: &str) -> Result<()> {
-    if state.sessions.get(owner, id)?.state != SessionState::Connected {
+    if state.session_manager(owner, id)?.get(owner, id)?.state != SessionState::Connected {
         return Err(file_error("SSH 已断开，文件列表已过期，请重连后刷新"));
     }
     Ok(())
@@ -63,7 +63,10 @@ pub fn sftp_cancel(
     session_id: String,
     transfer_id: String,
 ) -> Result<()> {
-    state.sessions.get(&owner(&window)?, &session_id)?;
+    let owner = owner(&window)?;
+    state
+        .session_manager(&owner, &session_id)?
+        .get(&owner, &session_id)?;
     if let Some(browser) = state.sftp.lock().unwrap().get(&session_id) {
         browser.cancel_transfer(&transfer_id);
     }

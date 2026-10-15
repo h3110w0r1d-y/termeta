@@ -1,6 +1,6 @@
 # SSH 连接、安全信任与认证
 
-日期：2026-10-15。首期直连 SSH2 已按 russh 0.64.1 源码实现；未编译或连接真实主机。依赖公告与待验收项见 [实施状态](17-implementation-status.md)。
+日期：2026-10-16。首期直连 SSH2 已按 russh 0.64.1 源码实现；本轮仅静态检查，用户反馈的密码/公钥 + OTP 互通修复仍待复验。依赖公告与待验收项见 [实施状态](17-implementation-status.md)。
 
 ## 1. 连接配置
 
@@ -79,7 +79,7 @@ Challenge 绑定 session、owner、key digest 和 endpoint；超时、取消、�
 | Keyboard-interactive | 显示 banner/name/instructions 与每轮 prompts，按 echo 标记输入             | echo=false 必须掩码；OTP 永不持久化     |
 | partial success      | 保留已完成因素，继续服务器要求的下一步                                     | 不把多因素要求误报成错误密码            |
 
-认证由服务器与配置共同决定；密码 auth 和 Keyboard-interactive 是不同协议步骤。密码 / 私钥部分成功且服务器要求 Keyboard-interactive 时立即进入服务端挑战；仅支持 Keyboard-interactive 的主机不会先索要无效的密码或私钥口令。主认证失败后如服务器仍提供交互认证，也允许自动进入 PAM 表单。配置不含 Keyboard-interactive 步骤，后端不会重复启动已处理的挑战组。保存的密码不会自动填入服务端任意提示；OTP 不持久化。常见 password+OTP 需要真实服务器验证；文档有方法并不表示应用已兼容任意 PAM/MFA。
+认证由服务器与配置共同决定；密码 auth 和 Keyboard-interactive 是不同协议步骤。密码 / 私钥部分成功且服务器要求 Keyboard-interactive 时立即进入服务端挑战；仅支持 Keyboard-interactive 的主机不会先索要无效的密码或私钥口令。主认证失败后如服务器仍提供交互认证，也允许自动进入 PAM 表单。配置不含 Keyboard-interactive 步骤，后端不会重复启动已处理的挑战组。保存密码仅自动用于单个非回显、去除两端空白和末尾冒号后精确为 Password（不区分英文大小写）或“密码”的提示，每次连接最多一次，且只使用当前密码认证配置的凭据；已提交过密码协议时不再自动填入。重复提示、失败重试、OTP、复合提示、回显或未知字段由用户输入，OTP 不持久化。服务端零输入且名称/说明均为空白的轮次自动发送零个响应，不产生 AuthChallenge；含非空通知的零输入轮仍显示。所有轮次先校验相同提示限额，并计入八轮预算；此行为由 Rust 统一处理，覆盖终端和双栏 SFTP。常见 password+OTP 需要真实服务器验证；文档有方法并不表示应用已兼容任意 PAM/MFA。
 
 首期密码提交共享最多 3 次预算，私钥口令最多 3 次重新输入；交互认证最多启动 3 次，所有交互尝试共享最多 8 轮 challenge（均为初始上限），每轮设置期限；服务端提示数量、单条长度和总字节数均需限额。拒绝复用旧 challenge。不要将完整 server banner 当作可信富文本，所有提示按普通文本显示。
 
@@ -123,7 +123,7 @@ Agent、Pageant、证书、FIDO、安全密钥、PPK/PEM 全格式与 GSSAPI 不
 
 新旧连接之间通过可信本地状态消息标识时间与重连结果，不把错误当作新远端输出；旧流排空、代次隔离及终端模式边界见 IPC/交互文档。保留显示历史不代表恢复原远端 Shell；远端任务恢复仍需 tmux/screen 等远端能力。
 
-ProxyJump 后续通过明确 hop 列表，为每一跳独立校验密钥与认证；不接受任意 ProxyCommand 自动执行。单终端 SFTP 经独立子系统复用已认证连接，生命周期仍绑定终端；独立 SFTP/隧道连接租约为后续设计，见架构文档，不向通用终端加入 listFiles/startTunnel 等方法。
+ProxyJump 后续通过明确 hop 列表，为每一跳独立校验密钥与认证；不接受任意 ProxyCommand 自动执行。单终端 SFTP 经独立子系统复用已认证连接，生命周期仍绑定终端；独立双栏使用文件专用 SessionManager 与 files-only 工厂，只认证并开放 SFTP channel，不请求 PTY/Shell，复用密码/私钥/keyboard-interactive 与主机信任端口；通用共享连接租约仍为后续设计，见架构文档，不向通用终端加入 listFiles/startTunnel 等方法。
 
 ## 9. 源码与验证边界
 

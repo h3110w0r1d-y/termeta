@@ -1,24 +1,38 @@
 <script setup lang="ts">
 import { confirmAction, promptText } from "../../components/ui/confirmation";
-import { computed, ref } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import {
   NAlert,
   NButton,
   NCard,
+  NDropdown,
   NEllipsis,
   NEmpty,
   NH1,
+  NInput,
   NRadioGroup,
   NRadioButton,
   NSpace,
   NTag,
   NText,
+  type InputInst,
 } from "naive-ui";
-import AppInput from "../../components/ui/AppInput.vue";
 import AppSelect from "../../components/ui/AppSelect.vue";
 import { desktop, errorMessage } from "../../services/desktop/client";
 import type { HostProfile } from "../../services/desktop/types";
 import { useHosts } from "./store";
+const props = defineProps<{ active: boolean }>();
+const search = ref<InputInst>();
+watch(
+  () => props.active,
+  async (active) => {
+    if (!active) return;
+    // 主机页保活，等待外层显隐更新后再聚焦；不清空已有搜索内容。
+    await nextTick();
+    if (props.active) search.value?.focus();
+  },
+  { immediate: true, flush: "post" },
+);
 const emit = defineEmits<{
   connect: [HostProfile];
   edit: [HostProfile | undefined, boolean?];
@@ -43,6 +57,42 @@ const visible = computed(() =>
         .toLowerCase()
         .includes(query.value.toLowerCase()),
   ),
+);
+const menu = ref({ show: false, hostId: "", x: 0, y: 0 });
+const menuOptions = [
+  { label: "连接", key: "connect" },
+  { label: "编辑", key: "edit" },
+  { label: "复制", key: "duplicate" },
+  { label: "删除", key: "delete" },
+];
+function openMenu(event: MouseEvent | KeyboardEvent, host: HostProfile) {
+  event.preventDefault();
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  menu.value = {
+    show: true,
+    hostId: host.id,
+    x: event instanceof MouseEvent ? event.clientX : rect.left,
+    y: event instanceof MouseEvent ? event.clientY : rect.bottom,
+  };
+}
+function cardKey(event: KeyboardEvent, host: HostProfile) {
+  if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10"))
+    openMenu(event, host);
+}
+async function selectMenu(key: string) {
+  menu.value.show = false;
+  const host = store.hosts.find((item) => item.id === menu.value.hostId);
+  if (!host) return;
+  if (key === "connect") emit("connect", host);
+  else if (key === "edit") emit("edit", host);
+  else if (key === "duplicate") emit("edit", host, true);
+  else if (key === "delete") await remove(host);
+}
+watch(
+  () => props.active,
+  (active) => {
+    if (!active) menu.value.show = false;
+  },
 );
 function depth(id: string, seen = new Set<string>()): number {
   if (seen.has(id)) return 0;
@@ -126,11 +176,11 @@ async function manageGroup() {
       </NSpace>
     </header>
     <div class="host-toolbar">
-      <AppInput
-        v-model="query"
+      <NInput
+        ref="search"
+        v-model:value="query"
         class="host-search"
-        type="search"
-        aria-label="搜索主机"
+        :input-props="{ type: 'search', 'aria-label': '搜索主机' }"
         placeholder="搜索主机、地址、用户名或标签…"
       />
       <NRadioGroup v-model:value="filter" aria-label="主机范围">
@@ -190,13 +240,18 @@ async function manageGroup() {
         size="small"
         hoverable
         tabindex="0"
-        :aria-label="host.name + '，按回车连接'"
+        :aria-label="host.name + '，按回车连接，右键或 Shift+F10 打开操作菜单'"
         @dblclick="emit('connect', host)"
         @keydown.enter.self.prevent="emit('connect', host)"
+        @keydown.self="cardKey($event, host)"
+        @contextmenu="openMenu($event, host)"
       >
-        <template #header
-          ><NEllipsis>{{ host.name }}</NEllipsis></template
-        >
+        <template #header>
+          <div class="host-card-title">
+            <NEllipsis class="host-card-name">{{ host.name }}</NEllipsis>
+            <NTag class="host-protocol" type="info" size="small">SSH</NTag>
+          </div>
+        </template>
         <template #header-extra>
           <NButton
             quaternary
@@ -221,52 +276,41 @@ async function manageGroup() {
                 : host.address
             }}:{{ host.port }}</NEllipsis
           >
-          <NSpace size="small">
-            <NTag type="info" size="small">SSH</NTag>
+          <NSpace v-if="host.tags.length" size="small">
             <NTag v-for="tag in host.tags" :key="tag" size="small">{{
               tag
             }}</NTag>
           </NSpace>
         </NSpace>
-        <template #action>
-          <div @dblclick.stop>
-            <NSpace justify="space-between" size="small">
-              <NButton
-                type="primary"
-                secondary
-                size="small"
-                @click.stop="emit('connect', host)"
-                >连接</NButton
-              >
-              <NSpace size="small">
-                <NButton
-                  quaternary
-                  size="small"
-                  @click.stop="emit('edit', host)"
-                  >编辑</NButton
-                >
-                <NButton
-                  quaternary
-                  size="small"
-                  @click.stop="emit('edit', host, true)"
-                  >复制</NButton
-                >
-                <NButton
-                  quaternary
-                  type="error"
-                  size="small"
-                  @click.stop="remove(host)"
-                  >删除</NButton
-                >
-              </NSpace>
-            </NSpace>
-          </div>
-        </template>
       </NCard>
     </div>
+    <NDropdown
+      :show="menu.show"
+      :x="menu.x"
+      :y="menu.y"
+      :options="menuOptions"
+      :menu-props="() => ({ 'data-ui-popup-open': '' })"
+      trigger="manual"
+      placement="bottom-start"
+      @select="selectMenu"
+      @clickoutside="menu.show = false"
+      @update:show="menu.show = $event"
+    />
   </section>
 </template>
 <style scoped>
+.host-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.host-card-name {
+  min-width: 0;
+}
+.host-protocol {
+  flex-shrink: 0;
+}
 .host-toolbar,
 .host-group-toolbar {
   display: flex;
