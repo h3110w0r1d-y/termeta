@@ -1,6 +1,6 @@
 # 系统架构与模块边界
 
-更新：2026-10-16。本文描述当前源码分层，后续能力明确标注。功能状态见 [产品需求](01-product-requirements.md#8-当前实现与限制)，运行集成尚未完整验收。
+更新：2026-10-17。本文描述当前源码分层，后续能力明确标注。功能状态见 [产品需求](01-product-requirements.md#8-当前实现与限制)，运行集成尚未完整验收。
 
 ## 1. 总体结构
 
@@ -77,9 +77,9 @@ WorkspaceStore.tabs 保存终端元数据，groups 保存标签顺序/布局/聚
 
 保存项共用 connection_profiles 和轻量分组/收藏元数据，SSH/Telnet/Serial 各自校验参数；workspace 不是可由 open_session 直接打开的协议类型。saved/profileId 始终由 Rust 重读并分派工厂，前端 kind 仅展示能力。
 
-VaultGate 完成首次设置、OS 自动解锁或密码恢复后挂载业务页面。只有 vault_status/unlock_vault 是锁定时可用的业务入口；窗口操作保留。storage 发布已解锁 SQLCipher 池前完成迁移/外键检查；OS 仅缓存主密钥，秘密仅 Rust 加载。当前 schema 6 和升级边界见 [存储](07-storage.md)。
+VaultGate 完成首次设置、OS 自动解锁或密码恢复后挂载业务页面。只有 vault_status/unlock_vault 是锁定时可用的业务入口；窗口操作保留。storage 发布已解锁 SQLCipher 池前完成迁移/外键检查；OS 仅缓存主密钥，秘密仅 Rust 加载。当前 schema 6 和升级边界见 [存储](07-storage.md)。密码修改由 security 重新校验并派生密钥，storage 以可替换连接池及数据库生命周期门闩执行加密副本 rekey、文件组合切换与启动恢复；不占用会话表锁，不重建终端。
 
-设置独立单实例窗口由 settings_window.rs 与 SettingsWindow.vue 装配，入口不挂载 App/终端/工作区心跳。useLiveSettings 校验/自动保存，useSettingsSync 跨窗口同步；Rust 设置专用队列合并最新局部字段。settings_owner 仅向 main/settings 开放设置/JSON 导出，通用 owner 仍仅 main。
+设置独立单实例窗口由 settings_window.rs 与 SettingsWindow.vue 装配，入口不挂载 App/终端/工作区心跳。useLiveSettings 校验/自动保存，useSettingsSync 跨窗口同步；Rust 设置专用队列合并最新局部字段。settings_owner 仅向 main/settings 开放设置、保险库改密/JSON 导出，通用 owner 仍仅 main。
 
 ## 7. SSH、SFTP 与转发
 

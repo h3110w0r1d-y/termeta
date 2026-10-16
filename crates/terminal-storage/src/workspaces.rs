@@ -23,7 +23,7 @@ impl SqliteStore {
         if references.is_empty() || draft.workspace.focused_index >= references.len() {
             return Err(StorageError::Validation("工作区焦点无效"));
         }
-        let mut tx = self.pool()?.begin_with("BEGIN IMMEDIATE").await?;
+        let mut tx = self.pool().await?.begin_with("BEGIN IMMEDIATE").await?;
         for reference in &references {
             let valid: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM connection_profiles WHERE id=? AND kind IN ('ssh','telnet','serial'))")
                 .bind(reference).fetch_one(&mut *tx).await?;
@@ -92,7 +92,7 @@ impl SqliteStore {
             .id
             .as_deref()
             .ok_or(StorageError::Validation("工作区只能从 Workspace 标签保存"))?;
-        let mut tx = self.pool()?.begin_with("BEGIN IMMEDIATE").await?;
+        let mut tx = self.pool().await?.begin_with("BEGIN IMMEDIATE").await?;
         let row = sqlx::query("SELECT name,revision,config_json FROM connection_profiles WHERE id=? AND kind='workspace'")
             .bind(id).fetch_optional(&mut *tx).await?.ok_or(StorageError::NotFound)?;
         let revision: i64 = row.try_get("revision")?;

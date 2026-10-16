@@ -253,4 +253,10 @@ export interface SftpCopyRequest {
 export interface VaultStatus {
   mode: "setup" | "locked" | "unlocked";
   keychainWarning: string | null;
+  cleanupWarning: string | null;
+}
+
+export interface PasswordChangeResult {
+  keychainWarning: string | null;
+  cleanupWarning: string | null;
 }

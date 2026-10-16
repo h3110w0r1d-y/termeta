@@ -7,6 +7,7 @@ pub const COMMANDS: &[&str] = &[
     "stop_port_forward",
     "vault_status",
     "unlock_vault",
+    "change_vault_password",
     "sftp_connect",
     "sftp_copy",
     "sftp_drop_upload",

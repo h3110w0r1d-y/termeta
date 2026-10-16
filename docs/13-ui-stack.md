@@ -1,6 +1,6 @@
 # UI 技术选型与桌面适配
 
-更新：2026-10-16。采用 Naive UI 2.45.3 + Vue 3，工作区标签使用自定义 WorkspaceTabs，其余有对应能力的控件优先组件库。封装只适配业务值、事件、标签和安全默认值，不重造皮肤/弹层定位；三平台 WebView 交互尚待完整验收。
+更新：2026-10-17。采用 Naive UI 2.45.3 + Vue 3，工作区标签使用自定义 WorkspaceTabs，其余有对应能力的控件优先组件库。封装只适配业务值、事件、标签和安全默认值，不重造皮肤/弹层定位；三平台 WebView 交互尚待完整验收。
 
 ## 组件与外观
 
@@ -72,7 +72,7 @@ Vue 使用仓库 Prettier，htmlWhitespaceSensitivity=ignore 仅限 *.vue；pnpm
 
 VaultGate 使用库表单完成首次密码或自动/密码解锁，缓存失败保留已解锁并显示警告。业务未解锁不挂载，窗口操作保留。秘密不进入页面长期状态；私钥/文件正文 Rust 读取，不开放任意本地路径读写。库适配不放宽 CSP script-src、导航或 IPC owner。
 
-SSH 主机/快速连接提供密码和公钥，OTP/PAM 由服务端协商；Telnet 隐藏 SSH 认证并显示明文说明，Serial 仅参数配置。设置窗口只允许设置/JSON 导出。详见 [安全设计](08-security.md)。
+SSH 主机/快速连接提供密码和公钥，OTP/PAM 由服务端协商；Telnet 隐藏 SSH 认证并显示明文说明，Serial 仅参数配置。设置窗口只允许设置、专用保险库改密/JSON 导出；改密采用独立共享 model 的 NForm 与 AppDialog footer，不写入设置草稿。详见 [安全设计](08-security.md)。
 
 ## 表单响应式模型与校验时序
 

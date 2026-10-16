@@ -53,7 +53,9 @@ const rules = computed<FormRules>(() => ({
 }));
 async function accept(next: VaultStatus) {
   status.value = next;
-  warning.value = next.keychainWarning ?? "";
+  warning.value = [next.keychainWarning, next.cleanupWarning]
+    .filter(Boolean)
+    .join(" ");
   if (next.mode === "unlocked") {
     await props.initialize();
     ready.value = true;
@@ -123,7 +125,7 @@ onMounted(inspect);
             {{
               setup
                 ? "主机配置和凭据将加密保存在本机。请牢记此密码，系统钥匙串不可用时需要用它恢复访问；遗忘密码且丢失钥匙串主密钥将无法恢复数据。"
-                : "正在尝试使用系统钥匙串自动解锁。若无法自动解锁，请输入首次设置的保险库密码。"
+                : "正在尝试使用系统钥匙串自动解锁。若无法自动解锁，请输入当前保险库密码。"
             }}
           </NText>
           <NAlert v-if="warning" type="warning">{{ warning }}</NAlert>

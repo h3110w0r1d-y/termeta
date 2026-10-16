@@ -32,7 +32,7 @@ fn decode(row: sqlx::sqlite::SqliteRow) -> Result<ForwardProfile> {
 impl SqliteStore {
     pub async fn list_forwards(&self) -> Result<Vec<ForwardProfile>> {
         sqlx::query("SELECT * FROM port_forwards ORDER BY name,id")
-            .fetch_all(self.pool()?)
+            .fetch_all(&*self.pool().await?)
             .await?
             .into_iter()
             .map(decode)
@@ -42,7 +42,7 @@ impl SqliteStore {
         decode(
             sqlx::query("SELECT * FROM port_forwards WHERE id=?")
                 .bind(id)
-                .fetch_optional(self.pool()?)
+                .fetch_optional(&*self.pool().await?)
                 .await?
                 .ok_or(StorageError::NotFound)?,
         )
@@ -57,7 +57,7 @@ impl SqliteStore {
             .rule
             .validate()
             .map_err(|_| StorageError::Validation("端口转发配置无效"))?;
-        let mut tx = self.pool()?.begin_with("BEGIN IMMEDIATE").await?;
+        let mut tx = self.pool().await?.begin_with("BEGIN IMMEDIATE").await?;
         let kind: Option<String> =
             sqlx::query_scalar("SELECT kind FROM connection_profiles WHERE id=?")
                 .bind(&draft.profile_id)
@@ -99,7 +99,7 @@ impl SqliteStore {
         if sqlx::query("DELETE FROM port_forwards WHERE id=? AND revision=?")
             .bind(id)
             .bind(revision)
-            .execute(self.pool()?)
+            .execute(&*self.pool().await?)
             .await?
             .rows_affected()
             != 1

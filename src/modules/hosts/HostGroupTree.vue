@@ -510,7 +510,7 @@ defineExpose({ startHostDrag, cancelDrag });
       </NButton>
     </div>
     <div class="groups-hosts-toggle">
-      <NText>在侧栏显示主机</NText>
+      <NText>显示主机</NText>
       <NSwitch
         :value="showHosts"
         :disabled="savingShowHosts"

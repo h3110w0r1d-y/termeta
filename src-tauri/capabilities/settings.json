@@ -1,6 +1,6 @@
 {
   "identifier": "settings-desktop",
-  "description": "独立设置窗口的最小设置与JSON导出权限",
+  "description": "独立设置窗口的设置、保险库改密与JSON导出权限",
   "windows": ["settings"],
   "permissions": [
     "core:event:allow-listen",
@@ -9,6 +9,7 @@
     "core:window:allow-destroy",
     "allow-get-settings",
     "allow-save-settings",
+    "allow-change-vault-password",
     "allow-export-json"
   ]
 }

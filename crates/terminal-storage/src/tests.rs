@@ -128,7 +128,7 @@ async fn forward_rules_reference_ssh_and_survive_host_deletion() {
     assert_eq!(profiles.len(), 3);
     assert!(profiles.iter().all(|p| p.profile_id.is_none()));
     assert!(store.get_host_connection(&ssh.id).await.is_err());
-    store.pool().unwrap().close().await;
+    store.pool().await.unwrap().close().await;
     let reopened = SqliteStore::open(&path).await.unwrap();
     assert_eq!(reopened.list_forwards().await.unwrap().len(), 3);
     reopened
@@ -136,7 +136,7 @@ async fn forward_rules_reference_ssh_and_survive_host_deletion() {
         .await
         .unwrap();
     assert_eq!(reopened.list_forwards().await.unwrap().len(), 2);
-    reopened.pool().unwrap().close().await;
+    reopened.pool().await.unwrap().close().await;
 }
 
 #[test]
@@ -173,7 +173,7 @@ async fn ssh_startup_roundtrips_and_legacy_records_keep_shell() {
     assert_eq!(edited.startup, host.startup);
     let copy = store.duplicate_host(&saved.id).await.unwrap();
     assert_eq!(copy.startup, host.startup);
-    store.pool().unwrap().close().await;
+    store.pool().await.unwrap().close().await;
     let store = SqliteStore::open(&path).await.unwrap();
     assert_eq!(
         store.get_host(&saved.id).await.unwrap().startup,
@@ -181,7 +181,7 @@ async fn ssh_startup_roundtrips_and_legacy_records_keep_shell() {
     );
     // 旧记录只缺少启动字段；读取时默认 Shell，不要求结构迁移。
     sqlx::query("UPDATE connection_profiles SET config_json=json_remove(config_json,'$.startup') WHERE id=?")
-        .bind(&saved.id).execute(store.pool().unwrap()).await.unwrap();
+        .bind(&saved.id).execute(&*store.pool().await.unwrap()).await.unwrap();
     assert_eq!(
         store.get_host_connection(&saved.id).await.unwrap().startup,
         SshStartup::Shell
@@ -193,7 +193,7 @@ async fn ssh_startup_roundtrips_and_legacy_records_keep_shell() {
         store.get_host_connection(&shell.id).await.unwrap().startup,
         SshStartup::Shell
     );
-    store.pool().unwrap().close().await;
+    store.pool().await.unwrap().close().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -224,11 +224,11 @@ async fn invalid_or_non_ssh_startup_never_falls_back_to_shell() {
         serde_json::json!({"type":"exec","command":""}),
     ] {
         sqlx::query("UPDATE connection_profiles SET config_json=json_set(config_json,'$.startup',json(?)) WHERE id=?")
-            .bind(startup.to_string()).bind(&saved.id).execute(store.pool().unwrap()).await.unwrap();
+            .bind(startup.to_string()).bind(&saved.id).execute(&*store.pool().await.unwrap()).await.unwrap();
         assert!(store.get_host_connection(&saved.id).await.is_err());
         assert!(store.list_hosts("").await.is_err());
     }
-    store.pool().unwrap().close().await;
+    store.pool().await.unwrap().close().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -258,12 +258,12 @@ async fn serial_hosts_persist_offline_and_preserve_configuration_across_metadata
     assert!(!store.claim(&saved.id, "serial", &ssh_config).await.unwrap());
     let ssh_rows: i64 = sqlx::query_scalar("SELECT count(*) FROM ssh_profiles WHERE profile_id=?")
         .bind(&saved.id)
-        .fetch_one(store.pool().unwrap())
+        .fetch_one(&*store.pool().await.unwrap())
         .await
         .unwrap();
     assert_eq!(ssh_rows, 0);
     sqlx::query("UPDATE connection_profiles SET config_json=json_set(config_json,'$.futureMetadata','kept') WHERE id=?")
-        .bind(&saved.id).execute(store.pool().unwrap()).await.unwrap();
+        .bind(&saved.id).execute(&*store.pool().await.unwrap()).await.unwrap();
     let group = store
         .save_group(GroupDraft {
             id: None,
@@ -287,7 +287,7 @@ async fn serial_hosts_persist_offline_and_preserve_configuration_across_metadata
     let metadata: String =
         sqlx::query_scalar("SELECT config_json FROM connection_profiles WHERE id=?")
             .bind(&saved.id)
-            .fetch_one(store.pool().unwrap())
+            .fetch_one(&*store.pool().await.unwrap())
             .await
             .unwrap();
     assert_eq!(
@@ -303,7 +303,7 @@ async fn serial_hosts_persist_offline_and_preserve_configuration_across_metadata
     assert!(duplicate.favorite);
     assert_eq!(duplicate.tags, saved.tags);
     assert_eq!(duplicate.group_id, saved.group_id);
-    store.pool().unwrap().close().await;
+    store.pool().await.unwrap().close().await;
     let store = SqliteStore::open(&path).await.unwrap();
     let restored = store.get_host(&saved.id).await.unwrap();
     assert_eq!(
@@ -316,7 +316,7 @@ async fn serial_hosts_persist_offline_and_preserve_configuration_across_metadata
         .unwrap();
     assert!(store.get_host(&restored.id).await.is_err());
     assert!(store.get_host(&duplicate.id).await.is_ok());
-    store.pool().unwrap().close().await;
+    store.pool().await.unwrap().close().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -361,7 +361,7 @@ async fn host_kinds_reject_mixed_configuration_credentials_and_type_changes() {
     host.revision = Some(saved.revision);
     assert!(store.save_host(host).await.is_err());
     assert_eq!(store.get_host(&saved.id).await.unwrap().kind, "serial");
-    store.pool().unwrap().close().await;
+    store.pool().await.unwrap().close().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -372,12 +372,12 @@ async fn initializes_rebuilt_schema_with_password_and_private_key_credentials() 
         .unwrap();
     let versions: Vec<i64> =
         sqlx::query_scalar("SELECT version FROM _sqlx_migrations ORDER BY version")
-            .fetch_all(store.pool().unwrap())
+            .fetch_all(&*store.pool().await.unwrap())
             .await
             .unwrap();
     assert_eq!(versions, vec![1, 2, 3, 4, 5]);
     let version: i64 = sqlx::query_scalar("PRAGMA user_version")
-        .fetch_one(store.pool().unwrap())
+        .fetch_one(&*store.pool().await.unwrap())
         .await
         .unwrap();
     assert_eq!(version, SCHEMA_VERSION);
@@ -391,12 +391,12 @@ async fn initializes_rebuilt_schema_with_password_and_private_key_credentials() 
     assert_eq!(store.get_credential(&key).await.unwrap().kind, "privateKey");
     let columns: Vec<String> =
         sqlx::query_scalar("SELECT name FROM pragma_table_info('profile_auth_steps')")
-            .fetch_all(store.pool().unwrap())
+            .fetch_all(&*store.pool().await.unwrap())
             .await
             .unwrap();
     assert!(!columns.contains(&"key_file_id".to_string()));
     assert!(!columns.contains(&"passphrase_credential_id".to_string()));
-    store.pool().unwrap().close().await;
+    store.pool().await.unwrap().close().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -426,7 +426,7 @@ async fn validates_public_credential_type_and_prevents_deleting_bound_credential
     assert!(
         matches!(duplicate.auth_plan.as_slice(), [AuthStep::PrivateKey { credential_id }] if credential_id == &key)
     );
-    store.pool().unwrap().close().await;
+    store.pool().await.unwrap().close().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -488,7 +488,7 @@ async fn host_password_is_hidden_owned_preserved_and_explicitly_cleared() {
         store.get_credential(&secret).await,
         Err(StorageError::NotFound)
     ));
-    store.pool().unwrap().close().await;
+    store.pool().await.unwrap().close().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -554,7 +554,7 @@ async fn replacing_and_deleting_host_marks_only_owned_password_for_cleanup() {
         store.get_credential(&second).await.unwrap().status,
         "deleting"
     );
-    store.pool().unwrap().close().await;
+    store.pool().await.unwrap().close().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -576,11 +576,11 @@ async fn save_returns_committed_revision_and_normalized_tags() {
     assert_eq!(saved.revision, 2);
     let revision: i64 = sqlx::query_scalar("SELECT revision FROM connection_profiles WHERE id=?")
         .bind(id)
-        .fetch_one(store.pool().unwrap())
+        .fetch_one(&*store.pool().await.unwrap())
         .await
         .unwrap();
     assert_eq!(saved.revision, revision);
-    store.pool().unwrap().close().await;
+    store.pool().await.unwrap().close().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -603,7 +603,7 @@ async fn encrypted_database_rejects_wrong_key_and_preserves_data() {
         .set_credential_secret(&id, "needle-secret-test-only")
         .await
         .unwrap();
-    store.pool().unwrap().close().await;
+    store.pool().await.unwrap().close().await;
     let bytes = std::fs::read(&path).unwrap();
     assert!(!bytes.starts_with(b"SQLite format 3"));
     for needle in [
@@ -626,7 +626,7 @@ async fn encrypted_database_rejects_wrong_key_and_preserves_data() {
         reopened.credential_secret(&id).await.unwrap().as_str(),
         "needle-secret-test-only"
     );
-    reopened.pool().unwrap().close().await;
+    reopened.pool().await.unwrap().close().await;
     let mut damaged = bytes;
     damaged[100] ^= 1;
     std::fs::write(&path, damaged).unwrap();
@@ -684,7 +684,7 @@ async fn deleting_group_moves_only_direct_children_and_preserves_hosts() {
         store.get_host(&nested.id).await.unwrap().group_id,
         Some(child.id)
     );
-    store.pool().unwrap().close().await;
+    store.pool().await.unwrap().close().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -742,7 +742,7 @@ async fn deleting_group_subtree_is_revision_guarded_and_preserves_shared_credent
 
     // 注入后置失败，证明主机删除和专属凭据状态也随整个事务回滚。
     sqlx::query("CREATE TRIGGER reject_group_delete BEFORE DELETE ON host_groups BEGIN SELECT RAISE(ABORT, '测试回滚'); END")
-        .execute(store.pool().unwrap()).await.unwrap();
+        .execute(&*store.pool().await.unwrap()).await.unwrap();
     assert!(
         store
             .delete_group_and_hosts(&group.id, group.revision)
@@ -755,7 +755,7 @@ async fn deleting_group_subtree_is_revision_guarded_and_preserves_shared_credent
         "ready"
     );
     sqlx::query("DROP TRIGGER reject_group_delete")
-        .execute(store.pool().unwrap())
+        .execute(&*store.pool().await.unwrap())
         .await
         .unwrap();
 
@@ -785,7 +785,7 @@ async fn deleting_group_subtree_is_revision_guarded_and_preserves_shared_credent
         &*store.credential_secret(&shared).await.unwrap(),
         "共享测试秘密"
     );
-    store.pool().unwrap().close().await;
+    store.pool().await.unwrap().close().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -817,7 +817,7 @@ async fn history_keeps_only_latest_twenty_attempts() {
             .collect::<Vec<_>>()
     );
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM session_history")
-        .fetch_one(store.pool().unwrap())
+        .fetch_one(&*store.pool().await.unwrap())
         .await
         .unwrap();
     assert_eq!(count, 20);
@@ -840,11 +840,11 @@ async fn unlock_prunes_existing_history_with_equal_timestamps() {
         .bind(format!("legacy-{index}"))
         .bind(format!("连接{index}"))
         .bind(timestamp)
-        .execute(store.pool().unwrap())
+        .execute(&*store.pool().await.unwrap())
         .await
         .unwrap();
     }
-    store.pool().unwrap().close().await;
+    store.pool().await.unwrap().close().await;
     drop(store);
     let reopened = SqliteStore::open(&path).await.unwrap();
     let history = reopened.list_history().await.unwrap();
@@ -852,7 +852,7 @@ async fn unlock_prunes_existing_history_with_equal_timestamps() {
     assert_eq!(history.first().unwrap().id, "legacy-24");
     assert_eq!(history.last().unwrap().id, "legacy-5");
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM session_history")
-        .fetch_one(reopened.pool().unwrap())
+        .fetch_one(&*reopened.pool().await.unwrap())
         .await
         .unwrap();
     assert_eq!(count, 20);
@@ -880,7 +880,7 @@ async fn system_detection_failure_is_once_only_and_survives_reopen() {
     let failed = store.get_host(&host.id).await.unwrap();
     assert!(failed.system_detection_attempted);
     assert_eq!(failed.icon, "ssh");
-    store.pool().unwrap().close().await;
+    store.pool().await.unwrap().close().await;
     drop(store);
     let store = SqliteStore::open(&path).await.unwrap();
     assert!(!store.claim(&host.id, "reconnect", &config).await.unwrap());
@@ -1052,13 +1052,13 @@ async fn telnet_hosts_round_trip_without_ssh_credentials_and_reject_type_changes
             .is_err()
     );
     assert!(store.list_all_credentials().await.unwrap().is_empty());
-    store.pool().unwrap().close().await;
+    store.pool().await.unwrap().close().await;
     let restored = SqliteStore::open(&path).await.unwrap();
     let host = restored.get_host(&updated.id).await.unwrap();
     assert_eq!(host.address, "2001:db8::1");
     assert_eq!(host.port, 2323);
     assert_eq!(host.revision, updated.revision);
-    restored.pool().unwrap().close().await;
+    restored.pool().await.unwrap().close().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -1085,7 +1085,8 @@ async fn schema_two_upgrade_preserves_profiles_children_and_history_references()
         .await
         .unwrap();
     let old = SqliteStore::locked(&path);
-    assert!(old.pool.set(pool).is_ok());
+    *old.pool.write().await = Some(pool);
+    old.unlocked.store(true, Ordering::Release);
     let group = old
         .save_group(GroupDraft {
             id: None,
@@ -1118,7 +1119,7 @@ async fn schema_two_upgrade_preserves_profiles_children_and_history_references()
         .unwrap();
     // 升级前类型约束确实不接受 Telnet。
     assert!(old.save_host(telnet_draft()).await.is_err());
-    old.pool().unwrap().close().await;
+    old.pool().await.unwrap().close().await;
     let store = SqliteStore::open(&path).await.unwrap();
     let restored = store.get_host(&ssh.id).await.unwrap();
     assert_eq!(restored.group_id, Some(group.id));
@@ -1144,13 +1145,13 @@ async fn schema_two_upgrade_preserves_profiles_children_and_history_references()
     );
     assert!(
         sqlx::query("PRAGMA foreign_key_check")
-            .fetch_all(store.pool().unwrap())
+            .fetch_all(&*store.pool().await.unwrap())
             .await
             .unwrap()
             .is_empty()
     );
     for _ in 0..2 {
-        let mut connection = store.pool().unwrap().acquire().await.unwrap();
+        let mut connection = store.pool().await.unwrap().acquire().await.unwrap();
         assert_eq!(
             sqlx::query_scalar::<_, i64>("PRAGMA foreign_keys")
                 .fetch_one(&mut *connection)
@@ -1163,11 +1164,11 @@ async fn schema_two_upgrade_preserves_profiles_children_and_history_references()
         store.save_host(telnet_draft()).await.unwrap().kind,
         "telnet"
     );
-    store.pool().unwrap().close().await;
+    store.pool().await.unwrap().close().await;
     // 重开不重复迁移或删除关联。
     let reopened = SqliteStore::open(&path).await.unwrap();
     assert_eq!(reopened.list_hosts("").await.unwrap().len(), 3);
-    reopened.pool().unwrap().close().await;
+    reopened.pool().await.unwrap().close().await;
 }
 
 fn workspace_draft(name: &str, profile_id: &str) -> WorkspaceDraft {
@@ -1225,7 +1226,7 @@ async fn names_are_unique_across_all_saved_profile_kinds() {
         store.save_workspace(workspace_draft("并发工作区", &ssh.id)),
     );
     assert_ne!(first.is_ok(), second.is_ok());
-    store.pool().unwrap().close().await;
+    store.pool().await.unwrap().close().await;
 }
 #[tokio::test(flavor = "current_thread")]
 async fn workspace_replacement_preserves_identity_and_rejects_other_kinds_or_stale_writes() {
@@ -1292,7 +1293,7 @@ async fn workspace_replacement_preserves_identity_and_rejects_other_kinds_or_sta
             .await
             .is_err()
     );
-    store.pool().unwrap().close().await;
+    store.pool().await.unwrap().close().await;
 }
 #[test]
 fn saved_workspace_dto_rejects_secrets_and_session_fields() {
@@ -1337,26 +1338,26 @@ async fn schema_four_upgrade_renames_duplicates_without_changing_references() {
     let store = SqliteStore::open(&path).await.unwrap();
     let names: Vec<String> =
         sqlx::query_scalar("SELECT name FROM connection_profiles ORDER BY created_at")
-            .fetch_all(store.pool().unwrap())
+            .fetch_all(&*store.pool().await.unwrap())
             .await
             .unwrap();
     assert_eq!(names, vec!["重复", "重复 (5)", "重复 (2)"]);
     let profile: Option<String> =
         sqlx::query_scalar("SELECT profile_id FROM port_forwards WHERE id='rule'")
-            .fetch_one(store.pool().unwrap())
+            .fetch_one(&*store.pool().await.unwrap())
             .await
             .unwrap();
     assert_eq!(profile.as_deref(), Some("old-ssh"));
     let profile: Option<String> =
         sqlx::query_scalar("SELECT profile_id FROM session_history WHERE id='history'")
-            .fetch_one(store.pool().unwrap())
+            .fetch_one(&*store.pool().await.unwrap())
             .await
             .unwrap();
     assert_eq!(profile.as_deref(), Some("old-ssh"));
     assert!(store.get_host_connection("old-ssh").await.is_ok());
-    let duplicate = sqlx::query("INSERT INTO connection_profiles(id,kind,name,favorite,created_at,updated_at) VALUES('new','workspace',' 重复 ',0,1,1)").execute(store.pool().unwrap()).await;
+    let duplicate = sqlx::query("INSERT INTO connection_profiles(id,kind,name,favorite,created_at,updated_at) VALUES('new','workspace',' 重复 ',0,1,1)").execute(&*store.pool().await.unwrap()).await;
     assert!(duplicate.is_err());
-    store.pool().unwrap().close().await;
+    store.pool().await.unwrap().close().await;
 }
 
 #[test]
@@ -1390,7 +1391,8 @@ async fn applied_workspace_migration_upgrades_without_rewriting_history_or_profi
     initial.migrations = std::borrow::Cow::Owned(initial.iter().take(4).cloned().collect());
     initial.run(&pool).await.unwrap();
     let old = SqliteStore::locked(&path);
-    assert!(old.pool.set(pool).is_ok());
+    *old.pool.write().await = Some(pool);
+    old.unlocked.store(true, Ordering::Release);
     let host = old.save_host(draft()).await.unwrap();
     let workspace = old
         .save_workspace(workspace_draft("升级保留工作区", &host.id))
@@ -1398,15 +1400,15 @@ async fn applied_workspace_migration_upgrades_without_rewriting_history_or_profi
         .unwrap();
     let before: Vec<(i64, Vec<u8>)> =
         sqlx::query_as("SELECT version,checksum FROM _sqlx_migrations ORDER BY version")
-            .fetch_all(old.pool().unwrap())
+            .fetch_all(&*old.pool().await.unwrap())
             .await
             .unwrap();
-    old.pool().unwrap().close().await;
+    old.pool().await.unwrap().close().await;
     let store = SqliteStore::open(&path).await.unwrap();
     let after: Vec<(i64, Vec<u8>)> = sqlx::query_as(
         "SELECT version,checksum FROM _sqlx_migrations WHERE version<=4 ORDER BY version",
     )
-    .fetch_all(store.pool().unwrap())
+    .fetch_all(&*store.pool().await.unwrap())
     .await
     .unwrap();
     assert_eq!(before, after);
@@ -1419,15 +1421,15 @@ async fn applied_workspace_migration_upgrades_without_rewriting_history_or_profi
         serde_json::to_value(workspace).unwrap()
     );
     let version: i64 = sqlx::query_scalar("PRAGMA user_version")
-        .fetch_one(store.pool().unwrap())
+        .fetch_one(&*store.pool().await.unwrap())
         .await
         .unwrap();
     assert_eq!(version, 6);
     let index: String =
         sqlx::query_scalar("SELECT sql FROM sqlite_master WHERE name='profiles_unique_name'")
-            .fetch_one(store.pool().unwrap())
+            .fetch_one(&*store.pool().await.unwrap())
             .await
             .unwrap();
     assert!(index.contains("trim(name)"));
-    store.pool().unwrap().close().await;
+    store.pool().await.unwrap().close().await;
 }

@@ -1,6 +1,6 @@
 # IPC 契约与终端数据流
 
-更新：2026-10-16。协议版本 1，首期命令/Channel/ACL 已落源码，尚未运行验证。Rust/TS 实际入口及差异见 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)。
+更新：2026-10-17。协议版本 1，首期命令/Channel/ACL 已落源码，尚未运行验证。Rust/TS 实际入口及差异见 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)。
 
 ## 1. 控制面与数据面
 
@@ -259,7 +259,9 @@ macOS 拖出 names 最多 100 个普通文件或真实目录根，directories �
 
 ## 数据保险库解锁命令
 
-`vault_status() -> {mode: "setup"|"locked"|"unlocked", keychainWarning: string|null}` 每进程最多自动尝试一次系统主密钥；`unlock_vault({password: string, setup: boolean})` 在Rust阻塞池派生并校验，成功后返回同一状态DTO。二者均校验main窗口及本地导航，加入AppManifest命令名单与main capability。密码/主密钥不出现在返回值或事件中。其他用例命令先检查保险库已解锁，否则返回VAULT_LOCKED；前端统一经desktop门面。
+`vault_status() -> {mode: "setup"|"locked"|"unlocked", keychainWarning: string|null, cleanupWarning: string|null}` 每进程最多自动尝试一次系统主密钥；`unlock_vault({password: string, setup: boolean})` 在Rust阻塞池派生并校验，成功后返回同一状态DTO。二者均校验main窗口及本地导航，加入AppManifest命令名单与main capability。密码/主密钥不出现在返回值或事件中。其他用例命令先检查保险库已解锁，否则返回VAULT_LOCKED；前端统一经desktop门面。
+
+`change_vault_password({oldPassword: string, newPassword: string}) -> {keychainWarning: string|null, cleanupWarning: string|null}` 只允许已解锁的 main/settings 本地窗口，经 settings_owner、COMMANDS/AppManifest、handler 及两个 capability 的专用 allow-change-vault-password 授权。确认密码只在前端校验；Rust 独立校验旧密码、新密码长度与不同值，阻塞池派生密钥。独立任务持有改密流程，IPC 接收端消失不取消文件切换。提交后缓存或旧副本清理失败返回成功及相应警告；提交前失败恢复旧文件组合，恢复失败保留记录并拒绝业务。无秘密结果/事件、任意路径或通用 SQL 参数。数据/迁移格式不变，详见[存储契约](07-storage.md#修改密码与中断恢复)。
 
 已移除旧`recover_credential`：secret与ready现在在同一加密数据库写入，未完成公共pending项由用户删除后重建。原有主机/凭据DTO保持不返回秘密。
 
@@ -275,7 +277,7 @@ macOS 拖出 names 最多 100 个普通文件或真实目录根，directories �
 
 `open_settings_window()`仅main可调用且要求已解锁，Rust创建/聚焦settings窗口。`get_settings`返回完整AppSettings；`save_settings`在设置专用异步互斥队列中读取最新快照、合并patch并校验后写库，返回完整快照。hostsView/hostSearch额外按子字段合并，其余字段整体替换；默认值仅在无记录时使用，旧版本拒绝写入，兼容旧字体/配色归一。成功后Rust广播无秘密的`settings-changed`失效通知，两个窗口串行重读；前端不发送设置事件。数据库schema及设置schemaVersion不变。
 
-settings窗口仅开放设置和export_json，这些命令使用独立settings_owner检查窗口身份、本地来源和解锁状态；list_known_hosts/revoke_known_host/list_history/clear_history随业务页面移入保险箱，改用仅main可用的owner，且从settings capability移除。其余资源owner保持main限制。新增命令纳入COMMANDS/AppManifest、handler和main capability；settings使用独立capability。
+settings窗口仅开放设置、change_vault_password和export_json，这些命令使用独立settings_owner检查窗口身份、本地来源和解锁状态；list_known_hosts/revoke_known_host/list_history/clear_history随业务页面移入保险箱，改用仅main可用的owner，且从settings capability移除。其余资源owner保持main限制。新增命令纳入COMMANDS/AppManifest、handler和main capability；settings使用独立capability。
 
 ## SSH 系统图标契约
 

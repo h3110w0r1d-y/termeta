@@ -250,3 +250,31 @@ pub async fn unlock_vault(
         .await
         .map_err(security_error)
 }
+
+#[tauri::command]
+pub async fn change_vault_password(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    old_password: String,
+    new_password: String,
+) -> Result<terminal_security::PasswordChangeResult> {
+    let old_password = zeroize::Zeroizing::new(old_password);
+    let new_password = zeroize::Zeroizing::new(new_password);
+    crate::state::settings_owner(&window)?;
+    let vault = state.vault.clone();
+    // 独立任务持有改密流程；设置窗口关闭或 IPC 接收端消失不会取消文件切换。
+    tauri::async_runtime::spawn(async move {
+        vault
+            .change_password(old_password, new_password)
+            .await
+            .map_err(security_error)
+    })
+    .await
+    .map_err(|_| {
+        SessionError::new(
+            "VAULT_CHANGE_INTERRUPTED",
+            "storage",
+            "密码修改任务中断，请退出应用后重试并保留保险库文件",
+        )
+    })?
+}

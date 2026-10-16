@@ -4,6 +4,7 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 import type { AppSettings, SettingsPatch } from "../../modules/settings/model";
 import type {
   VaultStatus,
+  PasswordChangeResult,
   ForwardDraft,
   ForwardProfile,
   DirectoryPage,
@@ -57,6 +58,11 @@ export const desktop = {
   vaultStatus: () => invoke<VaultStatus>("vault_status"),
   unlockVault: (password: string, setup: boolean) =>
     invoke<VaultStatus>("unlock_vault", { password, setup }),
+  changeVaultPassword: (oldPassword: string, newPassword: string) =>
+    invoke<PasswordChangeResult>("change_vault_password", {
+      oldPassword,
+      newPassword,
+    }),
   sftpConnect(
     profileId: string,
     requestId: string,

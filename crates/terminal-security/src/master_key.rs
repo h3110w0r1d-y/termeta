@@ -42,12 +42,20 @@ impl MasterKeyBackend for OsMasterKey {
 pub(crate) struct BootState {
     attempted: bool,
     warning: Option<String>,
+    cleanup_warning: Option<String>,
 }
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VaultStatus {
     pub mode: &'static str,
     pub keychain_warning: Option<String>,
+    pub cleanup_warning: Option<String>,
+}
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PasswordChangeResult {
+    pub keychain_warning: Option<String>,
+    pub cleanup_warning: Option<String>,
 }
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -62,6 +70,11 @@ struct Header {
 }
 fn unavailable() -> SecurityError {
     SecurityError::Vault("保险库元数据不可用或已损坏，请保留文件后重试")
+}
+fn cleanup_warning(pending: bool) -> Option<String> {
+    pending.then(|| {
+        "保险库恢复文件尚未完全清理；退出后重新启动将重试清理。旧副本仍受原密码保护。".into()
+    })
 }
 fn derive(password: &str, salt: &[u8; 16]) -> Result<Zeroizing<[u8; 32]>, SecurityError> {
     let params = Params::new(65536, 3, 1, Some(32)).map_err(|_| unavailable())?;
@@ -199,6 +212,7 @@ impl CredentialVault {
                 "setup"
             },
             keychain_warning: boot.warning.clone(),
+            cleanup_warning: boot.cleanup_warning.clone(),
         }
     }
     pub fn is_unlocked(&self) -> bool {
@@ -207,6 +221,7 @@ impl CredentialVault {
     /// 每个进程最多自动读取一次主密钥，拒绝授权后由用户通过密码恢复。
     pub async fn status(&self) -> Result<VaultStatus, SecurityError> {
         let mut boot = self.boot.lock().await;
+        self.store.recover_password_change().await?;
         let header = read_header(&self.header_path())?;
         if let Some(header) = &header {
             if !self.is_unlocked() && !boot.attempted {
@@ -225,8 +240,11 @@ impl CredentialVault {
                     },
                     Err(_) => Err(SecurityError::Unavailable),
                 };
-                if result.is_err() {
-                    boot.warning = Some("未能使用系统钥匙串自动解锁，请输入保险库密码。".into());
+                match result {
+                    Ok(pending) => boot.cleanup_warning = cleanup_warning(pending),
+                    Err(_) => {
+                        boot.warning = Some("未能使用系统钥匙串自动解锁，请输入保险库密码。".into())
+                    }
                 }
             }
         } else if self.store.path().exists() {
@@ -236,7 +254,7 @@ impl CredentialVault {
         }
         Ok(self.status_value(&boot, header.is_some()))
     }
-    async fn open_database(&self, header: &Header, key: &[u8; 32]) -> Result<(), SecurityError> {
+    async fn open_database(&self, header: &Header, key: &[u8; 32]) -> Result<bool, SecurityError> {
         if header.initialized {
             let length = std::fs::metadata(self.store.path())
                 .map_err(|_| {
@@ -259,7 +277,11 @@ impl CredentialVault {
         self.unlocked
             .store(true, std::sync::atomic::Ordering::Release);
         let _ = self.reconcile_deletions().await;
-        Ok(())
+        Ok(self
+            .store
+            .finish_password_change_recovery()
+            .await
+            .unwrap_or(true))
     }
     /// 首次设置或密码恢复均在 Rust 内派生密钥；密码、密钥不进入返回 DTO。
     pub async fn unlock_with_password(
@@ -271,6 +293,7 @@ impl CredentialVault {
         if self.is_unlocked() {
             return Ok(self.status_value(&boot, true));
         }
+        self.store.recover_password_change().await?;
         if password.len() > 1024 || password.is_empty() || (setup && password.chars().count() < 12)
         {
             return Err(SecurityError::Vault(
@@ -300,7 +323,7 @@ impl CredentialVault {
         if setup {
             write_header(&path, &header, false)?;
         }
-        self.open_database(&header, &key).await?;
+        boot.cleanup_warning = cleanup_warning(self.open_database(&header, &key).await?);
         boot.attempted = true;
         let backend = self.key_backend.clone();
         let remembered = tokio::task::spawn_blocking(move || backend.save(key.as_ref()))
@@ -310,6 +333,74 @@ impl CredentialVault {
             "本次已解锁，但主密钥未能保存到系统钥匙串；下次启动需再次输入保险库密码。".into()
         });
         Ok(self.status_value(&boot, true))
+    }
+
+    /// 已自动解锁也必须独立验证旧密码；密码变更不复用解锁接口的快速成功分支。
+    pub async fn change_password(
+        &self,
+        old_password: Zeroizing<String>,
+        new_password: Zeroizing<String>,
+    ) -> Result<PasswordChangeResult, SecurityError> {
+        let mut boot = self.boot.lock().await;
+        if !self.is_unlocked() {
+            return Err(SecurityError::Vault("请先解锁数据保险库"));
+        }
+        if old_password.is_empty() || old_password.len() > 1024 {
+            return Err(SecurityError::Vault("请输入旧密码，且不超过1024字节"));
+        }
+        if new_password.chars().count() < 12 || new_password.len() > 1024 {
+            return Err(SecurityError::Vault("新密码至少12个字符，且不超过1024字节"));
+        }
+        if old_password == new_password {
+            return Err(SecurityError::Vault("新密码不能与旧密码相同"));
+        }
+        let header = read_header(&self.header_path())?.ok_or_else(unavailable)?;
+        if !header.initialized {
+            return Err(SecurityError::Vault(
+                "保险库初始化尚未完成，请重新启动后重试",
+            ));
+        }
+        let (old_key, new_key, metadata) = tokio::task::spawn_blocking(move || {
+            let old_key = derive(&old_password, &header.salt)?;
+            header
+                .verify(&old_key)
+                .map_err(|_| SecurityError::Vault("旧密码不正确或保险库校验数据损坏"))?;
+            let mut next = header;
+            OsRng
+                .try_fill_bytes(&mut next.salt)
+                .map_err(|_| unavailable())?;
+            let new_key = derive(&new_password, &next.salt)?;
+            next.seal(&new_key)?;
+            let metadata = serde_json::to_vec(&next).map_err(|_| unavailable())?;
+            Ok::<_, SecurityError>((old_key, new_key, metadata))
+        })
+        .await
+        .map_err(|_| unavailable())??;
+        // 与凭据的多步写入串行，数据库内部另有生命周期门闩等待已有事务结束。
+        let _operation = self.operations.lock().await;
+        let changed = match self.store.change_key(&old_key, &new_key, metadata).await {
+            Ok(changed) => changed,
+            Err(error) => {
+                self.unlocked.store(
+                    self.store.is_unlocked(),
+                    std::sync::atomic::Ordering::Release,
+                );
+                return Err(error.into());
+            }
+        };
+        // 只有新的加密文件组合提交成功后，才更新唯一的 OS 密钥缓存。
+        let backend = self.key_backend.clone();
+        let remembered = tokio::task::spawn_blocking(move || backend.save(new_key.as_ref()))
+            .await
+            .unwrap_or(Err(SecurityError::Unavailable));
+        boot.warning = remembered
+            .err()
+            .map(|_| "密码已修改，但新密钥未能保存到系统钥匙串；下次启动需输入新密码。".into());
+        boot.cleanup_warning = cleanup_warning(changed.cleanup_pending);
+        Ok(PasswordChangeResult {
+            keychain_warning: boot.warning.clone(),
+            cleanup_warning: boot.cleanup_warning.clone(),
+        })
     }
 }
 
@@ -326,6 +417,9 @@ mod tests {
         // 只构造并丢弃 future，不轮询，不打开数据库或访问系统钥匙串。
         assert_send(vault.status());
         assert_send(vault.unlock_with_password(Zeroizing::new(String::new()), false));
+        assert_send(
+            vault.change_password(Zeroizing::new(String::new()), Zeroizing::new(String::new())),
+        );
     }
 
     #[test]
@@ -396,6 +490,173 @@ mod tests {
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.0);
         }
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn password_change_checks_old_password_and_preserves_credentials() {
+        use std::sync::{Arc, atomic::Ordering};
+        let path = TestPath::new();
+        let backend = Arc::new(FakeKeychain::default());
+        let vault = path.vault(backend.clone());
+        vault
+            .unlock_with_password(Zeroizing::new("original-password-123".into()), true)
+            .await
+            .unwrap();
+        let credential = vault
+            .save_password("保留的凭据", Zeroizing::new("stored-secret".into()))
+            .await
+            .unwrap();
+        let before = std::fs::read(vault.header_path()).unwrap();
+        let database_before = std::fs::read(vault.store.path()).unwrap();
+        assert!(
+            vault
+                .change_password(
+                    Zeroizing::new("wrong-password".into()),
+                    Zeroizing::new("new-password-456".into())
+                )
+                .await
+                .is_err()
+        );
+        assert!(
+            vault
+                .change_password(
+                    Zeroizing::new("original-password-123".into()),
+                    Zeroizing::new("short".into())
+                )
+                .await
+                .is_err()
+        );
+        assert!(
+            vault
+                .change_password(
+                    Zeroizing::new("original-password-123".into()),
+                    Zeroizing::new("original-password-123".into())
+                )
+                .await
+                .is_err()
+        );
+        assert_eq!(before, std::fs::read(vault.header_path()).unwrap());
+        assert_eq!(database_before, std::fs::read(vault.store.path()).unwrap());
+        assert_eq!(backend.writes.load(Ordering::SeqCst), 1);
+        let original = read_header(&vault.header_path()).unwrap().unwrap();
+        let changed = vault
+            .change_password(
+                Zeroizing::new("original-password-123".into()),
+                Zeroizing::new("  新的保险库密码-password-456  ".into()),
+            )
+            .await
+            .unwrap();
+        assert!(changed.keychain_warning.is_none());
+        assert!(changed.cleanup_warning.is_none());
+        let next = read_header(&vault.header_path()).unwrap().unwrap();
+        assert_eq!(next.id, original.id);
+        assert_ne!(next.salt, original.salt);
+        assert_ne!(next.nonce, original.nonce);
+        assert_eq!(
+            vault.load(&credential).await.unwrap().as_str(),
+            "stored-secret"
+        );
+        assert_eq!(backend.writes.load(Ordering::SeqCst), 2);
+        let automatic = path.vault(backend.clone());
+        assert_eq!(automatic.status().await.unwrap().mode, "unlocked");
+        *backend.key.lock().unwrap() = None;
+        let recovered = path.vault(backend);
+        assert_eq!(recovered.status().await.unwrap().mode, "locked");
+        assert!(
+            recovered
+                .unlock_with_password(Zeroizing::new("original-password-123".into()), false)
+                .await
+                .is_err()
+        );
+        assert!(
+            recovered
+                .unlock_with_password(Zeroizing::new("新的保险库密码-password-456".into()), false)
+                .await
+                .is_err()
+        );
+        recovered
+            .unlock_with_password(
+                Zeroizing::new("  新的保险库密码-password-456  ".into()),
+                false,
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            recovered.load(&credential).await.unwrap().as_str(),
+            "stored-secret"
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn changed_password_survives_keychain_write_failure() {
+        use std::sync::{Arc, atomic::Ordering};
+        let path = TestPath::new();
+        let backend = Arc::new(FakeKeychain::default());
+        let vault = path.vault(backend.clone());
+        vault
+            .unlock_with_password(Zeroizing::new("original-password-123".into()), true)
+            .await
+            .unwrap();
+        let old_cached_key = backend.key.lock().unwrap().clone();
+        backend.fail_write.store(true, Ordering::SeqCst);
+        let changed = vault
+            .change_password(
+                Zeroizing::new("original-password-123".into()),
+                Zeroizing::new("new-password-456".into()),
+            )
+            .await
+            .unwrap();
+        assert!(changed.keychain_warning.is_some());
+        assert_eq!(old_cached_key, *backend.key.lock().unwrap());
+        let recovered = path.vault(backend);
+        assert_eq!(recovered.status().await.unwrap().mode, "locked");
+        assert!(
+            recovered
+                .unlock_with_password(Zeroizing::new("original-password-123".into()), false)
+                .await
+                .is_err()
+        );
+        assert_eq!(
+            recovered
+                .unlock_with_password(Zeroizing::new("new-password-456".into()), false)
+                .await
+                .unwrap()
+                .mode,
+            "unlocked"
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn concurrent_changes_cannot_overwrite_a_newer_password() {
+        let path = TestPath::new();
+        let backend = std::sync::Arc::new(FakeKeychain::default());
+        let vault = path.vault(backend.clone());
+        vault
+            .unlock_with_password(Zeroizing::new("original-password-123".into()), true)
+            .await
+            .unwrap();
+        let (first, second) = tokio::join!(
+            vault.change_password(
+                Zeroizing::new("original-password-123".into()),
+                Zeroizing::new("first-new-password".into())
+            ),
+            vault.change_password(
+                Zeroizing::new("original-password-123".into()),
+                Zeroizing::new("second-new-password".into())
+            ),
+        );
+        assert_ne!(first.is_ok(), second.is_ok());
+        let winner = if first.is_ok() {
+            "first-new-password"
+        } else {
+            "second-new-password"
+        };
+        *backend.key.lock().unwrap() = None;
+        let recovered = path.vault(backend);
+        recovered
+            .unlock_with_password(Zeroizing::new(winner.into()), false)
+            .await
+            .unwrap();
     }
     #[tokio::test(flavor = "current_thread")]
     async fn one_keychain_item_and_password_recovery() {

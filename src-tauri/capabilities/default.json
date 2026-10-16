@@ -28,6 +28,7 @@
     "allow-session-client-heartbeat",
     "allow-vault-status",
     "allow-unlock-vault",
+    "allow-change-vault-password",
     "allow-list-hosts",
     "allow-save-host",
     "allow-save-workspace",

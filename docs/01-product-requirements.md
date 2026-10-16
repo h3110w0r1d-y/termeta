@@ -1,6 +1,6 @@
 # 产品需求与实现状态
 
-日期：2026-10-16。需求、源码实现状态与当前限制统一维护于本文；运行验收单独说明。
+日期：2026-10-17。需求、源码实现状态与当前限制统一维护于本文；运行验收单独说明。
 
 ## 1. 产品定位
 
@@ -59,6 +59,7 @@ Termeta 面向需要频繁连接服务器的开发、运维和设备工程师。
 | [ ]  | LIFE-02  | M2/P0            | KeepAlive、睡眠/网络中断识别、手动重连                                                                                                                                                                | 不因用户空闲自动退出；重连重新校验密钥                                                                                                                        |
 | [x]  | PERF-01  | M1/P0            | 输出分块、有界队列、ACK、输入保序                                                                                                                                                                     | 大量输出时内存受界约束且可关闭                                                                                                                                |
 | [ ]  | DATA-01  | M2/P0            | SQLCipher 加密主机、分组、设置、连接历史；迁移与备份                                                                                                                                                  | 迁移失败保护旧数据；秘密仅存加密 DB，不进入日志；备份须包含配套 vault.json                                                                                    |
+| [x]  | DATA-02  | M2/P0            | 保险库密码修改：校验旧密码、确认新密码、重新加密并更新 OS 主密钥缓存 | 错密码不写入；新旧密码切换、WAL/迁移/活动历史保留、中断恢复、磁盘满及缓存/清理失败需验收 |
 | [x]  | SEC-01   | M1/P0            | 受控 IPC、资源所有权、CSP、安全 URL                                                                                                                                                                   | 非授权 WebView 调用失败；远端内容不成为 HTML                                                                                                                  |
 | [x]  | UX-01    | M2/P0            | 清晰错误、键盘导航、中文输入法、焦点管理                                                                                                                                                              | 信任/认证弹窗聚焦；关闭后焦点合理恢复                                                                                                                         |
 | [x]  | UX-02    | M2/P0            | Naive UI 现成组件与主题 + 必要薄适配/布局                                                                                                                                                             | 主题/密度/结构可定制；弹层不吞终端快捷键，隐藏标签不卸载终端；固定 Naive UI 2.45.3，桌面集成待验证                                                            |
@@ -139,7 +140,7 @@ M2 的 P0 需求全部落实且通过授权后的验证矩阵，至少完成三�
 | 标签与分屏       | [WorkspaceTabs](../src/modules/workspace/WorkspaceTabs.vue)、[store](../src/modules/workspace/store.ts)：顶部/左侧、排序、嵌套分屏、窗格迁移、比例调整/交换、菜单与双击动作                                                                                                     | 无整体 Workspace 合并或跨窗口拖动；串口不能通过复制/自动拆分新开同端口连接                          |
 | 工作区存档       | [SaveWorkspaceDialog](../src/modules/workspace/SaveWorkspaceDialog.vue)、[storage](../crates/terminal-storage/src/workspaces.rs)：布局/比例/焦点/保存连接 ID，按同名替换，保留 ID/分组/收藏                                                                                     | 只引用保存 SSH/Telnet/串口，失效引用阻止打开/保存；打开新会话，广播关闭；不自动恢复标签/历史        |
 | 广播             | [inputRouter](../src/modules/terminal/inputRouter.ts)、[inputOrigin](../src/modules/terminal/inputOrigin.ts)：用户键盘/IME/粘贴/远端滚轮，各目标独立编码/排队                                                                                                                   | 默认关闭，成员重组关闭；排除命令模式窗格及点击/拖动/设备应答/认证，不重放；固定 xterm 内部事件适配需复验          |
-| 凭据与存储       | [storage](../crates/terminal-storage/src/lib.rs)、[vault](../crates/terminal-security/src/vault.rs)：公共密码/私钥、主机专属密码、SQLCipher、Argon2id、OS 主密钥/密码恢复                                                                                                       | 加密格式2、schema 6，同格式 schema 2–5 升级；不迁移早期库；无自动备份/密码变更/自动锁定入口         |
+| 凭据与存储       | [storage](../crates/terminal-storage/src/lib.rs)、[vault](../crates/terminal-security/src/vault.rs)：公共密码/私钥、主机专属密码、SQLCipher、Argon2id、OS 主密钥/密码恢复、[密码修改](../crates/terminal-storage/src/password_change.rs)                                                                                                       | 加密格式2、schema 6，同格式 schema 2–5 升级；不迁移早期库；设置安全页可改密；无自动备份/自动锁定入口；改密与故障恢复待运行验收         |
 | 设置与主题       | [SettingsWindow](../src/modules/settings/SettingsWindow.vue)、[SettingsPage](../src/modules/settings/SettingsPage.vue)：单实例窗口、自动保存/跨窗口热应用、Naive UI 明暗与自定义主色                                                                                            | 无效值/保存失败保留输入；应用主题独立于终端配色；窗口/并发/视觉待验收                               |
 | 字体/配色/快捷键 | [fonts](../src/modules/settings/fonts.ts)、[ThemeSettings](../src/modules/settings/ThemeSettings.vue)、[ShortcutSettings](../src/modules/settings/ShortcutSettings.vue)：12字体默认 DejaVu Sans Mono、64配色默认 Pro、缩略图/预览、自定义/JSON/多层覆盖、命令录制/冲突/链接路由 | 热应用保留实例；系统后台热键未实现；来源许可及三平台字宽/剪贴板/IME待验收                           |
 | SFTP             | [侧栏](../src/modules/files/SftpPanel.vue)、[双栏](../src/modules/files/SftpWorkspace.vue)、[适配器](../crates/terminal-sftp/src/lib.rs)：浏览/上传下载、覆盖确认/目录合并、独立双远端对拷、原生拖入及 macOS 文件/目录拖出                                                      | 侧栏仅单 SSH 终端且与分屏互斥；无本地浏览/通用租约/完整任务管理/Windows-Linux 拖出                  |
@@ -185,7 +186,7 @@ Telnet 本机测试容器曾部署并通过登录提示就绪探针，未据此�
 | 范围                | 主要待验收项                                                                                                                                                          |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | SSH 与生命周期      | 密钥拒绝/保存/变更、密码/加密私钥/OTP/PAM、多轮/空白轮、取消/超时、PTY/resize/KeepAlive、连续重连与历史/尾输出、洪泛/无 ACK 关闭、系统识别一次性与失败隔离、exec 启动/拒绝/快速退出/信号/手动重新运行、监控程序缩放与按键 |
-| 保险库与存储        | 首次密码/初始化中断、每进程一次 OS 读取、密码恢复/缓存失败、错误密钥/损坏拒绝、DB/WAL/临时文件加密/权限、schema 2–5 升到6、SQLx 校验及迁移失败恢复、统一名称/并发替换 |
+| 保险库与存储        | 首次密码/初始化中断、每进程一次 OS 读取、密码恢复/缓存失败、改密新旧密码/并发/逐文件切换中断/恢复重入/磁盘满/清理失败、错误密钥/损坏拒绝、DB/WAL/临时文件加密/权限、schema 2–5 升到6、SQLx 校验及迁移失败恢复、统一名称/并发替换 |
 | 桌面与设置          | 三平台标题栏/全屏/IME/焦点/剪贴板；主机树/两步删除/拖拽/搜索/偏好恢复；独立设置关闭/重开/并发/失败恢复；应用主色/字体/配色/JSON/快捷键                                |
 | 工作区              | 标签横纵/滚动/拖动、嵌套分屏/迁移/比例/交换不重建终端、广播输入来源隔离、批量认证/失败保留、保存/替换/失效引用/重启后手动打开、Shell与监控命令混合布局/广播隔离                                         |
 | SFTP                | 分页/链接/隐藏、覆盖与目录合并、独立双栏无 PTY/Shell、对拷、资源上限/取消/断线/磁盘满、真实文件管理器拖入及 macOS 文件/目录拖出/取消                                  |

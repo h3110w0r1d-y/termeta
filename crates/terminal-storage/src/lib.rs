@@ -1,4 +1,6 @@
 mod credentials;
+mod password_change;
+pub use password_change::PasswordChangeOutcome;
 mod forwarding;
 pub use forwarding::*;
 mod groups;
@@ -18,7 +20,7 @@ use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, S
 use sqlx::{ConnectOptions, SqlitePool};
 use std::{
     path::{Path, PathBuf},
-    sync::OnceLock,
+    sync::atomic::{AtomicBool, Ordering},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use thiserror::Error;
@@ -47,7 +49,8 @@ pub enum StorageError {
 pub type Result<T> = std::result::Result<T, StorageError>;
 
 pub struct SqliteStore {
-    pool: OnceLock<SqlitePool>,
+    pool: tokio::sync::RwLock<Option<SqlitePool>>,
+    unlocked: AtomicBool,
     path: PathBuf,
 }
 pub type Repository = SqliteStore;
@@ -56,22 +59,26 @@ impl SqliteStore {
     /// 构造阶段不打开数据库；解锁前任何仓库访问都明确返回 Locked。
     pub fn locked(path: impl AsRef<Path>) -> Self {
         Self {
-            pool: OnceLock::new(),
+            pool: tokio::sync::RwLock::new(None),
+            unlocked: AtomicBool::new(false),
             path: path.as_ref().to_owned(),
         }
     }
     pub fn is_unlocked(&self) -> bool {
-        self.pool.get().is_some()
+        self.unlocked.load(Ordering::Acquire)
     }
     pub fn path(&self) -> &Path {
         &self.path
     }
-    pub(crate) fn pool(&self) -> Result<&SqlitePool> {
-        self.pool.get().ok_or(StorageError::Locked)
+    pub(crate) async fn pool(&self) -> Result<tokio::sync::RwLockReadGuard<'_, SqlitePool>> {
+        // 生命周期门闩只协调本地数据库切换，不占用会话表或网络操作的全局锁。
+        tokio::sync::RwLockReadGuard::try_map(self.pool.read().await, |slot| slot.as_ref())
+            .map_err(|_| StorageError::Locked)
     }
     /// 调用方持有初始化专用锁；验证密钥与完整性后才发布可供业务访问的连接池。
     pub async fn unlock(&self, key: &[u8; 32]) -> Result<()> {
-        if self.is_unlocked() {
+        let mut slot = self.pool.write().await;
+        if slot.is_some() {
             return Ok(());
         }
         if !self.path.exists() {
@@ -84,21 +91,7 @@ impl SqliteStore {
             }
             options.open(&self.path)?;
         }
-        let encoded = zeroize::Zeroizing::new(hex::encode(key));
-        let options = SqliteConnectOptions::new()
-            .filename(&self.path)
-            .create_if_missing(true)
-            // SQLx 保证 key 是第一条 PRAGMA；禁用语句日志，避免密钥出现在诊断中。
-            .pragma("key", format!("\"x'{}'\"", encoded.as_str()))
-            .pragma("cipher_compatibility", "4")
-            .pragma("cipher_memory_security", "ON")
-            .pragma("temp_store", "MEMORY")
-            .pragma("secure_delete", "ON")
-            .journal_mode(SqliteJournalMode::Wal)
-            .synchronous(SqliteSynchronous::Full)
-            .foreign_keys(true)
-            .busy_timeout(Duration::from_secs(3))
-            .disable_statement_logging();
+        let options = Self::connect_options(&self.path, key, SqliteJournalMode::Wal);
         let pool = SqlitePoolOptions::new()
             .max_connections(2)
             .connect_with(options)
@@ -108,10 +101,32 @@ impl SqliteStore {
             pool.close().await;
             return Err(error);
         }
-        self.pool.set(pool).map_err(|_| StorageError::Conflict)?;
+        *slot = Some(pool);
+        self.unlocked.store(true, Ordering::Release);
         Ok(())
     }
-    async fn prepare(pool: &SqlitePool, path: &Path) -> Result<()> {
+    fn connect_options(
+        path: &Path,
+        key: &[u8; 32],
+        journal: SqliteJournalMode,
+    ) -> SqliteConnectOptions {
+        let encoded = zeroize::Zeroizing::new(hex::encode(key));
+        SqliteConnectOptions::new()
+            .filename(path)
+            .create_if_missing(false)
+            // SQLx 保证 key 是第一条 PRAGMA；禁用语句日志，避免密钥出现在诊断中。
+            .pragma("key", format!("\"x'{}'\"", encoded.as_str()))
+            .pragma("cipher_compatibility", "4")
+            .pragma("cipher_memory_security", "ON")
+            .pragma("temp_store", "MEMORY")
+            .pragma("secure_delete", "ON")
+            .journal_mode(journal)
+            .synchronous(SqliteSynchronous::Full)
+            .foreign_keys(true)
+            .busy_timeout(Duration::from_secs(3))
+            .disable_statement_logging()
+    }
+    async fn validate(pool: &SqlitePool, path: &Path) -> Result<()> {
         let cipher: Option<String> = sqlx::query_scalar("PRAGMA cipher_version")
             .fetch_optional(pool)
             .await?;
@@ -148,6 +163,10 @@ impl SqliteStore {
             ));
         }
         private_file(path)?;
+        Ok(())
+    }
+    async fn prepare(pool: &SqlitePool, path: &Path) -> Result<()> {
+        Self::validate(pool, path).await?;
         // 仅初始化阶段持有的同一连接关闭外键；业务连接池尚未发布。
         // SQLite 重建父表必须在迁移事务外关闭外键，否则会删除子表/置空历史引用。
         let mut connection = pool.acquire().await?;

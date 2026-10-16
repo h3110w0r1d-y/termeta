@@ -12,7 +12,7 @@ impl RemoteSystemStore for SqliteStore {
     ) -> terminal_core::Result<bool> {
         let result = async {
             // 开关与一次性标记在同一写事务检查，关闭功能不消耗尝试机会。
-            let mut tx = self.pool()?.begin_with("BEGIN IMMEDIATE").await?;
+            let mut tx = self.pool().await?.begin_with("BEGIN IMMEDIATE").await?;
             let setting: Option<String> = sqlx::query_scalar("SELECT value_json FROM settings WHERE key='app'")
                 .fetch_optional(&mut *tx).await?;
             if let Some(setting) = setting {
@@ -51,7 +51,7 @@ impl RemoteSystemStore for SqliteStore {
         let result = async {
             sqlx::query("UPDATE connection_profiles SET config_json=json_set(config_json,'$.icon',?),revision=revision+1,updated_at=? WHERE id=? AND kind='ssh' AND json_extract(config_json,'$.systemDetectionToken')=? AND coalesce(json_extract(config_json,'$.icon'),'ssh')='ssh' AND EXISTS(SELECT 1 FROM ssh_profiles WHERE profile_id=? AND address=? AND port=? AND username=?)")
                 .bind(icon).bind(now()).bind(id).bind(token).bind(id).bind(&config.address).bind(i64::from(config.port)).bind(&config.username)
-                .execute(self.pool()?).await?;
+                .execute(&*self.pool().await?).await?;
             Ok::<_, StorageError>(())
         }.await;
         result.map_err(|_| {

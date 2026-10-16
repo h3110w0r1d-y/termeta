@@ -1,5 +1,5 @@
 mod master_key;
-pub use master_key::VaultStatus;
+pub use master_key::{PasswordChangeResult, VaultStatus};
 mod private_key;
 mod vault;
 

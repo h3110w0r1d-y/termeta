@@ -25,6 +25,7 @@ import { h, ref } from "vue";
 import AppDialog from "../../components/ui/AppDialog.vue";
 import ThemeSettings from "./ThemeSettings.vue";
 import ShortcutSettings from "./ShortcutSettings.vue";
+import VaultSecuritySettings from "./VaultSecuritySettings.vue";
 import { useLiveSettings } from "./useLiveSettings";
 import { terminalFontFamily, terminalFontOptions } from "./fonts";
 // NSelect 同时用此渲染器显示菜单与当前值；字体声明按可见选项自动加载本地资源。
@@ -33,7 +34,12 @@ const renderFontLabel: SelectRenderLabel = (option) => {
   return h("span", { style: { fontFamily: terminalFontFamily(name) } }, name);
 };
 const form = ref<FormInst>();
-const { draft, flush } = useLiveSettings(form);
+const { draft, flush: flushSettings } = useLiveSettings(form);
+const security = ref<InstanceType<typeof VaultSecuritySettings>>();
+async function flush() {
+  if (security.value?.busy) return false;
+  return flushSettings();
+}
 defineExpose({ flush });
 const tab = ref("general");
 const primaryColorItem = ref<FormItemInst>();
@@ -190,6 +196,9 @@ const rules: FormRules = {
             </NTabPane>
             <NTabPane name="search" tab="搜索" display-directive="show:lazy">
               <SearchPreferences />
+            </NTabPane>
+            <NTabPane name="security" tab="安全" display-directive="show:lazy">
+              <VaultSecuritySettings ref="security" />
             </NTabPane>
             <NTabPane
               name="themes"

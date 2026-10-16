@@ -176,6 +176,7 @@ pub fn run() {
             commands::session_client_heartbeat,
             commands::vault_status,
             commands::unlock_vault,
+            commands::change_vault_password,
             commands::list_hosts,
             commands::save_host,
             commands::save_workspace,

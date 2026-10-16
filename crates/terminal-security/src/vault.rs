@@ -29,8 +29,8 @@ pub struct CredentialVault {
     pub(crate) unlocked: std::sync::atomic::AtomicBool,
     pub(crate) key_backend: Arc<dyn crate::master_key::MasterKeyBackend>,
     pub(crate) boot: Mutex<crate::master_key::BootState>,
-    // 凭据写入与引用替换串行协调；钥匙串只在主密钥解锁流程使用。
-    operations: Mutex<()>,
+    // 凭据写入与引用替换串行协调；钥匙串仅在主密钥解锁与改密流程使用。
+    pub(crate) operations: Mutex<()>,
 }
 impl CredentialVault {
     pub fn new(store: Arc<SqliteStore>) -> Self {

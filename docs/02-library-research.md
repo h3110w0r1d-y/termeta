@@ -1,6 +1,6 @@
 # 技术选型与依赖依据
 
-更新：2026-10-16。以下为当前源码与锁定发布包的静态核查结果，未代表编译兼容、真实连接或三平台运行验收。具体依赖以 Cargo.lock、pnpm-lock.yaml 为准。
+更新：2026-10-17。以下为当前源码与锁定发布包的静态核查结果，未代表编译兼容、真实连接或三平台运行验收。具体依赖以 Cargo.lock、pnpm-lock.yaml 为准。
 
 ## 1. 当前选型
 
@@ -80,6 +80,8 @@ Windows/Linux 拖出尚未实现。候选 [drag 2.1.1](https://docs.rs/drag/2.1.
 | rand_core / hex | 0.6.4（getrandom）/0.4.3                     | OS随机盐/nonce；SQLCipher raw-key编码，编码不代替加密                                                                                                               |
 
 来源：[SQLCipher设计](https://www.zetetic.net/sqlcipher/design/)、[libsqlite3-sys固定源码](https://docs.rs/crate/libsqlite3-sys/0.30.1/source/)、[Argon2固定API](https://docs.rs/argon2/0.6.0/argon2/)、[AES-GCM固定API](https://docs.rs/aes-gcm/0.11.1/aes_gcm/)。实际以锁定registry源码核对使用的接口、features、MSRV与许可证；未编译或执行，不据此宣称完成密码学审计或三平台支持验收。
+
+密码修改不新增依赖。已核对锁定 libsqlite3-sys 0.30.1 内嵌 SQLCipher 4.5.7 的 sqlite3_rekey_v2 与 PRAGMA 处理，支持 raw-key rekey；结合[官方 API](https://www.zetetic.net/sqlcipher/sqlcipher-api/)在 DELETE 模式的独占加密副本上使用，并以新密钥重新打开验证，不能只依据 PRAGMA 返回成功。SQLx 0.8.6 的 Pool::begin 返回独立事务，Pool::close 等待连接归还；tokio RwLockReadGuard::try_map 用于数据库切换门闩。上述均为源码/API 静态核对，尚未运行 SQLCipher 改密或三平台故障验证。
 
 ## 7. UI、搜索与资源依据
 
