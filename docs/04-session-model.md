@@ -24,19 +24,21 @@ stateDiagram-v2
   Authenticating --> AwaitingAuth: 口令或多轮提示
   AwaitingAuth --> Authenticating: 响应
   Authenticating --> Opening: 完成认证
-  Opening --> Connected: PTY与Shell已接受
+  Opening --> Connected: PTY与Shell或exec已接受
   Connected --> Disconnected: 意外断开
   Connected --> Closing: 用户关闭或正常远端退出
   Closing --> Closed: 清理完成
   Connecting --> Failed: 连接失败
   AwaitingHostKey --> Failed: 拒绝或超时
   Authenticating --> Failed: 认证失败
-  Opening --> Failed: PTY或Shell拒绝
+  Opening --> Failed: PTY、Shell或exec拒绝
 ```
 
 图省略公共边：所有非终态均可因显式取消进入 Closing；AwaitingAuth 超时/失败进入 Failed；已连接协议异常可进入 Disconnected。Failed、Disconnected、Closed 都要求协议资源最终释放，不是留下后台连接的“暂停态”。前端 Tab、xterm 和缓冲必须保留并允许滚动/复制/搜索；manager 中资源句柄须移除，仅保留有界短期 tombstone 支持幂等关闭。后端 tombstone 过期不能触发前端历史清理。
 
 正常远端 exit 记录 exit code/signal，走 Closing→Closed；网络/KeepAlive 丢失走 Disconnected；建立阶段错误走 Failed。不把“用户关闭”“命令正常退出”和“网络失败”显示成同一个错误。
+
+SSH 配置的 startup 区分交互 Shell 与 PTY exec，共用生命周期、输出/ACK及取消路径。SessionSnapshot.sshCommand 由本次后端配置确定；命令模式连接期间始终视为运行中，正常退出保留终端并显示退出码/信号。显式重新运行创建新 session 并再执行一次配置命令，不重放旧输入，也不在网络失败后自动重新执行。详见 [SSH](05-ssh-design.md)。
 
 ## 3. 当前核心接口
 
@@ -112,7 +114,7 @@ close 在任意阶段幂等；立即设置取消信号并拒绝新输入，撤�
 
 ## 7. 错误模型
 
-SessionError 包含 `code`、`phase`、`retryable`、`message`，关联 ID 由命令/SessionEvent 信封携带，不额外序列化 details 或原始错误。错误码按实际适配器定义；常见类型包括 INVALID_CONFIG、UNSUPPORTED_SESSION_KIND、UNSUPPORTED_OPERATION、FORBIDDEN、LIMIT_EXCEEDED、DNS_FAILED、CONNECT_TIMEOUT、HANDSHAKE_FAILED、HOST_KEY_UNKNOWN、HOST_KEY_CHANGED、AUTH_FAILED、AUTH_TIMEOUT、PTY_REJECTED、SHELL_REJECTED、IO_FAILED、INPUT_DELIVERY_UNKNOWN、CONSUMER_STALLED、CANCELLED、STORAGE_FAILED、CREDENTIAL_STORE_UNAVAILABLE、PROTOCOL_MISMATCH。
+SessionError 包含 `code`、`phase`、`retryable`、`message`，关联 ID 由命令/SessionEvent 信封携带，不额外序列化 details 或原始错误。错误码按实际适配器定义；常见类型包括 INVALID_CONFIG、UNSUPPORTED_SESSION_KIND、UNSUPPORTED_OPERATION、FORBIDDEN、LIMIT_EXCEEDED、DNS_FAILED、CONNECT_TIMEOUT、HANDSHAKE_FAILED、HOST_KEY_UNKNOWN、HOST_KEY_CHANGED、AUTH_FAILED、AUTH_TIMEOUT、PTY_REJECTED、SHELL_REJECTED、EXEC_REJECTED、IO_FAILED、INPUT_DELIVERY_UNKNOWN、CONSUMER_STALLED、CANCELLED、STORAGE_FAILED、CREDENTIAL_STORE_UNAVAILABLE、PROTOCOL_MISMATCH。
 
 retryable 只表示用户可以重新尝试连接，不表示允许自动重放 write。不能把原始 Error/Debug 直接序列化给前端。
 

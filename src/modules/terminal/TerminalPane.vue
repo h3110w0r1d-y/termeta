@@ -3,7 +3,7 @@ import { GitNetworkOutline, CloseOutline } from "@vicons/ionicons5";
 import { computed, onMounted, ref, watch } from "vue";
 import { NIcon, useThemeVars } from "naive-ui";
 import AppButton from "../../components/ui/AppButton.vue";
-import type { TerminalTab } from "../workspace/store";
+import { useWorkspace, type TerminalTab } from "../workspace/store";
 import { stateLabels } from "../workspace/store";
 import { schemeForTab, terminalRegistry } from "./registry";
 import { terminalDisplayTitle } from "./title";
@@ -21,6 +21,22 @@ const emit = defineEmits<{
   menu: [event: MouseEvent | KeyboardEvent];
 }>();
 const themeVars = useThemeVars();
+const workspace = useWorkspace();
+const broadcastCount = computed(() =>
+  workspace.broadcastTargetCount(props.tab.terminalId),
+);
+const participatesInBroadcast = computed(
+  () => props.broadcast && !props.tab.sshCommand,
+);
+const broadcastTitle = computed(() =>
+  props.tab.sshCommand
+    ? "命令模式不参与工作区广播"
+    : props.broadcast
+      ? `关闭广播（${broadcastCount.value} 个已连接终端参与）`
+      : broadcastCount.value < 2
+        ? "至少需要两个已连接的非命令模式终端才能广播"
+        : `广播输入到 ${broadcastCount.value} 个已连接终端（命令模式除外）`,
+);
 const background = computed(() => schemeForTab(props.tab).colors.background);
 const displayTitle = computed(() =>
   terminalDisplayTitle(props.tab.title, props.tab.remoteTitle),
@@ -60,14 +76,15 @@ function menuKey(event: KeyboardEvent) {
     :class="{
       'split-pane': split,
       'focused-pane': split && active,
-      'broadcast-pane': split && broadcast,
-      'broadcast-peer': split && broadcast && !active,
+      'broadcast-pane': split && participatesInBroadcast,
+      'broadcast-peer': split && participatesInBroadcast && !active,
     }"
     :data-terminal-pane="tab.terminalId"
     :aria-label="displayTitle"
     :style="{
       '--terminal-background': background,
       '--pane-focus-color': themeVars.primaryColor,
+      '--pane-muted-color': themeVars.textColor3,
     }"
     @pointerdown.capture="emit('focus')"
     @focusin="emit('focus')"
@@ -84,13 +101,15 @@ function menuKey(event: KeyboardEvent) {
       >
         <i class="status-dot" :class="tab.state" aria-hidden="true" />
         <span class="terminal-pane-title-text">{{ displayTitle }}</span>
+        <span v-if="tab.sshCommand" class="pane-command-label">命令</span>
       </button>
       <AppButton
         class="icon-button pane-broadcast"
-        :variant="broadcast ? 'primary' : 'default'"
-        :aria-pressed="broadcast"
-        :aria-label="broadcast ? '关闭工作区广播' : '开启工作区广播'"
-        :title="broadcast ? '关闭广播' : '广播输入到工作区全部已连接终端'"
+        :variant="participatesInBroadcast ? 'primary' : 'default'"
+        :aria-pressed="participatesInBroadcast"
+        :aria-label="broadcastTitle"
+        :title="broadcastTitle"
+        :disabled="!!tab.sshCommand || (!broadcast && broadcastCount < 2)"
         @click="terminalRegistry.toggleBroadcast()"
       >
         <NIcon :size="16" aria-hidden="true">
@@ -120,6 +139,12 @@ function menuKey(event: KeyboardEvent) {
 </template>
 
 <style scoped>
+.pane-command-label {
+  color: var(--pane-muted-color);
+  font-size: 11px;
+  flex-shrink: 0;
+  margin-left: 6px;
+}
 .terminal-pane {
   position: absolute;
   inset: 0;

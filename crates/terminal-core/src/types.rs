@@ -98,7 +98,36 @@ pub struct SessionSnapshot {
     pub state: SessionState,
     pub state_revision: u64,
     pub capabilities: SessionCapabilities,
+    /// 本次终端实际采用命令模式；前端不能根据可变的主机草稿推断。
+    pub ssh_command: bool,
     pub size: TerminalSize,
+}
+/// 终端启动方式与认证独立；命令原文交给 SSH 服务端解释。
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase", deny_unknown_fields)]
+pub enum SshStartup {
+    #[default]
+    Shell,
+    Exec {
+        command: String,
+    },
+}
+impl SshStartup {
+    pub fn is_exec(&self) -> bool {
+        matches!(self, Self::Exec { .. })
+    }
+    pub fn validate(&self) -> Result<()> {
+        if let Self::Exec { command } = self
+            && (command.trim().is_empty() || command.len() > 8192 || command.contains('\0'))
+        {
+            return Err(SessionError::new(
+                "INVALID_CONFIG",
+                "validation",
+                "SSH 启动命令不能为空、不能包含 NUL，且不能超过 8192 UTF-8 字节",
+            ));
+        }
+        Ok(())
+    }
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -111,6 +140,8 @@ pub struct SshConfig {
     pub port: u16,
     pub username: String,
     pub auth_plan: Vec<AuthStep>,
+    #[serde(default)]
+    pub startup: SshStartup,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase", deny_unknown_fields)]
@@ -122,6 +153,7 @@ pub enum AuthStep {
 }
 impl SshConfig {
     pub fn validate(&self) -> Result<()> {
+        self.startup.validate()?;
         if self.config_version != 1
             || self.port == 0
             || self.address.is_empty()

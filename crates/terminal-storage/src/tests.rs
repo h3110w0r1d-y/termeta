@@ -17,6 +17,7 @@ impl Drop for TestDirectory {
 }
 fn draft() -> HostDraft {
     HostDraft {
+        startup: terminal_core::SshStartup::default(),
         kind: "ssh".into(),
         serial_config: None,
         icon: "ssh".into(),
@@ -36,6 +37,7 @@ fn draft() -> HostDraft {
 }
 fn edit(host: HostProfile) -> HostDraft {
     HostDraft {
+        startup: host.startup,
         kind: host.kind,
         serial_config: host.serial_config,
         icon: host.icon,
@@ -142,9 +144,91 @@ fn legacy_host_dto_defaults_to_ssh() {
     let mut value = serde_json::to_value(draft()).unwrap();
     value.as_object_mut().unwrap().remove("kind");
     value.as_object_mut().unwrap().remove("serialConfig");
+    value.as_object_mut().unwrap().remove("startup");
     let host: HostDraft = serde_json::from_value(value).unwrap();
     assert_eq!(host.kind, "ssh");
     assert!(host.serial_config.is_none());
+    assert_eq!(host.startup, terminal_core::SshStartup::Shell);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn ssh_startup_roundtrips_and_legacy_records_keep_shell() {
+    use terminal_core::SshStartup;
+    let directory = TestDirectory::new();
+    let path = directory.0.join("ssh-startup.sqlite3");
+    let store = SqliteStore::open(&path).await.unwrap();
+    let mut host = draft();
+    host.startup = SshStartup::Exec {
+        command: "  /usr/bin/btop --utf-force  ".into(),
+    };
+    let saved = store.save_host(host.clone()).await.unwrap();
+    assert_eq!(saved.startup, host.startup);
+    assert_eq!(
+        store.get_host_connection(&saved.id).await.unwrap().startup,
+        host.startup
+    );
+    let mut metadata = edit(saved.clone());
+    metadata.favorite = true;
+    let edited = store.save_host(metadata).await.unwrap();
+    assert_eq!(edited.startup, host.startup);
+    let copy = store.duplicate_host(&saved.id).await.unwrap();
+    assert_eq!(copy.startup, host.startup);
+    store.pool().unwrap().close().await;
+    let store = SqliteStore::open(&path).await.unwrap();
+    assert_eq!(
+        store.get_host(&saved.id).await.unwrap().startup,
+        host.startup
+    );
+    // 旧记录只缺少启动字段；读取时默认 Shell，不要求结构迁移。
+    sqlx::query("UPDATE connection_profiles SET config_json=json_remove(config_json,'$.startup') WHERE id=?")
+        .bind(&saved.id).execute(store.pool().unwrap()).await.unwrap();
+    assert_eq!(
+        store.get_host_connection(&saved.id).await.unwrap().startup,
+        SshStartup::Shell
+    );
+    let mut shell = edit(store.get_host(&copy.id).await.unwrap());
+    shell.startup = SshStartup::Shell;
+    let shell = store.save_host(shell).await.unwrap();
+    assert_eq!(
+        store.get_host_connection(&shell.id).await.unwrap().startup,
+        SshStartup::Shell
+    );
+    store.pool().unwrap().close().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn invalid_or_non_ssh_startup_never_falls_back_to_shell() {
+    use terminal_core::SshStartup;
+    let directory = TestDirectory::new();
+    let store = SqliteStore::open(&directory.0.join("invalid-startup.sqlite3"))
+        .await
+        .unwrap();
+    for command in ["", " \t", "btop\0suffix", &"中".repeat(2731)] {
+        let mut host = draft();
+        host.startup = SshStartup::Exec {
+            command: command.into(),
+        };
+        assert!(store.save_host(host).await.is_err());
+    }
+    for mut host in [serial_draft(), telnet_draft()] {
+        host.startup = SshStartup::Exec {
+            command: "btop".into(),
+        };
+        assert!(store.save_host(host).await.is_err());
+    }
+    let saved = store.save_host(draft()).await.unwrap();
+    for startup in [
+        serde_json::json!(null),
+        serde_json::json!({"type":"unknown"}),
+        serde_json::json!({"type":"exec"}),
+        serde_json::json!({"type":"exec","command":""}),
+    ] {
+        sqlx::query("UPDATE connection_profiles SET config_json=json_set(config_json,'$.startup',json(?)) WHERE id=?")
+            .bind(startup.to_string()).bind(&saved.id).execute(store.pool().unwrap()).await.unwrap();
+        assert!(store.get_host_connection(&saved.id).await.is_err());
+        assert!(store.list_hosts("").await.is_err());
+    }
+    store.pool().unwrap().close().await;
 }
 
 #[tokio::test(flavor = "current_thread")]

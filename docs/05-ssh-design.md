@@ -8,6 +8,8 @@
 
 address 输入不支持夹带端口或 shell 片段；UI 分别处理端口，允许域名/IPv4/IPv6，后端拒绝控制字符与嵌入 NUL。IPv6 展示时加括号，但 canonical key 不依赖字符串拼接猜测。DNS 用于定位网络目标，不能代替 SSH 主机身份校验。
 
+保存主机与临时 SSH 的 `startup` 共用 `SshStartup={type:"shell"}|{type:"exec",command}`，缺失默认为 shell，未知类型/空值拒绝。命令不能为空白、不得含 NUL、最多8192 UTF-8字节；保留原文，不在客户端拆分参数、补引号或拼接 Shell 包装。主机编辑器与快速连接都提供启动方式，命令模式可直接操作 btop/htop/docker stats 等程序。
+
 ## 2. 正常流程
 
 ```mermaid
@@ -36,8 +38,13 @@ sequenceDiagram
   SSH->>Remote: 用户认证（仅信任通过后）
   SSH->>Remote: open session / request PTY
   Remote-->>SSH: PTY success
-  SSH->>Remote: request shell
-  Remote-->>SSH: shell success
+  alt 交互 Shell
+    SSH->>Remote: request shell
+    Remote-->>SSH: shell success
+  else 执行命令
+    SSH->>Remote: exec 用户保存的命令
+    Remote-->>SSH: exec success
+  end
   SSH-->>UI: Connected + 数据流
 ```
 
@@ -85,9 +92,11 @@ Challenge 绑定 session、owner、key digest 和 endpoint；超时、取消、�
 
 Agent、Pageant、证书、FIDO、安全密钥、PPK/PEM 全格式与 GSSAPI 不纳入 M2 承诺；不支持时明确说明，不默认调用系统 ssh 回退。
 
-## 5. PTY、Shell 与数据
+## 5. PTY、Shell、命令与数据
 
-认证成功后开 session channel，依次请求 `TERM=xterm-256color` PTY 与交互 Shell，并等待相应协议成功响应。有些方法返回值只说明请求发送成功，具体接受状态应以选定 release 的回复机制处理。
+认证成功后开 session channel，先请求 `TERM=xterm-256color` PTY，再按 startup 请求交互 Shell 或 exec，分别等待协议 Success。exec 只发送配置命令，不先启动 Shell 或模拟键盘输入；服务端通常仍通过用户 Shell 解释命令。两种模式都支持全屏终端、输入及 resize，首期不提供无 PTY、工作目录、环境变量或自动重启选项。exec 拒绝/确认超时报 EXEC_REJECTED，绝不回退 Shell；请求确认期限不限制程序运行时长。
+
+请求确认期间的 Data/ExtendedData、ExitStatus/ExitSignal/EOF 按顺序保留，累计载荷不超过256KiB、消息不超过1024条；接受后沿用有界输出/ACK与取消路径。快速退出程序的尾输出先提交，再发布终态，不因只收到退出码就丢弃尾帧。正常结束保留窗格和输出，显示退出码/信号及“重新运行”入口，不继续进入交互 Shell。
 
 初始尺寸来自已挂载且有效的 xterm；可暂用 80×24 兜底，随后以可见实测尺寸更新。resize 校验 rows/cols 为 1–1000 的整数，去重并合并，只发 window-change，不重建会话。不要默认在远端执行 locale 设置命令；UTF-8 显示与远端 locale 不一致时提示用户调整。
 
@@ -105,7 +114,7 @@ Agent、Pageant、证书、FIDO、安全密钥、PPK/PEM 全格式与 GSSAPI 不
 | 主机信任       | 120 秒                             | 超时拒绝，提示重新连接                |
 | 认证交互       | 每轮 120 秒，总交互预算 10 分钟    | 防无限 challenge；用户可随时取消      |
 | 非交互认证请求 | 30 秒                              | 明确失败，避免重复提交秘密            |
-| PTY / Shell    | 每步 10 秒                         | 请求拒绝与超时分开                    |
+| PTY / Shell / exec | 每步确认 10 秒                    | 区分请求拒绝与确认超时，不限制程序运行时长 |
 | KeepAlive      | 30 秒空闲探测，连续 3 次无回复判定 | 实际语义按选定 russh release 验证     |
 | 关闭           | 3 秒资源回收预算                   | 到期释放 transport 并报告清理结果     |
 
@@ -125,15 +134,19 @@ Agent、Pageant、证书、FIDO、安全密钥、PPK/PEM 全格式与 GSSAPI 不
 
 ProxyJump 后续通过明确 hop 列表，为每一跳独立校验密钥与认证；不接受任意 ProxyCommand 自动执行。单终端 SFTP 经独立子系统复用已认证连接，生命周期仍绑定终端；独立双栏使用文件专用 SessionManager 与 files-only 工厂，只认证并开放 SFTP channel，不请求 PTY/Shell，复用密码/私钥/keyboard-interactive 与主机信任端口；通用共享连接租约仍为后续设计，见架构文档，不向通用终端加入 listFiles/startTunnel 等方法。
 
+命令模式的“重新运行”显式建立新连接并执行一次最新保存命令；临时连接沿用其打开配置。网络断开、程序退出均不自动重新执行。复制标签/拆分会话、打开保存工作区各自创建独立会话，按对应启动方式连接；既有运行会话不受主机后续编辑影响。命令模式不收发工作区广播，直接聚焦操作正常；关闭提醒以本次实际 exec 模式及连接状态判断，不依赖 OSC 标题/执行标记。
+
 ## 9. 源码与验证边界
+
+启动命令校验、存储兼容、广播隔离与关闭提醒有回归源码，未执行。命令不存在、快速退出/尾输出、exec 拒绝、btop/htop 缩放与 q/Ctrl+C、工作区重新打开/手动重新运行及文件/转发隔离仍待授权运行验收。
 
 实现位于 terminal-ssh 的 connection/host_key/auth/driver。固定配置为 256 KiB SSH window、32 KiB maximum packet、16 条 channel 消息、30 秒 KeepAlive 与 max=3；russh 收到包会重置保活计数，且超出 max 才断开，不能解释为精确 90 秒。库内部 channel 满时的协议公平性仍须 SP-05 验证，socket shutdown 取消不依赖输出 ACK。
 
-已静态核对 russh 0.64.1 的认证、交互及 PTY/Shell API。当前源码不等于认证互通验收：公共/专属密码、加密/无密码私钥、密码或私钥加 OTP、仅 PAM、错误重试、取消与超时仍须真实服务器验证。RSA 算法选择不消除实现侧信道风险，依赖公告见 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)。
+已静态核对 russh 0.64.1 的认证、交互及 PTY/Shell/exec API。当前源码不等于认证互通验收：公共/专属密码、加密/无密码私钥、密码或私钥加 OTP、仅 PAM、错误重试、取消与超时仍须真实服务器验证。RSA 算法选择不消除实现侧信道风险，依赖公告见 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)。
 
 ## 10. 一次性主机系统识别
 
-仅保存SSH终端生效，开关detectSshSystem缺失时默认true；Local、临时SSH、files-only及 Telnet不启动检测。PTY/Shell建立后与driver并发运行，RemoteSystemStore先按主机ID、目标快照和默认图标事务claim，持久化systemDetectionAttempted与session令牌。无标记且图标为ssh才允许claim；失败、超时、断开或进程中断均不撤销标记，后续连接永不自动重试。修改连接目标不重置标记；复制新主机保留icon但独立计算新主机的尝试状态。
+仅保存的交互 Shell 模式 SSH 终端生效，开关detectSshSystem缺失时默认true；命令模式、Local、临时SSH、files-only及 Telnet不启动检测。命令模式跳过时不消耗尝试机会，之后改为 Shell 可正常检测。PTY/Shell建立后与driver并发运行，RemoteSystemStore先按主机ID、目标快照和默认图标事务claim，持久化systemDetectionAttempted与session令牌。无标记且图标为ssh才允许claim；失败、超时、断开或进程中断均不撤销标记，后续连接永不自动重试。修改连接目标不重置标记；复制新主机保留icon但独立计算新主机的尝试状态。
 
 kex_done采集受界SSH服务端标识，仅作展示线索。完整平台词或明确软件标识可直接归类；其余通过同一transport的独立exec channel执行echo $SHELL，再选择POSIX/Fish/RouterOS脚本，必要时尝试固定Windows版本查询。没有Termius版本对OpenSSH版本的执行限制，不承诺设备都支持exec。普通脚本优先/etc/os-release、/usr/lib/os-release，再回退release文件；仅Rust按文本解析ID、NAME、DISTRIB_ID、ID_LIKE等，不source，不拼接远端返回值为命令。
 

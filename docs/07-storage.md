@@ -42,6 +42,10 @@ SQLCipher由锁定的libsqlite3-sys 0.30.1内嵌4.5.7源码和vendored OpenSSL�
 
 分组父级变更防环并校验 revision。默认删除将直属主机/子组上移；deleteHosts=true 在 BEGIN IMMEDIATE 中递归删除子树与主机、登记专属凭据清理，整体失败回滚。公共凭据/信任和已有会话快照保留，历史 profile 外键置空。主机删除后转发引用置空，工作区 JSON 中的 ID 引用有意保留失效状态。
 
+SSH 的 `config_json.startup` 保存 `{type:"shell"}` 或 `{type:"exec",command}`，HostDraft/HostProfile 与运行 SshConfig 使用同一 SshStartup 类型；保存、读取和连接时校验，旧记录缺失字段默认为 Shell，显式 null/未知类型/无效命令拒绝。命令原文在现有 SQLCipher 数据库内持久化；分组/收藏修改、主机复制保留启动方式，不复制专属密码。Telnet/串口/工作区禁止 exec 配置。
+
+该字段不改变 schema 6 或已有迁移字节；工作区仍只存 profileId，下次打开/手动重新运行读取最新主机设置，不更新活动会话。旧版本应用可能忽略新字段，不保证降级后仍按命令模式连接。
+
 ## 4. 格式、备份与恢复边界
 
 当前路径不打开旧 `termvexa.sqlite3` 或 `termvexa-credentials-v1.sqlite3`。源码/锁文件更新不直接操作实际用户数据库和钥匙串。

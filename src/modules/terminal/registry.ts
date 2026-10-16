@@ -64,6 +64,7 @@ const entries = new Map<string, Entry>();
 function update(tab: TerminalTab, snapshot: SessionSnapshot) {
   if (snapshot.stateRevision >= tab.revision) {
     tab.kind = snapshot.kind;
+    tab.sshCommand = snapshot.sshCommand;
     tab.sessionId = snapshot.sessionId;
     tab.state = snapshot.state;
     tab.revision = snapshot.stateRevision;
@@ -190,7 +191,7 @@ function event(
           resetTerminalActivity(tab);
           writeLocalStatus(
             entry.term,
-            `${value.reason}${value.exitCode !== undefined && value.exitCode !== null ? `（退出码 ${value.exitCode}）` : ""}`,
+            `${tab.sshCommand && value.reason === "remoteExit" ? "命令已结束，可通过右键菜单重新运行" : value.reason}${value.exitCode !== undefined && value.exitCode !== null ? `（退出码 ${value.exitCode}）` : ""}${value.exitSignal ? `（信号 ${value.exitSignal}）` : ""}`,
           );
         }
       })
@@ -744,7 +745,9 @@ export const terminalRegistry = {
     if (
       !group.broadcast &&
       terminalIds(group.root).some(
-        (id) => !entries.get(id)?.inputOrigin?.supported,
+        (id) =>
+          !workspace.tabs.find((tab) => tab.terminalId === id)?.sshCommand &&
+          !entries.get(id)?.inputOrigin?.supported,
       )
     ) {
       if (workspace.active)

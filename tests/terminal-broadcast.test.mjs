@@ -4,6 +4,7 @@ import {
   createInputRouter,
   cursorInput,
   isMouseReport,
+  broadcastTargets,
 } from "../src/modules/terminal/inputRouter.ts";
 import { observeTerminalInput } from "../src/modules/terminal/inputOrigin.ts";
 
@@ -35,6 +36,38 @@ const decoded = (sent) =>
     id,
     new TextDecoder().decode(Uint8Array.from(bytes)),
   ]);
+
+test("命令窗格隔离键盘、控制键、粘贴和滚轮，直接操作仍然有效", () => {
+  const members = [
+    { terminalId: "a", sshCommand: false },
+    { terminalId: "b", sshCommand: true },
+    { terminalId: "c", sshCommand: false },
+  ];
+  const sent = [],
+    wheels = [];
+  const router = createInputRouter({
+    targets: (id) => broadcastTargets(id, members),
+    send: (id, bytes) => sent.push([id, new TextDecoder().decode(bytes)]),
+    applicationCursor: () => false,
+    wheel: (id) => wheels.push(id),
+  });
+  router.data("a", text("echo hello\r"));
+  assert.deepEqual(sent.splice(0), [
+    ["a", "echo hello\r"],
+    ["c", "echo hello\r"],
+  ]);
+  for (const data of ["q", "\x03", "paste\r"]) {
+    router.data("b", text(data));
+    assert.deepEqual(sent.splice(0), [["b", data]]);
+  }
+  router.wheel("a", {});
+  assert.deepEqual(wheels.splice(0), ["c"]);
+  router.wheel("b", {});
+  assert.deepEqual(wheels, []);
+  assert.deepEqual(broadcastTargets("b", members), ["b"]);
+  members[1].sshCommand = false;
+  assert.deepEqual(broadcastTargets("a", members), ["a", "b", "c"]);
+});
 
 test("键盘、控制键和IME只向每个成员发送一次", () => {
   for (const input of [

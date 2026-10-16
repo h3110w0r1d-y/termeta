@@ -7,7 +7,8 @@ Node 用例直接导入 TypeScript，要求 Node 22.18+。Rust 测试会编译�
 | 文件                                                       | 覆盖范围                                                            |
 | ---------------------------------------------------------- | ------------------------------------------------------------------- |
 | [workspace-layout.test.mjs](workspace-layout.test.mjs)     | 四向/嵌套分屏、迁移/收缩、比例/不变性、批量均分                     |
-| [terminal-broadcast.test.mjs](terminal-broadcast.test.mjs) | 用户输入/设备应答/鼠标隔离、去重、光标模式、粘贴/滚轮递归保护与降级 |
+| [terminal-broadcast.test.mjs](terminal-broadcast.test.mjs) | 用户输入/设备应答/鼠标隔离、去重、光标模式、粘贴/滚轮递归保护与降级、命令窗格收发隔离 |
+| [terminal-activity.test.mjs](terminal-activity.test.mjs) | 命令模式关闭提醒、远端标记隔离、重连回 Shell 后恢复判断 |
 | [host-search.test.mjs](host-search.test.mjs)               | 全拼/首字母/多音字/混输/多词、字段与地址匹配                        |
 | [file-entries.test.mjs](file-entries.test.mjs)             | 目录/目录链接优先、排序/隐藏、分页不变性与断链展示                  |
 
@@ -21,11 +22,11 @@ node --test tests/*.test.mjs
 
 | 位置                                          | 范围                                                                                       |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| terminal-core/src/tests.rs                    | 会话 owner、配置/能力、流控/取消等核心行为                                                 |
+| terminal-core/src/tests.rs                    | 会话 owner、配置/能力、命令字节限额/原文保留/实际模式快照、流控/取消等核心行为                                                 |
 | terminal-serial/src                           | 编码/字符边界/非法序列、设备路径与参数                                                     |
 | terminal-telnet/src/protocol.rs、src/tests.rs | IAC/选项/NVT/NAWS/TTYPE/限额，以及本机 TCP 夹具 I/O/EOF/取消                               |
 | terminal-ssh/src                              | 系统识别、转发规则/监听匹配、SOCKS5 分片/远端 DNS/拒绝 UDP 等                              |
-| terminal-storage/src/tests.rs                 | 各类型持久化、凭据/分组事务、revision、工作区/名称唯一、转发失效引用、加密格式/迁移/原摘要 |
+| terminal-storage/src/tests.rs                 | 各类型持久化、SSH启动模式往返/旧值/非法配置、凭据/分组事务、revision、工作区/名称唯一、转发失效引用、加密格式/迁移/原摘要 |
 | terminal-security/src                         | 主密钥派生/校验、钥匙串注入/恢复、缓存失败与入口 future 的 Send 断言                       |
 | src-tauri/src/commands、settings.rs           | DTO 字段隔离、设置白名单/旧数据兼容等                                                      |
 

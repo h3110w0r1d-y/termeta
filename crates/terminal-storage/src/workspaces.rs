@@ -65,6 +65,7 @@ impl SqliteStore {
             (id, 1, None, false)
         };
         let saved = HostProfile {
+            startup: terminal_core::SshStartup::default(),
             id,
             revision,
             kind: "workspace".into(),
@@ -105,6 +106,7 @@ impl SqliteStore {
             || draft.port != 0
             || !draft.username.is_empty()
             || !draft.tags.is_empty()
+            || draft.startup != terminal_core::SshStartup::Shell
         {
             return Err(StorageError::Validation(
                 "工作区不能编辑，请重新保存进行替换",
@@ -115,6 +117,7 @@ impl SqliteStore {
         sqlx::query("UPDATE connection_profiles SET group_id=?,favorite=?,revision=revision+1,updated_at=? WHERE id=?")
             .bind(&draft.group_id).bind(draft.favorite).bind(now()).bind(id).execute(&mut *tx).await?;
         let saved = HostProfile {
+            startup: terminal_core::SshStartup::default(),
             id: id.into(),
             revision: revision + 1,
             kind: "workspace".into(),

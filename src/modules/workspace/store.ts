@@ -4,6 +4,7 @@ import { useHosts } from "../hosts/store";
 import { clone } from "../../services/data/clone";
 import { terminalDisplayTitle } from "../terminal/title";
 import type { TerminalActivity } from "../terminal/activity";
+import { broadcastTargets } from "../terminal/inputRouter";
 import {
   terminalIds,
   balancedLayout,
@@ -538,7 +539,9 @@ export const useWorkspace = defineStore("workspace", () => {
       !group ||
       group.root.kind !== "split" ||
       drag.value ||
-      groupIsClosing(group)
+      groupIsClosing(group) ||
+      active.value?.sshCommand ||
+      (!group.broadcast && broadcastTargetCount(group.focusedTerminalId) < 2)
     )
       return;
     group.broadcast = !group.broadcast;
@@ -546,12 +549,30 @@ export const useWorkspace = defineStore("workspace", () => {
   }
   function inputTargets(id: string) {
     const group = activeGroup.value;
-    return group?.broadcast &&
-      group.focusedTerminalId === id &&
-      !drag.value &&
-      !groupIsClosing(group)
-      ? terminalIds(group.root)
-      : [id];
+    if (
+      !group?.broadcast ||
+      group.focusedTerminalId !== id ||
+      drag.value ||
+      groupIsClosing(group)
+    )
+      return [id];
+    const ids = new Set(terminalIds(group.root));
+    return broadcastTargets(
+      id,
+      tabs.value.filter((tab) => ids.has(tab.terminalId)),
+    );
+  }
+  function broadcastTargetCount(id: string) {
+    const group = groupForTerminal(id);
+    if (!group) return 0;
+    const ids = terminalIds(group.root);
+    return tabs.value.filter(
+      (tab) =>
+        ids.includes(tab.terminalId) &&
+        !tab.sshCommand &&
+        tab.state === "connected" &&
+        !closingTerminalIds.value.includes(tab.terminalId),
+    ).length;
   }
   function toggleSftp() {
     const tab = active.value;
@@ -626,6 +647,7 @@ export const useWorkspace = defineStore("workspace", () => {
     canSplit,
     mergeTerminal,
     toggleBroadcast,
+    broadcastTargetCount,
     toggleSftp,
     inputTargets,
     resizeSplit,

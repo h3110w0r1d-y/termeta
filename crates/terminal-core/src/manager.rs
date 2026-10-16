@@ -115,6 +115,7 @@ impl SessionManager {
             state: SessionState::Created,
             state_revision: 0,
             capabilities: factory.capabilities(),
+            ssh_command: matches!(&config, SessionConfig::Ssh(ssh) if ssh.startup.is_exec()),
             size,
         };
         let cancel = CancellationToken::new();

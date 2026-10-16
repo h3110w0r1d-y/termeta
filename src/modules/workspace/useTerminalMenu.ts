@@ -72,7 +72,10 @@ export function useTerminalMenu(options: {
           },
           isActive(menuTab.value?.state ?? "closed")
             ? { label: "断开", key: "disconnect" }
-            : { label: "重新连接", key: "reconnect" },
+            : {
+                label: menuTab.value?.sshCommand ? "重新运行" : "重新连接",
+                key: "reconnect",
+              },
         ],
   );
   function openTabMenu(event: MouseEvent | KeyboardEvent, id: string) {

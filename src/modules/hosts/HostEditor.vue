@@ -31,6 +31,7 @@ import type {
   HostDraft,
   HostProfile,
   OpenTarget,
+  SshStartup,
 } from "../../services/desktop/types";
 import { useSettings } from "../settings/store";
 import { builtinSchemes } from "../settings/themes";
@@ -72,6 +73,8 @@ const hosts = useHosts(),
   credentials = ref<CredentialMetadata[]>([]),
   credentialId = ref(""),
   secret = ref("");
+const startupType = ref<SshStartup["type"]>("shell");
+const startupCommand = ref("");
 const blank = (): HostDraft => ({
   id: null,
   kind: isTelnet.value ? "telnet" : "ssh",
@@ -105,6 +108,9 @@ watch(
           })()
         : blank();
       if (props.duplicate) draft.value.name += " 副本";
+      const startup = draft.value.startup;
+      startupType.value = startup?.type ?? "shell";
+      startupCommand.value = startup?.type === "exec" ? startup.command : "";
       savedRevision.value = props.duplicate
         ? null
         : (props.host?.revision ?? null);
@@ -152,6 +158,10 @@ const authOptions = [
   { value: "password" as const, label: "密码认证" },
   { value: "privateKey" as const, label: "公钥认证" },
 ];
+const startupOptions = [
+  { value: "shell", label: "交互 Shell" },
+  { value: "exec", label: "执行命令" },
+];
 const credentialOptions = computed(() => [
   {
     value: "",
@@ -191,6 +201,8 @@ const formModel = reactive({
   hostScheme,
   groupId,
   tagText,
+  startupType,
+  startupCommand,
 });
 const rules = computed<FormRules>(() => ({
   "draft.name": props.quick
@@ -206,6 +218,20 @@ const rules = computed<FormRules>(() => ({
   "draft.icon": requiredText("图标"),
   "draft.username": isTelnet.value ? [] : requiredText("用户名"),
   "draft.port": integerRange("端口", 1, 65535),
+  startupType: isTelnet.value ? [] : requiredText("启动方式"),
+  startupCommand:
+    !isTelnet.value && startupType.value === "exec"
+      ? [
+          requiredText("启动命令"),
+          {
+            trigger: ["input", "change", "blur"],
+            validator: (_, value: string) =>
+              (!value.includes("\0") &&
+                new TextEncoder().encode(value).length <= 8192) ||
+              new Error("命令不能包含 NUL，且不能超过 8192 UTF-8 字节"),
+          },
+        ]
+      : [],
   auth: isTelnet.value ? [] : requiredText("认证方式"),
   credentialId:
     !isTelnet.value && auth.value === "privateKey"
@@ -235,6 +261,10 @@ async function submit() {
         .map((t) => t.trim())
         .filter(Boolean),
       authPlan: plan,
+      startup:
+        !isTelnet.value && startupType.value === "exec"
+          ? { type: "exec", command: startupCommand.value }
+          : { type: "shell" },
     };
     if (props.quick)
       emit(
@@ -257,6 +287,7 @@ async function submit() {
                 port: draft.value.port,
                 username: draft.value.username,
                 authPlan: plan,
+                startup: draft.value.startup,
               },
             },
         draft.value.name || draft.value.address,
@@ -341,9 +372,11 @@ async function submit() {
           />
           <template #feedback>
             {{
-              host?.systemDetectionAttempted
-                ? "系统识别已尝试，不会再次自动检测；可手动选择图标。"
-                : "默认 SSH 图标将在首次连接时自动识别；手动选择其他图标后不自动覆盖。"
+              startupType === "exec"
+                ? "命令模式不自动识别系统，可手动选择图标。"
+                : host?.systemDetectionAttempted
+                  ? "系统识别已尝试，不会再次自动检测；可手动选择图标。"
+                  : "默认 SSH 图标将在首次连接时自动识别；手动选择其他图标后不自动覆盖。"
             }}
           </template>
         </NFormItemGi>
@@ -406,6 +439,34 @@ async function submit() {
             </NFormItem>
           </template>
         </NGi>
+        <NFormItemGi
+          v-if="!isTelnet"
+          :span="2"
+          label="启动方式"
+          path="startupType"
+        >
+          <AppSelect
+            id="host-startup"
+            v-model="formModel.startupType"
+            :options="startupOptions"
+            :disabled="fieldsLocked"
+          />
+        </NFormItemGi>
+        <NFormItemGi
+          v-if="!isTelnet && startupType === 'exec'"
+          :span="2"
+          label="启动命令"
+          path="startupCommand"
+        >
+          <AppInput
+            id="host-startup-command"
+            v-model="formModel.startupCommand"
+            :disabled="fieldsLocked"
+            :maxlength="8192"
+            placeholder="例如：/usr/bin/btop 或 docker stats"
+            autocomplete="off"
+          />
+        </NFormItemGi>
         <NFormItemGi
           v-if="!quick"
           :span="2"

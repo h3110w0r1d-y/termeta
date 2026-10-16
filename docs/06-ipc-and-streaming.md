@@ -8,6 +8,8 @@
 
 不使用全局终端 output event、不发 base64、不依赖 HTTP/WebSocket、不每个字符调用一次 IPC。两个 Channel 各自保持消息顺序，但不存在跨 Channel 的全局顺序，应用协议必须处理交错。
 
+SSH 的 startup 缺失默认 Shell，exec 命令按 UTF-8 字节限额及 NUL/空白校验；保存目标仍只提交 profileId，由 Rust 加载最新配置。SessionSnapshot.sshCommand 表示本次实际采用的终端命令模式，随各状态快照返回，供广播隔离、关闭提醒与重新运行文案使用；不返回命令正文。独立 SFTP/转发连接清除启动设置，不执行主机的终端命令。沿用 open/save/write/close 及既有 ACL，无新增自定义命令。
+
 ## 2. DTO 摘要
 
 ```ts
@@ -35,6 +37,7 @@ interface SessionSnapshot {
   sessionId: string;
   terminalId: string;
   kind: SessionKind;
+  sshCommand: boolean;
   title: string;
   state: SessionState;
   stateRevision: number;
@@ -66,6 +69,7 @@ interface SshConfigV1 {
   port: number;
   username: string;
   authPlan: AuthStepV1[];
+  startup?: { type: "shell" } | { type: "exec"; command: string };
 }
 type AuthStepV1 =
   | { type: "password"; credentialId?: string }

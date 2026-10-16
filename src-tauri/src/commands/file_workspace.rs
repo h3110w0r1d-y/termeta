@@ -49,11 +49,13 @@ pub async fn sftp_connect(
     {
         return Err(file_error("双栏最多建立两个独立SFTP连接，请先断开原连接"));
     }
-    let config = state
+    let mut config = state
         .store
         .get_host_connection(&profile_id)
         .await
         .map_err(storage_error)?;
+    // 文件连接只复用传输与认证参数，不继承终端启动命令。
+    config.startup = terminal_core::SshStartup::default();
     // SessionManager提供认证与取消生命周期；占位尺寸只作通用元数据，文件工厂不申请PTY。
     state.file_sessions.open(
         &owner,

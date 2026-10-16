@@ -1,5 +1,15 @@
 import type { TerminalInput } from "./inputOrigin";
 
+/** 命令窗格仅接收直接输入；作为来源时也不向其他窗格扩散。 */
+export function broadcastTargets(
+  sourceId: string,
+  members: { terminalId: string; sshCommand?: boolean }[],
+): string[] {
+  const source = members.find((tab) => tab.terminalId === sourceId);
+  if (!source || source.sshCommand) return [sourceId];
+  return members.filter((tab) => !tab.sshCommand).map((tab) => tab.terminalId);
+}
+
 interface InputPorts {
   targets: (sourceId: string) => string[];
   send: (id: string, bytes: Uint8Array) => void;

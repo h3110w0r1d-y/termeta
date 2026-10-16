@@ -1,7 +1,8 @@
-import { normalizeRemoteTitle } from "./title";
+import { normalizeRemoteTitle } from "./title.ts";
 
 /** 只保留当前连接的提示信息，不保存命令正文或执行历史。 */
 export interface TerminalActivity {
+  sshCommand?: boolean;
   remoteTitle?: string;
   initialTitlePrefix?: string;
   commandRunning?: boolean;
@@ -34,13 +35,14 @@ export function resetTerminalActivity(activity: TerminalActivity) {
   activity.commandRunning = false;
 }
 
-/** OSC 133 执行中或标题前缀偏离本次连接基准时提醒。 */
+/** 命令模式始终视为运行中；交互 Shell 沿用 OSC 133 和标题提示。 */
 export function needsCloseConfirmation(
   activity: TerminalActivity & { state: string },
 ): boolean {
   return (
     activity.state === "connected" &&
-    (!!activity.commandRunning ||
+    (!!activity.sshCommand ||
+      !!activity.commandRunning ||
       (activity.initialTitlePrefix !== undefined &&
         titlePrefix(activity.remoteTitle ?? "") !==
           activity.initialTitlePrefix))

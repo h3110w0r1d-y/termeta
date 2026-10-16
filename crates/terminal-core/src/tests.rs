@@ -85,6 +85,7 @@ impl SessionFactory for FakeFactory {
 }
 fn config() -> SshConfig {
     SshConfig {
+        startup: SshStartup::default(),
         config_version: 1,
         system_profile_id: None,
         address: "example.invalid".into(),
@@ -100,6 +101,74 @@ fn size() -> TerminalSize {
 }
 fn id() -> String {
     uuid::Uuid::new_v4().to_string()
+}
+
+#[test]
+fn ssh_commands_validate_bytes_without_rewriting_the_command() {
+    let mut ssh = config();
+    assert!(!ssh.startup.is_exec());
+    for command in [
+        "",
+        " \n\t",
+        "btop\0ignored",
+        &"a".repeat(8193),
+        &"中".repeat(2731),
+    ] {
+        ssh.startup = SshStartup::Exec {
+            command: command.into(),
+        };
+        assert_eq!(ssh.validate().unwrap_err().code, "INVALID_CONFIG");
+    }
+    let command = "  TERM=xterm-256color /usr/bin/btop --utf-force\n";
+    ssh.startup = SshStartup::Exec {
+        command: command.into(),
+    };
+    ssh.validate().unwrap();
+    assert_eq!(
+        ssh.startup,
+        SshStartup::Exec {
+            command: command.into()
+        }
+    );
+    ssh.startup = SshStartup::Exec {
+        command: "a".repeat(8192),
+    };
+    ssh.validate().unwrap();
+}
+
+#[tokio::test]
+async fn command_mode_is_part_of_the_actual_session_snapshot() {
+    let manager = SessionManager::new(Arc::new(FakeFactory {
+        attempts: AtomicUsize::new(0),
+        trust: false,
+    }));
+    for command in [false, true] {
+        let mut ssh = config();
+        if command {
+            ssh.startup = SshStartup::Exec {
+                command: "btop".into(),
+            };
+        }
+        let snapshot = manager
+            .open(
+                "main",
+                id(),
+                id(),
+                ssh,
+                size(),
+                Arc::new(Capture::default()),
+            )
+            .unwrap();
+        assert_eq!(snapshot.ssh_command, command);
+        assert_eq!(
+            manager
+                .get("main", &snapshot.session_id)
+                .unwrap()
+                .ssh_command,
+            command
+        );
+        manager.close("main", &snapshot.session_id).unwrap();
+    }
 }
 
 #[tokio::test]

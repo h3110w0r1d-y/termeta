@@ -1,8 +1,19 @@
 use crate::*;
 use sqlx::Row;
-use terminal_core::{AuthStep, SshConfig, TelnetConfig};
+use terminal_core::{AuthStep, SshConfig, SshStartup, TelnetConfig};
 use uuid::Uuid;
 
+/// 只兼容缺失字段；未知类型、空值和无效命令不能退回 Shell。
+fn ssh_startup(config: &serde_json::Value) -> Result<SshStartup> {
+    let startup: SshStartup = match config.get("startup") {
+        Some(value) => serde_json::from_value(value.clone())?,
+        None => SshStartup::default(),
+    };
+    startup
+        .validate()
+        .map_err(|_| StorageError::Validation("SSH 启动配置无效"))?;
+    Ok(startup)
+}
 impl SqliteStore {
     pub async fn list_hosts(&self, search: &str) -> Result<Vec<HostProfile>> {
         let rows = sqlx::query("SELECT p.*,s.address,s.port,s.username FROM connection_profiles p LEFT JOIN ssh_profiles s ON s.profile_id=p.id WHERE p.kind IN ('ssh','serial','telnet','workspace') ORDER BY p.favorite DESC,p.name COLLATE NOCASE")
@@ -56,6 +67,11 @@ impl SqliteStore {
                 None
             };
             let host = HostProfile {
+                startup: if kind == "ssh" {
+                    ssh_startup(&config)?
+                } else {
+                    SshStartup::default()
+                },
                 workspace: if kind == "workspace" {
                     Some(serde_json::from_value(config["workspace"].clone())?)
                 } else {
@@ -119,12 +135,12 @@ impl SqliteStore {
     /// 连接配置只供后端使用，主机专属引用不得经公共主机 DTO 返回。
     pub async fn get_host_connection(&self, id: &str) -> Result<SshConfig> {
         let mut tx = self.pool()?.begin().await?;
-        let kind: String = sqlx::query_scalar("SELECT kind FROM connection_profiles WHERE id=?")
+        let profile = sqlx::query("SELECT kind,config_json FROM connection_profiles WHERE id=?")
             .bind(id)
             .fetch_optional(&mut *tx)
             .await?
             .ok_or(StorageError::NotFound)?;
-        if kind != "ssh" {
+        if profile.try_get::<String, _>("kind")? != "ssh" {
             return Err(StorageError::Validation(
                 "只有 SSH 主机支持 SSH 与 SFTP 连接",
             ));
@@ -161,6 +177,7 @@ impl SqliteStore {
             });
         }
         let config = SshConfig {
+            startup: ssh_startup(&serde_json::from_str(profile.try_get("config_json")?)?)?,
             config_version: 1,
             system_profile_id: None,
             address: row.try_get("address")?,
@@ -194,6 +211,9 @@ impl SqliteStore {
             }
             return self.update_workspace_metadata(draft).await;
         }
+        if draft.kind != "ssh" && draft.startup != SshStartup::Shell {
+            return Err(StorageError::Validation("只有 SSH 主机支持启动命令"));
+        }
         validate_name(&draft.name)?;
         if !terminal_core::HOST_SYSTEM_ICONS.contains(&draft.icon.as_str()) {
             return Err(StorageError::Validation("主机图标无效"));
@@ -204,6 +224,7 @@ impl SqliteStore {
                     return Err(StorageError::Validation("SSH 主机不能包含串口配置"));
                 }
                 SshConfig {
+                    startup: draft.startup.clone(),
                     config_version: 1,
                     system_profile_id: None,
                     address: draft.address.clone(),
@@ -318,11 +339,13 @@ impl SqliteStore {
             sqlx::query("INSERT INTO connection_profiles(id,kind,name,group_id,favorite,created_at,updated_at) VALUES(?,?,?,?,?,?,?)")
                 .bind(&id).bind(&draft.kind).bind(draft.name.trim()).bind(&draft.group_id).bind(draft.favorite).bind(now()).bind(now()).execute(&mut *tx).await?;
         }
-        // 只合并可编辑图标；检测标记和令牌不能由主机表单回写。
+        // 只合并可编辑字段；检测标记和令牌不能由主机表单回写。
         sqlx::query("UPDATE connection_profiles SET config_json=json_set(CASE WHEN coalesce(json_extract(config_json,'$.icon'),'ssh')<>? OR EXISTS(SELECT 1 FROM ssh_profiles WHERE profile_id=? AND (address<>? OR port<>? OR username<>?)) THEN json_remove(config_json,'$.systemDetectionToken') ELSE config_json END,'$.icon',?) WHERE id=?")
             .bind(&draft.icon).bind(&id).bind(&draft.address).bind(i64::from(draft.port)).bind(&draft.username)
             .bind(&draft.icon).bind(&id).execute(&mut *tx).await?;
         if draft.kind == "ssh" {
+            sqlx::query("UPDATE connection_profiles SET config_json=json_set(config_json,'$.startup',json(?)) WHERE id=?")
+                .bind(serde_json::to_string(&draft.startup)?).bind(&id).execute(&mut *tx).await?;
             sqlx::query("INSERT INTO ssh_profiles(profile_id,address,canonical_host,port,username) VALUES(?,?,?,?,?) ON CONFLICT(profile_id) DO UPDATE SET address=excluded.address,canonical_host=excluded.canonical_host,port=excluded.port,username=excluded.username")
                 .bind(&id).bind(&draft.address).bind(canonical_host(&draft.address)).bind(i64::from(draft.port)).bind(&draft.username).execute(&mut *tx).await?;
         } else if draft.kind == "telnet" {
@@ -387,6 +410,7 @@ impl SqliteStore {
                 .await?;
         let metadata: serde_json::Value = serde_json::from_str(&config_json)?;
         let saved = HostProfile {
+            startup: draft.startup,
             workspace: None,
             kind: draft.kind,
             serial_config: draft.serial_config,
@@ -433,6 +457,7 @@ impl SqliteStore {
     pub async fn duplicate_host(&self, id: &str) -> Result<HostProfile> {
         let host = self.get_host(id).await?;
         self.save_host(HostDraft {
+            startup: host.startup,
             kind: host.kind,
             serial_config: host.serial_config,
             icon: host.icon,

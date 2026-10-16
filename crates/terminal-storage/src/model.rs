@@ -1,9 +1,11 @@
 use serde::{Deserialize, Serialize};
-use terminal_core::{AuthStep, SerialConfig};
+use terminal_core::{AuthStep, SerialConfig, SshStartup};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostDraft {
+    #[serde(default)]
+    pub startup: SshStartup,
     #[serde(default = "default_host_kind")]
     pub kind: String,
     #[serde(default)]
@@ -28,6 +30,8 @@ pub struct HostDraft {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostProfile {
+    #[serde(default)]
+    pub startup: SshStartup,
     #[serde(default)]
     pub workspace: Option<SavedWorkspace>,
     #[serde(default = "default_host_kind")]

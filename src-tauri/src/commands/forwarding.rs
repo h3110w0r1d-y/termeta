@@ -131,11 +131,13 @@ pub async fn start_port_forward(
             "引用的主机已删除，请编辑并重新选择 SSH 主机",
         )
     })?;
-    let ssh = state
+    let mut ssh = state
         .store
         .get_host_connection(&host)
         .await
         .map_err(storage_error)?;
+    // 转发不会启动终端程序，保存主机的命令模式不参与其生命周期。
+    ssh.startup = terminal_core::SshStartup::default();
     state.forward_sessions.open(
         &owner,
         request_id,

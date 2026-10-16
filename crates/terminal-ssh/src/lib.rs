@@ -144,6 +144,10 @@ impl SessionFactory for SshFactory {
         let cancel = context.cancel.clone();
         // 独立探测与终端驱动并发，完成或失败均不改变正常终端生命周期。
         let detection = async {
+            // 命令模式只执行用户指定程序，不额外启动系统识别命令。
+            if config.startup.is_exec() {
+                return;
+            }
             let Some(store) = &self.systems else {
                 return;
             };
@@ -180,7 +184,7 @@ impl SessionFactory for SshFactory {
         };
         tokio::pin!(detection);
         let mut detection_done = false;
-        let driver = driver::run(&connection, context);
+        let driver = driver::run(&connection, &config.startup, context);
         tokio::pin!(driver);
         loop {
             tokio::select! {

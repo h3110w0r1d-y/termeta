@@ -17,12 +17,14 @@ export interface TerminalSize {
 export type AuthStep =
   | { type: "password"; credentialId?: string }
   | { type: "privateKey"; credentialId: string };
+export type SshStartup = { type: "shell" } | { type: "exec"; command: string };
 export interface SshConfig {
   configVersion: 1;
   address: string;
   port: number;
   username: string;
   authPlan: AuthStep[];
+  startup?: SshStartup;
 }
 export interface TelnetConfig {
   configVersion: 1;
@@ -95,6 +97,7 @@ export type OpenTarget =
   | { source: "saved"; profileId: string }
   | { source: "ephemeral"; kind: "ssh"; config: SshConfig };
 export interface SessionSnapshot {
+  sshCommand: boolean;
   protocolVersion: 1;
   requestId: string;
   sessionId: string;
@@ -169,7 +172,8 @@ export type SessionEvent =
       reason: string;
       finalOffset: string;
       outputComplete: boolean;
-      exitCode?: number;
+      exitCode?: number | null;
+      exitSignal?: string | null;
       error?: { message?: string; code?: string };
     };
 export interface KnownHost {

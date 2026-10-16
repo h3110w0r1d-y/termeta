@@ -91,7 +91,7 @@ file_drag.rs 管理短期 owner-bound 原生拖入引用；file_drag_macos.rs �
 
 端口转发在 terminal-ssh/forwarding 与 socks 实现，独立 forward_sessions 不借用终端或文件连接。规则存 storage/forwarding，命令管理启停/权限，前端仅轻量状态。见 [端口转发](21-port-forwarding.md)。
 
-保存 SSH 终端 PTY/Shell 打开后才并行触发系统识别，RemoteSystemStore 事务 claim 一次机会，固定资源命令独立 exec，不写 PTY/广播，结果仅持久化图标/标记。详见 [SSH](05-ssh-design.md#10-一次性主机系统识别)。
+保存的交互 Shell 模式 SSH 终端 PTY/Shell 打开后才并行触发系统识别，RemoteSystemStore 事务 claim 一次机会，固定资源命令独立 exec，不写 PTY/广播，结果仅持久化图标/标记。详见 [SSH](05-ssh-design.md#10-一次性主机系统识别)。
 
 ## 8. UI、命令与静态约束
 
