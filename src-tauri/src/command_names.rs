@@ -1,5 +1,10 @@
 // 命令注册与构建期 ACL 共用同一份名单，避免权限契约漂移。
 pub const COMMANDS: &[&str] = &[
+    "list_port_forwards",
+    "save_port_forward",
+    "delete_port_forward",
+    "start_port_forward",
+    "stop_port_forward",
     "vault_status",
     "unlock_vault",
     "sftp_connect",

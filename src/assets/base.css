@@ -166,3 +166,7 @@ p {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.n-tree-node-content{
+  width: 100%;
+}

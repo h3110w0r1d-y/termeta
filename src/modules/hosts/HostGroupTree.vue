@@ -522,10 +522,10 @@ defineExpose({ startHostDrag, cancelDrag });
     <ScrollFade class="groups-scroll" background="var(--bg)" :size="20">
       <NScrollbar>
         <NTree
-          block-line
           selectable
           :cancelable="false"
           :data="tree"
+          :show-line="true"
           :selected-keys="[modelValue]"
           :expanded-keys="expanded"
           :node-props="nodeProps"

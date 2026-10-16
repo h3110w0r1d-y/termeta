@@ -22,6 +22,7 @@ pub(crate) async fn connect(
     config: &SshConfig,
     context: &DriverContext,
     trust: Arc<dyn HostTrustStore>,
+    remote_forward: Option<crate::forwarding::RemoteForward>,
 ) -> Result<(
     russh::client::Handle<HostKeyHandler>,
     TransportGuard,
@@ -66,6 +67,7 @@ pub(crate) async fn connect(
     let failure = Arc::new(std::sync::Mutex::new(None));
     let software = Arc::new(std::sync::Mutex::new(String::new()));
     let handler = HostKeyHandler {
+        remote_forward,
         software: software.clone(),
         endpoint: config.endpoint(),
         trust,

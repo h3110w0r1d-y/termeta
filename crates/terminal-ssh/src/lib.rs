@@ -3,8 +3,10 @@ mod auth;
 mod channels;
 mod connection;
 mod driver;
+mod forwarding;
 mod host_key;
 mod os_detection;
+mod socks;
 pub use channels::SshChannels;
 
 use async_trait::async_trait;
@@ -16,6 +18,7 @@ pub struct SshFactory {
     credentials: Arc<dyn CredentialStore>,
     channels: SshChannels,
     files_only: bool,
+    forwarding_only: bool,
     systems: Option<Arc<dyn RemoteSystemStore>>,
 }
 impl SshFactory {
@@ -25,6 +28,7 @@ impl SshFactory {
             credentials,
             channels: SshChannels::default(),
             files_only: false,
+            forwarding_only: false,
             systems: None,
         }
     }
@@ -35,12 +39,24 @@ impl SshFactory {
             credentials: self.credentials.clone(),
             channels: self.channels.clone(),
             files_only: true,
+            forwarding_only: false,
             systems: None,
         }
     }
     pub fn with_system_detection(mut self, store: Arc<dyn RemoteSystemStore>) -> Self {
         self.systems = Some(store);
         self
+    }
+    /// 仅建立SSH转发连接，复用身份/认证，不申请PTY、SFTP或系统探测。
+    pub fn for_forwarding(&self) -> Self {
+        Self {
+            trust: self.trust.clone(),
+            credentials: self.credentials.clone(),
+            channels: SshChannels::default(),
+            files_only: false,
+            forwarding_only: true,
+            systems: None,
+        }
     }
     pub fn channels(&self) -> SshChannels {
         self.channels.clone()
@@ -49,11 +65,15 @@ impl SshFactory {
 #[async_trait]
 impl SessionFactory for SshFactory {
     fn kind(&self) -> &'static str {
-        "ssh"
+        if self.forwarding_only {
+            "forwarding"
+        } else {
+            "ssh"
+        }
     }
     fn capabilities(&self) -> SessionCapabilities {
         let mut capabilities = SessionCapabilities::ssh();
-        if self.files_only {
+        if self.files_only || self.forwarding_only {
             capabilities.pty = false;
             capabilities.resize = false;
             capabilities.binary_output = false;
@@ -62,7 +82,8 @@ impl SessionFactory for SshFactory {
     }
     fn validate(&self, config: &SessionConfig) -> Result<()> {
         match config {
-            SessionConfig::Ssh(config) => config.validate(),
+            SessionConfig::Ssh(config) if !self.forwarding_only => config.validate(),
+            SessionConfig::Forwarding { .. } if self.forwarding_only => config.validate(),
             _ => Err(SessionError::new(
                 "UNSUPPORTED_KIND",
                 "opening",
@@ -72,12 +93,22 @@ impl SessionFactory for SshFactory {
     }
     async fn run(&self, config: SessionConfig, context: DriverContext) -> Result<SessionEnd> {
         self.validate(&config)?;
-        let SessionConfig::Ssh(config) = config else {
-            unreachable!()
+        let (config, rule) = match config {
+            SessionConfig::Ssh(config) => (config, None),
+            SessionConfig::Forwarding { ssh, rule } => (ssh, Some(rule)),
+            _ => unreachable!(),
         };
+        let (incoming_tx, incoming_rx) = tokio::sync::mpsc::channel(32);
+        let remote_forward = rule
+            .as_ref()
+            .filter(|r| r.mode == ForwardMode::Remote)
+            .map(|rule| forwarding::RemoteForward {
+                rule: rule.clone(),
+                incoming: incoming_tx,
+            });
         context.events.state(SessionState::Connecting)?;
         let (mut connection, _transport, software) =
-            connection::connect(&config, &context, self.trust.clone()).await?;
+            connection::connect(&config, &context, self.trust.clone(), remote_forward).await?;
         context.events.state(SessionState::Authenticating)?;
         auth::authenticate(
             &mut connection,
@@ -87,6 +118,9 @@ impl SessionFactory for SshFactory {
         )
         .await?;
         context.events.state(SessionState::Opening)?;
+        if let Some(rule) = rule {
+            return forwarding::run(connection, rule, incoming_rx, context).await;
+        }
         let snapshot = context.events.snapshot();
         let (requests, _registration) =
             self.channels.register(&snapshot.session_id, &context.owner);

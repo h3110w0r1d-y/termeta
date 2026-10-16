@@ -183,6 +183,7 @@ pub async fn open_session(
         SessionConfig::Telnet(config) => format!("telnet://{}", config.endpoint()),
         SessionConfig::Local => "local".into(),
         SessionConfig::Serial(config) => format!("serial:{}@{}", config.path, config.baud_rate),
+        SessionConfig::Forwarding { .. } => unreachable!("终端入口不接受转发配置"),
     };
     let history_id = state
         .store

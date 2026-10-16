@@ -4,6 +4,8 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 import type { AppSettings, SettingsPatch } from "../../modules/settings/model";
 import type {
   VaultStatus,
+  ForwardDraft,
+  ForwardProfile,
   DirectoryPage,
   SftpCopyRequest,
   SftpLocalDrop,
@@ -26,6 +28,28 @@ import type {
 
 // 原生交互只通过此门面，组件不能获得通用 invoke 或任意文件读取能力。
 export const desktop = {
+  listPortForwards: () =>
+    invoke<{ profiles: ForwardProfile[]; sessions: SessionSnapshot[] }>(
+      "list_port_forwards",
+    ),
+  savePortForward: (draft: ForwardDraft, expectedRevision: number | null) =>
+    invoke<ForwardProfile>("save_port_forward", { draft, expectedRevision }),
+  deletePortForward: (id: string, revision: number) =>
+    invoke<void>("delete_port_forward", { id, revision }),
+  startPortForward(
+    id: string,
+    requestId: string,
+    control: (value: SessionEvent) => void,
+  ) {
+    const onControl = new Channel<SessionEvent>();
+    onControl.onmessage = control;
+    return invoke<SessionSnapshot>("start_port_forward", {
+      id,
+      requestId,
+      onControl,
+    });
+  },
+  stopPortForward: (id: string) => invoke<void>("stop_port_forward", { id }),
   listSerialPorts: () => invoke<SerialPortInfo[]>("list_serial_ports"),
   vaultStatus: () => invoke<VaultStatus>("vault_status"),
   unlockVault: (password: string, setup: boolean) =>

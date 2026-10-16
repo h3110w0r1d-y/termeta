@@ -4,11 +4,11 @@
 
 ## 当前基线
 
-Windows、macOS、Linux 桌面客户端，采用 Tauri 2 + Rust + Vue 3 + TypeScript，通用控件为 Naive UI 2.45.3，工作区使用自定义标签。已实现SSH、Telnet、基础本地终端与Serial文本终端，串口DTR/RTS控制、HEX及隧道/跳板/Agent 为后续范围。
+Windows、macOS、Linux 桌面客户端，采用 Tauri 2 + Rust + Vue 3 + TypeScript，通用控件为 Naive UI 2.45.3，工作区使用自定义标签。已实现SSH、Telnet、基础本地终端与Serial文本终端，本地/远程/动态 SOCKS5 转发已落源码；串口DTR/RTS控制、HEX及跳板/Agent 为后续范围。
 
 已落源码包括左侧分组树/主机计数/展开与包含子组持久化、右侧按组浏览/收藏置顶、顶部独立拼音搜索下拉、分组右键管理/两步删除、主机和分组拖拽迁移、凭据管理、SSH/动态认证/主机信任、终端保活与重连、标签排序和嵌套分屏、输入广播、快捷键、12种本地字体和64套终端配色。SFTP 提供单终端浏览/上传下载侧栏、目录合并上传及 macOS 文件/目录承诺拖出；固定双栏支持保存主机的独立 SSH/SFTP 连接与 Web 栏间文件/目录对拷，Windows/Linux 原生拖出未实现。
 
-断线与失败保留原 Tab、terminalId 和 xterm 缓冲，重连只替换后端连接。主机和凭据由Rust写入SQLCipher加密库 `termvexa-encrypted-v2.sqlite3`（schema 3，原同格式schema 2原位升级），首次密码经Argon2id派生主密钥；OS keyring只缓存主密钥，失败时密码恢复。配套vault.json须一起保留，不迁移早期明文或旧凭据格式库。正文与文件数据不进入 Vue/Pinia。
+断线与失败保留原 Tab、terminalId 和 xterm 缓冲，重连只替换后端连接。主机和凭据由Rust写入SQLCipher加密库 `termvexa-encrypted-v2.sqlite3`（schema 4，同加密格式schema 2/3原位升级），首次密码经Argon2id派生主密钥；OS keyring只缓存主密钥，失败时密码恢复。配套vault.json须一起保留，不迁移早期明文或旧凭据格式库。正文与文件数据不进入 Vue/Pinia。
 
 ## 导航
 
@@ -32,6 +32,7 @@ Windows、macOS、Linux 桌面客户端，采用 Tauri 2 + Rust + Vue 3 + TypeSc
 | 18   | [终端工作区](18-terminal-workspaces.md)     | 标签排序、四向拖入、嵌套分屏、输入广播与终端保活 |
 | 19 | [Serial终端](19-serial-terminal.md) | 串口枚举、启动参数、字符集与设备生命周期 |
 | 20 | [Telnet终端](20-telnet-terminal.md) | Telnet协商、主机配置、明文边界与schema升级 |
+| 21 | [端口转发](21-port-forwarding.md) | 本地/远程/SOCKS5、SSH引用、生命周期与监听边界 |
 
 协作与执行规则见 [AGENTS.md](../AGENTS.md)。未经用户明确要求，不构建、启动、执行 Rust 测试或连接真实主机；允许不触发构建的依赖维护与静态检查。静态检查通过不代表运行验收；用户既有 macOS 反馈不外推为当前版本或三平台验收。
 

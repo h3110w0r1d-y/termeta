@@ -26,7 +26,8 @@ flowchart TB
   Providers -. 注入 .-> Sftp[terminal-sftp / russh-sftp]
   Providers -. 注入 .-> LocalFiles[本地文件适配 / 根授权]
   Sftp --> SSH
-  SSH -. 后续连接服务 .-> Extra[隧道 / 跳板]
+  SSH --> Forward[本地 / 远程 / SOCKS5 转发]
+  SSH -. 后续连接服务 .-> Extra[跳板 / Agent]
 ```
 
 图中的箭头表示调用关系；crate 编译依赖以第 3 节为准，不能让 core 编译依赖具体实现。
@@ -154,7 +155,7 @@ M2-14只扩展前端输入路由。WorkspaceTab增加内存broadcast/broadcastRe
 
 拖放分层：`src-tauri/src/file_drag.rs`登记原生拖入短期owner-bound引用并广播无路径事件；`file_drag_macos.rs`封装AppKit文件承诺和拖动生命周期，不承担SSH协议。`commands/file_drag.rs`校验main/session/许可并为原生承诺注入受界下载回调；`commands/files.rs`保留授权选择与传输编排，`files/browser.rs`复用浏览器获取，`files/upload.rs`负责批次扫描、覆盖原生确认及直接上传，`files/download.rs`负责文件/目录安全下载。`terminal-sftp`仅提供元数据/目录合并/安全新建或确认后截断写入，`terminal-files`仍只承载协议无关DTO与64KiB复制。Vue批次队列仅轻量状态，正文继续留Rust。5个SFTP命令均纳入单份AppManifest名单和ACL，Windows/Linux拖出当前明确不支持，不引入第二套任意路径接口。
 
-加密启动边界（2026-10-16）：App通过VaultGate等待首次设置/密码恢复/钥匙串自动解锁；只有vault_status与unlock_vault可在锁定状态调用。窗口所有权和本地导航校验不变，其他用例命令额外检查保险库已解锁。core不依赖SQLCipher/Argon2或UI。新库schema 3，允许同加密格式schema 2原位升级，不兼容早期旧代际，详见[存储](07-storage.md)。
+加密启动边界（2026-10-16）：App通过VaultGate等待首次设置/密码恢复/钥匙串自动解锁；只有vault_status与unlock_vault可在锁定状态调用。窗口所有权和本地导航校验不变，其他用例命令额外检查保险库已解锁。core不依赖SQLCipher/Argon2或UI。新库schema 4，允许同加密格式schema 2/3原位升级，不兼容早期旧代际，详见[存储](07-storage.md)。
 
 主机分组页面由HostsPage、HostGroupTree与轻量groups工具协作：前者负责当前范围/主机菜单，后者负责Naive UI树、分组表单/删除选择，useHostGroupDrag负责Pointer Events迁移；store复用desktop门面保存元数据，界面不触碰秘密。左右独立NScrollbar，原生外层保持v-show保活。只有连同主机删除子树新增storage事务方法，命令仍为delete_host_group的可选deleteHosts分支，schema与通用会话架构不变。
 
@@ -185,3 +186,7 @@ core新增RemoteSystemStore持久化端口和hostSystemChanged控制事件，Ssh
 共用滚动装饰ScrollFade位于components/ui，接收background/size/direction与可选viewport/content节点；只做边缘测量和指针穿透的渐变，不接管滚动或业务状态。主机两栏包裹原NScrollbar、工作区标签包裹原session-tabs，useTabScroll仅保留顶部滚轮转换。组件统一DOM/ResizeObserver适配及清理，不新增依赖、IPC或持久化，终端宿主生命周期不变。
 
 Telnet适配器依赖既有terminal-core、async-trait与Tokio，不引入桌面依赖或外部Telnet库。protocol.rs持有跨块解析及双向选项状态，lib.rs负责TCP、并发读写、8项受界写队列与取消；所有连接复用SessionManager。resize能力表示NAWS通知，仅在服务端同意后发送，pty=false不影响xterm显示。具体边界见[Telnet设计](20-telnet-terminal.md)。
+
+## SSH 端口转发
+
+core 的 ForwardRule/ForwardMode 与 SessionConfig::Forwarding 表达规则和后端加载的 SSH 配置，仍不依赖协议实现；terminal-ssh 的 for_forwarding 工厂复用身份核验与认证，在 Opening 后直接建立监听，不申请 PTY/Shell/SFTP 或系统识别。壳内 forward_sessions 独立于终端和文件会话，但共用挑战响应、窗口 owner 与取消；所有转发流只在 Rust 内通过 SSH channel 和 Tokio 有界缓冲中转。Vue/Pinia 只保存规则和状态，导航不创建终端或布局节点。详见[端口转发设计](21-port-forwarding.md)。

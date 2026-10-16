@@ -262,6 +262,10 @@ pub struct SessionEnd {
 #[derive(Clone, Debug)]
 pub enum SessionConfig {
     Ssh(SshConfig),
+    Forwarding {
+        ssh: SshConfig,
+        rule: crate::ForwardRule,
+    },
     Local,
     Serial(SerialConfig),
     Telnet(TelnetConfig),
@@ -270,6 +274,10 @@ impl SessionConfig {
     pub fn validate(&self) -> Result<()> {
         match self {
             Self::Ssh(config) => config.validate(),
+            Self::Forwarding { ssh, rule } => {
+                ssh.validate()?;
+                rule.validate()
+            }
             Self::Local => Ok(()),
             Self::Serial(config) => config.validate(),
             Self::Telnet(config) => config.validate(),
@@ -278,6 +286,7 @@ impl SessionConfig {
     pub fn kind(&self) -> &'static str {
         match self {
             Self::Ssh(_) => "ssh",
+            Self::Forwarding { .. } => "forwarding",
             Self::Local => "local",
             Self::Serial(_) => "serial",
             Self::Telnet(_) => "telnet",
@@ -286,6 +295,7 @@ impl SessionConfig {
     pub fn title(&self) -> String {
         match self {
             Self::Ssh(config) => format!("{}@{}", config.username, config.address),
+            Self::Forwarding { ssh, .. } => format!("{}@{}", ssh.username, ssh.address),
             Self::Local => "本地终端".into(),
             Self::Serial(config) => config.path.clone(),
             Self::Telnet(config) => config.endpoint(),

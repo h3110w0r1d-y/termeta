@@ -48,7 +48,7 @@ const ready = (side: number) =>
 function update(side: number, snapshot: SessionSnapshot) {
   if (ended[side] || snapshot.stateRevision < revisions[side]) return;
   revisions[side] = snapshot.stateRevision;
-  workspace.fileSessionTitles[snapshot.sessionId] = snapshot.title;
+  workspace.connectionTitles[snapshot.sessionId] = snapshot.title;
   endpoints[side]!.sessionId = snapshot.sessionId;
   endpoints[side]!.state = snapshot.state;
 }
@@ -69,7 +69,7 @@ function control(side: number, generation: number, event: SessionEvent) {
     endpoint.state = event.finalState;
     endpoint.error = event.error?.message ?? "";
     workspace.dismiss(event.sessionId);
-    delete workspace.fileSessionTitles[event.sessionId];
+    delete workspace.connectionTitles[event.sessionId];
     if (currentCopy)
       void desktop
         .sftpCancel(currentCopy.sessionId, currentCopy.id)
@@ -109,7 +109,7 @@ async function disconnect(side: number) {
   try {
     await desktop.close(endpoint.sessionId);
     workspace.dismiss(endpoint.sessionId);
-    delete workspace.fileSessionTitles[endpoint.sessionId];
+    delete workspace.connectionTitles[endpoint.sessionId];
     generations[side]!++;
     endpoint.sessionId = undefined;
     endpoint.state = "closed";
@@ -290,7 +290,7 @@ onBeforeUnmount(() => {
   for (const endpoint of endpoints)
     if (endpoint.sessionId) {
       workspace.dismiss(endpoint.sessionId);
-      delete workspace.fileSessionTitles[endpoint.sessionId];
+      delete workspace.connectionTitles[endpoint.sessionId];
       void desktop.close(endpoint.sessionId).catch(() => {});
     }
 });

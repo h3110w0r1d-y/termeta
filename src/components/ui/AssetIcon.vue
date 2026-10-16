@@ -2,22 +2,24 @@
 import { NIcon } from "naive-ui";
 import {
   AddOutline,
+  SwapHorizontalOutline,
   FolderOpenOutline,
+  HomeOutline,
   KeyOutline,
   LockClosedOutline,
   ServerOutline,
   ShieldCheckmarkOutline,
-  TerminalOutline,
   TimeOutline,
 } from "@vicons/ionicons5";
 
 const icons = {
+  forwarding: SwapHorizontalOutline,
   sftp: FolderOpenOutline,
   add: AddOutline,
   hosts: ServerOutline,
   vault: LockClosedOutline,
   credentials: KeyOutline,
-  "local-terminal": TerminalOutline,
+  "local-terminal": HomeOutline,
   "host-trust": ShieldCheckmarkOutline,
   "connection-history": TimeOutline,
 };

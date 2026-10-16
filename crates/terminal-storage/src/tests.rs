@@ -72,6 +72,71 @@ fn serial_draft() -> HostDraft {
     host
 }
 
+#[tokio::test(flavor = "current_thread")]
+async fn forward_rules_reference_ssh_and_survive_host_deletion() {
+    use terminal_core::{ForwardMode, ForwardRule};
+    let directory = TestDirectory::new();
+    let path = directory.0.join("forwarding.sqlite3");
+    let store = SqliteStore::open(&path).await.unwrap();
+    let ssh = store.save_host(draft()).await.unwrap();
+    let serial = store.save_host(serial_draft()).await.unwrap();
+    let mut draft = ForwardDraft {
+        id: None,
+        name: "数据库".into(),
+        profile_id: ssh.id.clone(),
+        rule: ForwardRule {
+            mode: ForwardMode::Local,
+            bind_address: "127.0.0.1".into(),
+            bind_port: 15432,
+            target_address: Some("db.internal".into()),
+            target_port: Some(5432),
+        },
+    };
+    let first = store.save_forward(draft.clone(), None).await.unwrap();
+    draft.id = Some(first.id.clone());
+    draft.name = "修改后".into();
+    let edited = store
+        .save_forward(draft.clone(), Some(first.revision))
+        .await
+        .unwrap();
+    assert!(matches!(
+        store
+            .save_forward(draft.clone(), Some(first.revision))
+            .await,
+        Err(StorageError::Conflict)
+    ));
+    assert!(matches!(
+        store.delete_forward(&first.id, first.revision).await,
+        Err(StorageError::Conflict)
+    ));
+    draft.id = None;
+    draft.profile_id = serial.id;
+    assert!(store.save_forward(draft.clone(), None).await.is_err());
+    draft.profile_id = ssh.id.clone();
+    for mode in [ForwardMode::Remote, ForwardMode::Dynamic] {
+        draft.rule.mode = mode;
+        if mode == ForwardMode::Dynamic {
+            draft.rule.target_address = None;
+            draft.rule.target_port = None;
+        }
+        store.save_forward(draft.clone(), None).await.unwrap();
+    }
+    store.delete_host(&ssh.id, ssh.revision).await.unwrap();
+    let profiles = store.list_forwards().await.unwrap();
+    assert_eq!(profiles.len(), 3);
+    assert!(profiles.iter().all(|p| p.profile_id.is_none()));
+    assert!(store.get_host_connection(&ssh.id).await.is_err());
+    store.pool().unwrap().close().await;
+    let reopened = SqliteStore::open(&path).await.unwrap();
+    assert_eq!(reopened.list_forwards().await.unwrap().len(), 3);
+    reopened
+        .delete_forward(&edited.id, edited.revision)
+        .await
+        .unwrap();
+    assert_eq!(reopened.list_forwards().await.unwrap().len(), 2);
+    reopened.pool().unwrap().close().await;
+}
+
 #[test]
 fn legacy_host_dto_defaults_to_ssh() {
     let mut value = serde_json::to_value(draft()).unwrap();
@@ -226,7 +291,7 @@ async fn initializes_rebuilt_schema_with_password_and_private_key_credentials() 
             .fetch_all(store.pool().unwrap())
             .await
             .unwrap();
-    assert_eq!(versions, vec![1, 2]);
+    assert_eq!(versions, vec![1, 2, 3]);
     let version: i64 = sqlx::query_scalar("PRAGMA user_version")
         .fetch_one(store.pool().unwrap())
         .await

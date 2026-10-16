@@ -79,7 +79,8 @@ export interface SessionSnapshot {
   protocolVersion: 1;
   requestId: string;
   sessionId: string;
-  kind: "ssh" | "local" | "serial" | "telnet";
+  kind: "ssh" | "local" | "serial" | "telnet" | "forwarding";
+  terminalId: string;
   capabilities: {
     resize: boolean;
     pty: boolean;
@@ -90,6 +91,27 @@ export interface SessionSnapshot {
   state: SessionState;
   stateRevision: number;
   size: TerminalSize;
+}
+export type ForwardMode = "local" | "remote" | "dynamic";
+export interface ForwardRule {
+  mode: ForwardMode;
+  bindAddress: string;
+  bindPort: number;
+  targetAddress: string | null;
+  targetPort: number | null;
+}
+export interface ForwardProfile {
+  id: string;
+  name: string;
+  profileId: string | null;
+  rule: ForwardRule;
+  revision: number;
+}
+export interface ForwardDraft {
+  id: string | null;
+  name: string;
+  profileId: string;
+  rule: ForwardRule;
 }
 export interface HostKeyChallenge {
   type: "hostKeyChallenge";

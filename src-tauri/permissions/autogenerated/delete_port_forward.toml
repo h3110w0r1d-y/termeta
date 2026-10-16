@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-delete-port-forward"
+description = "Enables the delete_port_forward command without any pre-configured scope."
+commands.allow = ["delete_port_forward"]
+
+[[permission]]
+identifier = "deny-delete-port-forward"
+description = "Denies the delete_port_forward command without any pre-configured scope."
+commands.deny = ["delete_port_forward"]

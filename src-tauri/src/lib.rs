@@ -63,6 +63,7 @@ pub fn run() {
                 SshFactory::new(store.clone(), vault.clone()).with_system_detection(store.clone());
             let ssh_channels = factory.channels();
             let file_sessions = SessionManager::new(Arc::new(factory.for_files()));
+            let forward_sessions = SessionManager::new(Arc::new(factory.for_forwarding()));
             let sessions = SessionManager::new(Arc::new(factory))
                 .with_factory(Arc::new(terminal_local::LocalFactory))
                 .with_factory(Arc::new(terminal_serial::SerialFactory))
@@ -72,6 +73,7 @@ pub fn run() {
                 settings_gate: tokio::sync::Mutex::new(()),
                 sessions,
                 file_sessions,
+                forward_sessions,
                 ssh_channels,
                 sftp: Mutex::new(std::collections::HashMap::new()),
                 transfers: Arc::new(tokio::sync::Semaphore::new(4)),
@@ -96,6 +98,7 @@ pub fn run() {
                     if heartbeat.elapsed() > Duration::from_secs(300) {
                         state.sessions.close_owner("main");
                         state.file_sessions.close_owner("main");
+                        state.forward_sessions.close_owner("main");
                     }
                     state.sftp.lock().unwrap().retain(|id, browser| {
                         let alive = state
@@ -133,6 +136,7 @@ pub fn run() {
                 if let Some(state) = window.try_state::<AppState>() {
                     state.sessions.close_owner(window.label());
                     state.file_sessions.close_owner(window.label());
+                    state.forward_sessions.close_owner(window.label());
                     if window.label() == "main" {
                         if let Some(settings) = window.app_handle().get_webview_window("settings") {
                             let _ = settings.destroy();
@@ -145,6 +149,11 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            commands::list_port_forwards,
+            commands::save_port_forward,
+            commands::delete_port_forward,
+            commands::start_port_forward,
+            commands::stop_port_forward,
             commands::sftp_connect,
             commands::sftp_copy,
             commands::sftp_drop_upload,

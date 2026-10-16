@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-save-port-forward"
+description = "Enables the save_port_forward command without any pre-configured scope."
+commands.allow = ["save_port_forward"]
+
+[[permission]]
+identifier = "deny-save-port-forward"
+description = "Denies the save_port_forward command without any pre-configured scope."
+commands.deny = ["save_port_forward"]

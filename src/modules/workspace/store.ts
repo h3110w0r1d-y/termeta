@@ -59,7 +59,8 @@ export type WorkspaceDropTarget =
   | { kind: "tab"; tabId: string; before: boolean }
   | { kind: "pane"; terminalId: string; edge: SplitEdge }
   | { kind: "tab-end" };
-export type VaultSection = "hosts" | "credentials" | "known-hosts" | "history";
+export type VaultSection =
+  "hosts" | "forwarding" | "credentials" | "known-hosts" | "history";
 export const useWorkspace = defineStore("workspace", () => {
   // tabs 仅保存终端元数据，groups 独立保存标签顺序与布局；移动布局不增删终端。
   const tabs = ref<TerminalTab[]>([]);
@@ -67,7 +68,7 @@ export const useWorkspace = defineStore("workspace", () => {
   const activeId = ref("home");
   const vaultSection = ref<VaultSection>("hosts");
   const fileTransferring = ref(false);
-  const fileSessionTitles = ref<Record<string, string>>({});
+  const connectionTitles = ref<Record<string, string>>({});
   const challenges = ref<(AuthChallenge | HostKeyChallenge)[]>([]);
   const closingTerminalIds = ref<string[]>([]);
   const drag = ref<{ source: WorkspaceDragSource; x: number; y: number }>();
@@ -482,7 +483,7 @@ export const useWorkspace = defineStore("workspace", () => {
     active,
     challenges,
     fileTransferring,
-    fileSessionTitles,
+    connectionTitles,
     closingTerminalIds,
     drag,
     dropTarget,

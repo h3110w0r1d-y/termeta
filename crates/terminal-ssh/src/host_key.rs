@@ -6,6 +6,7 @@ use std::sync::{
 use terminal_core::*;
 
 pub(crate) struct HostKeyHandler {
+    pub remote_forward: Option<crate::forwarding::RemoteForward>,
     pub software: Arc<std::sync::Mutex<String>>,
     pub endpoint: HostEndpoint,
     pub trust: Arc<dyn HostTrustStore>,
@@ -15,6 +16,26 @@ pub(crate) struct HostKeyHandler {
 }
 impl russh::client::Handler for HostKeyHandler {
     type Error = russh::Error;
+    async fn server_channel_open_forwarded_tcpip(
+        &mut self,
+        channel: russh::Channel<russh::client::Msg>,
+        connected_address: &str,
+        connected_port: u32,
+        _originator_address: &str,
+        _originator_port: u32,
+        reply: russh::client::ChannelOpenHandle,
+        _session: &mut russh::client::Session,
+    ) -> std::result::Result<(), Self::Error> {
+        // 非远程转发连接、错误监听端点和满队列均通过丢弃reply拒绝，不阻塞SSH事件循环。
+        if let Some(forward) = &self.remote_forward {
+            if forward.matches(connected_address, connected_port) {
+                let _ = forward
+                    .incoming
+                    .try_send(crate::forwarding::Incoming { channel, reply });
+            }
+        }
+        Ok(())
+    }
     async fn kex_done(
         &mut self,
         _shared_secret: Option<&[u8]>,

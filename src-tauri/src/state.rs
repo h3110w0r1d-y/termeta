@@ -14,6 +14,7 @@ pub struct AppState {
     pub settings_gate: tokio::sync::Mutex<()>,
     pub sessions: SessionManager,
     pub file_sessions: SessionManager,
+    pub forward_sessions: SessionManager,
     pub ssh_channels: terminal_ssh::SshChannels,
     pub sftp: Mutex<std::collections::HashMap<String, Arc<terminal_sftp::SftpBrowser>>>,
     pub transfers: Arc<tokio::sync::Semaphore>,
@@ -92,8 +93,11 @@ impl AppState {
         if self.sessions.get(owner, id).is_ok() {
             return Ok(&self.sessions);
         }
-        self.file_sessions.get(owner, id)?;
-        Ok(&self.file_sessions)
+        if self.file_sessions.get(owner, id).is_ok() {
+            return Ok(&self.file_sessions);
+        }
+        self.forward_sessions.get(owner, id)?;
+        Ok(&self.forward_sessions)
     }
 
     pub fn request_gate(&self, request_id: &str) -> Arc<tokio::sync::Mutex<()>> {

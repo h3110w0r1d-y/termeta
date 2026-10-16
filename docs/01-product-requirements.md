@@ -66,7 +66,7 @@ Termvexa 面向需要频繁连接服务器的开发、运维和设备工程师�
 | [x] | SEC-01   | M1/P0            | 受控 IPC、资源所有权、CSP、安全 URL                                                                     | 非授权 WebView 调用失败；远端内容不成为 HTML                                                                                          |
 | [x] | UX-01    | M2/P0            | 清晰错误、键盘导航、中文输入法、焦点管理                                                                | 信任/认证弹窗聚焦；关闭后焦点合理恢复                                                                                                 |
 | [x] | UX-02    | M2/P0            | Naive UI 现成组件与主题 + 必要薄适配/布局                                                               | 主题/密度/结构可定制；弹层不吞终端快捷键，隐藏标签不卸载终端；固定 Naive UI 2.45.3，桌面集成待验证                                                          |
-| [x] | UX-03    | M2/P0            | 保险箱与 SFTP 固定为最前两个不可关闭 Tab，SSH 标签随后；顶部/左侧布局可持久化切换                         | 保险箱侧栏为主机/凭据/设置；切页和布局不销毁终端；固定 SFTP 页可从保存主机建立两条独立 SFTP 连接并栏间对拷，单 SSH 终端另提供 SFTP 侧栏 |
+| [x] | UX-03    | M2/P0            | 保险箱与 SFTP 固定为最前两个不可关闭 Tab，SSH 标签随后；顶部/左侧布局可持久化切换                         | 保险箱侧栏为主机/端口转发/凭据/主机信任/连接历史；切页和布局不销毁终端；固定 SFTP 页可从保存主机建立两条独立 SFTP 连接并栏间对拷，单 SSH 终端另提供 SFTP 侧栏 |
 | [x] | KEY-01   | M2/P0            | 设置分全局（应用前台跨页面）/终端类别，动作尽量可自定义                                                 | 录制/多绑定/禁用/恢复/导入导出/冲突提示；按钮/菜单同命令，详见 14                                                                     |
 | [x] | KEY-02   | M2/P0            | 终端修饰键+鼠标绑定，默认 Cmd/Ctrl+点击 URL 打开浏览器                                                  | 普通点击不打开；只允许 http/https，离线历史也可用，不重复发送鼠标事件                                                                 |
 | [ ] | KEY-03   | M2 配置、M4 启用 | 全局 Cmd+L 新建 Local Terminal，其他平台默认 Ctrl+Shift+L                                               | Local 未实现显示禁用原因；可自定义，不占用默认远端 Ctrl+L                                                                             |
@@ -84,7 +84,7 @@ Termvexa 面向需要频繁连接服务器的开发、运维和设备工程师�
 | 完成 | ID      | 阶段    | 能力                                                   | 现在应保留的边界                                     |
 | ---- | ------- | ------- | ------------------------------------------------------ | ---------------------------------------------------- |
 | [ ] | PRO-01  | M3/P0   | 两种 SFTP 工作区与完整文件传输，细项见下表             | 独立文件服务与统一任务；不经过 xterm 字节流，详见 16 |
-| [ ] | PRO-02  | M3      | Local/Remote/Dynamic forwarding                        | SSH connection service；受控监听地址与独立任务       |
+| [x] | PRO-02  | M3      | Local/Remote/Dynamic forwarding                        | 保险箱引用SSH主机；三模式、独立连接、卡片启停、高亮与受界流；运行待验收       |
 | [ ] | PRO-03  | M3      | ProxyJump、Agent、SSH config/known_hosts 导入          | 连接路线/认证扩展；不执行导入的 ProxyCommand         |
 | [ ] | PRO-04  | M3      | Snippets、终端日志、布局保存/恢复（内存分屏提前至 M2） | 显式执行、日志策略、独立布局模型                     |
 | [ ] | EXT-01  | M4      | Local Terminal：Shell、cwd、env、PTY、退出/清理        | `SessionFactory`、能力发现；本地进程与信号适配       |
@@ -138,7 +138,7 @@ M1/M2 主体源码已落地、M3 SFTP 部分实现，尚未通过完整集成、
 | Serial文本终端 | [适配器](../crates/terminal-serial/src/lib.rs)、[配置窗](../src/modules/terminal/SerialConnectDialog.vue)：设备枚举/刷新、波特率和高级参数、独占、双向字符集转换、错误与原缓冲重开 | macOS指定ESP32-C3的115200输出/关闭、15项Rust测试与xterm无界面缓冲对比通过；桌面与其他平台待验收，手动DTR/RTS、DSR/DTR流控及HEX未实现 |
 | 标签与分屏   | [WorkspaceTabs](../src/modules/workspace/WorkspaceTabs.vue)、[store](../src/modules/workspace/store.ts)：固定页、标题栏集成（macOS Overlay 原生按钮下移对齐54px栏中线（待复验）、Windows/Linux 库按钮、左侧模式独立窗口栏）、横向32px/纵向36px标签（横向关闭按钮22px、图标16px）、排序/嵌套分屏/比例、窗格拖回 Tab/跨组重排、普通标签复制/拆分、双击动作设置；Workspace 标签无右键菜单 | 布局只驻内存，无整组迁移/跨窗口/保存恢复                                                                                                       |
 | 工作区广播   | [inputRouter](../src/modules/terminal/inputRouter.ts)、[inputOrigin](../src/modules/terminal/inputOrigin.ts)：键盘/IME/粘贴/远端滚轮，点击与应答隔离                                                                            | 默认关闭、重组关闭，固定 xterm 内部事件适配待实际验证                                                                                          |
-| 凭据与存储   | [storage](../crates/terminal-storage/src/lib.rs)、[security](../crates/terminal-security/src/vault.rs)：公共密码/私钥、主机专属密码、SQLCipher schema 3全库加密（同格式schema 2升级）、Argon2id首次密码、单OS主密钥/密码恢复                                                                   | 独立加密新库，不迁移旧库；原生依赖编译、OS主密钥/中断恢复/三平台待验收                                                                                  |
+| 凭据与存储   | [storage](../crates/terminal-storage/src/lib.rs)、[security](../crates/terminal-security/src/vault.rs)：公共密码/私钥、主机专属密码、SQLCipher schema 4全库加密（同格式schema 2/3升级）、Argon2id首次密码、单OS主密钥/密码恢复                                                                   | 独立加密新库，不迁移旧库；原生依赖编译、OS主密钥/中断恢复/三平台待验收                                                                                  |
 | 设置与 UI    | [设置](../src/modules/settings/SettingsPage.vue)：Naive UI 2.45.3、业务 CSS 归属 Vue scoped 样式（入口仅留基础/共享规则）、页头/滚动/固定 footer、常规页等宽布局、标签位置单选/外观图标单选、配色页统一默认方案入口、独立设置窗口/应用菜单及自动保存/跨窗口热应用                                                         | 工作区标签自定义，其余优先库组件；小窗口/IME/焦点待验收                                                                                        |
 | 字体与配色   | [字体](../src/modules/settings/fonts.ts)、[主题](../src/modules/terminal/theme.ts)：12 本地家族默认 DejaVu Sans Mono，64 配色默认 Pro，JSON/自定义/多层覆盖/热应用                                                              | 不清历史、粗体不提亮；字宽/选区/许可及来源发布处理待验证                                                                                       |
 | 快捷键       | [快捷键](../src/modules/settings/ShortcutSettings.vue)：分类、多绑定/录制/冲突/JSON、链接修饰键路由                                                                                                                             | 系统后台热键未实现，Local 动作已启用                                                                                                           |
@@ -165,11 +165,11 @@ M1/M2 主体源码已落地、M3 SFTP 部分实现，尚未通过完整集成、
 
 - core：每会话 actor、owner/request 幂等、20 活动/4 建立并发、独立取消、输入去重、challenge 与终态摘要。
 - 数据面：24 字节帧头、32 KiB 帧、256 KiB 信用、512 KiB 输出字节预算、64 KiB 输入、解析后累计 ACK/finalOffset。
-- 存储：schema 3（同加密格式schema 2原位升级）、独立 `termvexa-encrypted-v2.sqlite3` 与配套vault.json；SQLCipher加密所有业务表，OS只缓存一把Argon2id派生主密钥。旧库与旧OS项不迁移/删除。首次密码、自动解锁、密码恢复及缓存失败警告均已落源码；测试源码未运行。
+- 存储：schema 4（同加密格式schema 2/3原位升级）、独立 `termvexa-encrypted-v2.sqlite3` 与配套vault.json；SQLCipher加密所有业务表，OS只缓存一把Argon2id派生主密钥。旧库与旧OS项不迁移/删除。首次密码、自动解锁、密码恢复及缓存失败警告均已落源码；测试源码未运行。
 - 前端：固定保险箱/SFTP，已打开终端独立保活；OSC 标题展示，关闭提示依据 OSC 133 或标题首个冒号前缀变化；本地状态消息不无条件恢复旧光标。
 - 分屏：纯数据树计算矩形、扁平 keyed 宿主保活；广播只处理用户输入，成员重组关闭，不重放旧代次输入。
 
-基础Serial文本终端已落源码；DTR/RTS控制、DSR/DTR流控、HEX、隧道/跳板/Agent、布局持久化与系统后台热键尚未实现。
+基础Serial文本终端已落源码；DTR/RTS控制、DSR/DTR流控、HEX、跳板/Agent、布局持久化与系统后台热键尚未实现。
 
 ### 8.5 SFTP 当前边界
 
@@ -262,3 +262,9 @@ EXT-02保持`[ ]`：枚举/刷新、串口启动配置、波特率与高级参�
 EXT-04源码完成：协议菜单启用Telnet，主机编辑共用Naive UI表单，默认23端口，仅保存地址/端口及公共主机元数据；用户名/密码在终端内输入。保存/编辑/复制、分组收藏、标签配色、搜索及批量连接沿用统一主机链路，支持独立Tab、Workspace、复制连接与断线保留/重连。新terminal-telnet基于既有Tokio/core，自有受界流式状态机处理IAC、BINARY/ECHO/SGA/TTYPE/NAWS，网络读写并发并复用Channel/ACK/owner/取消。不访问SSH认证或SFTP，不提供TLS、自动登录、Local Echo、非UTF-8字符集选择。界面标识明文传输。
 
 原kind约束未预留telnet，新增迁移将同加密格式schema 2原位升级至3；不修改旧迁移、不变更加密文件名/密钥格式。当前源码入口、完整契约及待验收见[Telnet设计](20-telnet-terminal.md)。Rust协议/会话/存储/DTO用例已补，未编译执行；仅前端类型、结构、格式、迁移SQL模型、锁文件及差异静态检查，未构建、启动或连接主机。三平台SQLCipher升级/故障恢复、Telnet服务兼容性、远端回显/密码隐藏、尺寸/Unicode/大量输出/断线/取消与UI交互待验收。
+
+### 端口转发（2026-10-16）
+
+端口转发已加入保险箱，位于主机与凭据之间：支持本地、远程及动态 SOCKS5，引用保存的 SSH 主机，独立连接且不申请 PTY/Shell、不新建 Tab；监听就绪后卡片高亮，支持搜索、新建/编辑/复制/删除及启停，切页保留连接。复用主机信任与密码/私钥/OTP，默认回环监听；SOCKS5 仅回环、无认证、TCP CONNECT，域名由 SSH 服务器解析。新增 port_forwards 与 schema 4，同加密格式 schema 2/3 原位升级，删除主机保留失效规则供重选；运行状态不持久化、不自动启动。每规则64条流/32个远程待接收项，独立取消与窗口关闭/心跳失联清理。仅静态验证，新增 Rust 回归源码未编译执行；三平台、实际转发与 SQLCipher 升级待运行验收。契约见[端口转发设计](21-port-forwarding.md)。
+
+源码入口：[页面](../src/modules/forwarding/PortForwardingPage.vue)、[SSH 转发](../crates/terminal-ssh/src/forwarding.rs)、[SOCKS5](../crates/terminal-ssh/src/socks.rs)、[命令与权限](../src-tauri/src/commands/forwarding.rs)、[存储](../crates/terminal-storage/src/forwarding.rs)。没有网络连接或桌面运行验收，需求勾选仅表示源码完成。

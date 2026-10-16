@@ -55,7 +55,7 @@ Workspace 调整尺寸分隔条的3px主体与中点凸起的两个三角形手�
 | 单终端侧栏             | 文件服务、任务              | 底部开关、可调右栏、隐藏保活；Workspace 禁用，开启侧栏禁止参与分屏；其他停靠位置及尺寸持久化未实现                                                                                                                                              |
 | 原生文件拖放           | 文件服务、任务、平台适配    | 三平台拖入、macOS 文件/目录承诺拖出已落源码；Windows/Linux 拖出未实现，内部Drop直接取消拖出，外部Enter/Drop配对隔离上传，独立松键检测、WebView松键补齐及前端指针/点击抑制清理，用户确认取消后首次操作恢复，令牌持有关系已精简，整理后待运行复验 |
 | 独立双栏               | 独立SSH认证、文件服务、任务 | 固定Tab已支持保存主机独立连接、两端分页、全局隐藏文件偏好自动入库、Pointer Events多选文件/目录对拷、覆盖确认/目录合并/取消；未编译运行验收                                                                                                      |
-| SSH 扩展               | 连接服务与权限治理          | 隧道、ProxyJump/Agent/config 导入未开始，禁止自动 ProxyCommand 与默认 Agent forwarding                                                                                                                                                          |
+| SSH 扩展               | 连接服务与权限治理          | 三模式端口转发已落源码，待运行验收；ProxyJump/Agent/config 导入未开始，禁止自动 ProxyCommand 与默认 Agent forwarding                                                                                                                                                          |
 | 工作台扩展             | M2                          | Snippets、opt-in 会话日志、布局持久化/恢复未开始                                                                                                                                                                                                |
 
 上传直接写最终文件，同名普通文件确认后覆盖；目录仅合并，不删除目录处理冲突。中断可能留下不完整目标且覆盖不能回滚，不能宣称原子覆盖。下载保持独占临时项和本地硬链接无覆盖发布。详见 [SFTP 设计](16-sftp-workspace.md)。
@@ -236,3 +236,7 @@ schema 2原约束已预留serial但无telnet，本轮新增0002_telnet迁移而�
 为用户自行连接验收提供dev/telnet的Dockerfile/Compose/登录横幅及说明，使用Debian bookworm-slim、GNU inetutils telnetd/inetd与login、top/vim，端口仅绑定127.0.0.1:2323，固定可丢弃测试账号、root锁定、无宿主挂载。授权范围为构建/部署测试服务及核对本机就绪，未构建/启动Termvexa、未执行Rust/Node项目测试；不改变EXT-04及M4尚待实际应用/三平台验收的状态。启动/停止/移除和连接参数见[环境说明](../dev/telnet/README.md)。
 
 部署实际结果：Docker测试镜像构建完成，termvexa-telnet-test容器健康，端口绑定127.0.0.1:2323；使用独立socket探针收到Telnet登录提示，仅核对就绪，未发送登录账号/密码。检查测试账号可用及root锁定、top/vi/stty/tput存在。Docker Compose配置、profile Shell语法、文档链接与差异静态检查通过。应用连接/账号登录及视觉测试留给用户，未启动或构建Termvexa。
+
+### 2026-10-16：M3 三模式端口转发
+
+端口转发已加入保险箱，位于主机与凭据之间：支持本地、远程及动态 SOCKS5，引用保存的 SSH 主机，独立连接且不申请 PTY/Shell、不新建 Tab；监听就绪后卡片高亮，支持搜索、新建/编辑/复制/删除及启停，切页保留连接。复用主机信任与密码/私钥/OTP，默认回环监听；SOCKS5 仅回环、无认证、TCP CONNECT，域名由 SSH 服务器解析。新增 port_forwards 与 schema 4，同加密格式 schema 2/3 原位升级，删除主机保留失效规则供重选；运行状态不持久化、不自动启动。每规则64条流/32个远程待接收项，独立取消与窗口关闭/心跳失联清理。仅静态验证，新增 Rust 回归源码未编译执行；三平台、实际转发与 SQLCipher 升级待运行验收。契约见[端口转发设计](21-port-forwarding.md)。

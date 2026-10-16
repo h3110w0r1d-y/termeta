@@ -38,6 +38,7 @@ import { useTerminalClose } from "./modules/workspace/useTerminalClose";
 import PasteDialog from "./modules/terminal/PasteDialog.vue";
 import ChallengeDialog from "./modules/terminal/ChallengeDialog.vue";
 import { useHosts } from "./modules/hosts/store";
+import { usePortForwards } from "./modules/forwarding/store";
 import { useSettings } from "./modules/settings/store";
 import {
   useWorkspace,
@@ -59,6 +60,7 @@ const settingsSync = useSettingsSync();
 const hosts = useHosts(),
   settings = useSettings(),
   workspace = useWorkspace();
+const portForwards = usePortForwards();
 const newTabOpen = ref(false);
 const serialOpen = ref(false);
 const serialSave = ref(false);
@@ -76,7 +78,7 @@ watch(settingsSync.error, (message) => {
 });
 const vaultReady = ref(false);
 async function loadUnlocked() {
-  await Promise.all([hosts.load(), settingsSync.start()]);
+  await Promise.all([hosts.load(), portForwards.load(), settingsSync.start()]);
   vaultReady.value = true;
 }
 const connected = computed(
@@ -247,10 +249,10 @@ onMounted(async () => {
         return;
       const running = workspace.tabs.filter(needsCloseConfirmation);
       if (
-        running.length > 0 &&
+        (running.length > 0 || portForwards.hasActive) &&
         settings.value.confirmClose &&
         !(await confirmAction(
-          `${running.length} 个终端可能正在执行命令，关闭窗口将断开全部连接，确定继续？`,
+          `${running.length ? `${running.length} 个终端可能正在执行命令。` : ""}${portForwards.hasActive ? "端口转发正在运行。" : ""}关闭窗口将断开全部连接，确定继续？`,
         ))
       )
         return;

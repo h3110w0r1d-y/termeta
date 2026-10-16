@@ -1,5 +1,7 @@
 //! 终端领域模型、受界流和会话生命周期，不依赖任何桌面或协议实现。
+mod forwarding;
 mod manager;
+pub use forwarding::*;
 mod ports;
 mod serial;
 mod session;

@@ -53,6 +53,11 @@
     "allow-sftp-list",
     "allow-sftp-transfer",
     "allow-sftp-cancel",
-    "allow-open-settings-window"
+    "allow-open-settings-window",
+    "allow-list-port-forwards",
+    "allow-save-port-forward",
+    "allow-delete-port-forward",
+    "allow-start-port-forward",
+    "allow-stop-port-forward"
   ]
 }
