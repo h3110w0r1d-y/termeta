@@ -20,7 +20,12 @@ export function defaultSettings(): AppSettings {
     tabDoubleClickAction: "none",
     sftpShowHidden: false,
     detectSshSystem: true,
-    hostsView: { includeChildren: false, expandedGroupIds: [] },
+    hostsView: {
+      includeChildren: false,
+      expandedGroupIds: [],
+      showHosts: false,
+      displayMode: "card",
+    },
     hostSearch: {
       pinyin: true,
       fields: ["name", "address", "username", "tags", "group"],
@@ -42,6 +47,8 @@ export const useSettings = defineStore("settings", () => {
     return {
       ...defaultSettings(),
       ...saved,
+      // 旧版 hostsView 可能存在但缺少新增偏好，按子字段补齐默认值。
+      hostsView: { ...defaultSettings().hostsView, ...saved.hostsView },
       keymap: {
         schemaVersion: 1,
         bindings: upgradeBindings(saved.keymap?.bindings ?? defaults()),

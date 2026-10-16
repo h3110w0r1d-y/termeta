@@ -2,7 +2,13 @@
 import HostSystemBadge from "./HostSystemBadge.vue";
 import AssetIcon from "../../components/ui/AssetIcon.vue";
 import { NIcon } from "naive-ui";
-import { HardwareChipOutline, Star, StarOutline } from "@vicons/ionicons5";
+import {
+  GridOutline,
+  ListOutline,
+  HardwareChipOutline,
+  Star,
+  StarOutline,
+} from "@vicons/ionicons5";
 import { closeContextMenuOnOutside } from "../../components/ui/contextMenu";
 import { confirmAction } from "../../components/ui/confirmation";
 import { computed, nextTick, ref, watch, reactive } from "vue";
@@ -18,6 +24,10 @@ import {
   NDropdown,
   NEllipsis,
   NEmpty,
+  NList,
+  NListItem,
+  NRadioButton,
+  NRadioGroup,
   NScrollbar,
   NSelect,
   NSpace,
@@ -50,6 +60,21 @@ const includeChildren = computed(
   () => settings.value.hostsView.includeChildren,
 );
 const savingIncludeChildren = ref(false);
+const displayMode = computed(() => settings.value.hostsView.displayMode);
+const savingDisplayMode = ref(false);
+async function setDisplayMode(value: "card" | "list") {
+  if (savingDisplayMode.value) return;
+  savingDisplayMode.value = true;
+  menu.value.show = false;
+  groupTree.value?.cancelDrag();
+  try {
+    await settings.setHostsView({ displayMode: value });
+  } catch (e) {
+    error.value = errorMessage(e);
+  } finally {
+    savingDisplayMode.value = false;
+  }
+}
 const error = ref("");
 const selectedGroup = computed(() =>
   store.groups.find((item) => item.id === group.value),
@@ -109,7 +134,12 @@ const moveOptions = computed(() => [
 ]);
 function openMenu(event: MouseEvent | KeyboardEvent, host: HostProfile) {
   event.preventDefault();
-  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  const target = event.currentTarget as HTMLElement;
+  const rect = (
+    event instanceof KeyboardEvent
+      ? (target.querySelector<HTMLElement>(".n-tree-node--pending") ?? target)
+      : target
+  ).getBoundingClientRect();
   menu.value = {
     show: true,
     hostId: host.id,
@@ -253,6 +283,9 @@ watch(group, () => {
         v-model="group"
         :active="active"
         @error="error = $event"
+        @connect="emit('connect', $event)"
+        @edit-host="emit('edit', $event)"
+        @host-menu="openMenu"
       />
       <section class="host-content" aria-label="分组主机">
         <div class="host-scope">
@@ -268,6 +301,21 @@ watch(group, () => {
           >
             包含子分组
           </NCheckbox>
+          <NRadioGroup
+            class="host-display-mode"
+            :value="displayMode"
+            :disabled="savingDisplayMode"
+            name="host-display-mode"
+            aria-label="主机显示模式"
+            @update:value="setDisplayMode"
+          >
+            <NRadioButton value="card" title="卡片模式" aria-label="卡片模式">
+              <NIcon :size="18" aria-hidden="true"><GridOutline /></NIcon>
+            </NRadioButton>
+            <NRadioButton value="list" title="列表模式" aria-label="列表模式">
+              <NIcon :size="18" aria-hidden="true"><ListOutline /></NIcon>
+            </NRadioButton>
+          </NRadioGroup>
         </div>
         <NScrollbar class="host-list-scroll">
           <NEmpty
@@ -283,7 +331,7 @@ watch(group, () => {
               </NSpace>
             </template>
           </NEmpty>
-          <div v-else class="host-grid">
+          <div v-else-if="displayMode === 'card'" class="host-grid">
             <NCard
               v-for="host in visible"
               :key="host.id"
@@ -344,6 +392,69 @@ watch(group, () => {
               </NSpace>
             </NCard>
           </div>
+          <NList v-else hoverable bordered size="small" class="host-list">
+            <NListItem
+              v-for="host in visible"
+              :key="host.id"
+              tabindex="0"
+              :aria-label="
+                host.name + '，按回车连接，右键或 Shift+F10 打开操作菜单'
+              "
+              @pointerdown="groupTree?.startHostDrag($event, host)"
+              @dragstart.prevent
+              @dblclick="emit('connect', host)"
+              @keydown.enter.self.prevent="emit('connect', host)"
+              @keydown.self="cardKey($event, host)"
+              @contextmenu="openMenu($event, host)"
+            >
+              <template #prefix><HostSystemBadge :icon="host.icon" /></template>
+              <div class="host-list-details">
+                <div class="host-card-title">
+                  <NEllipsis class="host-card-name">{{ host.name }}</NEllipsis>
+                  <NTag class="host-protocol" type="info" size="small">
+                    SSH
+                  </NTag>
+                </div>
+                <NEllipsis class="selectable-text">
+                  {{ host.username }}@{{
+                    host.address.includes(":")
+                      ? "[" + host.address + "]"
+                      : host.address
+                  }}:{{ host.port }}
+                </NEllipsis>
+                <NEllipsis>
+                  <NText depth="3">
+                    {{ groupPath(store.groups, host.groupId) }}
+                  </NText>
+                </NEllipsis>
+                <NSpace
+                  v-if="host.tags.length"
+                  size="small"
+                  class="host-list-tags"
+                >
+                  <NTag v-for="tag in host.tags" :key="tag" size="small">
+                    {{ tag }}
+                  </NTag>
+                </NSpace>
+              </div>
+              <template #suffix>
+                <NButton
+                  :disabled="store.managementBusy"
+                  quaternary
+                  circle
+                  :type="host.favorite ? 'warning' : 'default'"
+                  :aria-label="host.favorite ? '取消收藏' : '收藏'"
+                  @dblclick.stop
+                  @click.stop="favorite(host)"
+                >
+                  <NIcon :size="18" aria-hidden="true">
+                    <Star v-if="host.favorite" />
+                    <StarOutline v-else />
+                  </NIcon>
+                </NButton>
+              </template>
+            </NListItem>
+          </NList>
         </NScrollbar>
       </section>
     </div>
@@ -438,6 +549,35 @@ watch(group, () => {
 .host-scope > :first-child {
   max-width: 100%;
 }
+.host-display-mode {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+/* 图标按钮沿用库默认高度，标签内部用弹性布局消除文字基线偏移。 */
+.host-display-mode :deep(.n-radio__label) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+.host-display-mode :deep(.n-icon) {
+  display: flex;
+}
+.host-list {
+  margin-bottom: 16px;
+}
+.host-list :deep(.n-list-item__main) {
+  min-width: 0;
+}
+.host-list-details {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 8px 16px;
+}
+.host-list-tags {
+  grid-column: 1 / -1;
+}
 .host-list-scroll {
   flex: 1;
   min-height: 0;
@@ -466,6 +606,14 @@ watch(group, () => {
 @media (max-width: 1000px) {
   .host-layout {
     gap: 16px;
+  }
+  .host-list-details {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+@media (max-width: 760px) {
+  .host-list-details {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>

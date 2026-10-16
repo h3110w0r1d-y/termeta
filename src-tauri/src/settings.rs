@@ -91,17 +91,31 @@ pub fn validate(settings: &Value) -> Result<()> {
     {
         return Err(invalid());
     }
-    // 主机页即时偏好兼容旧设置缺失；只允许布尔开关和有界的分组 UUID 集合。
+    // 主机页即时偏好兼容旧字段缺失；限制开关、显示模式和有界分组 UUID 集合。
     if let Some(view) = object.get("hostsView") {
-        fields(view, &["includeChildren", "expandedGroupIds"])?;
+        fields(
+            view,
+            &[
+                "includeChildren",
+                "expandedGroupIds",
+                "showHosts",
+                "displayMode",
+            ],
+        )?;
         let expanded = view["expandedGroupIds"].as_array().ok_or_else(invalid)?;
         let mut ids = std::collections::HashSet::new();
-        if !view["includeChildren"].is_boolean()
+        if view
+            .get("showHosts")
+            .is_some_and(|value| !value.is_boolean())
+            || view
+                .get("displayMode")
+                .is_some_and(|value| !matches!(value.as_str(), Some("card" | "list")))
+            || !view["includeChildren"].is_boolean()
             || expanded.len() > 10000
             || expanded.iter().any(|value| {
-                !value
-                    .as_str()
-                    .is_some_and(|id| uuid::Uuid::parse_str(id).is_ok() && ids.insert(id))
+                !value.as_str().is_some_and(|id| {
+                    (id == "ungrouped" || uuid::Uuid::parse_str(id).is_ok()) && ids.insert(id)
+                })
             })
         {
             return Err(invalid());
@@ -407,6 +421,17 @@ mod tests {
             "expandedGroupIds": ["00000000-0000-0000-0000-000000000001"]
         });
         assert!(validate(&settings).is_ok());
+        for mode in ["card", "list"] {
+            for show in [true, false] {
+                settings["hostsView"] = json!({
+                    "includeChildren": false,
+                    "expandedGroupIds": ["ungrouped"],
+                    "showHosts": show,
+                    "displayMode": mode
+                });
+                assert!(validate(&settings).is_ok());
+            }
+        }
     }
 
     #[test]
@@ -414,6 +439,12 @@ mod tests {
         let mut settings = baseline();
         for view in [
             json!({"includeChildren": "true", "expandedGroupIds": []}),
+            json!({"includeChildren": false, "expandedGroupIds": [], "showHosts": "true"}),
+            json!({"includeChildren": false, "expandedGroupIds": [], "showHosts": null}),
+            json!({"includeChildren": false, "expandedGroupIds": [], "displayMode": "table"}),
+            json!({"includeChildren": false, "expandedGroupIds": [], "displayMode": null}),
+            json!({"includeChildren": false, "expandedGroupIds": ["all"]}),
+            json!({"includeChildren": false, "expandedGroupIds": ["ungrouped", "ungrouped"]}),
             json!({"includeChildren": false, "expandedGroupIds": ["not-a-group-id"]}),
             json!({"includeChildren": false, "expandedGroupIds": null}),
             json!({"includeChildren": false, "expandedGroupIds": [], "extra": true}),

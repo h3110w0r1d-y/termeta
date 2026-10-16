@@ -21,6 +21,8 @@ export interface Scheme {
 export type { Binding, Modifier } from "../../services/commands/types";
 export interface HostsViewSettings {
   includeChildren: boolean;
+  showHosts: boolean;
+  displayMode: "card" | "list";
   expandedGroupIds: string[];
 }
 export type HostSearchField =

@@ -70,6 +70,13 @@ pub async fn save_settings(
         .as_object()
         .ok_or_else(|| SessionError::new("INVALID_CONFIG", "validation", "设置必须为对象"))?;
     for (key, value) in patch {
+        // 旧 app 记录可能没有 hostsView，首次局部更新先补齐原有必需字段。
+        if key == "hostsView" && merged.get(key).is_none() && value.is_object() {
+            merged[key] = serde_json::json!({
+                "includeChildren": false,
+                "expandedGroupIds": []
+            });
+        }
         if matches!(key.as_str(), "hostsView" | "hostSearch") {
             if let (Some(target), Some(fields)) = (merged[key].as_object_mut(), value.as_object()) {
                 target.extend(fields.clone());

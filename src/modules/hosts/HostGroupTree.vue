@@ -13,6 +13,7 @@ import {
   NScrollbar,
   NSelect,
   NSpace,
+  NSwitch,
   NText,
   NTree,
   type TreeOption,
@@ -21,7 +22,8 @@ import { requiredText, validateForm } from "../../services/forms/rules";
 import AppDialog from "../../components/ui/AppDialog.vue";
 import { confirmAction } from "../../components/ui/confirmation";
 import { desktop, errorMessage } from "../../services/desktop/client";
-import type { HostGroup } from "../../services/desktop/types";
+import HostSystemBadge from "./HostSystemBadge.vue";
+import type { HostGroup, HostProfile } from "../../services/desktop/types";
 import { descendantIds, groupChoices, groupPath } from "./groups";
 import { useHosts } from "./store";
 import { useSettings } from "../settings/store";
@@ -31,17 +33,34 @@ const props = defineProps<{ modelValue: string; active: boolean }>();
 const emit = defineEmits<{
   "update:modelValue": [string];
   error: [string];
+  connect: [HostProfile];
+  hostMenu: [MouseEvent | KeyboardEvent, HostProfile];
+  editHost: [HostProfile];
 }>();
 const store = useHosts();
 const panel = ref<HTMLElement>();
 const previewLayer = ref<HTMLElement>();
 const settings = useSettings();
+const showHosts = computed(() => settings.value.hostsView.showHosts);
+const savingShowHosts = ref(false);
+async function setShowHosts(value: boolean) {
+  if (savingShowHosts.value) return;
+  savingShowHosts.value = true;
+  cancelDrag();
+  try {
+    await settings.setHostsView({ showHosts: value });
+  } catch (error) {
+    emit("error", `侧栏主机显示设置保存失败：${errorMessage(error)}`);
+  } finally {
+    savingShowHosts.value = false;
+  }
+}
 const expanded = ref<string[]>([...settings.value.hostsView.expandedGroupIds]);
 let pendingExpansionSaves = 0;
 let expansionGeneration = 0;
 async function setExpanded(ids: string[]) {
-  const next = [...new Set(ids)].filter((id) =>
-    store.groups.some((group) => group.id === id),
+  const next = [...new Set(ids)].filter(
+    (id) => id === "ungrouped" || store.groups.some((group) => group.id === id),
   );
   if (JSON.stringify(next) === JSON.stringify(expanded.value)) return;
   expanded.value = next;
@@ -74,6 +93,11 @@ const deleteTarget = ref<HostGroup>();
 const deleteMode = ref("move");
 const deleteError = ref("");
 const deletePreview = ref({ hosts: 0, groups: 0, direct: 0, parent: "" });
+function hostFromOption(option: TreeOption) {
+  return option.hostId
+    ? store.hosts.find((host) => host.id === option.hostId)
+    : undefined;
+}
 const tree = computed<TreeOption[]>(() => {
   const ordered = [...store.groups].sort(
     (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name),
@@ -81,6 +105,22 @@ const tree = computed<TreeOption[]>(() => {
   const counts = new Map<string | null, number>();
   for (const host of store.hosts)
     counts.set(host.groupId, (counts.get(host.groupId) ?? 0) + 1);
+  const hostNodes = (groupId: string | null): TreeOption[] =>
+    showHosts.value
+      ? store.hosts
+          .filter((host) => host.groupId === groupId)
+          .sort(
+            (a, b) =>
+              Number(b.favorite) - Number(a.favorite) ||
+              a.name.localeCompare(b.name),
+          )
+          .map((host) => ({
+            key: `host:${host.id}`,
+            label: host.name,
+            hostId: host.id,
+            isLeaf: true,
+          }))
+      : [];
   const build = (
     parentId: string | null,
     seen = new Set<string>(),
@@ -95,15 +135,21 @@ const tree = computed<TreeOption[]>(() => {
           count:
             (counts.get(group.id) ?? 0) +
             children.reduce((total, child) => total + Number(child.count), 0),
-          children,
+          // 先汇总子分组计数，再加入主机叶节点，避免主机重复计数。
+          children: [...children, ...hostNodes(group.id)],
+          isLeaf:
+            children.length === 0 &&
+            (!showHosts.value || !counts.get(group.id)),
         };
       });
   return [
-    { key: "all", label: "全部主机", count: store.hosts.length },
+    { key: "all", label: "全部主机", count: store.hosts.length, isLeaf: true },
     {
       key: "ungrouped",
       label: "未分组",
       count: store.hosts.filter((host) => !host.groupId).length,
+      children: hostNodes(null),
+      isLeaf: !showHosts.value || !counts.get(null),
     },
     ...build(null),
   ];
@@ -147,7 +193,11 @@ function openMenu(event: MouseEvent | KeyboardEvent, id: string) {
   };
 }
 function panelMenu(event: MouseEvent) {
-  if (!(event.target as HTMLElement).closest("[data-host-group-target]"))
+  if (
+    !(event.target as HTMLElement).closest(
+      "[data-host-group-target], [data-host-id], button, [role=switch]",
+    )
+  )
     openMenu(event, "all");
 }
 function editGroup(group?: HostGroup, parentId: string | null = null) {
@@ -277,6 +327,20 @@ const { drag, startDrag, startHostDrag, cancelDrag } = useHostGroupDrag({
   onError: (message) => emit("error", message),
 });
 function nodeProps({ option }: { option: TreeOption }) {
+  const host = hostFromOption(option);
+  if (host) {
+    return {
+      "data-host-id": host.id,
+      // 主机叶节点不作为分组落点，拖动仍可由叶节点发起。
+      onContextmenu: (event: MouseEvent) => {
+        event.stopPropagation();
+        menu.value.show = false;
+        emit("hostMenu", event, host);
+      },
+      onPointerdown: (event: PointerEvent) => startHostDrag(event, host),
+      onDblclick: () => emit("connect", host),
+    };
+  }
   const id = String(option.key);
   return {
     "data-host-group-target": id,
@@ -293,12 +357,34 @@ function nodeProps({ option }: { option: TreeOption }) {
 }
 function treeKey(event: KeyboardEvent) {
   if (store.managementBusy) return;
+  const pendingRow = (
+    event.currentTarget as HTMLElement
+  ).querySelector<HTMLElement>(".n-tree-node--pending");
+  const host = store.hosts.find(
+    (host) => host.id === pendingRow?.dataset.hostId,
+  );
+  if (host && event.key === "Enter") {
+    event.preventDefault();
+    event.stopPropagation();
+    emit("connect", host);
+    return;
+  }
   if (
     event.key !== "ContextMenu" &&
     !(event.shiftKey && event.key === "F10") &&
     event.key !== "F2"
   )
     return;
+  if (host) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.key === "F2") emit("editHost", host);
+    else {
+      menu.value.show = false;
+      emit("hostMenu", event, host);
+    }
+    return;
+  }
   // NTree 的键盘焦点在根容器，操作库当前高亮行；没有待选行时使用选中分组。
   const row = (event.currentTarget as HTMLElement).querySelector<HTMLElement>(
     ".n-tree-node--pending[data-host-group-target]",
@@ -319,6 +405,17 @@ function treeKey(event: KeyboardEvent) {
       menu.value.y = rect.bottom;
     }
   }
+}
+function nodeIcon({ option }: { option: TreeOption }) {
+  const host = hostFromOption(option);
+  if (host) return h(HostSystemBadge, { icon: host.icon, size: 20 });
+  return folderIcon();
+}
+function selectNode(keys: Array<string | number>) {
+  if (!keys.length || store.managementBusy) return;
+  const key = String(keys[0]);
+  const host = store.hosts.find((host) => `host:${host.id}` === key);
+  emit("update:modelValue", host ? (host.groupId ?? "ungrouped") : key);
 }
 function folderIcon() {
   return h(
@@ -356,7 +453,7 @@ watch(
   },
   { immediate: true },
 );
-defineExpose({ startHostDrag });
+defineExpose({ startHostDrag, cancelDrag });
 </script>
 
 <template>
@@ -389,6 +486,16 @@ defineExpose({ startHostDrag });
         新建分组
       </NButton>
     </div>
+    <div class="groups-hosts-toggle">
+      <NText>在侧栏显示主机</NText>
+      <NSwitch
+        :value="showHosts"
+        :disabled="savingShowHosts"
+        size="small"
+        aria-label="在侧栏显示主机"
+        @update:value="setShowHosts"
+      />
+    </div>
     <NScrollbar class="groups-scroll">
       <NTree
         block-line
@@ -398,18 +505,16 @@ defineExpose({ startHostDrag });
         :selected-keys="[modelValue]"
         :expanded-keys="expanded"
         :node-props="nodeProps"
-        :render-prefix="folderIcon"
+        :render-prefix="nodeIcon"
         @keydown.capture="treeKey"
         :render-suffix="
-          ({ option }) => h(NText, { depth: 3 }, () => `(${option.count})`)
+          ({ option }) =>
+            option.hostId
+              ? null
+              : h(NText, { depth: 3 }, () => `(${option.count})`)
         "
         @update:expanded-keys="setExpanded($event.map(String))"
-        @update:selected-keys="
-          (keys) => {
-            if (keys.length && !store.managementBusy)
-              emit('update:modelValue', String(keys[0]));
-          }
-        "
+        @update:selected-keys="selectNode"
       />
     </NScrollbar>
     <NDropdown
@@ -560,6 +665,13 @@ defineExpose({ startHostDrag });
   justify-content: space-between;
   margin-bottom: 12px;
 }
+.groups-hosts-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
 .groups-scroll {
   flex: 1;
   min-height: 0;
@@ -575,6 +687,16 @@ defineExpose({ startHostDrag });
 }
 :deep(.n-tree-node-content) {
   min-width: 0;
+}
+/* 前缀只承载图形，避免继承文字行盒后产生基线留白。 */
+:deep(.n-tree-node-content__prefix) {
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+:deep(.n-tree-node-content__prefix > svg) {
+  display: block;
+  flex-shrink: 0;
 }
 :deep(.n-tree-node-content__text) {
   overflow: hidden;

@@ -37,7 +37,7 @@ schema 2沿用profile、SSH扩展、认证步骤、分组、标签、信任、�
 
 分组增强沿用当前schema，不新增表或迁移：保存父组仍在 Rust 防环并校验revision。默认删除只把直属主机和子组上移并递增其revision；`deleteHosts=true` 在 BEGIN IMMEDIATE 事务内校验根组revision，递归枚举后代、先登记专属凭据deleting再删除主机及其级联引用、最后从叶到根删除分组以满足外键RESTRICT。任一步失败整体回滚，公共凭据、信任记录和历史快照保留，历史profile引用按原外键置空。提交后清理专属秘密失败不伪报删除失败，后续解锁重试。主机迁移不传password，已有认证引用和专属密码保持。
 
-主机页偏好存于现有settings.key=app的JSON字段`hostsView: { includeChildren: boolean, expandedGroupIds: string[] }`，不增加表/schema迁移。旧设置缺失时默认false/空集合；UUID集合去重，Rust限制最多10000项并继续受整条设置256KiB限制。与SFTP即时偏好共用串行写入，执行时合并最新值，设置页旧草稿不能覆盖；写失败保持已保存值并提示。搜索查询和拼音索引只驻内存，不保存到数据库或日志。
+主机页偏好存于现有settings.key=app的JSON字段`hostsView: { includeChildren: boolean, expandedGroupIds: string[], showHosts: boolean, displayMode: "card" | "list" }`，不增加表/schema迁移。旧设置及旧hostsView缺少新增字段时，按子字段默认includeChildren=false、expandedGroupIds=[]、showHosts=false、displayMode=card；首次对无hostsView的旧记录局部保存时Rust补齐原有必需字段。展开集合仅允许分组UUID及未分组固定键ungrouped，拒绝all/主机键，集合去重，Rust限制最多10000项并继续受整条设置256KiB限制。与SFTP即时偏好共用串行写入，执行时合并最新值，设置页旧草稿不能覆盖；写失败保持已保存值并提示。搜索查询和拼音索引只驻内存，不保存到数据库或日志。
 
 ## 4. 格式、备份与恢复边界
 
