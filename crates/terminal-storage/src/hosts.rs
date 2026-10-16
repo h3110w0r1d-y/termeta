@@ -39,7 +39,12 @@ impl SqliteStore {
                     _ => return Err(StorageError::Validation("认证类型无效")),
                 });
             }
+            let config: serde_json::Value = serde_json::from_str(row.try_get("config_json")?)?;
             let host = HostProfile {
+                icon: config["icon"].as_str().unwrap_or("ssh").to_owned(),
+                system_detection_attempted: config["systemDetectionAttempted"]
+                    .as_bool()
+                    .unwrap_or(false),
                 id,
                 revision: row.try_get("revision")?,
                 name: row.try_get("name")?,
@@ -106,6 +111,7 @@ impl SqliteStore {
         }
         let config = SshConfig {
             config_version: 1,
+            system_profile_id: None,
             address: row.try_get("address")?,
             port: row.try_get::<i64, _>("port")? as u16,
             username: row.try_get("username")?,
@@ -132,8 +138,12 @@ impl SqliteStore {
         preserve_password: bool,
     ) -> Result<HostProfile> {
         validate_name(&draft.name)?;
+        if !terminal_core::HOST_SYSTEM_ICONS.contains(&draft.icon.as_str()) {
+            return Err(StorageError::Validation("主机图标无效"));
+        }
         SshConfig {
             config_version: 1,
+            system_profile_id: None,
             address: draft.address.clone(),
             port: draft.port,
             username: draft.username.clone(),
@@ -198,6 +208,10 @@ impl SqliteStore {
             sqlx::query("INSERT INTO connection_profiles(id,name,group_id,favorite,created_at,updated_at) VALUES(?,?,?,?,?,?)")
                 .bind(&id).bind(draft.name.trim()).bind(&draft.group_id).bind(draft.favorite).bind(now()).bind(now()).execute(&mut *tx).await?;
         }
+        // 只合并可编辑图标；检测标记和令牌不能由主机表单回写。
+        sqlx::query("UPDATE connection_profiles SET config_json=json_set(CASE WHEN coalesce(json_extract(config_json,'$.icon'),'ssh')<>? OR EXISTS(SELECT 1 FROM ssh_profiles WHERE profile_id=? AND (address<>? OR port<>? OR username<>?)) THEN json_remove(config_json,'$.systemDetectionToken') ELSE config_json END,'$.icon',?) WHERE id=?")
+            .bind(&draft.icon).bind(&id).bind(&draft.address).bind(i64::from(draft.port)).bind(&draft.username)
+            .bind(&draft.icon).bind(&id).execute(&mut *tx).await?;
         sqlx::query("INSERT INTO ssh_profiles(profile_id,address,canonical_host,port,username) VALUES(?,?,?,?,?) ON CONFLICT(profile_id) DO UPDATE SET address=excluded.address,canonical_host=excluded.canonical_host,port=excluded.port,username=excluded.username")
             .bind(&id).bind(&draft.address).bind(canonical_host(&draft.address)).bind(i64::from(draft.port)).bind(&draft.username).execute(&mut *tx).await?;
         for (index, step) in draft.auth_plan.iter().enumerate() {
@@ -242,7 +256,17 @@ impl SqliteStore {
                 .await?;
         let tags = sqlx::query_scalar::<_, String>("SELECT t.name FROM tags t JOIN profile_tags p ON p.tag_id=t.id WHERE p.profile_id=? ORDER BY t.name")
             .bind(&id).fetch_all(&mut *tx).await?;
+        let config_json: String =
+            sqlx::query_scalar("SELECT config_json FROM connection_profiles WHERE id=?")
+                .bind(&id)
+                .fetch_one(&mut *tx)
+                .await?;
+        let metadata: serde_json::Value = serde_json::from_str(&config_json)?;
         let saved = HostProfile {
+            icon: draft.icon,
+            system_detection_attempted: metadata["systemDetectionAttempted"]
+                .as_bool()
+                .unwrap_or(false),
             id,
             revision,
             name: draft.name.trim().to_owned(),
@@ -282,6 +306,7 @@ impl SqliteStore {
     pub async fn duplicate_host(&self, id: &str) -> Result<HostProfile> {
         let host = self.get_host(id).await?;
         self.save_host(HostDraft {
+            icon: host.icon,
             id: None,
             revision: None,
             name: format!("{} 副本", host.name.chars().take(125).collect::<String>()),

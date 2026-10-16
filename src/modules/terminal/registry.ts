@@ -6,6 +6,7 @@ import {
   updateActivityTitle,
   updateShellActivity,
 } from "./activity";
+import { useHosts } from "../hosts/store";
 import { confirmPaste } from "./paste";
 import { observeTerminalInput } from "./inputOrigin";
 import { createInputRouter } from "./inputRouter";
@@ -149,7 +150,14 @@ function event(
     if (seq <= stream.eventSeq) return;
     stream.eventSeq = seq;
   }
-  if (value.type === "stateChanged") {
+  if (value.type === "hostSystemChanged") {
+    // 后端先提交持久化状态；通知只触发重读，不接受远端自定义图标内容。
+    void useHosts()
+      .load()
+      .catch((error) => {
+        tab.error = errorMessage(error);
+      });
+  } else if (value.type === "stateChanged") {
     const wasConnected = tab.state === "connected";
     update(tab, value.snapshot);
     if (!wasConnected && tab.state === "connected") {

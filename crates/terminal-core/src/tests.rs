@@ -86,6 +86,7 @@ impl SessionFactory for FakeFactory {
 fn config() -> SshConfig {
     SshConfig {
         config_version: 1,
+        system_profile_id: None,
         address: "example.invalid".into(),
         port: 22,
         username: "user".into(),

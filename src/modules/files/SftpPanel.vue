@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { validateForm } from "../../services/forms/rules";
-import { computed, h, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import {
+  computed,
+  h,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+  reactive,
+} from "vue";
 import {
   NAlert,
   NButton,
@@ -77,6 +85,7 @@ function resizeKey(event: KeyboardEvent) {
 }
 const directory = ref(".");
 const pathInput = ref(".");
+const pathModel = reactive({ path: pathInput });
 const pathForm = ref<FormInst>();
 const pathRules = {
   path: {
@@ -495,14 +504,14 @@ onBeforeUnmount(() => {
     <NFlex :wrap="false">
       <NForm
         ref="pathForm"
-        :model="{ path: pathInput }"
+        :model="pathModel"
         :rules="pathRules"
         @submit.prevent="navigatePath"
         class="path-form"
       >
         <NFormItem label="远端路径" path="path" :show-label="false">
           <NInput
-            v-model:value="pathInput"
+            v-model:value="pathModel.path"
             size="small"
             placeholder="远端路径"
             :disabled="busy || !connected"

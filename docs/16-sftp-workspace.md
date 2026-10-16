@@ -82,3 +82,7 @@ Finder 请求兑现目标后才显示下载任务、进度及传输中状态。�
 固定双栏和侧栏均位于src/modules/files，workspace只负责固定Tab承载；types.ts保存端点/选择契约。fileEntries.ts共享目录优先排序、链接判定和名称展示；useSftpTransferQueue.ts管理侧栏任务，不持有DOM或监听原生拖放。分页代次、原生手势与双栏Pointer Events仍由各自视图维护。
 
 壳内files/browser、upload、download复用浏览器获取及受界文件操作，commands保留owner校验、授权与调用编排；下载回调不再从其他command模块导入。terminal-sftp通过browser、remote_file和copy分离目录浏览、句柄读写与对拷，原有导出保持兼容。此次为结构调整，未新增IPC、权限、租约或持久化策略；取消/覆盖/拖放仍待运行复验。
+
+## 主机与路径表单校验
+
+双栏主机选择、双栏路径及终端侧栏路径使用与控件共享的响应式 model，避免选择/输入同步校验时读取上一轮渲染的空值。保留 change/input/blur 及提交前验证，不修改连接、授权或传输契约。仅静态检查通过，首次选择保存主机、无效路径纠正及鼠标/键盘行为待运行复验。

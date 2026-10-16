@@ -1,13 +1,18 @@
 <script setup lang="ts">
 import {
   NFlex,
+  NSelect,
+  type SelectRenderLabel,
   NForm,
   NFormItem,
+  NFormItemGi,
+  NGrid,
+  NGi,
   type FormInst,
   type FormRules,
 } from "naive-ui";
 import { clone } from "../../services/data/clone";
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, reactive, h } from "vue";
 import AppDialog from "../../components/ui/AppDialog.vue";
 import AppSelect from "../../components/ui/AppSelect.vue";
 import AppCheckbox from "../../components/ui/AppCheckbox.vue";
@@ -31,6 +36,14 @@ import { useSettings } from "../settings/store";
 import { builtinSchemes } from "../settings/themes";
 import { useHosts } from "./store";
 import { groupChoices } from "./groups";
+import HostSystemIcon from "./HostSystemIcon.vue";
+import { systemIconOptions } from "./systemIcons";
+const systemMenuProps = { class: "system-icon-menu", "data-ui-popup-open": "" };
+const renderSystemLabel: SelectRenderLabel = (option) =>
+  h(NFlex, { align: "center", size: 8, inline: true, wrap: false }, () => [
+    h(HostSystemIcon, { icon: String(option.value), size: 20 }),
+    h("span", String(option.label)),
+  ]);
 const props = defineProps<{
   open: boolean;
   host?: HostProfile;
@@ -58,6 +71,7 @@ const hosts = useHosts(),
   secret = ref("");
 const blank = (): HostDraft => ({
   id: null,
+  icon: "ssh",
   name: "",
   address: "",
   port: 22,
@@ -78,6 +92,7 @@ watch(
         ? (() => {
             const {
               hasPassword: _hasPassword,
+              systemDetectionAttempted: _systemDetectionAttempted,
               revision: _revision,
               ...profile
             } = clone(props.host);
@@ -161,16 +176,22 @@ const groupId = computed({
   },
 });
 const form = ref<FormInst>();
-const formModel = computed(() => ({
-  ...draft.value,
-  auth: auth.value,
-  credentialId: credentialId.value,
-}));
+// 表单与控件共享响应式字段；保留 ref 引用，重置草稿时无需等待重新渲染。
+const formModel = reactive({
+  draft,
+  auth,
+  credentialId,
+  secret,
+  hostScheme,
+  groupId,
+  tagText,
+});
 const rules = computed<FormRules>(() => ({
-  name: props.quick ? [] : requiredText("名称"),
-  address: requiredText("主机地址"),
-  username: requiredText("用户名"),
-  port: integerRange("端口", 1, 65535),
+  "draft.name": props.quick ? [] : requiredText("名称"),
+  "draft.address": requiredText("主机地址"),
+  "draft.icon": requiredText("图标"),
+  "draft.username": requiredText("用户名"),
+  "draft.port": integerRange("端口", 1, 65535),
   auth: requiredText("认证方式"),
   credentialId: auth.value === "privateKey" ? requiredText("私钥凭据") : [],
 }));
@@ -258,130 +279,131 @@ async function submit() {
       :disabled="fieldsLocked"
       @submit.prevent="submit"
     >
-      <fieldset class="host-fields form-grid" :disabled="fieldsLocked">
-        <NFormItem class="field span-2" label="名称" path="name">
+      <NGrid :cols="2" :x-gap="16">
+        <NFormItemGi :span="2" label="名称" path="draft.name">
           <AppInput
             id="host-name"
-            v-model="draft.name"
+            v-model="formModel.draft.name"
             maxlength="120"
             placeholder="例如：生产环境 · 上海"
           />
-        </NFormItem>
-        <NFormItem class="field" label="主机地址" path="address">
+        </NFormItemGi>
+        <NFormItemGi v-if="!quick" :span="2" label="图标" path="draft.icon">
+          <NSelect
+            v-model:value="formModel.draft.icon"
+            :options="systemIconOptions"
+            :render-label="renderSystemLabel"
+            :menu-props="systemMenuProps"
+            aria-label="主机图标"
+          />
+          <template #feedback>
+            {{
+              host?.systemDetectionAttempted
+                ? "系统识别已尝试，不会再次自动检测；可手动选择图标。"
+                : "默认 SSH 图标将在首次连接时自动识别；手动选择其他图标后不自动覆盖。"
+            }}
+          </template>
+        </NFormItemGi>
+        <NFormItemGi label="主机地址" path="draft.address">
           <AppInput
             id="host-address"
-            v-model="draft.address"
+            v-model="formModel.draft.address"
             maxlength="253"
             placeholder="example.com / IPv6"
           />
-        </NFormItem>
-        <NFormItem class="field" label="端口" path="port">
+        </NFormItemGi>
+        <NFormItemGi label="端口" path="draft.port">
           <AppNumberField
             id="host-port"
-            v-model="draft.port"
+            v-model="formModel.draft.port"
             :min="1"
             :max="65535"
           />
-        </NFormItem>
-        <NFormItem class="field" label="用户名" path="username">
+        </NFormItemGi>
+        <NFormItemGi label="用户名" path="draft.username">
           <AppInput
             id="host-username"
-            v-model="draft.username"
+            v-model="formModel.draft.username"
             maxlength="256"
             autocomplete="off"
           />
-        </NFormItem>
-        <NFormItem class="field" label="认证方式" path="auth">
+        </NFormItemGi>
+        <NFormItemGi label="认证方式" path="auth">
           <AppSelect
             id="host-auth"
-            v-model="auth"
+            v-model="formModel.auth"
             :options="authOptions"
             :disabled="fieldsLocked"
           />
-        </NFormItem>
-        <p class="muted span-2 auth-hint">
-          连接时自动识别服务器要求的后续认证，需要验证码时会提示输入。
-        </p>
-        <NFormItem
-          class="field span-2"
+        </NFormItemGi>
+        <NFormItemGi
+          :span="2"
           :label="auth === 'privateKey' ? '私钥凭据' : '密码凭据'"
           path="credentialId"
         >
           <AppSelect
             id="host-credential"
-            v-model="credentialId"
+            v-model="formModel.credentialId"
             :options="credentialOptions"
             :disabled="fieldsLocked"
           />
-          <p v-if="auth === 'privateKey'" class="muted auth-hint">
-            私钥及其可选解密密码统一在凭据页创建和管理。
-          </p>
-        </NFormItem>
-        <div v-if="auth === 'password' && !credentialId" class="field span-2">
+        </NFormItemGi>
+        <NGi v-if="auth === 'password' && !credentialId" :span="2">
           <template v-if="!quick">
             <NFormItem label="主机专属密码（可选）">
               <AppInput
                 id="host-password"
-                v-model="secret"
+                v-model="formModel.secret"
                 type="password"
                 autocomplete="new-password"
                 :disabled="fieldsLocked"
                 placeholder="填写后随主机安全保存；留空则连接时询问"
               />
             </NFormItem>
-            <p class="muted auth-hint">
-              此密码仅用于当前主机，不进入可复用凭据库。{{
-                host?.hasPassword && !duplicate
-                  ? "当前已保存密码；留空保存会移除旧密码，改为连接时询问。"
-                  : duplicate && host?.hasPassword
-                    ? "复制主机不会复制原主机的专属密码。"
-                    : ""
-              }}
-            </p>
           </template>
-          <p v-else class="muted auth-hint">
-            快速连接不保存专属密码，本次连接时会询问。
-          </p>
-        </div>
-        <NFormItem
+        </NGi>
+        <NFormItemGi
           v-if="!quick"
-          class="field span-2"
+          :span="2"
           label="主机终端配色"
-          path="scheme"
+          path="hostScheme"
         >
           <AppSelect
             id="host-scheme"
-            v-model="hostScheme"
+            v-model="formModel.hostScheme"
             :options="schemeOptions"
             :disabled="fieldsLocked"
           />
-        </NFormItem>
+        </NFormItemGi>
         <template v-if="!quick">
-          <NFormItem class="field" label="分组" path="group">
+          <NFormItemGi label="分组" path="groupId">
             <AppSelect
               id="host-group"
-              v-model="groupId"
+              v-model="formModel.groupId"
               :options="groupOptions"
               :disabled="fieldsLocked"
             />
-          </NFormItem>
-          <NFormItem class="field" label="标签" path="tags">
+          </NFormItemGi>
+          <NFormItemGi label="标签" path="tagText">
             <AppInput
               id="host-tags"
-              v-model="tagText"
+              v-model="formModel.tagText"
               placeholder="生产, Linux"
             />
-          </NFormItem>
-          <AppCheckbox
-            v-model="draft.favorite"
-            class="span-2"
-            :disabled="fieldsLocked"
-          >
-            加入收藏
-          </AppCheckbox>
+          </NFormItemGi>
+          <NGi :span="2">
+            <AppCheckbox
+              v-model="formModel.draft.favorite"
+              :disabled="fieldsLocked"
+            >
+              加入收藏
+            </AppCheckbox>
+          </NGi>
         </template>
-        <p v-if="error" class="error span-2" role="alert">{{ error }}</p>
-      </fieldset>
+        <NGi v-if="error" :span="2">
+          <p class="error" role="alert">{{ error }}</p>
+        </NGi>
+      </NGrid>
     </NForm>
     <template #footer>
       <NFlex justify="end">
@@ -408,21 +430,4 @@ async function submit() {
     </template>
   </AppDialog>
 </template>
-<style scoped>
-.host-fields {
-  border: 0;
-  padding: 0;
-  margin: 0;
-  min-width: 0;
-}
-.field {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-}
-.auth-hint {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.6;
-}
-</style>
+<style scoped></style>

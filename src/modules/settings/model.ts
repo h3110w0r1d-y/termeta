@@ -31,10 +31,12 @@ export interface HostSearchSettings {
 }
 export interface AppSettings {
   schemaVersion: 1;
+  primaryColor: string;
   appearance: "dark" | "light" | "system";
   tabPosition: "top" | "left";
   tabDoubleClickAction: "none" | "close" | "duplicate" | "split";
   sftpShowHidden: boolean;
+  detectSshSystem: boolean;
   hostsView: HostsViewSettings;
   hostSearch: HostSearchSettings;
   fontFamily: string;

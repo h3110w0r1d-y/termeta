@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { NIcon } from "naive-ui";
+import { Star } from "@vicons/ionicons5";
 import { computed, nextTick, ref, watch } from "vue";
 import {
   NButton,
@@ -143,7 +145,17 @@ function enter(event: KeyboardEvent) {
                 @click="choose(host)"
               >
                 <NFlex vertical align="start" :size="4" class="result-text">
-                  <NText>{{ host.favorite ? "★ " : "" }}{{ host.name }}</NText>
+                  <NText>
+                    <NIcon
+                      v-if="host.favorite"
+                      :size="16"
+                      role="img"
+                      aria-label="已收藏"
+                    >
+                      <Star />
+                    </NIcon>
+                    {{ host.name }}
+                  </NText>
                   <NText depth="3">
                     {{ host.username }}@{{
                       host.address.includes(":")

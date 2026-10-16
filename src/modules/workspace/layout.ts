@@ -76,6 +76,18 @@ export function splitTerminal(
     : { ...node, first, second };
 }
 
+/** 交换分隔线两侧完整子树，保留区域尺寸与内部布局。 */
+export function swapSplit(node: LayoutNode, splitId: string): LayoutNode {
+  if (node.kind === "terminal") return node;
+  if (node.id === splitId)
+    return { ...node, first: node.second, second: node.first };
+  const first = swapSplit(node.first, splitId);
+  const second = swapSplit(node.second, splitId);
+  return first === node.first && second === node.second
+    ? node
+    : { ...node, first, second };
+}
+
 function clampRatio(ratio: number): number {
   return Number.isFinite(ratio) ? Math.min(0.9, Math.max(0.1, ratio)) : 0.5;
 }

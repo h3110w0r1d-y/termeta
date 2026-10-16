@@ -102,6 +102,9 @@ pub struct SessionSnapshot {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SshConfig {
+    /// 仅后端保存主机连接设置；前端不能指定或冒用检测归属。
+    #[serde(skip)]
+    pub system_profile_id: Option<String>,
     pub config_version: u8,
     pub address: String,
     pub port: u16,
@@ -214,6 +217,10 @@ pub struct SessionEvent {
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum EventPayload {
+    #[serde(rename_all = "camelCase")]
+    HostSystemChanged {
+        profile_id: String,
+    },
     StateChanged {
         snapshot: SessionSnapshot,
     },

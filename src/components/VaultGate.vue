@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, reactive } from "vue";
 import {
   NAlert,
   NButton,
@@ -25,6 +25,7 @@ const busy = ref(false),
   warning = ref("");
 const password = ref(""),
   confirmation = ref("");
+const formModel = reactive({ password, confirmation });
 const setup = computed(() => status.value?.mode === "setup");
 const form = ref<FormInst>();
 const rules = computed<FormRules>(() => ({
@@ -128,7 +129,7 @@ onMounted(inspect);
           <NAlert v-if="warning" type="warning">{{ warning }}</NAlert>
           <NForm
             ref="form"
-            :model="{ password, confirmation }"
+            :model="formModel"
             :rules="rules"
             v-if="status && status.mode !== 'unlocked'"
             @submit.prevent="submit"
@@ -138,7 +139,7 @@ onMounted(inspect);
               :label="setup ? '设置密码（至少12个字符）' : '保险库密码'"
             >
               <NInput
-                v-model:value="password"
+                v-model:value="formModel.password"
                 type="password"
                 show-password-on="click"
                 :disabled="busy"
@@ -151,7 +152,7 @@ onMounted(inspect);
             </NFormItem>
             <NFormItem v-if="setup" label="确认密码" path="confirmation">
               <NInput
-                v-model:value="confirmation"
+                v-model:value="formModel.confirmation"
                 type="password"
                 :disabled="busy"
                 :input-props="{ autocomplete: 'new-password', maxlength: 1024 }"

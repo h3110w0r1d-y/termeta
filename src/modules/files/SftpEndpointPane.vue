@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { validateForm } from "../../services/forms/rules";
-import { computed, h, ref, watch } from "vue";
+import { computed, h, ref, watch, reactive } from "vue";
 import {
   NAlert,
   NButton,
@@ -40,6 +40,7 @@ const emit = defineEmits<{
 }>();
 const hosts = useHosts();
 const profile = ref<string | null>(null);
+const connectModel = reactive({ profile });
 const connectForm = ref<FormInst>();
 const connectRules = {
   profile: {
@@ -61,6 +62,7 @@ const options = computed(() =>
 );
 const directory = ref(".");
 const pathInput = ref(".");
+const pathModel = reactive({ path: pathInput });
 const pathForm = ref<FormInst>();
 const pathRules = {
   path: {
@@ -228,14 +230,14 @@ defineExpose({ refresh: () => load(), path: directory, available });
   <section class="endpoint-pane">
     <NForm
       ref="connectForm"
-      :model="{ profile }"
+      :model="connectModel"
       :rules="connectRules"
       @submit.prevent="connect"
     >
       <NFlex :wrap="false">
         <NFormItem label="SSH 主机" path="profile" class="path-form">
           <NSelect
-            v-model:value="profile"
+            v-model:value="connectModel.profile"
             :options="options"
             filterable
             placeholder="选择已保存的 SSH 主机"
@@ -275,14 +277,14 @@ defineExpose({ refresh: () => load(), path: directory, available });
       </NFlex>
       <NForm
         ref="pathForm"
-        :model="{ path: pathInput }"
+        :model="pathModel"
         :rules="pathRules"
         @submit.prevent="navigatePath"
         class="path-form"
       >
         <NFormItem label="远端路径" path="path" :show-label="false">
           <NInput
-            v-model:value="pathInput"
+            v-model:value="pathModel.path"
             :disabled="disabled"
             placeholder="远端路径"
           />

@@ -1,6 +1,6 @@
 # 技术选型与依赖依据
 
-更新：2026-10-15。以下为当前源码与锁定发布包的静态核查结果，未代表编译兼容、真实连接或三平台运行验收。具体依赖以 Cargo.lock、pnpm-lock.yaml 为准。
+更新：2026-10-16。以下为当前源码与锁定发布包的静态核查结果，未代表编译兼容、真实连接或三平台运行验收。具体依赖以 Cargo.lock、pnpm-lock.yaml 为准。
 
 ## 1. 当前选型
 
@@ -78,3 +78,13 @@ SP-01~05、SP-07~09 未执行；SP-10/11 的首批源码已实现待验收，SP-
 ## 2026-10-16：portable-pty 0.9.0 落地
 
 固定依赖[portable-pty 0.9.0](https://crates.io/crates/portable-pty/0.9.0)，MIT；核对发布包源码的native_pty_system/openpty、CommandBuilder、try_clone_reader/take_writer、resize、Child::try_wait/kill/wait API。Unix使用PTY，Windows使用ConPTY，阻塞API不在异步执行器直接读写。该发布包未声明rust-version，工作区维持Rust 1.89/edition 2024，MSRV与三平台可编译性未验证；已更新锁文件，未编译运行。Unix实现setsid，默认Child::kill发送SIGHUP，本项目关闭时使用libc 0.2.190终止初始进程组并回收。未完成独立安全公告数据库审计，不能据此宣称无公告或完整进程树清理已验收。
+
+## 图标库（2026-10-16）
+
+固定使用 [@vicons/ionicons5 0.13.0 发布元数据](https://registry.npmjs.org/@vicons/ionicons5/0.13.0)，对应 [xicons](https://www.xicons.org/) 的 Vue 3 Ionicons 5 组件，通过 Naive UI NIcon 使用。已检查实际发布包 manifest、具名导出类型和图标源码：MIT、无运行依赖、sideEffects:false，提供 lib/es 与类型入口，未声明 engines/peerDependencies；实际类型兼容由项目 vue-tsc 静态检查确认，未构建或运行。前端包无 Rust MSRV/features。pnpm audit --prod 本轮未报告漏洞，不能代表未来无公告。favicon 静态图形取自同包 TerminalOutline，附 [Ionicons MIT 许可证](https://github.com/ionic-team/ionicons/blob/v5.5.4/LICENSE)。保留范围与统计见 [UI 图标规范](13-ui-stack.md#图标来源与替换范围)。
+
+## SSH 系统识别与资源核对（2026-10-16）
+
+静态阅读用户指定Termius解包service-process.js的getOsFromSoftwareVersion/getOS/parseOS与独立exec调用链，以及reconnectSaga-871ae692.js的系统类型到SVG映射。实现采用相同的版本线索/Shell分支/独立exec思路，重新编写受界解析；不复制其OpenSSH版本门槛、宽泛win/red子串匹配或将readlink参数拼入命令。Linux优先标准os-release文件，保留传统release回退。原样SVG来源、重命名和SHA-256见resources/host-system-icons.json。
+
+核对锁定russh 0.64.1发布源码：Handler::kex_done、Session::remote_sshid、Handle::channel_open_session、Channel::exec及Success/ExitStatus/Close消息。SSH新增直接依赖已在锁文件中的serde_json 1.0.154（MIT OR Apache-2.0，沿用默认std功能），复用同份JSON脚本；没有新增第三方库种类或变更russh版本/features/MSRV，不改变既有公告风险。Cargo只执行metadata --no-deps --locked和fmt，不编译。真实exec互通、通道取消和协议公平性仍须运行验收。

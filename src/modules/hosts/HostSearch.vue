@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { Star } from "@vicons/ionicons5";
 import { computed, h, ref, watch, type HTMLAttributes } from "vue";
 import {
+  NIcon,
   NSelect,
   NEllipsis,
   NSpace,
@@ -49,7 +51,14 @@ function renderLabel(option: SelectOption) {
     ? `[${host.address}]`
     : host.address;
   return h(NSpace, { vertical: true, size: 0 }, () => [
-    h(NEllipsis, null, () => `${host.favorite ? "★ " : ""}${host.name}`),
+    h(NEllipsis, null, () => [
+      host.favorite
+        ? h(NIcon, { size: 16, role: "img", "aria-label": "已收藏" }, () =>
+            h(Star),
+          )
+        : null,
+      host.name,
+    ]),
     h(
       NText,
       { depth: 3 },

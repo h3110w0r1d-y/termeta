@@ -130,3 +130,13 @@ ProxyJump 后续通过明确 hop 列表，为每一跳独立校验密钥与认�
 实现位于 terminal-ssh 的 connection/host_key/auth/driver。固定配置为 256 KiB SSH window、32 KiB maximum packet、16 条 channel 消息、30 秒 KeepAlive 与 max=3；russh 收到包会重置保活计数，且超出 max 才断开，不能解释为精确 90 秒。库内部 channel 满时的协议公平性仍须 SP-05 验证，socket shutdown 取消不依赖输出 ACK。
 
 已静态核对 russh 0.64.1 的认证、交互及 PTY/Shell API。当前源码不等于认证互通验收：公共/专属密码、加密/无密码私钥、密码或私钥加 OTP、仅 PAM、错误重试、取消与超时仍须真实服务器验证。RSA 算法选择不消除实现侧信道风险，依赖公告见 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)。
+
+## 10. 一次性主机系统识别
+
+仅保存SSH终端生效，开关detectSshSystem缺失时默认true；Local、临时SSH、files-only及未来Telnet不启动检测。PTY/Shell建立后与driver并发运行，RemoteSystemStore先按主机ID、目标快照和默认图标事务claim，持久化systemDetectionAttempted与session令牌。无标记且图标为ssh才允许claim；失败、超时、断开或进程中断均不撤销标记，后续连接永不自动重试。修改连接目标不重置标记；复制新主机保留icon但独立计算新主机的尝试状态。
+
+kex_done采集受界SSH服务端标识，仅作展示线索。完整平台词或明确软件标识可直接归类；其余通过同一transport的独立exec channel执行echo $SHELL，再选择POSIX/Fish/RouterOS脚本，必要时尝试固定Windows版本查询。没有Termius版本对OpenSSH版本的执行限制，不承诺设备都支持exec。普通脚本优先/etc/os-release、/usr/lib/os-release，再回退release文件；仅Rust按文本解析ID、NAME、DISTRIB_ID、ID_LIKE等，不source，不拼接远端返回值为命令。
+
+全部exec共用5秒截止时间与32KiB stdout/stderr预算，每次最多一个探测channel，必须等待exec协议Success和退出码；仅stdout用于解析。超时/取消/超限关闭探测channel，不向PTY注入命令、不显示探测正文、不进入输入广播或修改交互Shell。检测结果只有白名单图标类别；失败不改变会话状态。complete校验令牌、目标及仍为默认图标，防止删除/目标变化/手动选择被迟到结果覆盖；提交后发hostSystemChanged控制通知重读主机。改变icon或目标会作废旧令牌，但不清除一次性标记。
+
+内置命令与设置页共用resources/ssh-os-detection.json；设置仅提供开关和只读文本，不提供脚本编辑或任意exec IPC。检测会在远端执行内置只读命令，可能被服务器审计。当前仅静态验证，运行兼容性和故障矩阵待验收。

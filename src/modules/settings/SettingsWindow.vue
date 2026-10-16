@@ -12,7 +12,7 @@ import ConfirmationDialog from "../../components/ui/ConfirmationDialog.vue";
 import { useAppAppearance } from "../../layout/useAppAppearance";
 import { useSettingsSync } from "./useSettingsSync";
 import { desktop, errorMessage } from "../../services/desktop/client";
-const { naiveTheme } = useAppAppearance();
+const { naiveTheme, naiveThemeOverrides } = useAppAppearance();
 const sync = useSettingsSync();
 const ready = ref(false),
   error = ref("");
@@ -66,7 +66,12 @@ onBeforeUnmount(() => {
 });
 </script>
 <template>
-  <NConfigProvider :theme="naiveTheme" :locale="zhCN" :date-locale="dateZhCN">
+  <NConfigProvider
+    :theme="naiveTheme"
+    :theme-overrides="naiveThemeOverrides"
+    :locale="zhCN"
+    :date-locale="dateZhCN"
+  >
     <NGlobalStyle />
     <div class="settings-window">
       <NAlert v-if="error || sync.error.value" type="error">

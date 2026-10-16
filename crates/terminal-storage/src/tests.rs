@@ -17,6 +17,7 @@ impl Drop for TestDirectory {
 }
 fn draft() -> HostDraft {
     HostDraft {
+        icon: "ssh".into(),
         id: None,
         revision: None,
         name: "测试主机".into(),
@@ -33,6 +34,7 @@ fn draft() -> HostDraft {
 }
 fn edit(host: HostProfile) -> HostDraft {
     HostDraft {
+        icon: host.icon,
         id: Some(host.id),
         revision: Some(host.revision),
         name: host.name,
@@ -535,4 +537,144 @@ async fn unlock_prunes_existing_history_with_equal_timestamps() {
         .await
         .unwrap();
     assert_eq!(count, 20);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn system_detection_failure_is_once_only_and_survives_reopen() {
+    use terminal_core::RemoteSystemStore;
+    let directory = TestDirectory::new();
+    let path = directory.0.join("system.sqlite3");
+    let store = SqliteStore::open(&path).await.unwrap();
+    let host = store.save_host(draft()).await.unwrap();
+    let config = store.get_host_connection(&host.id).await.unwrap();
+    let (first, second) = tokio::join!(
+        store.claim(&host.id, "first", &config),
+        store.claim(&host.id, "second", &config),
+    );
+    let first = first.unwrap();
+    assert_ne!(first, second.unwrap());
+    let token = if first { "first" } else { "second" };
+    store
+        .complete(&host.id, token, &config, None)
+        .await
+        .unwrap();
+    let failed = store.get_host(&host.id).await.unwrap();
+    assert!(failed.system_detection_attempted);
+    assert_eq!(failed.icon, "ssh");
+    store.pool().unwrap().close().await;
+    drop(store);
+    let store = SqliteStore::open(&path).await.unwrap();
+    assert!(!store.claim(&host.id, "reconnect", &config).await.unwrap());
+    // 修改名称或地址也不能隐式重置用户要求的一次性标记。
+    let mut changed = edit(store.get_host(&host.id).await.unwrap());
+    changed.address = "other.example.com".into();
+    store.save_host(changed).await.unwrap();
+    let config = store.get_host_connection(&host.id).await.unwrap();
+    assert!(!store.claim(&host.id, "changed", &config).await.unwrap());
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn system_detection_toggle_and_manual_icon_take_priority() {
+    use terminal_core::RemoteSystemStore;
+    let directory = TestDirectory::new();
+    let store = SqliteStore::open(directory.0.join("system.sqlite3"))
+        .await
+        .unwrap();
+    let host = store.save_host(draft()).await.unwrap();
+    let config = store.get_host_connection(&host.id).await.unwrap();
+    store
+        .set_setting("app", 1, &serde_json::json!({"detectSshSystem": false}))
+        .await
+        .unwrap();
+    assert!(!store.claim(&host.id, "off", &config).await.unwrap());
+    assert!(
+        !store
+            .get_host(&host.id)
+            .await
+            .unwrap()
+            .system_detection_attempted
+    );
+    store
+        .set_setting("app", 1, &serde_json::json!({"detectSshSystem": true}))
+        .await
+        .unwrap();
+    assert!(store.claim(&host.id, "on", &config).await.unwrap());
+    let mut changed = edit(store.get_host(&host.id).await.unwrap());
+    changed.icon = "debian".into();
+    store.save_host(changed).await.unwrap();
+    store
+        .complete(&host.id, "on", &config, Some("ubuntu"))
+        .await
+        .unwrap();
+    assert_eq!(store.get_host(&host.id).await.unwrap().icon, "debian");
+    // 即使手动改回默认图标，也不能被迟到的旧检测结果覆盖。
+    let mut changed = edit(store.get_host(&host.id).await.unwrap());
+    changed.icon = "ssh".into();
+    store.save_host(changed).await.unwrap();
+    store
+        .complete(&host.id, "on", &config, Some("ubuntu"))
+        .await
+        .unwrap();
+    assert_eq!(store.get_host(&host.id).await.unwrap().icon, "ssh");
+    assert!(!store.claim(&host.id, "again", &config).await.unwrap());
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn system_detection_cannot_update_a_changed_target_or_deleted_host() {
+    use terminal_core::RemoteSystemStore;
+    let directory = TestDirectory::new();
+    let store = SqliteStore::open(directory.0.join("system.sqlite3"))
+        .await
+        .unwrap();
+    let host = store.save_host(draft()).await.unwrap();
+    let config = store.get_host_connection(&host.id).await.unwrap();
+    let mut wrong = config.clone();
+    wrong.address = "other.example.com".into();
+    assert!(!store.claim(&host.id, "wrong", &wrong).await.unwrap());
+    assert!(store.claim(&host.id, "original", &config).await.unwrap());
+    let mut changed = edit(store.get_host(&host.id).await.unwrap());
+    changed.address = wrong.address;
+    store.save_host(changed).await.unwrap();
+    store
+        .complete(&host.id, "original", &config, Some("ubuntu"))
+        .await
+        .unwrap();
+    assert_eq!(store.get_host(&host.id).await.unwrap().icon, "ssh");
+    let mut changed = edit(store.get_host(&host.id).await.unwrap());
+    changed.address = config.address.clone();
+    store.save_host(changed).await.unwrap();
+    store
+        .complete(&host.id, "original", &config, Some("ubuntu"))
+        .await
+        .unwrap();
+    let host = store.get_host(&host.id).await.unwrap();
+    assert_eq!(host.icon, "ssh");
+    store.delete_host(&host.id, host.revision).await.unwrap();
+    store
+        .complete(&host.id, "original", &config, Some("ubuntu"))
+        .await
+        .unwrap();
+    assert!(store.get_host(&host.id).await.is_err());
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn system_detection_success_persists_and_rejects_non_builtin_icons() {
+    use terminal_core::RemoteSystemStore;
+    let directory = TestDirectory::new();
+    let store = SqliteStore::open(directory.0.join("system.sqlite3"))
+        .await
+        .unwrap();
+    let host = store.save_host(draft()).await.unwrap();
+    let config = store.get_host_connection(&host.id).await.unwrap();
+    assert!(store.claim(&host.id, "success", &config).await.unwrap());
+    store
+        .complete(&host.id, "success", &config, Some("ubuntu"))
+        .await
+        .unwrap();
+    let host = store.get_host(&host.id).await.unwrap();
+    assert_eq!(host.icon, "ubuntu");
+    assert!(host.system_detection_attempted);
+    let mut changed = edit(host);
+    changed.icon = "<svg onload=alert(1)>".into();
+    assert!(store.save_host(changed).await.is_err());
 }

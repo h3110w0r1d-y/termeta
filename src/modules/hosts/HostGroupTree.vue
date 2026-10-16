@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { closeContextMenuOnOutside } from "../../components/ui/contextMenu";
-import { computed, h, nextTick, ref, watch } from "vue";
+import { computed, h, nextTick, ref, watch, reactive } from "vue";
 import {
   NButton,
   NDropdown,
@@ -68,6 +68,7 @@ const editor = ref(false);
 const editing = ref<HostGroup>();
 const name = ref("");
 const parent = ref<string | null>(null);
+const groupModel = reactive({ name, parent });
 const dialogError = ref("");
 const deleteTarget = ref<HostGroup>();
 const deleteMode = ref("move");
@@ -431,13 +432,13 @@ defineExpose({ startHostDrag });
     >
       <NForm
         ref="form"
-        :model="{ name, parent }"
+        :model="groupModel"
         :rules="groupRules"
         @submit.prevent="saveGroup"
       >
         <NFormItem label="分组名称" path="name">
           <NInput
-            v-model:value="name"
+            v-model:value="groupModel.name"
             autofocus
             maxlength="128"
             @keydown.enter.prevent="saveGroup"

@@ -1,7 +1,11 @@
 <script setup lang="ts">
+import HostSystemBadge from "./HostSystemBadge.vue";
+import AssetIcon from "../../components/ui/AssetIcon.vue";
+import { NIcon } from "naive-ui";
+import { Star, StarOutline } from "@vicons/ionicons5";
 import { closeContextMenuOnOutside } from "../../components/ui/contextMenu";
 import { confirmAction } from "../../components/ui/confirmation";
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, ref, watch, reactive } from "vue";
 import {
   NForm,
   NFormItem,
@@ -132,6 +136,7 @@ async function selectMenu(key: string) {
     }
   }
 }
+const moveModel = reactive({ destination });
 const moveForm = ref<FormInst>();
 const moveRules: FormRules = {
   destination: {
@@ -219,7 +224,12 @@ watch(group, () => {
       >
         新建主机
       </NButton>
-      <NButton @click="emit('local')">本地终端</NButton>
+      <NButton @click="emit('local')">
+        <template #icon>
+          <AssetIcon name="local-terminal" :size="18" />
+        </template>
+        本地终端
+      </NButton>
     </NSpace>
     <NAlert
       v-if="error"
@@ -285,6 +295,7 @@ watch(group, () => {
             >
               <template #header>
                 <div class="host-card-title">
+                  <HostSystemBadge :icon="host.icon" />
                   <NEllipsis class="host-card-name">{{ host.name }}</NEllipsis>
                   <NTag class="host-protocol" type="info" size="small">
                     SSH
@@ -301,7 +312,10 @@ watch(group, () => {
                   @dblclick.stop
                   @click.stop="favorite(host)"
                 >
-                  {{ host.favorite ? "★" : "☆" }}
+                  <NIcon :size="18" aria-hidden="true">
+                    <Star v-if="host.favorite" />
+                    <StarOutline v-else />
+                  </NIcon>
                 </NButton>
               </template>
               <NSpace vertical>
@@ -350,10 +364,10 @@ watch(group, () => {
       "
     >
       <p>将“{{ movingHost?.name }}”移到：</p>
-      <NForm ref="moveForm" :model="{ destination }" :rules="moveRules">
+      <NForm ref="moveForm" :model="moveModel" :rules="moveRules">
         <NFormItem label="目标分组" path="destination">
           <NSelect
-            v-model:value="destination"
+            v-model:value="moveModel.destination"
             :options="moveOptions"
             filterable
           />

@@ -24,9 +24,11 @@ import {
   nextTick,
   onMounted,
   onBeforeUnmount,
+  reactive,
 } from "vue";
 import { Terminal } from "@xterm/xterm";
 import ColorField from "./ColorField.vue";
+import SchemeThumbnail from "./SchemeThumbnail.vue";
 import { applyTerminalTheme } from "../terminal/theme";
 import type { Scheme } from "./model";
 import {
@@ -54,6 +56,7 @@ const error = ref(""),
   schemeSearch = ref(""),
   expanded = ref<string[]>([]),
   indexed = ref("");
+const formModel = reactive({ editor, indexed });
 const schemes = computed(() =>
   [...builtinSchemes, ...draft.value.customSchemes].filter((s) =>
     s.name.toLowerCase().includes(schemeSearch.value.toLowerCase()),
@@ -159,7 +162,7 @@ function editScheme(s: Scheme) {
 }
 const form = ref<FormInst>();
 const rules: FormRules = {
-  name: requiredText("方案名称"),
+  "editor.name": requiredText("方案名称"),
   indexed: {
     trigger: ["input", "blur"],
     validator: () => {
@@ -287,7 +290,7 @@ function confirmImport() {
       />
     </NFlex>
     <NGrid
-      cols="1 420:2 630:3 840:4 1050:5"
+      cols="1 420:2 780:3 1040:4"
       responsive="self"
       :x-gap="12"
       :y-gap="12"
@@ -297,24 +300,12 @@ function confirmImport() {
           class="scheme-card"
           :variant="draft.defaultSchemeId === s.id ? 'primary' : 'default'"
           :aria-pressed="draft.defaultSchemeId === s.id"
-          :style="{
-            background: s.colors.background,
-            color: s.colors.foreground,
-          }"
           @click="selectScheme(s)"
         >
-          <NFlex vertical :size="4" align="center">
-            <span>
-              {{ draft.defaultSchemeId === s.id ? "✓ " : "" }}{{ s.name }}
-            </span>
-            <span class="swatches" aria-hidden="true">
-              <i
-                v-for="(c, index) in s.colors.ansi.slice(1, 7)"
-                :key="index"
-                :style="{ background: c }"
-              />
-            </span>
-          </NFlex>
+          <span class="scheme-card-content">
+            <SchemeThumbnail :scheme="s" />
+            <span class="scheme-name" :title="s.name">{{ s.name }}</span>
+          </span>
         </AppButton>
       </NGridItem>
     </NGrid>
@@ -327,7 +318,7 @@ function confirmImport() {
       >
         <NForm
           ref="form"
-          :model="{ ...editor, indexed }"
+          :model="formModel"
           :rules="rules"
           label-placement="top"
           @submit.prevent="saveScheme"
@@ -336,8 +327,8 @@ function confirmImport() {
             <p class="muted">
               编辑内置方案会自动创建自定义副本，修改实时应用。
             </p>
-            <NFormItem label="方案名称" path="name">
-              <AppInput v-model="editor.name" maxlength="80" />
+            <NFormItem label="方案名称" path="editor.name">
+              <AppInput v-model="formModel.editor.name" maxlength="80" />
             </NFormItem>
             <div ref="previewHost" class="theme-preview" />
             <p v-if="contrast < 4.5" class="error">
@@ -347,9 +338,9 @@ function confirmImport() {
             <NGrid cols="1 560:2" responsive="self" :x-gap="10" :y-gap="10">
               <NGridItem v-for="key in baseKeys" :key="key">
                 <ColorField
-                  v-model="editor.colors[key]"
+                  v-model="formModel.editor.colors[key]"
                   :label="key"
-                  :path="`colors.${key}`"
+                  :path="`editor.colors.${key}`"
                   :optional="key === 'selectionForeground'"
                   :reset="defaultScheme.colors[key]"
                 />
@@ -359,9 +350,9 @@ function confirmImport() {
               <NGrid cols="1 560:2" responsive="self" :x-gap="10" :y-gap="10">
                 <NGridItem v-for="(_, i) in editor.colors.ansi" :key="i">
                   <ColorField
-                    v-model="editor.colors.ansi[i]"
+                    v-model="formModel.editor.colors.ansi[i]"
                     :label="'ANSI ' + i"
-                    :path="`colors.ansi.${i}`"
+                    :path="`editor.colors.ansi.${i}`"
                     :reset="defaultScheme.colors.ansi[i]"
                   />
                 </NGridItem>
@@ -369,7 +360,7 @@ function confirmImport() {
             </AppCollapsible>
             <AppCollapsible title="滚动条辅助颜色">
               <NGrid
-                v-if="editor.colors.scrollbar"
+                v-if="formModel.editor.colors.scrollbar"
                 cols="1 560:2"
                 responsive="self"
                 :x-gap="10"
@@ -377,16 +368,20 @@ function confirmImport() {
               >
                 <NGridItem v-for="key in scrollbarKeys" :key="key">
                   <ColorField
-                    v-model="editor.colors.scrollbar[key]"
+                    v-model="formModel.editor.colors.scrollbar[key]"
                     :label="key"
-                    :path="`colors.scrollbar.${key}`"
+                    :path="`editor.colors.scrollbar.${key}`"
                     optional
                   />
                 </NGridItem>
               </NGrid>
             </AppCollapsible>
             <NFormItem label="索引色覆盖（16–255，HEX JSON）" path="indexed">
-              <AppTextarea v-model="indexed" rows="3" spellcheck="false" />
+              <AppTextarea
+                v-model="formModel.indexed"
+                rows="3"
+                spellcheck="false"
+              />
             </NFormItem>
             <NFlex>
               <AppButton @click="exportTheme">导出 JSON</AppButton>
@@ -430,14 +425,22 @@ function confirmImport() {
   height: auto;
   padding: 8px 12px;
 }
-.swatches {
-  display: inline-flex;
-  gap: 3px;
+.scheme-card :deep(.n-button__content) {
+  width: 100%;
+  min-width: 0;
 }
-.swatches i {
-  width: 14px;
-  height: 6px;
-  display: inline-block;
+.scheme-card-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+.scheme-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
 }
 .theme-preview {
   height: 170px;

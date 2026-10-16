@@ -48,3 +48,5 @@ xterm在mouseup激活链接，处理程序仅preventDefault，不stopPropagation
 Tauri 2.11.5会默认创建macOS菜单，其中预设Close Window自带Cmd+W，可绕过DOM处理。src-tauri/src/macos_menu.rs沿用默认菜单，只重建Window子菜单，以无accelerator的普通Close Window项替代预设关闭项，保留最小化/最大化、其他默认菜单和原生编辑快捷键。显式菜单关闭仍调用window.close并经过现有CloseRequested确认；不增加前后端模态状态同步或新IPC。此调整需要重新编译桌面壳，单独前端热更新不能移除原生快捷键。尚未编译运行验证。
 
 独立设置窗口：settings.open保留可配置默认Primary+,，主窗口处理后调用open_settings_window；macOS原生菜单不额外注册固定加速键，避免覆盖用户自定义绑定。设置窗口不注册终端/工作区命令，Cmd/Ctrl+W仅等待设置写入后关闭当前窗口，模态框/快捷键录制优先。原生Close Window菜单按当前聚焦窗口执行，各窗口自行处理CloseRequested。
+
+标准终端粘贴快捷键（macOS Cmd+V、Windows/Linux Ctrl+Shift+V）匹配已启用的 terminal.paste 后放行系统默认行为，不调用 navigator.clipboard.readText()。系统 paste 事件由终端宿主捕获，继续执行 64 KiB 限制、多行确认、括号粘贴及广播代次校验；自定义粘贴绑定仍使用显式剪贴板读取，可能受 WebView 授权限制。待运行验证直接粘贴、多行确认/取消、仅输入一次、改绑/禁用与广播。

@@ -2,6 +2,8 @@
 
 日期：2026-10-16。加密格式2源码已实现，未经编译、启动或真实钥匙串验证。开发阶段不兼容、不迁移旧格式；不会自动删除旧库或旧系统凭据。
 
+应用主题色支持在设置常规页通过 NColorPicker 选择不透明六位 HEX，并恢复 Naive UI 默认色；有效修改自动保存并跨窗口热应用。`app.primaryColor` 缺失或空串沿用库的明暗主题默认色，经 Rust 白名单及颜色校验，不修改 schema。主窗口和设置窗口共用 NConfigProvider themeOverrides 派生主色/悬停/按下状态，业务 accent 同步主色；Workspace 拖放预览边框读取 useThemeVars.primaryColor，填充为该色25%透明度，不影响终端配色或终端宿主生命周期。仅完成前端类型、结构、Vue格式与差异静态检查；未构建、启动或执行 Rust 编译/测试，三平台视觉与设置同步待运行验收。
+
 ## 1. 存储边界
 
 | 位置 | 内容 | 边界 |
@@ -56,3 +58,9 @@ schema 2沿用profile、SSH扩展、认证步骤、分组、标签、信任、�
 连接历史固定保留最近20次（SSH与Local合计，按连接尝试计数，不按主机去重）：新增与裁剪在同一BEGIN IMMEDIATE事务内提交，数据库解锁初始化时同时裁剪已有超量数据；读取最多20条。排序为started_at倒序、同毫秒按rowid倒序。移除原90天清理策略，不新增schema或迁移。裁剪可能删除仍在进行的旧会话摘要，其后结束更新为空操作，不影响实际会话和终端缓冲。
 
 独立设置窗口与主窗口共用加密app设置记录：Rust设置专用队列串行执行读取/局部合并/校验/写入，hostsView与hostSearch按子字段合并，避免即时偏好覆盖；前端每窗口读写亦串行，提交成功后通知其他窗口重读。不新增表或迁移。无效输入与失败写入保持此前持久化值，设置表单保留失败输入。
+
+## SSH 图标与一次性检测状态
+
+沿用schema 2的connection_profiles.config_json，新增icon（旧记录默认ssh）、systemDetectionAttempted（缺失为false）及后端专用systemDetectionToken；不修改已发布迁移SQL、不新增表或改变加密格式。HostDraft增加可编辑icon，HostProfile返回icon和systemDetectionAttempted；标记/令牌不允许通过表单回写。保存图标只做JSON局部更新，保留其他元数据，图标或目标改变时作废检测令牌。claim/complete更新revision，旧编辑草稿须重载；失败也已在claim时消耗机会。complete只接受内置icon，按令牌/目标/默认图标条件更新，不复活已删除主机。
+
+RemoteSystemStore的claim使用BEGIN IMMEDIATE，在同一事务读取app.detectSshSystem与原子登记标记，保护同主机并发打开；设置缺失默认开启、关闭时不消耗机会。complete只保存图标，不保存探测正文、Shell路径或SSH标识。复制主机保留icon但不继承标记/令牌；即使修改原主机地址，也不重置一次性状态。沿用现有app JSON设置和字段白名单，无迁移；重启后保留成功或失败状态。Rust回归源码已补，未编译执行。

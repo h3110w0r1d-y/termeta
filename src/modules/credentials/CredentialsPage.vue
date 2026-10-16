@@ -1,8 +1,11 @@
 <script setup lang="ts">
+import { NIcon } from "naive-ui";
+import { AddOutline } from "@vicons/ionicons5";
 import {
   NForm,
   NFormItem,
   type FormInst,
+  type FormItemInst,
   type FormRules,
   NAlert,
   NEmpty,
@@ -18,7 +21,7 @@ import AppSelect from "../../components/ui/AppSelect.vue";
 import AppInput from "../../components/ui/AppInput.vue";
 import { requiredText, validateForm } from "../../services/forms/rules";
 import AppButton from "../../components/ui/AppButton.vue";
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch, reactive } from "vue";
 import { confirmAction } from "../../components/ui/confirmation";
 import AppDialog from "../../components/ui/AppDialog.vue";
 import { desktop, errorMessage } from "../../services/desktop/client";
@@ -64,12 +67,8 @@ onUnmounted(() => {
   clearSecrets();
 });
 const form = ref<FormInst>();
-const formModel = computed(() => ({
-  label: label.value,
-  kind: kind.value,
-  secret: secret.value,
-  keyFileRef: keyFileRef.value,
-}));
+const keyFileItem = ref<FormItemInst>();
+const formModel = reactive({ label, kind, secret, keyFileRef, passphrase });
 const rules = computed<FormRules>(() => ({
   label: requiredText("名称"),
   kind: requiredText("类型"),
@@ -92,6 +91,10 @@ async function selectKey() {
     if (file) {
       keyFileRef.value = file.keyFileRef;
       keyName.value = file.name;
+      // 系统文件选择没有表单控件的 change 事件，导入后主动重验该字段。
+      await keyFileItem.value
+        ?.validate({ trigger: "change" })
+        .catch(() => undefined);
     }
   } catch (e) {
     error.value = errorMessage(e);
@@ -160,7 +163,8 @@ async function remove(item: CredentialMetadata) {
         <NText depth="3">集中管理密码和私钥，在多台主机之间安全复用。</NText>
       </div>
       <AppButton class="primary" :disabled="busy" @click="add">
-        ＋ 新建凭据
+        <NIcon :size="16" aria-hidden="true"><AddOutline /></NIcon>
+        新建凭据
       </AppButton>
     </header>
     <NAlert type="info" title="由本地加密保险库保护" class="vault-notice">
@@ -253,7 +257,7 @@ async function remove(item: CredentialMetadata) {
       >
         <NFormItem class="span-2" label="名称" path="label">
           <AppInput
-            v-model="label"
+            v-model="formModel.label"
             :disabled="busy"
             maxlength="120"
             placeholder="例如：生产环境 SSH 密码"
@@ -261,7 +265,7 @@ async function remove(item: CredentialMetadata) {
         </NFormItem>
         <NFormItem class="span-2" label="类型" path="kind">
           <AppSelect
-            v-model="kind"
+            v-model="formModel.kind"
             :disabled="busy"
             :options="[
               { value: 'password', label: 'SSH 密码' },
@@ -276,14 +280,19 @@ async function remove(item: CredentialMetadata) {
           path="secret"
         >
           <AppInput
-            v-model="secret"
+            v-model="formModel.secret"
             type="password"
             autocomplete="new-password"
             :disabled="busy"
           />
         </NFormItem>
         <template v-else>
-          <NFormItem class="span-2" label="私钥文件" path="keyFileRef">
+          <NFormItem
+            ref="keyFileItem"
+            class="span-2"
+            label="私钥文件"
+            path="keyFileRef"
+          >
             <AppButton :disabled="busy" @click="selectKey">
               选择并导入 OpenSSH 私钥
             </AppButton>
@@ -300,7 +309,7 @@ async function remove(item: CredentialMetadata) {
             path="passphrase"
           >
             <AppInput
-              v-model="passphrase"
+              v-model="formModel.passphrase"
               type="password"
               autocomplete="new-password"
               :disabled="busy"

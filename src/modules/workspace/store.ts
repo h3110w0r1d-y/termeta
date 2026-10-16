@@ -7,6 +7,7 @@ import {
   terminalIds,
   removeTerminal,
   setSplitRatio,
+  swapSplit,
   relocateTerminal,
   type LayoutNode,
   type SplitEdge,
@@ -370,6 +371,11 @@ export const useWorkspace = defineStore("workspace", () => {
     if (!tab.sftpOpen && tab.state !== "connected") return;
     tab.sftpOpen = !tab.sftpOpen;
   }
+  function swapSplitRegions(id: string) {
+    const group = activeGroup.value;
+    if (!group || drag.value || groupIsClosing(group)) return;
+    group.root = swapSplit(group.root, id);
+  }
   function resizeSplit(id: string, ratio: number) {
     if (activeGroup.value)
       activeGroup.value.root = setSplitRatio(activeGroup.value.root, id, ratio);
@@ -426,6 +432,7 @@ export const useWorkspace = defineStore("workspace", () => {
     toggleSftp,
     inputTargets,
     resizeSplit,
+    swapSplitRegions,
     cancelDrag,
     cycle,
     openVault,

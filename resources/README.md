@@ -13,3 +13,15 @@
 ## 主机搜索拼音表
 
 按用户指定，从本地 roco-helper-web 项目的 `src/assets/conf/PINYIN_CONF.ts` 复制20903条Unicode码点到拼音候选的配置至 [PINYIN_CONF.ts](../src/assets/conf/PINYIN_CONF.ts)，仅将文件头注释改为中文，配置数据一致。匹配逻辑参考该项目 `src/modules/big-map/petNameSearch.ts`，适配为 [主机搜索工具](../src/modules/hosts/search.ts)，支持原文、全拼、首字母、多音字、部分音节和中英/拼音混合输入；不引入上游业务数据或新依赖。复制日期与原始/本地摘要见[来源记录](pinyin.provenance.json)。
+
+## SSH 系统图标与检测命令
+
+按用户指定，原样复制28个系统/类型SVG到[src/assets/svg/systems](../src/assets/svg/systems)，使用语义文件名。映射参考解包reconnectSaga-871ae692.js，原文件名与SHA-256见[host-system-icons.json](host-system-icons.json)；raspbian与pi复用pi素材，suse使用原suze素材。素材复用仅按本次用户指定范围，不声明这些素材为项目自有或另行开源许可。
+
+[ssh-os-detection.json](ssh-os-detection.json)为重新编写的5份固定只读命令：Shell探测、POSIX、Fish、RouterOS及Windows，参考Termius检测流程，POSIX/Fish优先标准os-release。Rust通过include_str读取、设置页直接导入同份JSON，设置不接受脚本编辑。命令不会作为本地脚本执行。系统类型仅用于图标展示，细节见[SSH设计](../docs/05-ssh-design.md#10-一次性主机系统识别)。
+
+运行`node scripts/check-system-resources.mjs`只做资源摘要、主动内容、图标白名单及命令共用入口的静态检查，不编译、不启动项目、不执行检测命令。
+
+主机卡片颜色同样来自用户指定解包数据：`reconnectSaga-e37b5571.css`中的`--system-*`变量，通用SSH回退`--dark-blue-solid`；映射后的`colorVariable`和`background`保存在图标清单。Debian源值为`#CE0056`，不将截图取色`#BD2757`视为源码常量。`reconnectSaga-871ae692.js`的`ShapedIcon/useStyles$3K`定义40×40px、12px圆角、白色图标和彩色背景，没有单独描边；项目通过NAvatar复用该尺寸与色值。
+
+配色缩略图按用户指定解包文件 `ui-process/assets/reconnectSaga-871ae692.js` 中 `ThemeItem`、`mapSchemeToThemeData` 与 `useStyles$3o` 的DOM结构和尺寸适配，源码为 `src/modules/settings/SchemeThumbnail.vue`。仅使用现有Scheme色值，不引入React运行时、使用人数或品牌图标；六色条按用户要求始终显示。

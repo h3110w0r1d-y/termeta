@@ -22,7 +22,11 @@ pub(crate) async fn connect(
     config: &SshConfig,
     context: &DriverContext,
     trust: Arc<dyn HostTrustStore>,
-) -> Result<(russh::client::Handle<HostKeyHandler>, TransportGuard)> {
+) -> Result<(
+    russh::client::Handle<HostKeyHandler>,
+    TransportGuard,
+    String,
+)> {
     let addresses: Vec<_> = tokio::time::timeout(
         Duration::from_secs(10),
         lookup_host((config.address.as_str(), config.port)),
@@ -60,7 +64,9 @@ pub(crate) async fn connect(
         .map_err(|_| ssh_error("IO_FAILED", "tcp", "无法注册 TCP 连接"))?;
     let waiting = Arc::new(AtomicBool::new(false));
     let failure = Arc::new(std::sync::Mutex::new(None));
+    let software = Arc::new(std::sync::Mutex::new(String::new()));
     let handler = HostKeyHandler {
+        software: software.clone(),
         endpoint: config.endpoint(),
         trust,
         challenges: context.challenges.clone(),
@@ -113,5 +119,6 @@ pub(crate) async fn connect(
             Err(_) => return Err(failure.lock().unwrap().take().unwrap_or_else(|| ssh_error("HANDSHAKE_FAILED", "handshake", "SSH 握手失败"))),
         }
     };
-    Ok((handle, transport))
+    let software = software.lock().unwrap().clone();
+    Ok((handle, transport, software))
 }

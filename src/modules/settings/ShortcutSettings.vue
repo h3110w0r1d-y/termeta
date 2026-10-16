@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { NTabs, NTab } from "naive-ui";
+import { AddOutline, RefreshOutline, CloseOutline } from "@vicons/ionicons5";
+import { NIcon, NTabs, NTab } from "naive-ui";
 import AppCheckbox from "../../components/ui/AppCheckbox.vue";
 import AppSelect from "../../components/ui/AppSelect.vue";
 import AppInput from "../../components/ui/AppInput.vue";
@@ -138,17 +139,17 @@ async function importKeys(event: Event) {
           })
         "
       >
-        ＋
+        <NIcon :size="16" aria-hidden="true"><AddOutline /></NIcon>
       </AppButton>
       <AppButton
         class="icon-button"
         title="恢复此动作默认"
         @click="resetBinding(b)"
       >
-        ↺
+        <NIcon :size="16" aria-hidden="true"><RefreshOutline /></NIcon>
       </AppButton>
       <AppButton class="icon-button" title="删除绑定" @click="removeBinding(b)">
-        ×
+        <NIcon :size="16" aria-hidden="true"><CloseOutline /></NIcon>
       </AppButton>
     </div>
     <p v-if="conflict(draft.keymap.bindings)" class="error">

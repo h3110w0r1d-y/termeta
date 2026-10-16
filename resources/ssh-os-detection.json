@@ -1,0 +1,7 @@
+{
+  "shell": "echo $SHELL",
+  "posix": "HISTFILE=;\nSA_OS_TYPE=\"Linux\"\nREAL_OS_NAME=$(uname -s)\nif [ \"$REAL_OS_NAME\" != \"$SA_OS_TYPE\" ]; then\n  printf '%s\\n' \"$REAL_OS_NAME\"\nelif [ -r /etc/os-release ]; then\n  cat /etc/os-release\nelif [ -r /usr/lib/os-release ]; then\n  cat /usr/lib/os-release\nelse\n  uname -s\n  cat /etc/*release\nfi",
+  "fish": "if test (uname -s) = Linux\n  if test -r /etc/os-release\n    cat /etc/os-release\n  else if test -r /usr/lib/os-release\n    cat /usr/lib/os-release\n  else\n    uname -s\n    cat /etc/*release\n  end\nelse\n  uname -s\nend",
+  "routeros": ":put [/system resource get platform]",
+  "windows": "cmd /c ver"
+}

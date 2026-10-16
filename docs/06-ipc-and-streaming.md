@@ -262,3 +262,9 @@ macOS 拖出 names 最多 100 个普通文件或真实目录根，directories �
 `open_settings_window()`仅main可调用且要求已解锁，Rust创建/聚焦settings窗口。`get_settings`返回完整AppSettings；`save_settings`在设置专用异步互斥队列中读取最新快照、合并patch并校验后写库，返回完整快照。hostsView/hostSearch额外按子字段合并，其余字段整体替换；默认值仅在无记录时使用，旧版本拒绝写入，兼容旧字体/配色归一。成功后Rust广播无秘密的`settings-changed`失效通知，两个窗口串行重读；前端不发送设置事件。数据库schema及设置schemaVersion不变。
 
 settings窗口仅开放设置和export_json，这些命令使用独立settings_owner检查窗口身份、本地来源和解锁状态；list_known_hosts/revoke_known_host/list_history/clear_history随业务页面移入保险箱，改用仅main可用的owner，且从settings capability移除。其余资源owner保持main限制。新增命令纳入COMMANDS/AppManifest、handler和main capability；settings使用独立capability。
+
+## SSH 系统图标契约
+
+HostDraft.icon为内置字符串标识，缺省ssh；HostProfile新增icon与systemDetectionAttempted:boolean。后端SshConfig.system_profile_id使用serde(skip)，只由open_session的saved分支设置，不接收前端资源归属；Local、ephemeral及独立SFTP均不设置。新增控制事件{type:"hostSystemChanged", profileId:string}，使用既有SessionEvent信封的sessionId/requestId/eventSeq，仅通知重读已提交主机列表；不传输SVG、任意脚本或探测输出。终端注册表保留代次检查，主机列表读取忽略迟到旧请求。
+
+AppSettings新增detectSshSystem:boolean，旧设置缺失默认true；Rust验证仅接受布尔值，拒绝额外脚本字段。复用open_session/list_hosts/save_host/get_settings/save_settings及原ACL/owner，无新增命令或权限。

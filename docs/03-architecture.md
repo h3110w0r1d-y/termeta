@@ -45,6 +45,8 @@ flowchart TB
 
 凭据库分 password/privateKey，主机专属密码与公共凭据通过 owner_profile_id 隔离。安全服务负责Argon2id派生/校验和唯一OS主密钥缓存，storage在解锁后开放SQLCipher加密连接池，凭据secret与引用同处加密数据库；core 只定义不含序列化能力的 PrivateKeyMaterial 端口返回值。私钥导入后不依赖源文件，会话配置只含一种主要认证及凭据引用；主机公共 DTO 隐藏专属 ID，Rust 内部组装实际连接配置，临时连接只准用公共凭据。前端密码仅存在短期表单与 IPC 参数，不进入 Pinia 主机对象。
 
+表单状态由前端组件持有同一响应式 model，控件写入与 NForm 事件校验读取同一字段；禁止渲染时复制业务 ref 生成校验快照。嵌套对象使用一致的 rules/path，程序更新通过公开 FormItem 校验入口补齐事件，详见 [表单模型规范](13-ui-stack.md#表单响应式模型与校验时序)。此约定不影响 IPC、存储或终端生命周期。
+
 ## 3. Rust 编译依赖
 
 ```text
@@ -167,3 +169,7 @@ files模块持有固定双栏SftpWorkspace、SftpEndpointPane、侧栏SftpPanel�
 main.ts按desktop窗口身份动态加载App或SettingsWindow；公共基础样式位于assets/base.css，业务CSS继续就近scoped。SettingsWindow只装配Naive主题、设置同步、设置表单与确认框；不装配工作区/会话心跳。SettingsPage保持分类组件，useLiveSettings负责校验/串行自动应用/失败输入保留，store负责本窗口读写队列，useSettingsSync负责跨窗口失效重读。Rust settings_window负责窗口生命周期，commands/settings负责入口授权与设置写入协调，协议core不受影响。独立窗口capability与业务资源owner分离。
 
 保险箱使用VaultLayout装配四项导航，WorkspaceStore以VaultSection/vaultSection/openVault表达业务导航，固定标签内部ID保留home。主机信任属于hosts/KnownHostsPage.vue，连接历史属于history/ConnectionHistoryPage.vue，各自只依赖desktop门面并按需挂载。移除settings/SecuritySettings.vue，设置窗口不加载此类业务数据；四个信任/历史命令回归仅main所有权校验，无IPC或数据库结构变更。
+
+## SSH 系统识别职责
+
+core新增RemoteSystemStore持久化端口和hostSystemChanged控制事件，SshConfig只携带后端注入且不序列化的主机ID。terminal-storage实现原子claim/条件complete，壳给SshFactory注入store；SSH crate不依赖storage/Tauri。terminal-ssh/os_detection负责服务端标识/独立exec/受界解析，正常driver与检测并发，files-only分支禁用检测。前端hosts持有轻量icon/尝试状态，HostSystemIcon只渲染白名单静态SVG。设置与Rust检测读取同份命令资源，UI只读。新增SSH对现有serde_json 1.0.154的直接依赖，无新增第三方库种类；静态通过不代表编译运行验收。

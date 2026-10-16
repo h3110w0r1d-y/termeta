@@ -4,6 +4,7 @@ mod hosts;
 mod key_files;
 mod metadata;
 mod model;
+mod system;
 #[cfg(test)]
 mod tests;
 

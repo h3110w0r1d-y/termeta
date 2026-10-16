@@ -4,6 +4,8 @@ use terminal_core::AuthStep;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostDraft {
+    #[serde(default = "default_host_icon")]
+    pub icon: String,
     pub id: Option<String>,
     pub revision: Option<i64>,
     pub name: String,
@@ -22,6 +24,8 @@ pub struct HostDraft {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostProfile {
+    pub icon: String,
+    pub system_detection_attempted: bool,
     pub id: String,
     pub revision: i64,
     pub name: String,
@@ -112,4 +116,8 @@ pub struct HistoryEntry {
     pub ended_at: Option<i64>,
     pub end_reason: Option<String>,
     pub error_code: Option<String>,
+}
+
+fn default_host_icon() -> String {
+    "ssh".into()
 }

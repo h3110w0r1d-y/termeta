@@ -6,6 +6,7 @@ use std::sync::{
 use terminal_core::*;
 
 pub(crate) struct HostKeyHandler {
+    pub software: Arc<std::sync::Mutex<String>>,
     pub endpoint: HostEndpoint,
     pub trust: Arc<dyn HostTrustStore>,
     pub challenges: Arc<ChallengeBroker>,
@@ -14,6 +15,19 @@ pub(crate) struct HostKeyHandler {
 }
 impl russh::client::Handler for HostKeyHandler {
     type Error = russh::Error;
+    async fn kex_done(
+        &mut self,
+        _shared_secret: Option<&[u8]>,
+        _names: &russh::Names,
+        session: &mut russh::client::Session,
+    ) -> std::result::Result<(), Self::Error> {
+        // 服务端标识只是识别线索，不作为信任、算法或权限依据。
+        *self.software.lock().unwrap() = String::from_utf8_lossy(session.remote_sshid())
+            .chars()
+            .take(255)
+            .collect();
+        Ok(())
+    }
     async fn check_server_key(
         &mut self,
         presented: &russh::keys::PublicKeyOrCertificate,

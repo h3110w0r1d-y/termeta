@@ -15,9 +15,11 @@ export function defaultSettings(): AppSettings {
   return {
     schemaVersion: 1,
     appearance: "dark",
+    primaryColor: "",
     tabPosition: "top",
     tabDoubleClickAction: "none",
     sftpShowHidden: false,
+    detectSshSystem: true,
     hostsView: { includeChildren: false, expandedGroupIds: [] },
     hostSearch: {
       pinyin: true,

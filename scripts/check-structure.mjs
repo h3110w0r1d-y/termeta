@@ -24,6 +24,24 @@ for (const path of (await walk("src")).filter((path) =>
     const lines = text.trimEnd().split("\n").length;
     if (lines > 500) large.push(`${path}: ${lines} 行（人工复查职责）`);
   }
+  if (path.endsWith(".vue")) {
+    // 表单 model 必须直接引用响应式状态，不能在渲染时创建值快照。
+    const computedModels = new Set(
+      [
+        ...text.matchAll(
+          /\b(?:const|let)\s+(\w+)\s*=\s*computed(?:<[^;]*?>)?\s*\(/g,
+        ),
+      ].map((match) => match[1]),
+    );
+    for (const match of text.matchAll(/<NForm\b[^>]*?:model="([^"]+)"/g)) {
+      const model = match[1].trim();
+      if (model.startsWith("{") || computedModels.has(model)) {
+        errors.push(
+          `${path}: NForm model 应绑定共享响应式状态，禁止临时对象或 computed 派生 model`,
+        );
+      }
+    }
+  }
   const imports = [
     ...text.matchAll(
       /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s*)["']([^"']+)["']/g,

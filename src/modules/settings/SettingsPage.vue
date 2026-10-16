@@ -1,10 +1,14 @@
 <script setup lang="ts">
+import { MoonOutline, SunnyOutline, DesktopOutline } from "@vicons/ionicons5";
 import {
+  NColorPicker,
+  NButton,
   NTabs,
   NTabPane,
   NForm,
   NFormItem,
   type FormInst,
+  type FormItemInst,
   type FormRules,
   NRadioGroup,
   NRadioButton,
@@ -14,6 +18,7 @@ import {
 import AppNumberField from "../../components/ui/AppNumberField.vue";
 import AppCheckbox from "../../components/ui/AppCheckbox.vue";
 import AppSelect from "../../components/ui/AppSelect.vue";
+import SystemDetectionSettings from "./SystemDetectionSettings.vue";
 import SearchPreferences from "./SearchPreferences.vue";
 import { requiredText, integerRange } from "../../services/forms/rules";
 import { h, ref } from "vue";
@@ -31,10 +36,25 @@ const form = ref<FormInst>();
 const { draft, flush } = useLiveSettings(form);
 defineExpose({ flush });
 const tab = ref("general");
+const primaryColorItem = ref<FormItemInst>();
+function resetPrimaryColor() {
+  draft.value.primaryColor = "";
+  // 按钮直接更新共享字段后，使用表单项公开接口重新校验。
+  void primaryColorItem.value
+    ?.validate({ trigger: "change" })
+    .catch(() => undefined);
+}
 const rules: FormRules = {
   tabPosition: requiredText("标签栏位置"),
   tabDoubleClickAction: requiredText("双击标签页动作"),
   appearance: requiredText("应用外观"),
+  primaryColor: {
+    trigger: ["change", "blur"],
+    validator: (_, value: string) =>
+      value === "" ||
+      /^#[0-9a-f]{6}$/i.test(value) ||
+      new Error("请输入6位HEX颜色"),
+  },
   fontFamily: requiredText("终端字体"),
   fontSize: {
     required: true,
@@ -90,14 +110,7 @@ const rules: FormRules = {
                     <NRadioButton value="dark" title="深色">
                       <span class="appearance-option">
                         <NIcon :size="16" aria-hidden="true">
-                          <svg viewBox="0 0 24 24" fill="none">
-                            <path
-                              d="M20.9 13.3A9 9 0 0 1 10.7 3.1 9 9 0 1 0 20.9 13.3Z"
-                              stroke="currentColor"
-                              stroke-width="1.5"
-                              stroke-linejoin="round"
-                            />
-                          </svg>
+                          <MoonOutline />
                         </NIcon>
                         <span class="appearance-label">深色</span>
                       </span>
@@ -105,18 +118,7 @@ const rules: FormRules = {
                     <NRadioButton value="light" title="浅色">
                       <span class="appearance-option">
                         <NIcon :size="16" aria-hidden="true">
-                          <svg
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="1.5"
-                            stroke-linecap="round"
-                          >
-                            <circle cx="12" cy="12" r="4" />
-                            <path
-                              d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"
-                            />
-                          </svg>
+                          <SunnyOutline />
                         </NIcon>
                         <span class="appearance-label">浅色</span>
                       </span>
@@ -124,22 +126,28 @@ const rules: FormRules = {
                     <NRadioButton value="system" title="跟随系统">
                       <span class="appearance-option">
                         <NIcon :size="16" aria-hidden="true">
-                          <svg
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="1.5"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                          >
-                            <rect x="3" y="4" width="18" height="13" rx="2" />
-                            <path d="M12 17v4m-4 0h8" />
-                          </svg>
+                          <DesktopOutline />
                         </NIcon>
                         <span class="appearance-label">跟随系统</span>
                       </span>
                     </NRadioButton>
                   </NRadioGroup>
+                </NFormItem>
+                <NFormItem
+                  ref="primaryColorItem"
+                  label="主题色"
+                  path="primaryColor"
+                >
+                  <div class="primary-color-row">
+                    <NColorPicker
+                      :value="draft.primaryColor || null"
+                      :modes="['hex']"
+                      :show-alpha="false"
+                      aria-label="主题色"
+                      @update:value="draft.primaryColor = $event ?? ''"
+                    />
+                    <NButton @click="resetPrimaryColor">恢复默认</NButton>
+                  </div>
                 </NFormItem>
                 <NFormItem label="终端字体" path="fontFamily">
                   <AppSelect
@@ -173,6 +181,13 @@ const rules: FormRules = {
                 </p>
               </NForm>
             </NTabPane>
+            <NTabPane
+              name="system-detection"
+              tab="SSH 系统识别"
+              display-directive="show:lazy"
+            >
+              <SystemDetectionSettings v-model="draft.detectSshSystem" />
+            </NTabPane>
             <NTabPane name="search" tab="搜索" display-directive="show:lazy">
               <SearchPreferences />
             </NTabPane>
@@ -198,6 +213,16 @@ const rules: FormRules = {
 </template>
 
 <style scoped>
+.primary-color-row {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  gap: 8px;
+}
+.primary-color-row :deep(.n-color-picker) {
+  flex: 1;
+  min-width: 0;
+}
 .ui-label {
   display: flex;
   flex-direction: column;

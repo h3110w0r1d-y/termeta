@@ -4,6 +4,7 @@ mod channels;
 mod connection;
 mod driver;
 mod host_key;
+mod os_detection;
 pub use channels::SshChannels;
 
 use async_trait::async_trait;
@@ -15,6 +16,7 @@ pub struct SshFactory {
     credentials: Arc<dyn CredentialStore>,
     channels: SshChannels,
     files_only: bool,
+    systems: Option<Arc<dyn RemoteSystemStore>>,
 }
 impl SshFactory {
     pub fn new(trust: Arc<dyn HostTrustStore>, credentials: Arc<dyn CredentialStore>) -> Self {
@@ -23,6 +25,7 @@ impl SshFactory {
             credentials,
             channels: SshChannels::default(),
             files_only: false,
+            systems: None,
         }
     }
     /// 独立文件连接复用认证与子系统注册，不申请PTY或启动Shell。
@@ -32,7 +35,12 @@ impl SshFactory {
             credentials: self.credentials.clone(),
             channels: self.channels.clone(),
             files_only: true,
+            systems: None,
         }
+    }
+    pub fn with_system_detection(mut self, store: Arc<dyn RemoteSystemStore>) -> Self {
+        self.systems = Some(store);
+        self
     }
     pub fn channels(&self) -> SshChannels {
         self.channels.clone()
@@ -68,7 +76,7 @@ impl SessionFactory for SshFactory {
             unreachable!()
         };
         context.events.state(SessionState::Connecting)?;
-        let (mut connection, _transport) =
+        let (mut connection, _transport, software) =
             connection::connect(&config, &context, self.trust.clone()).await?;
         context.events.state(SessionState::Authenticating)?;
         auth::authenticate(
@@ -98,9 +106,54 @@ impl SessionFactory for SshFactory {
                 _ = &mut channels => Err(SessionError::cancelled()),
             };
         }
-        tokio::select! {
-            result = driver::run(&connection, context) => result,
-            _ = &mut channels => Err(SessionError::cancelled()),
+        let events = context.events.clone();
+        let cancel = context.cancel.clone();
+        // 独立探测与终端驱动并发，完成或失败均不改变正常终端生命周期。
+        let detection = async {
+            let Some(store) = &self.systems else {
+                return;
+            };
+            let Some(profile_id) = &config.system_profile_id else {
+                return;
+            };
+            // PTY/Shell先建立；不与主终端争抢仅允许一个session的服务端配额。
+            loop {
+                if events.snapshot().state == SessionState::Connected {
+                    break;
+                }
+                tokio::select! {
+                    _ = cancel.cancelled() => return,
+                    _ = tokio::time::sleep(std::time::Duration::from_millis(50)) => {}
+                }
+            }
+            let token = events.snapshot().session_id;
+            if !matches!(store.claim(profile_id, &token, &config).await, Ok(true)) {
+                return;
+            }
+            let _ = events.emit(EventPayload::HostSystemChanged {
+                profile_id: profile_id.clone(),
+            });
+            let icon = os_detection::detect(&connection, &software, &cancel).await;
+            if store
+                .complete(profile_id, &token, &config, icon)
+                .await
+                .is_ok()
+            {
+                let _ = events.emit(EventPayload::HostSystemChanged {
+                    profile_id: profile_id.clone(),
+                });
+            }
+        };
+        tokio::pin!(detection);
+        let mut detection_done = false;
+        let driver = driver::run(&connection, context);
+        tokio::pin!(driver);
+        loop {
+            tokio::select! {
+                result = &mut driver => return result,
+                _ = &mut detection, if !detection_done => { detection_done = true; },
+                _ = &mut channels => return Err(SessionError::cancelled()),
+            }
         }
     }
 }

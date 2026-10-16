@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { NButton, NIcon, useThemeVars } from "naive-ui";
+import { CaretBack, CaretForward, CaretUp, CaretDown } from "@vicons/ionicons5";
 import TerminalPane from "../terminal/TerminalPane.vue";
 import { layoutGeometry, type LayoutRect, type SplitDivider } from "./layout";
 import { useWorkspace } from "./store";
@@ -8,6 +10,7 @@ const emit = defineEmits<{
   menu: [event: MouseEvent | KeyboardEvent, terminalId: string];
 }>();
 const workspace = useWorkspace();
+const themeVars = useThemeVars();
 const stage = ref<HTMLElement>();
 const geometry = computed(() =>
   workspace.activeGroup
@@ -134,6 +137,11 @@ onBeforeUnmount(() => {
         : undefined
     "
     class="terminal-layout"
+    :style="{
+      '--divider-color': themeVars.borderColor,
+      '--divider-text': themeVars.textColor2,
+      '--divider-active': themeVars.primaryColor,
+    }"
     role="tabpanel"
     :aria-labelledby="
       workspace.activeGroup
@@ -193,11 +201,50 @@ onBeforeUnmount(() => {
       @pointercancel="stopResize"
       @lostpointercapture="stopResize"
       @keydown="resizeKey($event, divider)"
-    />
+    >
+      <NButton
+        class="terminal-divider-handle"
+        :focusable="false"
+        :tabindex="-1"
+        size="tiny"
+        :theme-overrides="{
+          color: themeVars.bodyColor,
+          colorHover: themeVars.bodyColor,
+          colorPressed: themeVars.bodyColor,
+          colorFocus: themeVars.bodyColor,
+          textColor: themeVars.primaryColor,
+          textColorHover: themeVars.primaryColor,
+          textColorPressed: themeVars.primaryColor,
+          textColorFocus: themeVars.primaryColor,
+        }"
+        :aria-label="
+          divider.axis === 'horizontal' ? '交换左右区域' : '交换上下区域'
+        "
+        :title="divider.axis === 'horizontal' ? '交换左右区域' : '交换上下区域'"
+        @pointerdown.stop.prevent
+        @mousedown.stop.prevent
+        @click.stop="workspace.swapSplitRegions(divider.id)"
+        @keydown.stop
+      >
+        <span class="swap-triangles" aria-hidden="true">
+          <NIcon :size="11">
+            <CaretForward v-if="divider.axis === 'horizontal'" />
+            <CaretDown v-else />
+          </NIcon>
+          <NIcon :size="11">
+            <CaretBack v-if="divider.axis === 'horizontal'" />
+            <CaretUp v-else />
+          </NIcon>
+        </span>
+      </NButton>
+    </div>
     <div
       v-if="preview"
       class="terminal-drop-preview"
-      :style="rectStyle(preview)"
+      :style="{
+        ...rectStyle(preview),
+        '--drop-primary': themeVars.primaryColor,
+      }"
       aria-hidden="true"
     />
   </div>
@@ -230,17 +277,93 @@ onBeforeUnmount(() => {
   transform: translateY(-50%);
   cursor: row-resize;
 }
-.terminal-divider:hover,
-.terminal-divider:focus-visible,
-.terminal-divider.resizing {
-  background: var(--accent);
+/* 按钮各状态通过库主题覆盖保持不透明，避免悬停时透出分隔线。 */
+/* 命中区域保留六像素，三像素主体与中点三角手柄均仅在悬停时显示。 */
+.terminal-divider::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  background: var(--divider-active);
+  visibility: hidden;
+}
+.terminal-divider.horizontal::before {
+  inset: 0 auto 0 50%;
+  width: 3px;
+  transform: translateX(-50%);
+}
+.terminal-divider.vertical::before {
+  inset: 50% 0 auto 0;
+  height: 3px;
+  transform: translateY(-50%);
+}
+.terminal-divider-handle {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  top: 50%;
+  display: flex;
+  visibility: hidden;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--divider-color);
+  border-radius: 5px;
+  color: var(--divider-text);
+}
+.terminal-divider.horizontal .terminal-divider-handle {
+  width: 20px;
+  height: 24px;
+  padding: 0;
+  cursor: pointer;
+}
+.terminal-divider.vertical .terminal-divider-handle {
+  width: 24px;
+  height: 20px;
+  padding: 0;
+  cursor: pointer;
+}
+.swap-triangles {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  line-height: 1;
+}
+/* 上下交换将排列方向一起转为横向，不能只替换三角形朝向。 */
+.terminal-divider.vertical .swap-triangles {
+  flex-direction: row;
+}
+.terminal-divider.vertical .swap-triangles > :first-child {
+  transform: translate(1px, -2px);
+}
+.terminal-divider.vertical .swap-triangles > :last-child {
+  margin-top: 0;
+  margin-left: -4px;
+  transform: translate(-1px, 2px);
+}
+.swap-triangles > :first-child {
+  transform: translateX(-0.5px);
+}
+.swap-triangles > :last-child {
+  margin-top: -3px;
+  transform: translateX(0.5px);
+}
+.terminal-divider:focus-visible {
   outline: none;
+}
+.terminal-divider:hover::before {
+  visibility: visible;
+}
+.terminal-divider:hover .terminal-divider-handle {
+  visibility: visible;
+  border-color: var(--divider-active);
+  color: var(--divider-active);
 }
 .terminal-drop-preview {
   position: absolute;
   z-index: 10;
-  border: 1px solid #18a058;
-  background: #18a05840;
+  border: 1px solid var(--drop-primary);
+  background: color-mix(in srgb, var(--drop-primary) 25%, transparent);
   pointer-events: none;
 }
 .terminal-layout.is-dragging-tab :deep(.terminal-pane-title) {

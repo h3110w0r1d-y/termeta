@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { GitNetworkOutline, CloseOutline } from "@vicons/ionicons5";
 import { computed, onMounted, ref, watch } from "vue";
 import { NIcon, useThemeVars } from "naive-ui";
 import AppButton from "../../components/ui/AppButton.vue";
@@ -93,30 +94,7 @@ function menuKey(event: KeyboardEvent) {
         @click="terminalRegistry.toggleBroadcast()"
       >
         <NIcon :size="16" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" focusable="false">
-            <path
-              d="M8 12h5m0-6v12m0-12h4m-4 6h4m-4 6h4"
-              stroke="currentColor"
-              stroke-width="1.6"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-            <rect
-              x="3"
-              y="9.5"
-              width="5"
-              height="5"
-              rx="1"
-              stroke="currentColor"
-              stroke-width="1.6"
-            />
-            <path
-              d="M17 4h4v4h-4zM17 10h4v4h-4zM17 16h4v4h-4z"
-              stroke="currentColor"
-              stroke-width="1.6"
-              stroke-linejoin="round"
-            />
-          </svg>
+          <GitNetworkOutline />
         </NIcon>
       </AppButton>
       <AppButton
@@ -126,14 +104,7 @@ function menuKey(event: KeyboardEvent) {
         @click="emit('close')"
       >
         <NIcon :size="14" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" focusable="false">
-            <path
-              d="m6 6 12 12M18 6 6 18"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-            />
-          </svg>
+          <CloseOutline />
         </NIcon>
       </AppButton>
     </header>

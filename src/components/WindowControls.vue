@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { NIcon } from "naive-ui";
+import { RemoveOutline, SquareOutline, CloseOutline } from "@vicons/ionicons5";
 import ApplicationMenu from "./ApplicationMenu.vue";
 import AppButton from "./ui/AppButton.vue";
 import { isMac } from "../services/commands/registry";
@@ -22,7 +24,7 @@ async function act(action: () => Promise<void>) {
       title="最小化"
       @click="act(desktop.minimizeWindow)"
     >
-      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10" /></svg>
+      <NIcon :size="16" aria-hidden="true"><RemoveOutline /></NIcon>
     </AppButton>
     <AppButton
       class="icon-button"
@@ -30,9 +32,7 @@ async function act(action: () => Promise<void>) {
       title="最大化 / 还原"
       @click="act(desktop.toggleMaximizeWindow)"
     >
-      <svg viewBox="0 0 16 16" aria-hidden="true">
-        <rect x="3.5" y="3.5" width="9" height="9" />
-      </svg>
+      <NIcon :size="16" aria-hidden="true"><SquareOutline /></NIcon>
     </AppButton>
     <AppButton
       class="icon-button"
@@ -40,9 +40,7 @@ async function act(action: () => Promise<void>) {
       title="关闭窗口"
       @click="act(desktop.closeWindow)"
     >
-      <svg viewBox="0 0 16 16" aria-hidden="true">
-        <path d="m4 4 8 8M12 4l-8 8" />
-      </svg>
+      <NIcon :size="16" aria-hidden="true"><CloseOutline /></NIcon>
     </AppButton>
   </div>
 </template>
@@ -57,12 +55,5 @@ async function act(action: () => Promise<void>) {
   width: 36px;
   height: 36px;
   padding: 0;
-}
-.window-controls svg {
-  width: 16px;
-  height: 16px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.2;
 }
 </style>

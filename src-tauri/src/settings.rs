@@ -37,9 +37,11 @@ pub fn validate(settings: &Value) -> Result<()> {
     let allowed = [
         "schemaVersion",
         "appearance",
+        "primaryColor",
         "tabPosition",
         "tabDoubleClickAction",
         "sftpShowHidden",
+        "detectSshSystem",
         "hostsView",
         "hostSearch",
         "fontFamily",
@@ -58,6 +60,12 @@ pub fn validate(settings: &Value) -> Result<()> {
             settings["appearance"].as_str(),
             Some("system" | "dark" | "light")
         )
+        // 缺失或空串沿用库默认主题色；自定义值只接受不透明的六位 HEX。
+        || object.get("primaryColor").is_some_and(|value| {
+            !value.as_str().is_some_and(|text| {
+                text.is_empty() || (text.len() == 7 && color(value))
+            })
+        })
         // 兼容尚未保存布局偏好的旧设置；新值只允许顶部或左侧标签栏。
         || object.get("tabPosition").is_some_and(|value| {
             !matches!(value.as_str(), Some("top" | "left"))
@@ -68,6 +76,7 @@ pub fn validate(settings: &Value) -> Result<()> {
         })
         // 旧设置缺失时由前端默认隐藏；已保存的值必须是布尔值。
         || object.get("sftpShowHidden").is_some_and(|value| !value.is_boolean())
+        || object.get("detectSshSystem").is_some_and(|value| !value.is_boolean())
         || !settings["fontSize"]
             .as_f64()
             .is_some_and(|n| (10.0..=32.0).contains(&n))
@@ -372,6 +381,21 @@ mod tests {
             "customSchemes": [], "hostSchemes": {},
             "keymap": {"schemaVersion": 1, "bindings": []}
         })
+    }
+
+    #[test]
+    fn system_detection_accepts_legacy_boolean_and_rejects_scripts() {
+        let mut settings = baseline();
+        assert!(validate(&settings).is_ok());
+        for enabled in [true, false] {
+            settings["detectSshSystem"] = json!(enabled);
+            assert!(validate(&settings).is_ok());
+        }
+        settings["detectSshSystem"] = json!("true");
+        assert!(validate(&settings).is_err());
+        settings["detectSshSystem"] = json!(true);
+        settings["systemDetectionScript"] = json!("echo arbitrary");
+        assert!(validate(&settings).is_err());
     }
 
     #[test]

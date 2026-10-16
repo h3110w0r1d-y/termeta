@@ -2,6 +2,8 @@
 
 终端配色与应用深色/浅色/跟随系统模式独立。以下能力已落源码，热切换、选区和三平台视觉效果待运行验收。
 
+终端配色卡片新增 SchemeThumbnail 轻量DOM缩略图，展示普通文字横条、选区及其文字、绿色文字、光标和常显6px ANSI六色条；72×48px布局按用户提供的Termius解包ThemeItem/useStyles$3o适配为Vue scoped样式，不执行或引入原React代码。内置/自定义/导入方案共用现有Scheme数据，显式selectionForeground优先；外层按钮的选中/悬停沿用Naive UI主题，点击自动保存及独立xterm编辑预览不变。仅类型、格式、结构与差异静态检查，未构建或启动，视觉待运行验收。
+
 ## 方案与引用
 
 内置64套只读方案，默认 Pro；名称、色值与来源摘要见 [资源说明](../resources/README.md)。前后端共用 `resources/terminal-palettes.json`，不维护两份内置名单。自定义方案最多64套，编辑内置方案会创建副本。

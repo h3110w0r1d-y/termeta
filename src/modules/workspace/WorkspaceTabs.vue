@@ -1,11 +1,14 @@
 <script setup lang="ts">
+import { CloseOutline } from "@vicons/ionicons5";
 import { computed, nextTick, ref, watch } from "vue";
 import { NIcon, useThemeVars } from "naive-ui";
 import { isMac } from "../../services/commands/registry";
+import AssetIcon from "../../components/ui/AssetIcon.vue";
 import WindowControls from "../../components/WindowControls.vue";
 import AppButton from "../../components/ui/AppButton.vue";
 import { stateLabels, useWorkspace, type WorkspaceTabItem } from "./store";
 import { useTabDrag } from "./useTabDrag";
+import { useTabScroll } from "./useTabScroll";
 const props = defineProps<{
   tabs: WorkspaceTabItem[];
   activeId: string;
@@ -25,6 +28,12 @@ const themeVars = useThemeVars();
 const workspace = useWorkspace();
 const tabDrag = useTabDrag((id) => emit("focusTerminal", id));
 const root = ref<HTMLElement>();
+const sessionTabs = ref<HTMLElement>();
+const tabScroll = useTabScroll(
+  sessionTabs,
+  () => props.position,
+  () => props.tabs.map((tab) => `${tab.id}:${tab.title}`),
+);
 // 最后一个标签后方与空白区是同一插入位置，只使用新建按钮前的提示线。
 // 保留原命中类型，避免影响悬停标签切页和实际插入逻辑。
 const dropAtEnd = computed(() => {
@@ -142,32 +151,23 @@ watch(
           :aria-controls="tab.panel"
           @click="activate(tab.id)"
         >
-          <NIcon class="fixed-tab-icon" :size="16" aria-hidden="true">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              focusable="false"
-            >
-              <template v-if="tab.id === 'home'">
-                <rect x="4" y="3" width="16" height="18" rx="2" />
-                <rect x="7" y="6" width="10" height="12" rx="1" />
-                <circle cx="12" cy="12" r="2" />
-                <path d="M3 8h2m-2 8h2m7-6V9m0 6v-1m-2-2H9m6 0h-1" />
-              </template>
-              <path
-                v-else
-                d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Zm0 2h18"
-              />
-            </svg>
-          </NIcon>
+          <AssetIcon
+            class="fixed-tab-icon"
+            :name="tab.id === 'home' ? 'vault' : 'sftp'"
+            :size="16"
+          />
           {{ tab.title }}
         </button>
       </div>
-      <div class="session-tabs" role="presentation">
+      <div
+        ref="sessionTabs"
+        class="session-tabs"
+        :class="{
+          'can-scroll-start': tabScroll.edges.start,
+          'can-scroll-end': tabScroll.edges.end,
+        }"
+        role="presentation"
+      >
         <div
           v-for="tab in tabs"
           :key="tab.id"
@@ -223,14 +223,7 @@ watch(
             @click="emit('close', tab.id)"
           >
             <NIcon :size="position === 'top' ? 16 : 14" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" focusable="false">
-                <path
-                  d="m6 6 12 12M18 6 6 18"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                />
-              </svg>
+              <CloseOutline />
             </NIcon>
           </button>
         </div>
@@ -244,7 +237,7 @@ watch(
         title="新建标签页 (Cmd/Ctrl+T)"
         @click="emit('create')"
       >
-        ＋
+        <AssetIcon name="add" :size="14" />
       </AppButton>
     </div>
     <div
@@ -322,6 +315,42 @@ watch(
   overscroll-behavior: contain;
   scrollbar-width: thin;
 }
+/* 顶部隐藏原生滚动条，保留滚轮、触控板、键盘和拖动边缘滚动。 */
+.app-tabs:not(.tabs-vertical) .session-tabs {
+  scrollbar-width: none;
+}
+.app-tabs:not(.tabs-vertical) .session-tabs::-webkit-scrollbar {
+  display: none;
+}
+/* 渐隐露出标签栏底色，无覆盖层参与指针命中；每端独立按溢出状态开启。 */
+.session-tabs {
+  --tab-fade-start: 0px;
+  --tab-fade-end: 0px;
+  --tab-fade-direction: to right;
+}
+.session-tabs.can-scroll-start {
+  --tab-fade-start: min(20px, 20%);
+}
+.session-tabs.can-scroll-end {
+  --tab-fade-end: min(20px, 20%);
+}
+.session-tabs.can-scroll-start,
+.session-tabs.can-scroll-end {
+  -webkit-mask-image: linear-gradient(
+    var(--tab-fade-direction),
+    transparent,
+    #000 var(--tab-fade-start),
+    #000 calc(100% - var(--tab-fade-end)),
+    transparent
+  );
+  mask-image: linear-gradient(
+    var(--tab-fade-direction),
+    transparent,
+    #000 var(--tab-fade-start),
+    #000 calc(100% - var(--tab-fade-end)),
+    transparent
+  );
+}
 .workspace-tab-item {
   display: flex;
   flex: 0 0 auto;
@@ -358,6 +387,13 @@ watch(
 .workspace-tab-title {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* 顶部未激活标签保留轻微主题色遮罩，只改变底色，不淡化文字与图标。 */
+.app-tabs:not(.tabs-vertical)
+  .fixed-tabs
+  > .workspace-tab[aria-selected="false"]:not(:hover),
+.app-tabs:not(.tabs-vertical) .workspace-tab-item:not(.selected):not(:hover) {
+  background: color-mix(in srgb, var(--workspace-tab-text) 4%, transparent);
 }
 .fixed-tabs > .workspace-tab:hover,
 .workspace-tab-item:hover {
@@ -444,6 +480,7 @@ watch(
   align-items: stretch;
 }
 .tabs-vertical .session-tabs {
+  --tab-fade-direction: to bottom;
   overflow-x: hidden;
   overflow-y: auto;
 }

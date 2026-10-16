@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { NIcon } from "naive-ui";
+import { RefreshOutline } from "@vicons/ionicons5";
 import AppColorPicker from "../../components/ui/AppColorPicker.vue";
 import AppButton from "../../components/ui/AppButton.vue";
-import { NFormItem, type FormItemRule } from "naive-ui";
-import { computed } from "vue";
+import { NFormItem, type FormItemInst, type FormItemRule } from "naive-ui";
+import { computed, ref } from "vue";
 const props = defineProps<{
   modelValue?: string;
   label: string;
@@ -10,6 +12,7 @@ const props = defineProps<{
   path: string;
   optional?: boolean;
 }>();
+const formItem = ref<FormItemInst>();
 const rule = computed<FormItemRule>(() => ({
   required: !props.optional,
   trigger: ["change", "blur"],
@@ -20,9 +23,15 @@ const rule = computed<FormItemRule>(() => ({
     new Error("请输入6或8位HEX颜色"),
 }));
 const emit = defineEmits<{ "update:modelValue": [string] }>();
+function resetColor() {
+  if (!props.reset) return;
+  emit("update:modelValue", props.reset);
+  // 重置按钮不触发取色器的 change；写入共享 model 后重验字段以清除旧错误。
+  void formItem.value?.validate({ trigger: "change" }).catch(() => undefined);
+}
 </script>
 <template>
-  <NFormItem :label="label" :path="path" :rule="rule">
+  <NFormItem ref="formItem" :label="label" :path="path" :rule="rule">
     <div class="color-field-row">
       <div class="color-field-picker">
         <AppColorPicker
@@ -36,9 +45,9 @@ const emit = defineEmits<{ "update:modelValue": [string] }>();
         v-if="reset"
         title="重置单色"
         :aria-label="label + '重置单色'"
-        @click="emit('update:modelValue', reset)"
+        @click="resetColor"
       >
-        ↺
+        <NIcon :size="16" aria-hidden="true"><RefreshOutline /></NIcon>
       </AppButton>
     </div>
   </NFormItem>

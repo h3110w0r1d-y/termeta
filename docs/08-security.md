@@ -138,3 +138,7 @@ OSC 标题：remoteTitle仅作前端内存中的展示后缀，控制字符/双�
 独立settings窗口仅加载本地应用资源并禁止新窗口导航，只有已解锁时才允许创建。settings-desktop capability按命令开放设置读写和用户触发JSON导出；这些命令使用settings_owner核验main/settings标签、本地URL和保险库状态。会话、主机及凭据管理等通用owner仍仅允许main，禁止通过放宽window_owner获取终端/文件权限。设置通知由Rust在提交后发送，正文不含凭据。窗口授权拒绝路径与三平台运行验证尚未执行。
 
 主机信任及连接历史已移至主窗口保险箱，对应list_known_hosts/revoke_known_host/list_history/clear_history改用owner，只允许main且要求已解锁；settings capability不再授予这些命令。撤销信任和清空历史继续先由UI确认，主机/凭据及活动会话不会因页面迁移改变。
+
+## SSH 系统识别边界
+
+系统识别仅在保存SSH终端已完成主机信任、认证和PTY/Shell打开后，由后端固定命令启动。使用独立exec，不写PTY、不重放输入、不请求提权、不source远端文件，远端返回值不得拼接为命令。共用5秒/32KiB限额，失败/取消不破坏主终端。SSH软件标识及系统类别仅作UI信息，不能参与密钥信任、ACL或算法降级。后端写前登记一次性标记，持久化失败时不发探测请求。设置只有布尔开关，拒绝任意脚本字段；主机归属仅由后端saved目标注入。SVG只能来自静态资源白名单，逐实例隔离内部ID；不接收远端SVG/路径/富文本。未执行真实SSH或安全运行验证。

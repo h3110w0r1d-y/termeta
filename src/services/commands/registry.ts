@@ -236,9 +236,20 @@ export class CommandRegistry {
               ? "["
               : event.key
           ).toLowerCase() &&
-        modifierMatches(event, b.trigger.modifiers) &&
-        this.execute(b.commandId)
+        modifierMatches(event, b.trigger.modifiers)
       ) {
+        // 标准粘贴交给系统产生带正文的paste事件，避免WebKit异步读剪贴板弹出授权菜单。
+        // 终端宿主捕获paste后仍统一执行大小限制、多行确认和广播代次校验。
+        const nativePaste =
+          terminal &&
+          b.commandId === "terminal.paste" &&
+          event.key.toLowerCase() === "v" &&
+          !event.altKey &&
+          (isMac
+            ? event.metaKey && !event.ctrlKey && !event.shiftKey
+            : event.ctrlKey && !event.metaKey && event.shiftKey);
+        if (nativePaste) return false;
+        if (!this.execute(b.commandId)) continue;
         event.preventDefault();
         event.stopPropagation();
         return true;

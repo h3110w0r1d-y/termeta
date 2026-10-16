@@ -1,0 +1,254 @@
+[
+  {
+    "id": "ssh",
+    "label": "SSH",
+    "file": "ssh.svg",
+    "source": "ssh.react-0335f367.svg",
+    "sha256": "0335f3679da8594a53fd1257ca8cfbce19d3f6e0698fdf9a26eea45609c97b38",
+    "colorVariable": "--dark-blue-solid",
+    "background": "#004878"
+  },
+  {
+    "id": "raspbian",
+    "label": "Raspbian",
+    "file": "raspbian.svg",
+    "source": "pi.react-072b1c88.svg",
+    "sha256": "072b1c8866619b0cbc43204abcf21fe5cdc6bf7f960ca3f2adf1a97f5c30648f",
+    "colorVariable": "--system-raspbian",
+    "background": "#be3956"
+  },
+  {
+    "id": "centos",
+    "label": "CentOS",
+    "file": "centos.svg",
+    "source": "centos.react-b278dea7.svg",
+    "sha256": "b278dea74be3481f28535ca350162995dafeb66806f3a7748269937d2c63ab60",
+    "colorVariable": "--system-centos",
+    "background": "#efa720"
+  },
+  {
+    "id": "osx",
+    "label": "macOS",
+    "file": "osx.svg",
+    "source": "macOS.react-5a187afe.svg",
+    "sha256": "5a187afe098914a6c209a5a86ec8db799289feef3912027f951e64dc8358b6c5",
+    "colorVariable": "--system-apple",
+    "background": "#171719"
+  },
+  {
+    "id": "ubuntu",
+    "label": "Ubuntu",
+    "file": "ubuntu.svg",
+    "source": "ubuntu.react-f889b222.svg",
+    "sha256": "f889b222df00df84b8af94cfe6da7072cb25691db24ffee69596efac992e3daf",
+    "colorVariable": "--system-ubuntu",
+    "background": "#e95420"
+  },
+  {
+    "id": "openbsd",
+    "label": "OpenBSD",
+    "file": "openbsd.svg",
+    "source": "openbsd.react-7a7829aa.svg",
+    "sha256": "7a7829aa3936abbe9dd26c16cce15525a146e011df50a2c9396e796a505c7b4d",
+    "colorVariable": "--system-openbsd",
+    "background": "#f2ca30"
+  },
+  {
+    "id": "netbsd",
+    "label": "NetBSD",
+    "file": "netbsd.svg",
+    "source": "netbsd.react-e29bbbf6.svg",
+    "sha256": "e29bbbf6cc644d0a69e6bb1c3d6b31f004743616ab632726c2fdaabec1249679",
+    "colorVariable": "--system-netbsd",
+    "background": "#f26711"
+  },
+  {
+    "id": "freebsd",
+    "label": "FreeBSD",
+    "file": "freebsd.svg",
+    "source": "freebsd.react-14312fc0.svg",
+    "sha256": "14312fc0006895d5b36cfa6a7518abbddb3928fc80a839c38a15469c357f5f68",
+    "colorVariable": "--system-freebsd",
+    "background": "#f60006"
+  },
+  {
+    "id": "suse",
+    "label": "SUSE",
+    "file": "suse.svg",
+    "source": "suze.react-6358c8a6.svg",
+    "sha256": "6358c8a6f3fb96e4dba7b3293eab5f1952870967df8bf79b61f04f0efe5b1c47",
+    "colorVariable": "--system-suse",
+    "background": "#30ba78"
+  },
+  {
+    "id": "fedora",
+    "label": "Fedora",
+    "file": "fedora.svg",
+    "source": "fedora.react-2a8c2d76.svg",
+    "sha256": "2a8c2d7682157d0a4e94aa9c98cc15b9f92fdb14668ba29c1847b738b912f2b4",
+    "colorVariable": "--system-fedora",
+    "background": "#3c6eb4"
+  },
+  {
+    "id": "mageia",
+    "label": "Mageia",
+    "file": "mageia.svg",
+    "source": "mageia.react-a80e9ad4.svg",
+    "sha256": "a80e9ad45a231c459d6c46534dd38a6ec7b713670fd0caa9b58474c2928bdca8",
+    "colorVariable": "--system-mageia",
+    "background": "#2397d4"
+  },
+  {
+    "id": "arch",
+    "label": "Arch Linux",
+    "file": "arch.svg",
+    "source": "arch.react-2f0deac5.svg",
+    "sha256": "2f0deac5969b00cd0a8fb10543bba30bfc66c11d9f1b78c31a95a5ce1bdc7bba",
+    "colorVariable": "--system-arch",
+    "background": "#1793d1"
+  },
+  {
+    "id": "gentoo",
+    "label": "Gentoo",
+    "file": "gentoo.svg",
+    "source": "gentoo.react-59f927cf.svg",
+    "sha256": "59f927cf7a0b89e950b76c69633d381c215386cbe36e847d409aa8f189499a34",
+    "colorVariable": "--system-gentoo",
+    "background": "#54487a"
+  },
+  {
+    "id": "debian",
+    "label": "Debian",
+    "file": "debian.svg",
+    "source": "debian.react-a37d904d.svg",
+    "sha256": "a37d904d60c28b3ca9129d1a2455777ad3cfbec6b9b0249591c587046dd6c7e7",
+    "colorVariable": "--system-debian",
+    "background": "#ce0056"
+  },
+  {
+    "id": "linux",
+    "label": "Linux",
+    "file": "linux.svg",
+    "source": "linux.react-18f426ad.svg",
+    "sha256": "18f426ad1b6547a8ee35d8670364d8dba3ccd41f9cdb4190ceb9c9d71503bfb1",
+    "colorVariable": "--system-linux",
+    "background": "#ffcc33"
+  },
+  {
+    "id": "android",
+    "label": "Android",
+    "file": "android.svg",
+    "source": "android.react-e05b493b.svg",
+    "sha256": "e05b493b3cdb9045614c1f6f76a7a359c778b1bf8f289a09dccae3cd0070c028",
+    "colorVariable": "--system-android",
+    "background": "#3ddc84"
+  },
+  {
+    "id": "routeros",
+    "label": "RouterOS",
+    "file": "routeros.svg",
+    "source": "routeros.react-b6a9537c.svg",
+    "sha256": "b6a9537c26b3c359e1ff30fd1452e4cce0bc3d2a4541bbdf5bf98424ed8eed63",
+    "colorVariable": "--system-routeros",
+    "background": "#164aaa"
+  },
+  {
+    "id": "redhat",
+    "label": "Red Hat",
+    "file": "redhat.svg",
+    "source": "redhat.react-f52bfb88.svg",
+    "sha256": "f52bfb8875db9e6b0982b1237c747ddf65f69ea251491e723cd5a83dea525f07",
+    "colorVariable": "--system-redhat",
+    "background": "#ee0000"
+  },
+  {
+    "id": "windows",
+    "label": "Windows",
+    "file": "windows.svg",
+    "source": "Windows.react-084ed4dd.svg",
+    "sha256": "084ed4dd9adb76306460f73f4926f3a0e63919a59766b7e69028a8689078d580",
+    "colorVariable": "--system-windows",
+    "background": "#00a1f1"
+  },
+  {
+    "id": "cisco",
+    "label": "Cisco",
+    "file": "cisco.svg",
+    "source": "Cisco.react-fbd23c4a.svg",
+    "sha256": "fbd23c4acf9740fd7299b853c137e67179dbfd18b54c44ace0e466b7fc55f477",
+    "colorVariable": "--system-cisco",
+    "background": "#00bceb"
+  },
+  {
+    "id": "gloria_ops_agent",
+    "label": "Gloria",
+    "file": "gloria_ops_agent.svg",
+    "source": "Gloria.react-0dc54a41.svg",
+    "sha256": "0dc54a41f6baf056ec2fbf63960a2ae8c66391aacd8b1d649d89a3b0fcb30938",
+    "colorVariable": "--system-gloria",
+    "background": "#16b8f0"
+  },
+  {
+    "id": "rocky",
+    "label": "Rocky Linux",
+    "file": "rocky.svg",
+    "source": "Rocky Linux.react-41998315.svg",
+    "sha256": "41998315f69cf4682da39eb862acacceb39429dc135f1e39108af4b2aa8ea46a",
+    "colorVariable": "--system-rockylinux",
+    "background": "#34d399"
+  },
+  {
+    "id": "alma",
+    "label": "AlmaLinux",
+    "file": "alma.svg",
+    "source": "Alma Linux.react-d520cb21.svg",
+    "sha256": "d520cb21b1c4b8f6e06f9a7daabd3cc6654ee1a3f0477110f05ce65f86f062d0",
+    "colorVariable": "--system-almaLinux",
+    "background": "#00245e"
+  },
+  {
+    "id": "alpine",
+    "label": "Alpine Linux",
+    "file": "alpine.svg",
+    "source": "Alpine Linux.react-a5f1f61c.svg",
+    "sha256": "a5f1f61cf854983e3d113b99ddbb05cbf9739a5113e851f01ec4c429ccbcea98",
+    "colorVariable": "--system-alpineLinux",
+    "background": "#0d597f"
+  },
+  {
+    "id": "amazon",
+    "label": "Amazon Linux",
+    "file": "amazon.svg",
+    "source": "Amazon Linux.react-23949506.svg",
+    "sha256": "23949506c37703bc3029c847bda7ad782a1cca8460cfb2595a0c572180269c8f",
+    "colorVariable": "--system-amazonLinux",
+    "background": "#ff9900"
+  },
+  {
+    "id": "pi",
+    "label": "Raspberry Pi",
+    "file": "pi.svg",
+    "source": "pi.react-072b1c88.svg",
+    "sha256": "072b1c8866619b0cbc43204abcf21fe5cdc6bf7f960ca3f2adf1a97f5c30648f",
+    "colorVariable": "--system-pi",
+    "background": "#be3956"
+  },
+  {
+    "id": "aws",
+    "label": "AWS",
+    "file": "aws.svg",
+    "source": "AWS.react-9719c873.svg",
+    "sha256": "9719c8730328c1c6bc171c0d32b0bd1f0afead5b068105c6602e47b14d28e294",
+    "colorVariable": "--system-aws",
+    "background": "#ff9900"
+  },
+  {
+    "id": "digitalocean",
+    "label": "DigitalOcean",
+    "file": "digitalocean.svg",
+    "source": "DigitalOcean.react-cb3e508a.svg",
+    "sha256": "cb3e508a4f9b19037028565ed17406f2ee7185949177ed88d78360305c1d67f9",
+    "colorVariable": "--system-digitalocean",
+    "background": "#0080ff"
+  }
+]

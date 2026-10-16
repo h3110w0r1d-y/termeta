@@ -11,6 +11,9 @@ importers:
       '@tauri-apps/api':
         specifier: 2.11.0
         version: 2.11.0
+      '@vicons/ionicons5':
+        specifier: 0.13.0
+        version: 0.13.0
       '@xterm/addon-fit':
         specifier: 0.11.0
         version: 0.11.0
@@ -265,6 +268,9 @@ packages:
 
   '@types/lodash@4.17.26':
     resolution: {integrity: sha512-48NWfiY6oNcKOh47Z4h+sIvwcQR91h6KPhaYKgeMIrkT2jV82Gy90SErj60vW8jQbeMSOSbhIv3bZ7JoqPPVhA==}
+
+  '@vicons/ionicons5@0.13.0':
+    resolution: {integrity: sha512-zvZKBPjEXKN7AXNo2Na2uy+nvuv6SP4KAMQxpKL2vfHMj0fSvuw7JZcOPCjQC3e7ayssKnaoFVAhbYcW6v41qQ==}
 
   '@vitejs/plugin-vue@6.0.10':
     resolution: {integrity: sha512-b80aUQh3n+qEzzZm5oQp3rT2QImeCx58K6eFl/RkJ3d65KW0kTuv5lNsLRVAjbW9YRUpo/wzmvzMgV34bTAItA==}
@@ -753,6 +759,8 @@ snapshots:
       '@types/lodash': 4.17.26
 
   '@types/lodash@4.17.26': {}
+
+  '@vicons/ionicons5@0.13.0': {}
 
   '@vitejs/plugin-vue@6.0.10(vite@8.3.4)(vue@3.5.44(typescript@6.0.3))':
     dependencies:

@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { CloseOutline } from "@vicons/ionicons5";
 import { closeContextMenuOnOutside } from "./components/ui/contextMenu";
 import {
+  NIcon,
   NConfigProvider,
   NGlobalStyle,
   NAlert,
@@ -72,7 +74,7 @@ const terminalBackground = computed(() =>
     ? schemeForTab(workspace.active).colors.background
     : undefined,
 );
-const { naiveTheme } = useAppAppearance();
+const { naiveTheme, naiveThemeOverrides } = useAppAppearance();
 let heartbeat: ReturnType<typeof setInterval> | undefined,
   unlisten: (() => void) | undefined,
   closingWindow = false;
@@ -238,7 +240,12 @@ onBeforeUnmount(() => {
 });
 </script>
 <template>
-  <NConfigProvider :theme="naiveTheme" :locale="zhCN" :date-locale="dateZhCN">
+  <NConfigProvider
+    :theme="naiveTheme"
+    :theme-overrides="naiveThemeOverrides"
+    :locale="zhCN"
+    :date-locale="dateZhCN"
+  >
     <NGlobalStyle />
     <VaultGate :initialize="loadUnlocked">
       <div
@@ -344,7 +351,7 @@ onBeforeUnmount(() => {
                 aria-label="关闭搜索"
                 @click="closeFind()"
               >
-                ✕
+                <NIcon :size="16" aria-hidden="true"><CloseOutline /></NIcon>
               </AppButton>
             </div>
             <NAlert v-if="workspace.active?.error" type="error">

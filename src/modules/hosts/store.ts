@@ -10,11 +10,17 @@ export const useHosts = defineStore("hosts", () => {
   const managementBusy = ref(false);
   const hosts = ref<HostProfile[]>([]),
     groups = ref<HostGroup[]>([]);
+  let loadRevision = 0;
   async function load() {
-    [hosts.value, groups.value] = await Promise.all([
+    const revision = ++loadRevision;
+    const [nextHosts, nextGroups] = await Promise.all([
       desktop.listHosts(),
       desktop.listGroups(),
     ]);
+    // 系统检测通知可能连续到达，迟到的旧读取不能覆盖最新主机图标和revision。
+    if (revision !== loadRevision) return;
+    hosts.value = nextHosts;
+    groups.value = nextGroups;
   }
   async function save(
     host: HostDraft,

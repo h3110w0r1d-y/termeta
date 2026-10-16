@@ -77,11 +77,12 @@ pub async fn open_session(
                 .get_host(&profile_id)
                 .await
                 .map_err(storage_error)?;
-            let config = state
+            let mut config = state
                 .store
                 .get_host_connection(&profile_id)
                 .await
                 .map_err(storage_error)?;
+            config.system_profile_id = Some(profile_id.clone());
             (SessionConfig::Ssh(config), Some(profile_id), host.name)
         }
         OpenTarget::Ephemeral { kind, config } => {

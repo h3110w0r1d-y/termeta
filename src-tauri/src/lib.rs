@@ -59,7 +59,8 @@ pub fn run() {
                 path.join("termvexa-encrypted-v2.sqlite3"),
             ));
             let vault = Arc::new(CredentialVault::new(store.clone()));
-            let factory = SshFactory::new(store.clone(), vault.clone());
+            let factory =
+                SshFactory::new(store.clone(), vault.clone()).with_system_detection(store.clone());
             let ssh_channels = factory.channels();
             let file_sessions = SessionManager::new(Arc::new(factory.for_files()));
             let sessions = SessionManager::new(Arc::new(factory))

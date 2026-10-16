@@ -32,8 +32,13 @@ export interface HostProfile extends Omit<SshConfig, "configVersion"> {
   tags: string[];
   revision: number;
   hasPassword: boolean;
+  icon: string;
+  systemDetectionAttempted: boolean;
 }
-export type HostDraft = Omit<HostProfile, "id" | "revision" | "hasPassword"> & {
+export type HostDraft = Omit<
+  HostProfile,
+  "id" | "revision" | "hasPassword" | "systemDetectionAttempted"
+> & {
   id: string | null;
 };
 export interface HostGroup {
@@ -76,6 +81,7 @@ export interface AuthChallenge {
   expiresAt?: number;
 }
 export type SessionEvent =
+  | { type: "hostSystemChanged"; sessionId: string; profileId: string }
   | HostKeyChallenge
   | AuthChallenge
   | { type: "stateChanged"; sessionId: string; snapshot: SessionSnapshot }

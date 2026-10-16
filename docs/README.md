@@ -40,4 +40,4 @@ Windows、macOS、Linux 桌面客户端，采用 Tauri 2 + Rust + Vue 3 + TypeSc
 - M0预研，M1 SSH纵向切片，M2 SSH MVP，M3专业SSH/SFTP，M4 Local/Serial，M5分发产品化；P0/P1/P2按所属里程碑理解。
 - host/profile为持久化连接配置，session为一次后端连接生命周期，connection为底层SSH传输，terminalId为跨重连稳定的终端视图标识，pane/tab为布局节点。
 - IPC命令使用snake_case，JSON字段使用camelCase，字节流保留原始字节。具体接口以同步的Rust/TS类型为准。
-- 字体资源及许可证见 [字体清单](../public/fonts/README.md)，配色与拼音表来源见 [静态资源](../resources/README.md)。
+- 字体资源及许可证见 [字体清单](../public/fonts/README.md)，配色、拼音表及SSH系统图标/只读命令来源见 [静态资源](../resources/README.md)。
