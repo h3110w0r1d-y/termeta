@@ -189,69 +189,7 @@ pub async fn delete_credential(
     owner(&window)?;
     state.vault.delete(&id).await.map_err(security_error)
 }
-#[tauri::command]
-pub async fn get_settings(
-    window: WebviewWindow,
-    state: State<'_, AppState>,
-) -> Result<Option<serde_json::Value>> {
-    owner(&window)?;
-    let Some(setting) = state
-        .store
-        .get_setting("app")
-        .await
-        .map_err(storage_error)?
-    else {
-        return Ok(None);
-    };
-    if setting.value_version != 1 {
-        return Err(SessionError::new(
-            "UNSUPPORTED_SETTINGS_VERSION",
-            "storage",
-            "设置来自不支持的版本，已停止写入",
-        ));
-    }
-    let mut value = setting.value;
-    // 旧版自定义字体串收敛到内置默认项，只改本次返回值，保存仍走完整校验。
-    if let Some(font) = value.get_mut("fontFamily") {
-        if font
-            .as_str()
-            .is_some_and(|name| !crate::settings::TERMINAL_FONTS.contains(&name))
-        {
-            *font = serde_json::Value::String(crate::settings::DEFAULT_TERMINAL_FONT.into());
-        }
-    }
-    crate::settings::normalize_legacy_schemes(&mut value);
-    crate::settings::validate(&value)?;
-    Ok(Some(value))
-}
-#[tauri::command]
-pub async fn save_settings(
-    window: WebviewWindow,
-    state: State<'_, AppState>,
-    settings: serde_json::Value,
-) -> Result<()> {
-    owner(&window)?;
-    if let Some(current) = state
-        .store
-        .get_setting("app")
-        .await
-        .map_err(storage_error)?
-    {
-        if current.value_version != 1 || current.value["schemaVersion"] != 1 {
-            return Err(SessionError::new(
-                "UNSUPPORTED_SETTINGS_VERSION",
-                "storage",
-                "现有设置来自不支持的版本，拒绝覆盖",
-            ));
-        }
-    }
-    crate::settings::validate(&settings)?;
-    state
-        .store
-        .set_setting("app", 1, &settings)
-        .await
-        .map_err(storage_error)
-}
+
 pub fn security_error(error: terminal_security::SecurityError) -> SessionError {
     if let terminal_security::SecurityError::Metadata(error) = error {
         return storage_error(error);

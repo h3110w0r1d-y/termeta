@@ -5,6 +5,7 @@ import { desktop } from "../../services/desktop/client";
 import { defaults, upgradeBindings } from "../../services/commands/registry";
 import type {
   AppSettings,
+  SettingsPatch,
   HostsViewSettings,
   HostSearchSettings,
 } from "./model";
@@ -35,66 +36,65 @@ export function defaultSettings(): AppSettings {
 }
 export const useSettings = defineStore("settings", () => {
   const value = ref<AppSettings>(defaultSettings());
-  async function load() {
-    const saved = await desktop.getSettings();
-    if (saved && Object.keys(saved).length)
-      value.value = {
-        ...defaultSettings(),
-        ...saved,
-        keymap: {
-          schemaVersion: 1,
-          bindings: upgradeBindings(saved.keymap?.bindings ?? defaults()),
-        },
-        fontFamily: normalizeTerminalFont(
-          saved.fontFamily ?? defaultTerminalFont,
-        ),
-      };
+  function normalize(saved: AppSettings): AppSettings {
+    return {
+      ...defaultSettings(),
+      ...saved,
+      keymap: {
+        schemaVersion: 1,
+        bindings: upgradeBindings(saved.keymap?.bindings ?? defaults()),
+      },
+      fontFamily: normalizeTerminalFont(
+        saved.fontFamily ?? defaultTerminalFont,
+      ),
+    };
+  }
+  function load() {
+    const request = pendingSave.then(async () => {
+      const saved = await desktop.getSettings();
+      if (saved && Object.keys(saved).length) value.value = normalize(saved);
+    });
+    pendingSave = request.catch(() => {});
+    return request;
   }
   const savingSftpHidden = ref(false);
   let pendingSave = Promise.resolve();
-  // 整条设置JSON串行写入；在执行时合并即时偏好，避免设置页的旧草稿覆盖它。
-  function persist(snapshot: () => AppSettings) {
+  // 单窗口读写共用队列，跨窗口合并由 Rust 的设置专用队列负责。
+  function persist(patch: SettingsPatch) {
+    const snapshot = clone(patch);
     const request = pendingSave.then(async () => {
-      const next = snapshot();
-      await desktop.saveSettings(next);
-      value.value = next;
+      value.value = normalize(
+        await desktop.saveSettings(snapshot, defaultSettings()),
+      );
     });
     pendingSave = request.catch(() => {});
     return request;
   }
   function save(next: AppSettings) {
-    const snapshot = clone(next);
-    return persist(() => ({
-      ...snapshot,
-      sftpShowHidden: value.value.sftpShowHidden,
-      hostsView: clone(value.value.hostsView),
-      hostSearch: clone(value.value.hostSearch),
-    }));
+    const patch: Partial<AppSettings> = {};
+    for (const key of Object.keys(next) as (keyof AppSettings)[]) {
+      if (JSON.stringify(next[key]) !== JSON.stringify(value.value[key]))
+        Object.assign(patch, { [key]: clone(next[key]) });
+    }
+    return persist(patch);
   }
   async function setSftpShowHidden(show: boolean) {
     if (savingSftpHidden.value) return;
     savingSftpHidden.value = true;
     try {
-      await persist(() => ({ ...clone(value.value), sftpShowHidden: show }));
+      await persist({ sftpShowHidden: show });
     } finally {
       savingSftpHidden.value = false;
     }
   }
   function setHostsView(patch: Partial<HostsViewSettings>) {
-    const snapshot = clone(patch);
-    return persist(() => ({
-      ...clone(value.value),
-      hostsView: { ...clone(value.value.hostsView), ...snapshot },
-    }));
+    return persist({ hostsView: clone(patch) });
   }
   function setHostSearch(patch: Partial<HostSearchSettings>) {
-    const snapshot = clone(patch);
-    return persist(() => ({
-      ...clone(value.value),
-      hostSearch: { ...clone(value.value.hostSearch), ...snapshot },
-    }));
+    return persist({ hostSearch: clone(patch) });
   }
   return {
+    patch: persist,
     setHostSearch,
     value,
     load,

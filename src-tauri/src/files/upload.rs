@@ -6,7 +6,7 @@ use tauri_plugin_dialog::{
     DialogExt, MessageDialogButtons, MessageDialogKind, MessageDialogResult,
 };
 use terminal_core::{Result, SessionError};
-use terminal_files::{FileProvider, TransferProgress, child_path, copy_file, file_error};
+use terminal_files::{TransferProgress, child_path, copy_file, file_error};
 use terminal_sftp::SftpBrowser;
 
 struct UploadItem {

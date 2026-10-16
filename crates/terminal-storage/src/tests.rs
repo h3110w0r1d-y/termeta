@@ -466,3 +466,73 @@ async fn deleting_group_subtree_is_revision_guarded_and_preserves_shared_credent
     );
     store.pool().unwrap().close().await;
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn history_keeps_only_latest_twenty_attempts() {
+    let directory = TestDirectory::new();
+    let store = SqliteStore::open(directory.0.join("history.sqlite3"))
+        .await
+        .unwrap();
+    let mut ids = Vec::new();
+    for index in 0..25 {
+        ids.push(
+            store
+                .start_history(None, &format!("连接{index}"), Some("local"))
+                .await
+                .unwrap(),
+        );
+    }
+    let history = store.list_history().await.unwrap();
+    assert_eq!(history.len(), 20);
+    assert_eq!(
+        history
+            .iter()
+            .map(|entry| entry.id.as_str())
+            .collect::<Vec<_>>(),
+        ids[5..]
+            .iter()
+            .rev()
+            .map(String::as_str)
+            .collect::<Vec<_>>()
+    );
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM session_history")
+        .fetch_one(store.pool().unwrap())
+        .await
+        .unwrap();
+    assert_eq!(count, 20);
+    // 被裁剪的进行中摘要结束时允许空更新，不影响剩余记录。
+    store.end_history(&ids[0], "closed", None).await.unwrap();
+    assert_eq!(store.list_history().await.unwrap().len(), 20);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn unlock_prunes_existing_history_with_equal_timestamps() {
+    let directory = TestDirectory::new();
+    let path = directory.0.join("history.sqlite3");
+    let store = SqliteStore::open(&path).await.unwrap();
+    let timestamp = now();
+    // 模拟旧版本积累的同毫秒历史，绕过新增入口以验证解锁清理。
+    for index in 0..25 {
+        sqlx::query(
+            "INSERT INTO session_history(id,display_name_snapshot,started_at) VALUES(?,?,?)",
+        )
+        .bind(format!("legacy-{index}"))
+        .bind(format!("连接{index}"))
+        .bind(timestamp)
+        .execute(store.pool().unwrap())
+        .await
+        .unwrap();
+    }
+    store.pool().unwrap().close().await;
+    drop(store);
+    let reopened = SqliteStore::open(&path).await.unwrap();
+    let history = reopened.list_history().await.unwrap();
+    assert_eq!(history.len(), 20);
+    assert_eq!(history.first().unwrap().id, "legacy-24");
+    assert_eq!(history.last().unwrap().id, "legacy-5");
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM session_history")
+        .fetch_one(reopened.pool().unwrap())
+        .await
+        .unwrap();
+    assert_eq!(count, 20);
+}

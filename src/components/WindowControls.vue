@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ApplicationMenu from "./ApplicationMenu.vue";
 import AppButton from "./ui/AppButton.vue";
 import { isMac } from "../services/commands/registry";
 import { desktop, errorMessage } from "../services/desktop/client";
@@ -14,6 +15,7 @@ async function act(action: () => Promise<void>) {
 <template>
   <!-- macOS 使用原生红黄绿按钮；关闭始终经过应用既有的会话与传输确认。 -->
   <div v-if="!isMac" class="window-controls" aria-label="窗口操作">
+    <ApplicationMenu />
     <AppButton
       class="icon-button"
       aria-label="最小化窗口"

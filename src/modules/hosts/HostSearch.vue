@@ -78,7 +78,7 @@ watch(
     }
   },
 );
-// 库的focus只高亮选择器外壳；首页需要真实输入焦点。
+// 库的focus只高亮选择器外壳；保险箱需要真实输入焦点。
 defineExpose({ focus: () => input.value?.focusInput() });
 </script>
 <template>

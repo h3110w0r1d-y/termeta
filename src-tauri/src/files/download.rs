@@ -1,6 +1,6 @@
 use std::path::Path;
 use terminal_core::{Result, SessionError};
-use terminal_files::{FileProvider, TransferProgress, child_path, copy_file, file_error};
+use terminal_files::{TransferProgress, child_path, copy_file, file_error};
 use terminal_sftp::SftpBrowser;
 
 /// 原生拖出与保存对话框共用；调用者负责会话所有权、操作锁和传输许可。

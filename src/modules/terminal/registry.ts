@@ -524,7 +524,13 @@ export const terminalRegistry = {
       resetTerminalActivity(tab);
       writeLocalStatus(
         entry.term,
-        old ? "重新连接，保留终端历史" : "开始 SSH 连接",
+        tab.target.source === "local"
+          ? old
+            ? "重新打开本地终端，保留终端历史"
+            : "启动本地终端"
+          : old
+            ? "重新连接，保留终端历史"
+            : "开始 SSH 连接",
       );
       const stream: Stream = {
         generation: (old?.generation ?? 0) + 1,
@@ -607,7 +613,7 @@ export const terminalRegistry = {
       tab = useWorkspace().tabs.find((t) => t.terminalId === id);
     if (e && tab) {
       requestAnimationFrame(() => {
-        // 快速切换到首页或弹出认证时，迟到的焦点任务不能抢回隐藏终端。
+        // 快速切换到保险箱或弹出认证时，迟到的焦点任务不能抢回隐藏终端。
         if (
           e.disposed ||
           useWorkspace().active?.terminalId !== id ||

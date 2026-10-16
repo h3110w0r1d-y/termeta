@@ -193,7 +193,7 @@ Channel send 错误、窗口已销毁或主动 close 立即取消对应流，释
 
 ## 10. 快捷键、配色与文件领域扩展
 
-快捷键及终端配色存入版本化设置，通过 get_settings/save_settings 整体读写。后端校验动作、颜色、版本及引用；前端 JSON 导入有大小限制，不提供任意文件读写。快捷键只引用 CommandRegistry 已注册 commandId，链接动作走 open_external_url 的 http/https 白名单，不接受任意 opener 参数。
+快捷键及终端配色存入版本化设置，通过 get_settings 读取完整快照、save_settings 提交局部字段。后端校验动作、颜色、版本及引用；前端 JSON 导入有大小限制，不提供任意文件读写。快捷键只引用 CommandRegistry 已注册 commandId，链接动作走 open_external_url 的 http/https 白名单，不接受任意 opener 参数。
 
 文件服务使用独立命令与进度 Channel，不复用终端 binary frame/ACK。正文只在 Rust 流动。当前单终端 SFTP 契约见第 12 节；独立端点、连接租约、持久任务订阅仍是后续设计。
 
@@ -205,7 +205,7 @@ Channel send 错误、窗口已销毁或主动 close 立即取消对应流，释
 
 `save_host.password` 省略/null 表示元数据更新保留已有专属密码，显式 `""` 表示移除，非空表示替换；主机编辑总显式提交字符串。HostDraft 不含秘密，主机公共结果新增 hasPassword 且隐藏专属credentialId。私钥凭据参数只接受 keyFileRef 与可选passphrase，密码凭据只接受password，不接受混合类型；所有secret只作为提交参数，不回传。保存主机后的旧秘密清理失败不回滚已经提交的主机结果，deleting登记留待重试。
 
-设置通过 `get_settings` / `save_settings({settings})` 操作版本 1 的整体 app JSON；包含 customSchemes、hostSchemes、keymap 和 tabPosition（top/left，旧记录缺失兼容），尚无独立配色命令族。拒绝未来设置版本和非法动作/颜色。AppManifest、handler、capability 共用中心命令名单并做静态集合检查；后续仍须实际验证 ACL 拒绝路径。
+设置通过 `get_settings` / `save_settings({settings, defaults})` 操作版本 1 的 app JSON（settings为局部更新，defaults为首次无记录时使用的完整默认值，二者均受校验）；包含 customSchemes、hostSchemes、keymap 和 tabPosition（top/left，旧记录缺失兼容），尚无独立配色命令族。拒绝未来设置版本和非法动作/颜色。AppManifest、handler、capability 共用中心命令名单并做静态集合检查；后续仍须实际验证 ACL 拒绝路径。
 
 输出 forwarder 结束后发布 ended，终态 ACK 保留 3 秒排空窗口；会话快照/幂等摘要最多 1024 个、最长 10 分钟。五分钟未消费/窗口失联取消，系统睡眠时间跳跃重置失联预算。前端每 64 KiB 或 16 ms 合并解析后 ACK。各预算是代码初值，不是性能测量结果。
 
@@ -253,6 +253,12 @@ macOS 拖出 names 最多 100 个普通文件或真实目录根，directories �
 
 主机页设置契约：现有AppSettings增加可选旧格式兼容的`hostsView`对象，新保存包含`includeChildren: boolean`与`expandedGroupIds: string[]`；Rust白名单校验字段、UUID去重及10000项/整条256KiB上限。复用get_settings/save_settings，不新增IPC/ACL。前端保护包含子组、展开集合及sftpShowHidden不被设置草稿回退。全局拼音搜索只用已有轻量HostProfile列表，无逐次搜索IPC或网络请求。
 
-搜索偏好通过既有get_settings/save_settings保存app.hostSearch（pinyin布尔值与fields字段集合），name强制存在，其他字段为address/username/tags/group且去重；缺失兼容旧数据。搜索下拉与设置页即时保存共用设置队列，普通草稿合并最新hostSearch，无新增IPC或ACL。
+搜索偏好通过既有get_settings/save_settings保存app.hostSearch（pinyin布尔值与fields字段集合），name强制存在，其他字段为address/username/tags/group且去重；缺失兼容旧数据。搜索下拉与设置页即时保存共用设置队列，设置页只提交修改字段，无新增IPC或ACL。
 
 新建标签页弹窗只使用既有HostProfile/设置，无新IPC。keymap.commandId增加workspace.newTab（application/workspace），Rust设置白名单同步；前端读取或导入旧keymap补充Primary+T绑定，保留已有动作/冲突配置及绑定数量上限。
+
+## 独立设置窗口契约
+
+`open_settings_window()`仅main可调用且要求已解锁，Rust创建/聚焦settings窗口。`get_settings`返回完整AppSettings；`save_settings`在设置专用异步互斥队列中读取最新快照、合并patch并校验后写库，返回完整快照。hostsView/hostSearch额外按子字段合并，其余字段整体替换；默认值仅在无记录时使用，旧版本拒绝写入，兼容旧字体/配色归一。成功后Rust广播无秘密的`settings-changed`失效通知，两个窗口串行重读；前端不发送设置事件。数据库schema及设置schemaVersion不变。
+
+settings窗口仅开放设置和export_json，这些命令使用独立settings_owner检查窗口身份、本地来源和解锁状态；list_known_hosts/revoke_known_host/list_history/clear_history随业务页面移入保险箱，改用仅main可用的owner，且从settings capability移除。其余资源owner保持main限制。新增命令纳入COMMANDS/AppManifest、handler和main capability；settings使用独立capability。

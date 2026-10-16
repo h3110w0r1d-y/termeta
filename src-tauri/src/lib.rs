@@ -4,6 +4,7 @@ mod files;
 #[cfg(target_os = "macos")]
 mod macos_menu;
 mod settings;
+mod settings_window;
 mod state;
 
 use state::AppState;
@@ -65,6 +66,7 @@ pub fn run() {
                 .with_factory(Arc::new(terminal_local::LocalFactory));
             app.manage(file_drag::LocalDropRegistry::default());
             app.manage(AppState {
+                settings_gate: tokio::sync::Mutex::new(()),
                 sessions,
                 file_sessions,
                 ssh_channels,
@@ -129,6 +131,9 @@ pub fn run() {
                     state.sessions.close_owner(window.label());
                     state.file_sessions.close_owner(window.label());
                     if window.label() == "main" {
+                        if let Some(settings) = window.app_handle().get_webview_window("settings") {
+                            let _ = settings.destroy();
+                        }
                         for browser in state.sftp.lock().unwrap().values() {
                             browser.cancel();
                         }
@@ -170,6 +175,7 @@ pub fn run() {
             commands::list_credentials,
             commands::save_credential,
             commands::delete_credential,
+            commands::open_settings_window,
             commands::get_settings,
             commands::save_settings,
             commands::open_external_url,

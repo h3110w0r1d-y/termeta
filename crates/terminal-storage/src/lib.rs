@@ -146,8 +146,8 @@ impl SqliteStore {
         sqlx::migrate!("./migrations").run(pool).await?;
         sqlx::query("PRAGMA user_version = 2").execute(pool).await?;
         sqlx::query("UPDATE session_history SET ended_at=?,end_reason='appInterrupted' WHERE ended_at IS NULL").bind(now()).execute(pool).await?;
-        sqlx::query("DELETE FROM session_history WHERE started_at<?")
-            .bind(now() - 90 * 86_400_000_i64)
+        sqlx::query(metadata::PRUNE_HISTORY_SQL)
+            .bind(metadata::HISTORY_LIMIT)
             .execute(pool)
             .await?;
         Ok(())

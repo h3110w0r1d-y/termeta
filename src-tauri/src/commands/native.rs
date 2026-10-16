@@ -81,7 +81,7 @@ pub async fn export_json(
     name: String,
     value: serde_json::Value,
 ) -> Result<bool> {
-    owner(&window)?;
+    crate::state::settings_owner(&window)?;
     if name.len() > 128
         || !name.ends_with(".json")
         || name

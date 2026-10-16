@@ -4,6 +4,10 @@ use sqlx::Row;
 use terminal_core::{HostKey, HostTrustStore, SessionError, TrustStatus};
 use uuid::Uuid;
 
+pub(crate) const HISTORY_LIMIT: i64 = 20;
+// 同毫秒记录按插入顺序裁剪，读取与清理使用相同排序。
+pub(crate) const PRUNE_HISTORY_SQL: &str = "DELETE FROM session_history WHERE rowid IN (SELECT rowid FROM session_history ORDER BY started_at DESC, rowid DESC LIMIT -1 OFFSET ?)";
+
 impl SqliteStore {
     pub async fn list_known_hosts(&self) -> Result<Vec<TrustedHostKey>> {
         sqlx::query("SELECT * FROM known_hosts ORDER BY canonical_host,port")
@@ -137,7 +141,14 @@ impl SqliteStore {
         endpoint: Option<&str>,
     ) -> Result<String> {
         let id = Uuid::new_v4().to_string();
-        sqlx::query("INSERT INTO session_history(id,profile_id,display_name_snapshot,endpoint_snapshot,started_at) VALUES(?,?,?,?,?)").bind(&id).bind(profile_id).bind(name).bind(endpoint).bind(now()).execute(self.pool()?).await?;
+        let mut tx = self.pool()?.begin_with("BEGIN IMMEDIATE").await?;
+        sqlx::query("INSERT INTO session_history(id,profile_id,display_name_snapshot,endpoint_snapshot,started_at) VALUES(?,?,?,?,?)").bind(&id).bind(profile_id).bind(name).bind(endpoint).bind(now()).execute(&mut *tx).await?;
+        // 插入和裁剪原子提交，并发建立连接也不能突破保留上限。
+        sqlx::query(PRUNE_HISTORY_SQL)
+            .bind(HISTORY_LIMIT)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
         Ok(id)
     }
     pub async fn end_history(
@@ -150,7 +161,8 @@ impl SqliteStore {
         Ok(())
     }
     pub async fn list_history(&self) -> Result<Vec<HistoryEntry>> {
-        sqlx::query("SELECT * FROM session_history ORDER BY started_at DESC LIMIT 1000")
+        sqlx::query("SELECT * FROM session_history ORDER BY started_at DESC, rowid DESC LIMIT ?")
+            .bind(HISTORY_LIMIT)
             .fetch_all(self.pool()?)
             .await?
             .into_iter()
@@ -170,13 +182,6 @@ impl SqliteStore {
     }
     pub async fn clear_history(&self) -> Result<()> {
         sqlx::query("DELETE FROM session_history")
-            .execute(self.pool()?)
-            .await?;
-        Ok(())
-    }
-    pub async fn prune_history(&self, days: u16) -> Result<()> {
-        sqlx::query("DELETE FROM session_history WHERE started_at<?")
-            .bind(now() - i64::from(days) * 86_400_000)
             .execute(self.pool()?)
             .await?;
         Ok(())

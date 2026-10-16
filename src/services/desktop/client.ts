@@ -1,7 +1,7 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { Channel, invoke } from "@tauri-apps/api/core";
-import type { AppSettings } from "../../modules/settings/model";
+import type { AppSettings, SettingsPatch } from "../../modules/settings/model";
 import type {
   VaultStatus,
   DirectoryPage,
@@ -143,9 +143,13 @@ export const desktop = {
   ) => invoke<HostGroup>("save_host_group", { group, expectedRevision }),
   deleteGroup: (id: string, revision: number, deleteHosts = false) =>
     invoke<void>("delete_host_group", { id, revision, deleteHosts }),
+  isSettingsWindow: () => getCurrentWindow().label === "settings",
+  openSettingsWindow: () => invoke<void>("open_settings_window"),
+  onSettingsChanged: (handler: () => void) =>
+    listen("settings-changed", handler),
   getSettings: () => invoke<AppSettings | null>("get_settings"),
-  saveSettings: (settings: AppSettings) =>
-    invoke<void>("save_settings", { settings }),
+  saveSettings: (settings: SettingsPatch, defaults: AppSettings) =>
+    invoke<AppSettings>("save_settings", { settings, defaults }),
   selectKey: () =>
     invoke<{ keyFileRef: string; name: string } | null>(
       "select_private_key_file",

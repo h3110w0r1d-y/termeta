@@ -9,7 +9,7 @@ import {
   dateZhCN,
 } from "naive-ui";
 import { useAppAppearance } from "./layout/useAppAppearance";
-import HomeLayout from "./layout/HomeLayout.vue";
+import VaultLayout from "./layout/VaultLayout.vue";
 import VaultGate from "./components/VaultGate.vue";
 import WindowControls from "./components/WindowControls.vue";
 import { isMac } from "./services/commands/registry";
@@ -42,6 +42,8 @@ import { needsCloseConfirmation } from "./modules/terminal/activity";
 import { commands } from "./services/commands/registry";
 import { desktop, errorMessage } from "./services/desktop/client";
 import type { HostProfile, SshConfig } from "./services/desktop/types";
+import { useSettingsSync } from "./modules/settings/useSettingsSync";
+const settingsSync = useSettingsSync();
 const hosts = useHosts(),
   settings = useSettings(),
   workspace = useWorkspace();
@@ -54,9 +56,12 @@ const editorOpen = ref(false),
   initError = ref(""),
   findOpen = ref(false),
   query = ref("");
+watch(settingsSync.error, (message) => {
+  if (message) initError.value = message;
+});
 const vaultReady = ref(false);
 async function loadUnlocked() {
-  await Promise.all([hosts.load(), settings.load()]);
+  await Promise.all([hosts.load(), settingsSync.start()]);
   vaultReady.value = true;
 }
 const connected = computed(
@@ -131,7 +136,7 @@ async function focusTerminal(id: string) {
   terminalRegistry.focus(group.focusedTerminalId);
 }
 function restoreTerminalFocus() {
-  // 连接/认证弹窗的焦点陷阱退场后再聚焦，避免库恢复到已经隐藏的首页控件。
+  // 连接/认证弹窗的焦点陷阱退场后再聚焦，避免库恢复到已经隐藏的保险箱控件。
   if (!findOpen.value && workspace.active)
     terminalRegistry.focus(workspace.active.terminalId);
 }
@@ -171,7 +176,7 @@ onMounted(async () => {
   });
   commands.register("workspace.nextTab", () => workspace.cycle(1));
   commands.register("workspace.previousTab", () => workspace.cycle(-1));
-  commands.register("settings.open", () => workspace.openHome("settings"));
+  commands.register("settings.open", () => perform(desktop.openSettingsWindow));
   commands.register("terminal.copy", () => {
     if (workspace.active)
       perform(() => terminalRegistry.copy(workspace.active!.terminalId));
@@ -288,7 +293,7 @@ onBeforeUnmount(() => {
             @close="initError = ''"
             >{{ initError }}</NAlert
           >
-          <HomeLayout
+          <VaultLayout
             @connect="connect"
             @local="openLocalTerminal"
             @edit="edit"
@@ -349,15 +354,16 @@ onBeforeUnmount(() => {
               <TerminalStage @close="closePane" @menu="openTerminalMenu" />
             </div>
             <footer v-if="workspace.active" class="status-bar">
-              <span
-                >{{
+              <span>
+                {{
                   workspace.active.target.source === "local" ? "本地" : "SSH"
                 }}
-                · {{ stateLabels[workspace.active.state] }}</span
-              ><span
-                >{{ workspace.active.size.cols }} ×
+                · {{ stateLabels[workspace.active.state] }}
+              </span>
+              <span>
+                {{ workspace.active.size.cols }} ×
                 {{ workspace.active.size.rows }} · UTF-8</span
-              ><span>历史在断线后保留</span>
+              >
               <AppButton
                 v-if="
                   workspace.active.target.source !== 'local' &&
@@ -400,177 +406,6 @@ onBeforeUnmount(() => {
     </VaultGate>
   </NConfigProvider>
 </template>
-
-<style>
-/* 应用入口统一维护主题、基础规则、共享布局及跨组件的动态 DOM 适配。 */
-
-:root {
-  font-family:
-    Inter,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    "Microsoft Yahei",
-    sans-serif;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  --bg: #101014;
-  --surface: #18181c;
-  --surface-hover: #26262a;
-  --border: #ffffff17;
-  --text: #ffffffd1;
-  --muted: #ffffff73;
-  --accent: #63e2b7;
-  --danger: #e88080;
-  --input: #ffffff0f;
-  color-scheme: dark;
-}
-* {
-  box-sizing: border-box;
-}
-html,
-body,
-#app {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  overscroll-behavior: none;
-}
-body {
-  margin: 0;
-  -webkit-user-select: none;
-  user-select: none;
-}
-/* 只开放实际可编辑或可复制的正文，xterm 继续使用自己的选区机制。 */
-input,
-textarea,
-[contenteditable="true"],
-.selectable-text,
-[role="alert"],
-.error,
-.confirmation-message,
-.fingerprint dd,
-.paste-preview {
-  -webkit-user-select: text;
-  user-select: text;
-}
-h1,
-h2,
-h3,
-p {
-  margin-top: 0;
-}
-[data-appearance="light"] {
-  --bg: #f7f7fa;
-  --surface: #ffffff;
-  --surface-hover: #f3f3f5;
-  --border: #efeff5;
-  --text: #333639;
-  --muted: #767c82;
-  --accent: #18a058;
-  --danger: #d03050;
-  --input: #fafafc;
-  color-scheme: light;
-}
-@media (prefers-color-scheme: light) {
-  [data-appearance="system"] {
-    --bg: #f7f7fa;
-    --surface: #ffffff;
-    --surface-hover: #f3f3f5;
-    --border: #efeff5;
-    --text: #333639;
-    --muted: #767c82;
-    --accent: #18a058;
-    --danger: #d03050;
-    --input: #fafafc;
-    color-scheme: light;
-  }
-}
-.muted {
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.7;
-}
-.error {
-  color: var(--danger);
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-}
-.button-row {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-.form-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 18px 16px;
-}
-.span-2 {
-  grid-column: span 2;
-}
-.status-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 100%;
-  background: var(--muted);
-  flex-shrink: 0;
-  margin-right: 5px;
-}
-.status-dot.connected {
-  background: var(--accent);
-}
-.status-dot.failed {
-  background: var(--danger);
-}
-.status-dot.connecting,
-.status-dot.awaitingAuth,
-.status-dot.awaitingHostKey {
-  background: #f2c97d;
-}
-.home-page {
-  width: 100%;
-  padding: 28px;
-  max-width: 1540px;
-  margin: 0 auto;
-}
-
-.page-heading {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 20px;
-}
-.page-heading h1 {
-  margin: 9px 0;
-  font-size: 26px;
-  letter-spacing: -0.7px;
-}
-
-/* 适配固定的 xterm 6 DOM 渲染器：沿用原选区矩形，仅将透明选区放到文字上方。
-   不拦截鼠标；升级渲染器时须复验这些 DOM 类名与图层关系。 */
-.terminal-selection-overlay .xterm .xterm-screen > .xterm-selection {
-  z-index: 3;
-  pointer-events: none;
-}
-.terminal-selection-overlay .xterm .xterm-screen > .xterm-selection div {
-  background-color: var(--terminal-selection-inactive);
-}
-.terminal-selection-overlay .xterm.focus .xterm-screen > .xterm-selection div {
-  background-color: var(--terminal-selection-active);
-}
-
-/* 自定义名称可能很长，仅约束菜单文字尺寸，菜单皮肤/滚动/定位仍由Naive UI提供。 */
-.terminal-context-menu .n-dropdown-option-body__label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-</style>
 
 <style scoped>
 .app-shell {

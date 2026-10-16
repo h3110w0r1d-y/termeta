@@ -33,6 +33,7 @@ pub const COMMANDS: &[&str] = &[
     "list_credentials",
     "save_credential",
     "delete_credential",
+    "open_settings_window",
     "get_settings",
     "save_settings",
     "open_external_url",

@@ -83,7 +83,7 @@ core 的模型与端口允许使用 serde、bytes、Tokio 通道、async-trait �
 
 ## 5. 前端与终端生命周期
 
-`WorkspaceStore.tabs` 保存终端元数据，groups 保存标签组/布局树与聚焦 terminalId，tabIds 包含固定 home/sftp 和动态组 ID。activeId 为组 ID，active 为聚焦终端；固定页不创建 session/xterm。homeSection 管理首页导航，tabPosition 只改变布局。
+`WorkspaceStore.tabs` 保存终端元数据，groups 保存标签组/布局树与聚焦 terminalId，tabIds 包含固定 home/sftp 和动态组 ID。activeId 为组 ID，active 为聚焦终端；固定页不创建 session/xterm。vaultSection 管理保险箱导航，tabPosition 只改变布局。
 
 `TerminalRegistry` 用普通 Map 按稳定 terminalId 保存 xterm、当前 session 绑定、代次、订阅和输入队列，不深度响应式化。重连只更换 sessionId，不改 Vue key。独立双栏使用文件专用 SessionManager 与 files-only SSH 工厂，各连接有独立 SftpBrowser/分页游标，不创建终端 Tab 或 xterm。
 
@@ -154,10 +154,16 @@ HostSearch独立维护内存搜索索引与NAutoComplete下拉，不改变HostsP
 
 ## 13. 物理结构与静态约束
 
-`src/layout/HomeLayout.vue`承载首页导航与三页容器，保留原生DOM上的v-show；布局样式随组件迁移，顶部/左侧响应式规则通过明确祖先选择器适配。`useAppAppearance`管理系统主题监听。App保留根装配、窗口退出及终端宿主；终端关闭和菜单分别由workspace的useTerminalClose/useTerminalMenu协调，不改变terminalId、xterm实例或会话代次。
+`src/layout/VaultLayout.vue`承载保险箱导航与四页容器，保留原生DOM上的v-show；布局样式随组件迁移，顶部/左侧响应式规则通过明确祖先选择器适配。`useAppAppearance`管理系统主题监听。App保留根装配、窗口退出及终端宿主；终端关闭和菜单分别由workspace的useTerminalClose/useTerminalMenu协调，不改变terminalId、xterm实例或会话代次。
 
 files模块持有固定双栏SftpWorkspace、SftpEndpointPane、侧栏SftpPanel和types。fileEntries统一目录/链接判定、名称和排序；useSftpTransferQueue维护侧栏队列、进度和取消，通过窄接口回调刷新及拖动收尾。两种视图各自保留异步分页生命周期，原生拖放与Web栏间对拷继续独立。terminal-sftp的lib只导出browser/remote_file/copy及协议错误转换，公开API不变。
 
 命令Binding/Modifier定义在services/commands/types，settings/model重导出以兼容使用方。security目前直接依赖storage协调加密库解锁、凭据与主机引用事务，这是现行适配器依赖；core保持独立，不在本轮引入额外仓库端口。
 
 `pnpm check:types`与`pnpm check:structure`为独立静态入口，不触发构建。结构脚本检查原生API门面、命令服务依赖方向和core依赖边界，业务前端文件超过500行仅提示人工复查，静态数据排除。该脚本是基础约束检查，不能代替完整依赖图、编译或运行验收。
+
+## 独立设置窗口装配
+
+main.ts按desktop窗口身份动态加载App或SettingsWindow；公共基础样式位于assets/base.css，业务CSS继续就近scoped。SettingsWindow只装配Naive主题、设置同步、设置表单与确认框；不装配工作区/会话心跳。SettingsPage保持分类组件，useLiveSettings负责校验/串行自动应用/失败输入保留，store负责本窗口读写队列，useSettingsSync负责跨窗口失效重读。Rust settings_window负责窗口生命周期，commands/settings负责入口授权与设置写入协调，协议core不受影响。独立窗口capability与业务资源owner分离。
+
+保险箱使用VaultLayout装配四项导航，WorkspaceStore以VaultSection/vaultSection/openVault表达业务导航，固定标签内部ID保留home。主机信任属于hosts/KnownHostsPage.vue，连接历史属于history/ConnectionHistoryPage.vue，各自只依赖desktop门面并按需挂载。移除settings/SecuritySettings.vue，设置窗口不加载此类业务数据；四个信任/历史命令回归仅main所有权校验，无IPC或数据库结构变更。

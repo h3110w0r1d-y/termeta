@@ -24,11 +24,15 @@ const emit = defineEmits<{ "update:modelValue": [string] }>();
 <template>
   <NFormItem :label="label" :path="path" :rule="rule">
     <div class="color-field-row">
-      <AppColorPicker
-        :model-value="modelValue"
-        :label="label"
-        @update:model-value="emit('update:modelValue', $event)"
-      /><AppButton
+      <div class="color-field-picker">
+        <AppColorPicker
+          :model-value="modelValue"
+          :label="label"
+          @update:model-value="emit('update:modelValue', $event)"
+        />
+      </div>
+      <AppButton
+        class="color-field-reset"
         v-if="reset"
         title="重置单色"
         :aria-label="label + '重置单色'"
@@ -41,7 +45,17 @@ const emit = defineEmits<{ "update:modelValue": [string] }>();
 <style scoped>
 .color-field-row {
   display: flex;
+  width: 100%;
+  min-width: 0;
   gap: 8px;
   align-items: center;
+}
+/* 用原生容器为库取色器提供确定宽度，避免绝对定位的色块无法撑开布局。 */
+.color-field-picker {
+  flex: 1;
+  min-width: 0;
+}
+.color-field-reset {
+  flex-shrink: 0;
 }
 </style>

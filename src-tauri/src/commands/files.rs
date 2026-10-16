@@ -4,7 +4,9 @@ use std::{path::PathBuf, sync::Arc};
 use tauri::{Manager, State, WebviewWindow, ipc::Channel};
 use tauri_plugin_dialog::DialogExt;
 use terminal_core::{Result, SessionError};
-use terminal_files::{DirectoryPage, TransferProgress, child_path, file_error, validate_name};
+use terminal_files::{
+    DirectoryPage, FileProvider, TransferProgress, child_path, file_error, validate_name,
+};
 use terminal_sftp::SftpBrowser;
 
 #[tauri::command]

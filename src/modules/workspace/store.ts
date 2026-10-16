@@ -51,12 +51,13 @@ export type WorkspaceDropTarget =
   | { kind: "tab"; tabId: string; before: boolean }
   | { kind: "pane"; terminalId: string; edge: SplitEdge }
   | { kind: "tab-end" };
+export type VaultSection = "hosts" | "credentials" | "known-hosts" | "history";
 export const useWorkspace = defineStore("workspace", () => {
   // tabs 仅保存终端元数据，groups 独立保存标签顺序与布局；移动布局不增删终端。
   const tabs = ref<TerminalTab[]>([]);
   const groups = ref<WorkspaceTab[]>([]);
   const activeId = ref("home");
-  const homeSection = ref<"hosts" | "credentials" | "settings">("hosts");
+  const vaultSection = ref<VaultSection>("hosts");
   const fileTransferring = ref(false);
   const fileSessionTitles = ref<Record<string, string>>({});
   const challenges = ref<(AuthChallenge | HostKeyChallenge)[]>([]);
@@ -175,7 +176,8 @@ export const useWorkspace = defineStore("workspace", () => {
   }
   function activateTab(id: string) {
     if (!tabIds.value.includes(id)) return;
-    if (id === "home" && activeId.value !== "home") homeSection.value = "hosts";
+    if (id === "home" && activeId.value !== "home")
+      vaultSection.value = "hosts";
     activeId.value = id;
   }
   function remove(id: string) {
@@ -382,8 +384,8 @@ export const useWorkspace = defineStore("workspace", () => {
       ids[(ids.indexOf(activeId.value) + direction + ids.length) % ids.length]!,
     );
   }
-  function openHome(section: "hosts" | "credentials" | "settings" = "hosts") {
-    homeSection.value = section;
+  function openVault(section: VaultSection = "hosts") {
+    vaultSection.value = section;
     activeId.value = "home";
   }
   function dismiss(sessionId: string, challengeId?: string) {
@@ -399,7 +401,7 @@ export const useWorkspace = defineStore("workspace", () => {
     workspaceTabs,
     tabIds,
     activeId,
-    homeSection,
+    vaultSection,
     activeGroup,
     active,
     challenges,
@@ -426,7 +428,7 @@ export const useWorkspace = defineStore("workspace", () => {
     resizeSplit,
     cancelDrag,
     cycle,
-    openHome,
+    openVault,
     dismiss,
   };
 });

@@ -42,6 +42,7 @@ import { clone } from "../../services/data/clone";
 import { confirmAction } from "../../components/ui/confirmation";
 import { errorMessage } from "../../services/desktop/client";
 import type { AppSettings } from "./model";
+let syncingEditor = false;
 const themeFile = ref<HTMLInputElement>();
 const draft = defineModel<AppSettings>("settings", { required: true });
 const error = ref(""),
@@ -94,10 +95,12 @@ watch(
   },
   { flush: "post" },
 );
-watch([() => draft.value.defaultSchemeId, () => draft.value], () =>
-  editScheme(
-    resolveScheme(draft.value.defaultSchemeId, draft.value.customSchemes),
-  ),
+watch(
+  () => draft.value.defaultSchemeId,
+  () =>
+    editScheme(
+      resolveScheme(draft.value.defaultSchemeId, draft.value.customSchemes),
+    ),
 );
 function selectScheme(s: Scheme) {
   imported.value = undefined;
@@ -137,6 +140,7 @@ function makePreview() {
 }
 onBeforeUnmount(() => preview.value?.dispose());
 function editScheme(s: Scheme) {
+  syncingEditor = true;
   editor.value = clone(s);
   editor.value.colors.scrollbar ??= {
     normal: "#8894a860",
@@ -149,6 +153,9 @@ function editScheme(s: Scheme) {
     editor.value.name += " 副本";
     editor.value.source = "user";
   }
+  void nextTick(() => {
+    syncingEditor = false;
+  });
 }
 const form = ref<FormInst>();
 const rules: FormRules = {
@@ -172,10 +179,11 @@ const rules: FormRules = {
 async function saveScheme() {
   if (!(await validateForm(form.value))) return;
   try {
-    editor.value.colors.indexedOverrides = parseJson(
+    const candidate = clone(editor.value);
+    candidate.colors.indexedOverrides = parseJson(
       indexed.value || "{}",
     ) as Record<string, string>;
-    const checked = parseScheme(JSON.stringify(editor.value));
+    const checked = parseScheme(JSON.stringify(candidate));
     checked.id = editor.value.id;
     checked.source = "user";
     const at = draft.value.customSchemes.findIndex((s) => s.id === checked.id);
@@ -191,6 +199,18 @@ async function saveScheme() {
     error.value = errorMessage(e);
   }
 }
+watch(
+  [editor, indexed],
+  () => {
+    if (
+      !syncingEditor &&
+      expanded.value.includes("customize") &&
+      !imported.value
+    )
+      void saveScheme();
+  },
+  { deep: true },
+);
 async function deleteScheme() {
   if (editor.value.source === "builtin") return;
   if (
@@ -314,7 +334,7 @@ function confirmImport() {
           @submit.prevent="saveScheme"
           ><NFlex vertical :size="16">
             <p class="muted">
-              内置方案编辑后保存为自定义副本。修改将在保存设置后应用。
+              编辑内置方案会自动创建自定义副本，修改实时应用。
             </p>
             <NFormItem label="方案名称" path="name"
               ><AppInput v-model="editor.name" maxlength="80"
@@ -322,42 +342,48 @@ function confirmImport() {
             <div ref="previewHost" class="theme-preview" />
             <p v-if="contrast < 4.5" class="error">
               前景 / 背景对比度 {{ contrast.toFixed(2) }}:1，低于
-              4.5:1。保存时保留你的选色。
+              4.5:1。修改时保留你的选色。
             </p>
-            <div class="color-grid">
-              <ColorField
-                v-for="key in baseKeys"
-                :key="key"
-                v-model="editor.colors[key]"
-                :label="key"
-                :path="`colors.${key}`"
-                :optional="key === 'selectionForeground'"
-                :reset="defaultScheme.colors[key]"
-              />
-            </div>
-            <AppCollapsible title="ANSI 16 色（取色 / HEX / RGB）">
-              <div class="color-grid">
+            <NGrid cols="1 560:2" responsive="self" :x-gap="10" :y-gap="10">
+              <NGridItem v-for="key in baseKeys" :key="key">
                 <ColorField
-                  v-for="(_, i) in editor.colors.ansi"
-                  :key="i"
-                  v-model="editor.colors.ansi[i]"
-                  :label="'ANSI ' + i"
-                  :path="`colors.ansi.${i}`"
-                  :reset="defaultScheme.colors.ansi[i]"
+                  v-model="editor.colors[key]"
+                  :label="key"
+                  :path="`colors.${key}`"
+                  :optional="key === 'selectionForeground'"
+                  :reset="defaultScheme.colors[key]"
                 />
-              </div>
+              </NGridItem>
+            </NGrid>
+            <AppCollapsible title="ANSI 16 色（取色 / HEX / RGB）">
+              <NGrid cols="1 560:2" responsive="self" :x-gap="10" :y-gap="10">
+                <NGridItem v-for="(_, i) in editor.colors.ansi" :key="i">
+                  <ColorField
+                    v-model="editor.colors.ansi[i]"
+                    :label="'ANSI ' + i"
+                    :path="`colors.ansi.${i}`"
+                    :reset="defaultScheme.colors.ansi[i]"
+                  />
+                </NGridItem>
+              </NGrid>
             </AppCollapsible>
             <AppCollapsible title="滚动条辅助颜色">
-              <div v-if="editor.colors.scrollbar" class="color-grid">
-                <ColorField
-                  v-for="key in scrollbarKeys"
-                  :key="key"
-                  v-model="editor.colors.scrollbar[key]"
-                  :label="key"
-                  :path="`colors.scrollbar.${key}`"
-                  optional
-                />
-              </div>
+              <NGrid
+                v-if="editor.colors.scrollbar"
+                cols="1 560:2"
+                responsive="self"
+                :x-gap="10"
+                :y-gap="10"
+              >
+                <NGridItem v-for="key in scrollbarKeys" :key="key">
+                  <ColorField
+                    v-model="editor.colors.scrollbar[key]"
+                    :label="key"
+                    :path="`colors.scrollbar.${key}`"
+                    optional
+                  />
+                </NGridItem>
+              </NGrid>
             </AppCollapsible>
             <NFormItem label="索引色覆盖（16–255，HEX JSON）" path="indexed"
               ><AppTextarea v-model="indexed" rows="3" spellcheck="false"
@@ -380,11 +406,6 @@ function confirmImport() {
               >
               <AppButton v-if="imported" @click="confirmImport"
                 >确认导入副本</AppButton
-              >
-            </NFlex>
-            <NFlex justify="end">
-              <AppButton class="primary" @click="saveScheme"
-                >保存为自定义</AppButton
               >
             </NFlex>
           </NFlex></NForm
@@ -420,10 +441,5 @@ function confirmImport() {
   height: 170px;
   overflow: hidden;
   margin: 12px 0;
-}
-.color-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 10px;
 }
 </style>

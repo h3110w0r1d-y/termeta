@@ -11,6 +11,7 @@ use terminal_security::CredentialVault;
 use terminal_storage::SqliteStore;
 
 pub struct AppState {
+    pub settings_gate: tokio::sync::Mutex<()>,
     pub sessions: SessionManager,
     pub file_sessions: SessionManager,
     pub ssh_channels: terminal_ssh::SshChannels,
@@ -105,4 +106,22 @@ impl AppState {
         gates.insert(request_id.to_owned(), Arc::downgrade(&gate));
         gate
     }
+}
+
+// 设置窗口仅供明确授权的设置与维护命令使用，不能获得会话所有权。
+pub fn settings_owner(window: &WebviewWindow) -> Result<()> {
+    use tauri::Manager;
+    if !matches!(window.label(), "main" | "settings")
+        || !crate::local_navigation(&window.url().map_err(|_| forbidden())?)
+    {
+        return Err(forbidden());
+    }
+    if !window.state::<AppState>().vault.is_unlocked() {
+        return Err(SessionError::new(
+            "VAULT_LOCKED",
+            "storage",
+            "请先解锁数据保险库",
+        ));
+    }
+    Ok(())
 }

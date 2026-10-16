@@ -47,3 +47,12 @@ export interface AppSettings {
   keymap: { schemaVersion: 1; bindings: Binding[] };
   customSchemes: Scheme[];
 }
+
+// 即时偏好允许字段级更新，避免不同窗口覆盖同一对象中的其他字段。
+export type SettingsPatch = Omit<
+  Partial<AppSettings>,
+  "hostsView" | "hostSearch"
+> & {
+  hostsView?: Partial<HostsViewSettings>;
+  hostSearch?: Partial<HostSearchSettings>;
+};

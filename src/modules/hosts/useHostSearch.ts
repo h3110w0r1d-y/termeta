@@ -4,7 +4,7 @@ import { useSettings } from "../settings/store";
 import { groupPath } from "./groups";
 import { matchesText, searchWords, toSearchableName } from "./search";
 
-// 首页下拉和新建标签页弹窗共用索引、字段偏好及收藏排序。
+// 保险箱下拉和新建标签页弹窗共用索引、字段偏好及收藏排序。
 export function useHostSearch(query: Ref<string>, includeAllWhenEmpty = false) {
   const store = useHosts();
   const settings = useSettings();

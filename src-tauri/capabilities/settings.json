@@ -1,0 +1,13 @@
+{
+  "identifier": "settings-desktop",
+  "description": "独立设置窗口的最小设置与JSON导出权限",
+  "windows": ["settings"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:window:allow-close",
+    "allow-get-settings",
+    "allow-save-settings",
+    "allow-export-json"
+  ]
+}

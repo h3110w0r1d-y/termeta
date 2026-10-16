@@ -44,7 +44,7 @@ const dragTitle = computed(() => {
     : props.tabs.find((tab) => tab.id === source.tabId)?.title;
 });
 const fixedTabs = [
-  { id: "home", title: "首页", panel: "page-home" },
+  { id: "home", title: "保险箱", panel: "page-home" },
   { id: "sftp", title: "SFTP", panel: "page-sftp" },
 ];
 function selectedElement() {
@@ -142,6 +142,28 @@ watch(
           :aria-controls="tab.panel"
           @click="activate(tab.id)"
         >
+          <NIcon class="fixed-tab-icon" :size="16" aria-hidden="true">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              focusable="false"
+            >
+              <template v-if="tab.id === 'home'">
+                <rect x="4" y="3" width="16" height="18" rx="2" />
+                <rect x="7" y="6" width="10" height="12" rx="1" />
+                <circle cx="12" cy="12" r="2" />
+                <path d="M3 8h2m-2 8h2m7-6V9m0 6v-1m-2-2H9m6 0h-1" />
+              </template>
+              <path
+                v-else
+                d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Zm0 2h18"
+              />
+            </svg>
+          </NIcon>
           {{ tab.title }}
         </button>
       </div>
@@ -279,6 +301,9 @@ watch(
   min-width: 0;
   min-height: 0;
   gap: 6px;
+}
+.fixed-tab-icon {
+  flex-shrink: 0;
 }
 .fixed-tabs {
   display: flex;

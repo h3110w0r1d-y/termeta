@@ -32,10 +32,23 @@ pub fn configure(app: &tauri::App) -> tauri::Result<()> {
             break;
         }
     }
+    if let Some(tauri::menu::MenuItemKind::Submenu(application)) = menu.items()?.first() {
+        application.insert(
+            &MenuItem::with_id(app, "termvexa.settings", "设置…", true, None::<&str>)?,
+            1,
+        )?;
+    }
     app.set_menu(menu)?;
     app.on_menu_event(|app, event| {
+        if event.id().as_ref() == "termvexa.settings" {
+            let _ = crate::settings_window::open(app);
+        }
         if event.id().as_ref() == "termvexa.closeWindow" {
-            if let Some(window) = app.get_webview_window("main") {
+            if let Some(window) = app
+                .webview_windows()
+                .into_values()
+                .find(|window| window.is_focused().unwrap_or(false))
+            {
                 // 显式菜单关闭仍走现有CloseRequested与会话/传输确认流程。
                 let _ = window.close();
             }

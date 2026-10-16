@@ -51,6 +51,7 @@
     "allow-sftp-start-drag",
     "allow-sftp-list",
     "allow-sftp-transfer",
-    "allow-sftp-cancel"
+    "allow-sftp-cancel",
+    "allow-open-settings-window"
   ]
 }
