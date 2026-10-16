@@ -132,7 +132,7 @@ function makePreview() {
   term.open(previewHost.value);
   preview.value = term;
   term.write(
-    "Termvexa 配色预览 · 中文 / UTF-8 / 🖥\r\n\x1b[1mSSH workspace\x1b[0m  user@server ~\r\n",
+    "Termeta 配色预览 · 中文 / UTF-8 / 🖥\r\n\x1b[1mSSH workspace\x1b[0m  user@server ~\r\n",
   );
   for (let i = 0; i < 16; i++) term.write(`\x1b[48;5;${i}m  \x1b[0m`);
   term.write("\r\n");

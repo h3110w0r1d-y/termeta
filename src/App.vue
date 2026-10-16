@@ -315,7 +315,7 @@ onBeforeUnmount(() => {
           class="window-titlebar"
           data-tauri-drag-region
         >
-          <span data-tauri-drag-region>Termvexa</span>
+          <span data-tauri-drag-region>Termeta</span>
           <div class="window-drag-space" data-tauri-drag-region />
           <WindowControls @error="initError = $event" />
         </header>

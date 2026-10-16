@@ -24,7 +24,7 @@
 
 ## JSON导入导出
 
-支持单个 Termvexa Scheme v1 JSON与基础 xterm ITheme颜色对象，缺失的 xterm字段以 Pro为基底补齐。文件上限1 MiB；校验版本、16项 ANSI、颜色及16–255索引范围，导入生成本地随机ID。JSON解析使用受限解析器，拒绝重复键和非法结构。
+支持单个 Termeta Scheme v1 JSON与基础 xterm ITheme颜色对象，缺失的 xterm字段以 Pro为基底补齐。文件上限1 MiB；校验版本、16项 ANSI、颜色及16–255索引范围，导入生成本地随机ID。JSON解析使用受限解析器，拒绝重复键和非法结构。
 
 导入文件先进入编辑预览，确认后作为新方案自动持久化并应用；重名追加“导入副本”，不覆盖内置或现有方案。导出当前方案JSON，不包含主机、凭据、输出或历史。未实现批量导入、Windows Terminal/iTerm格式、主题文件拖入、通用撤销或对比度辅助。
 

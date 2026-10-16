@@ -20,7 +20,7 @@ pub(crate) async fn download_to_path(
     let mut source = browser.reader(remote).await?;
     // 由本次原生对话框授权精确目标；不接收 WebView 提供的任意本地路径。
     let parent = local.parent().ok_or_else(|| file_error("保存目录无效"))?;
-    let temporary = parent.join(format!(".termvexa-{}.part", uuid::Uuid::new_v4()));
+    let temporary = parent.join(format!(".termeta-{}.part", uuid::Uuid::new_v4()));
     let mut options = tokio::fs::OpenOptions::new();
     options.write(true).create_new(true);
     #[cfg(unix)]

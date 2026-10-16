@@ -102,7 +102,7 @@ define_class!(
             if self.ivars().written.swap(true, Ordering::AcqRel) {
                 let error = unsafe {
                     NSError::errorWithDomain_code_userInfo(
-                        ns_string!("TermvexaFilePromise"),
+                        ns_string!("TermetaFilePromise"),
                         1,
                         None,
                     )
@@ -116,7 +116,7 @@ define_class!(
                 if completion.sender.is_none() {
                     let error = unsafe {
                         NSError::errorWithDomain_code_userInfo(
-                            ns_string!("TermvexaFilePromise"),
+                            ns_string!("TermetaFilePromise"),
                             3,
                             None,
                         )
@@ -142,7 +142,7 @@ define_class!(
             }))
             .unwrap_or_else(|_| Err("原生文件下载回调异常".into()));
             let error = result.as_ref().err().map(|_| unsafe {
-                NSError::errorWithDomain_code_userInfo(ns_string!("TermvexaFilePromise"), 2, None)
+                NSError::errorWithDomain_code_userInfo(ns_string!("TermetaFilePromise"), 2, None)
             });
             handler.call((error.as_ref().map_or(std::ptr::null_mut(), |e| {
                 &**e as *const NSError as *mut NSError

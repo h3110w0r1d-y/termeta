@@ -18,7 +18,7 @@ pub fn configure(app: &tauri::App) -> tauri::Result<()> {
             &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(
                 app,
-                "termvexa.closeWindow",
+                "termeta.closeWindow",
                 "Close Window",
                 true,
                 None::<&str>,
@@ -34,16 +34,16 @@ pub fn configure(app: &tauri::App) -> tauri::Result<()> {
     }
     if let Some(tauri::menu::MenuItemKind::Submenu(application)) = menu.items()?.first() {
         application.insert(
-            &MenuItem::with_id(app, "termvexa.settings", "设置…", true, None::<&str>)?,
+            &MenuItem::with_id(app, "termeta.settings", "设置…", true, None::<&str>)?,
             1,
         )?;
     }
     app.set_menu(menu)?;
     app.on_menu_event(|app, event| {
-        if event.id().as_ref() == "termvexa.settings" {
+        if event.id().as_ref() == "termeta.settings" {
             let _ = crate::settings_window::open(app);
         }
-        if event.id().as_ref() == "termvexa.closeWindow" {
+        if event.id().as_ref() == "termeta.closeWindow" {
             if let Some(window) = app
                 .webview_windows()
                 .into_values()

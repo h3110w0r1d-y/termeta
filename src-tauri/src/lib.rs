@@ -56,7 +56,7 @@ pub fn run() {
             }
             // 加密格式独立代际，不读取或迁移开发阶段的旧数据库与逐项系统凭据。
             let store = Arc::new(SqliteStore::locked(
-                path.join("termvexa-encrypted-v2.sqlite3"),
+                path.join("termeta-encrypted-v2.sqlite3"),
             ));
             let vault = Arc::new(CredentialVault::new(store.clone()));
             let factory =
@@ -198,5 +198,5 @@ pub fn run() {
             commands::clear_history,
         ])
         .run(tauri::generate_context!())
-        .expect("Termvexa 初始化失败；请检查应用数据目录与桌面环境");
+        .expect("Termeta 初始化失败；请检查应用数据目录与桌面环境");
 }

@@ -25,7 +25,7 @@ export function normalizeTerminalFont(name: string): string {
 }
 export function terminalFontFamily(name: string): string {
   // 独立别名只引用随应用分发的字体，不受系统同名字体版本影响。
-  return `"Termvexa ${normalizeTerminalFont(name)}", monospace`;
+  return `"Termeta ${normalizeTerminalFont(name)}", monospace`;
 }
 const loads = new Map<string, Promise<void>>();
 export function loadTerminalFont(name: string, size: number): Promise<void> {

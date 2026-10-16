@@ -6,9 +6,9 @@
 
 | 位置                               | 内容                                                                                                    | 边界                                                                                         |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `termvexa-encrypted-v2.sqlite3`    | SQLCipher 4 加密的全部业务表：主机、分组、标签、密码、私钥及口令、信任、设置、历史、导入来源路径        | AES-256-CBC 页面加密、逐页 HMAC-SHA512；WAL 同样加密，临时存储仅内存                         |
-| `termvexa-encrypted-v2.vault.json` | 格式2、保险库UUID、Argon2id参数标识、16字节随机盐、12字节随机nonce、AES-256-GCM校验记录、初始化完成标记 | 没有密码或主密钥；须与数据库一起备份；AAD绑定UUID、参数、盐和完成标记；标记变更重新随机nonce |
-| OS 凭据库                          | 唯一32字节主密钥                                                                                        | service=`com.h3110w0r1d.termvexa`，account=`master-key-v2`；不再逐项保存密码或私钥           |
+| `termeta-encrypted-v2.sqlite3`    | SQLCipher 4 加密的全部业务表：主机、分组、标签、密码、私钥及口令、信任、设置、历史、导入来源路径        | AES-256-CBC 页面加密、逐页 HMAC-SHA512；WAL 同样加密，临时存储仅内存                         |
+| `termeta-encrypted-v2.vault.json` | 格式2、保险库UUID、Argon2id参数标识、16字节随机盐、12字节随机nonce、AES-256-GCM校验记录、初始化完成标记 | 没有密码或主密钥；须与数据库一起备份；AAD绑定UUID、参数、盐和完成标记；标记变更重新随机nonce |
+| OS 凭据库                          | 唯一32字节主密钥                                                                                        | service=`io.termeta`，account=`master-key-v2`；不再逐项保存密码或私钥           |
 | Rust 内存                          | 已解锁连接池、短期密码与认证材料                                                                        | 不返回主密钥或保存的秘密，不承诺进程内所有第三方副本可擦除                                   |
 
 SQLCipher由锁定的libsqlite3-sys 0.30.1内嵌4.5.7源码和vendored OpenSSL提供；不是普通SQLite上的自制字段加密。`cipher_version`必须是4.x，否则拒绝初始化；不回退明文。SQLx先应用raw key再访问页面，禁用数据库语句日志。Unix目录0700，新DB与元数据0600；Windows权限继承待验收。
@@ -48,7 +48,7 @@ SSH 的 `config_json.startup` 保存 `{type:"shell"}` 或 `{type:"exec",command}
 
 ## 4. 格式、备份与恢复边界
 
-当前路径不打开旧 `termvexa.sqlite3` 或 `termvexa-credentials-v1.sqlite3`。源码/锁文件更新不直接操作实际用户数据库和钥匙串。
+当前路径不打开旧 `termeta.sqlite3` 或 `termeta-credentials-v1.sqlite3`。源码/锁文件更新不直接操作实际用户数据库和钥匙串。
 
 无自动备份/恢复、密码变更、自动锁定或密钥轮换入口。手动备份应在应用退出后保留整个应用数据目录，包括加密数据库、配套 vault.json 及可能存在的 WAL/SHM；不能把普通 VACUUM INTO 当作默认加密备份。密码与 OS 主密钥均丢失时无法恢复；缺失原随机盐/校验元数据时也不能按现有接口恢复。旧明文库不会自动加密。
 
@@ -100,7 +100,7 @@ SavedWorkspace 的叶子为保存 SSH/Telnet/串口 ID 字符串，非独立外�
 
 0004_workspaces.sql 保持首次实际应用的原始字节，SHA-384 为 `cee4f9328cb293cb70c2c2f2009d0dadcb0a80b73e843a2fad34e421f3801517fb71f65f81061409bf2871ed3ded0f29`。索引表达式更换仅在迁移5中执行，schema 5 可正常升级至6，SQLx 继续校验全部已应用迁移。
 
-若遇 “migration 4 was previously applied but has been modified”，完全退出应用并备份整个应用数据目录，再由用户重新编译/启动包含当前迁移的版本；迁移编译期嵌入，旧二进制不会使用恢复后的 SQL。macOS 默认目录为 `~/Library/Application Support/com.h3110w0r1d.termvexa/`。不要删除数据库、vault 元数据、钥匙串、迁移记录或手工改校验和；仍不匹配时保留备份并核对实际应用过的版本。
+若遇 “migration 4 was previously applied but has been modified”，完全退出应用并备份整个应用数据目录，再由用户重新编译/启动包含当前迁移的版本；迁移编译期嵌入，旧二进制不会使用恢复后的 SQL。macOS 默认目录为 `~/Library/Application Support/io.termeta/`。不要删除数据库、vault 元数据、钥匙串、迁移记录或手工改校验和；仍不匹配时保留备份并核对实际应用过的版本。
 
 ## 10. 验证边界
 

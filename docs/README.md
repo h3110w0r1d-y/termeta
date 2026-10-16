@@ -1,4 +1,4 @@
-# Termvexa 开发文档
+# Termeta 开发文档
 
 更新：2026-10-16。M1/M2 SSH 主体源码已落地，尚未完成 MVP 验收。文档保留最终状态与有效设计；当前范围统一见 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)，待办见 [路线](10-roadmap.md)，验收见 [运行验收边界](01-product-requirements.md#11-运行验收边界)。
 

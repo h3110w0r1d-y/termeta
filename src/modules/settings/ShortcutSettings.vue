@@ -71,7 +71,7 @@ function removeBinding(binding: Binding) {
 }
 async function exportKeys() {
   try {
-    await downloadJson("termvexa-keymap.json", draft.value.keymap);
+    await downloadJson("termeta-keymap.json", draft.value.keymap);
   } catch (e) {
     error.value = errorMessage(e);
   }

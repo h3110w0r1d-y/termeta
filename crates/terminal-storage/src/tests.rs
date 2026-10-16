@@ -5,7 +5,7 @@ use terminal_core::AuthStep;
 struct TestDirectory(PathBuf);
 impl TestDirectory {
     fn new() -> Self {
-        let path = std::env::temp_dir().join(format!("termvexa-storage-{}", uuid::Uuid::new_v4()));
+        let path = std::env::temp_dir().join(format!("termeta-storage-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir(&path).unwrap();
         Self(path)
     }
@@ -63,7 +63,7 @@ fn serial_draft() -> HostDraft {
     host.username.clear();
     host.auth_plan.clear();
     host.serial_config = Some(terminal_core::SerialConfig {
-        path: "/dev/termvexa-not-connected".into(),
+        path: "/dev/termeta-not-connected".into(),
         baud_rate: 115200,
         charset: "UTF-8".into(),
         data_bits: 8,
@@ -247,7 +247,7 @@ async fn serial_hosts_persist_offline_and_preserve_configuration_across_metadata
     assert_eq!(store.list_hosts("").await.unwrap().len(), 2);
     assert_eq!(
         store
-            .list_hosts("termvexa-not-connected")
+            .list_hosts("termeta-not-connected")
             .await
             .unwrap()
             .len(),

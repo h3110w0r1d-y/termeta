@@ -1,4 +1,4 @@
-# Termvexa
+# Termeta
 
 基于 Tauri 2、Rust、Vue 3 和 TypeScript 的桌面终端客户端，目标平台为 Windows、macOS、Linux。
 
@@ -24,7 +24,7 @@
 - `src-tauri/src`：命令校验、窗口所有权、原生交互与依赖装配。
 - `src/modules`：业务页面与状态；`src/services/desktop` 为唯一 IPC 门面。
 
-开发前阅读 [协作规则](AGENTS.md)、[文档导航](docs/README.md) 和 [开发路线](docs/10-roadmap.md)。数据库为应用数据目录下的 `termvexa-encrypted-v2.sqlite3`，当前 schema 6，可原位升级同加密格式的 schema 2–5。备份须同时保留配套 vault 元数据；不迁移早期旧格式。详见 [存储设计](docs/07-storage.md)。
+开发前阅读 [协作规则](AGENTS.md)、[文档导航](docs/README.md) 和 [开发路线](docs/10-roadmap.md)。数据库为应用数据目录下的 `termeta-encrypted-v2.sqlite3`，当前 schema 6，可原位升级同加密格式的 schema 2–5。备份须同时保留配套 vault 元数据；不迁移早期旧格式。详见 [存储设计](docs/07-storage.md)。
 
 ## 静态检查
 

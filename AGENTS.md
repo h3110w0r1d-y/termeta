@@ -1,10 +1,10 @@
-# Termvexa 开发协作指南
+# Termeta 开发协作指南
 
 更新：2026-10-16。适用于整个仓库，文档和代码注释默认中文。本文维护协作规则与关键架构约束；功能状态以 [产品需求](docs/01-product-requirements.md#8-当前实现与限制) 为准，不追加逐轮修复日志。
 
 ## 1. 项目定位与范围
 
-Termvexa 是 Tauri 2 + Rust + Vue 3 + TypeScript 桌面终端客户端，目标平台为 Windows、macOS、Linux，不计划 Android/iOS。以 Termius 桌面核心体验为功能参照，不复制品牌或专有实现；用户指定的 SSH 系统/类型图标素材是明确例外。
+Termeta 是 Tauri 2 + Rust + Vue 3 + TypeScript 桌面终端客户端，目标平台为 Windows、macOS、Linux，不计划 Android/iOS。以 Termius 桌面核心体验为功能参照，不复制品牌或专有实现；用户指定的 SSH 系统/类型图标素材是明确例外。
 
 已有 SSH、Telnet、基础 Local/Serial 文本终端、加密保险库、主机/分组管理、分屏广播、显式工作区存档、SFTP 和本地/远程/SOCKS5 转发源码。当前版本未完成完整集成、三平台和发布验收，不能标为 MVP 已验收。
 

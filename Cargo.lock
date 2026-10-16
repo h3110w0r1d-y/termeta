@@ -5938,6 +5938,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "termeta"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "block2",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-foundation",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-opener",
+ "tauri-plugin-single-instance",
+ "terminal-core",
+ "terminal-files",
+ "terminal-local",
+ "terminal-security",
+ "terminal-serial",
+ "terminal-sftp",
+ "terminal-ssh",
+ "terminal-storage",
+ "terminal-telnet",
+ "tokio",
+ "url",
+ "uuid",
+ "zeroize",
+]
+
+[[package]]
 name = "terminal-core"
 version = "0.1.0"
 dependencies = [
@@ -6053,37 +6084,6 @@ dependencies = [
  "async-trait",
  "terminal-core",
  "tokio",
-]
-
-[[package]]
-name = "termvexa"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "block2",
- "objc2",
- "objc2-app-kit",
- "objc2-foundation",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-opener",
- "tauri-plugin-single-instance",
- "terminal-core",
- "terminal-files",
- "terminal-local",
- "terminal-security",
- "terminal-serial",
- "terminal-sftp",
- "terminal-ssh",
- "terminal-storage",
- "terminal-telnet",
- "tokio",
- "url",
- "uuid",
- "zeroize",
 ]
 
 [[package]]

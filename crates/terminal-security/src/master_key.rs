@@ -13,10 +13,10 @@ use std::{
 };
 use zeroize::Zeroizing;
 
-const SERVICE: &str = "com.h3110w0r1d.termvexa";
+const SERVICE: &str = "io.termeta";
 const ACCOUNT: &str = "master-key-v2";
 const KDF: &str = "argon2id-v19-m65536-t3-p1";
-const CHECK: &[u8] = b"termvexa/encrypted-vault/v2";
+const CHECK: &[u8] = b"termeta/encrypted-vault/v2";
 
 /// 平台适配只持有一个主密钥；可注入测试适配器，避免测试访问真实钥匙串。
 pub(crate) trait MasterKeyBackend: Send + Sync {
@@ -380,7 +380,7 @@ mod tests {
     impl TestPath {
         fn new() -> Self {
             let path =
-                std::env::temp_dir().join(format!("termvexa-vault-test-{}", uuid::Uuid::new_v4()));
+                std::env::temp_dir().join(format!("termeta-vault-test-{}", uuid::Uuid::new_v4()));
             std::fs::create_dir(&path).unwrap();
             Self(path)
         }

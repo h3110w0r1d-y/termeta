@@ -109,7 +109,7 @@ onMounted(inspect);
   </template>
   <div v-else class="vault-gate" :class="{ 'platform-mac': isMac }">
     <header class="vault-titlebar" data-tauri-drag-region>
-      <span data-tauri-drag-region>Termvexa</span>
+      <span data-tauri-drag-region>Termeta</span>
       <div class="vault-drag-space" data-tauri-drag-region />
       <WindowControls @error="error = $event" />
     </header>
