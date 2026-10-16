@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
+import { useHosts } from "../hosts/store";
 import { clone } from "../../services/data/clone";
 import { terminalDisplayTitle } from "../terminal/title";
 import type { TerminalActivity } from "../terminal/activity";
@@ -21,6 +22,9 @@ import type {
   SessionSnapshot,
   SerialConfig,
   HostProfile,
+  HostKind,
+  SavedLayout,
+  SavedWorkspace,
 } from "../../services/desktop/types";
 export type TerminalOpenMode = "tabs" | "workspace";
 export interface TerminalTab extends TerminalActivity {
@@ -40,6 +44,8 @@ export interface TerminalTab extends TerminalActivity {
   size: { cols: number; rows: number };
 }
 export interface WorkspaceTab {
+  name?: string;
+  savedProfileId?: string;
   id: string;
   root: LayoutNode;
   focusedTerminalId: string;
@@ -95,8 +101,8 @@ export const useWorkspace = defineStore("workspace", () => {
       return {
         id: group.id,
         title: terminalDisplayTitle(
-          group.root.kind === "split"
-            ? "Workspace"
+          group.root.kind === "split" || group.savedProfileId
+            ? (group.name ?? "Workspace")
             : (terminal?.title ?? "终端"),
           terminal?.remoteTitle,
         ),
@@ -109,7 +115,7 @@ export const useWorkspace = defineStore("workspace", () => {
           ? "connected"
           : (terminal?.state ?? "closed"),
         terminalIds: ids,
-        split: group.root.kind === "split",
+        split: group.root.kind === "split" || !!group.savedProfileId,
       };
     }),
   );
@@ -188,18 +194,29 @@ export const useWorkspace = defineStore("workspace", () => {
     const unique = [
       ...new Map(profiles.map((host) => [host.id, host])).values(),
     ];
-    const created = unique.map((host) =>
-      add(
-        host.name,
-        { source: "saved", profileId: host.id },
-        {
-          kind: host.kind,
-          serialConfig: host.serialConfig ?? undefined,
-        },
-      ),
-    );
+    // 保存工作区独立恢复，不能作为单个后端终端或嵌套引用。
+    const savedWorkspaces = unique.filter((host) => host.kind === "workspace");
+    for (const host of savedWorkspaces) validateSavedWorkspace(host);
+    const created = unique
+      .filter(
+        (host): host is HostProfile & { kind: HostKind } =>
+          host.kind !== "workspace",
+      )
+      .map((host) =>
+        add(
+          host.name,
+          { source: "saved", profileId: host.id },
+          {
+            kind: host.kind,
+            serialConfig: host.serialConfig ?? undefined,
+          },
+        ),
+      );
     const first = created[0];
-    if (!first) return;
+    if (!first) {
+      savedWorkspaces.forEach(openSavedWorkspace);
+      return;
+    }
     if (mode === "workspace" && created.length > 1) {
       const ids = new Set(created.map((tab) => tab.terminalId));
       const group = groups.value.find((item) => item.id === first.terminalId)!;
@@ -209,7 +226,114 @@ export const useWorkspace = defineStore("workspace", () => {
         (item) => item === group || !ids.has(item.id),
       );
     }
+    savedWorkspaces.forEach(openSavedWorkspace);
     activeId.value = first.terminalId;
+  }
+  function validateSavedWorkspace(host: HostProfile) {
+    if (!host.workspace) throw new Error("工作区布局缺失");
+    const hosts = useHosts();
+    let count = 0;
+    const visit = (node: SavedLayout, depth: number) => {
+      if (depth > 32 || count >= 64) throw new Error("工作区布局超出限制");
+      if (node.kind === "connection") {
+        const profile = hosts.hosts.find(
+          (h) => h.id === node.profileId && h.kind !== "workspace",
+        );
+        if (!profile)
+          throw new Error(
+            `工作区“${host.name}”引用的连接已删除，请重新保存工作区`,
+          );
+        count++;
+      } else {
+        if (
+          !["horizontal", "vertical"].includes(node.axis) ||
+          !Number.isFinite(node.ratio) ||
+          node.ratio < 0.1 ||
+          node.ratio > 0.9
+        )
+          throw new Error("工作区分割配置无效");
+        visit(node.first, depth + 1);
+        visit(node.second, depth + 1);
+      }
+    };
+    visit(host.workspace.root, 0);
+    if (
+      !Number.isInteger(host.workspace.focusedIndex) ||
+      host.workspace.focusedIndex < 0 ||
+      host.workspace.focusedIndex >= count
+    )
+      throw new Error("工作区焦点无效");
+  }
+  function openSavedWorkspace(host: HostProfile) {
+    validateSavedWorkspace(host);
+    const created: TerminalTab[] = [];
+    const restore = (node: SavedLayout): LayoutNode => {
+      if (node.kind === "connection") {
+        const profile = useHosts().hosts.find((h) => h.id === node.profileId);
+        if (!profile || profile.kind === "workspace")
+          throw new Error("工作区连接引用无效");
+        const tab = add(
+          profile.name,
+          { source: "saved", profileId: profile.id },
+          {
+            kind: profile.kind,
+            serialConfig: profile.serialConfig ?? undefined,
+          },
+        );
+        created.push(tab);
+        return { kind: "terminal", terminalId: tab.terminalId };
+      }
+      return {
+        kind: "split",
+        id: crypto.randomUUID(),
+        axis: node.axis,
+        ratio: node.ratio,
+        first: restore(node.first),
+        second: restore(node.second),
+      };
+    };
+    const root = restore(host.workspace!.root);
+    const ids = new Set(created.map((t) => t.terminalId));
+    const group = groups.value.find((g) => g.id === created[0]!.terminalId)!;
+    group.root = root;
+    group.name = host.name;
+    group.savedProfileId = host.id;
+    group.focusedTerminalId = created[host.workspace!.focusedIndex]!.terminalId;
+    groups.value = groups.value.filter((g) => g === group || !ids.has(g.id));
+    activeId.value = group.id;
+  }
+  function snapshotWorkspace(id: string): SavedWorkspace {
+    const group = groups.value.find((g) => g.id === id);
+    if (!group || (group.root.kind !== "split" && !group.savedProfileId))
+      throw new Error("只能保存工作区");
+    const hosts = useHosts();
+    const capture = (node: LayoutNode): SavedLayout => {
+      if (node.kind === "terminal") {
+        const tab = tabs.value.find((t) => t.terminalId === node.terminalId);
+        const target = tab?.target;
+        if (
+          target?.source !== "saved" ||
+          !hosts.hosts.some(
+            (h) => h.id === target.profileId && h.kind !== "workspace",
+          )
+        )
+          throw new Error(
+            "工作区只能引用已保存的 SSH、Telnet 或串口连接；请先保存临时连接配置，本地终端暂不支持保存",
+          );
+        return { kind: "connection", profileId: target.profileId };
+      }
+      return {
+        kind: "split",
+        axis: node.axis,
+        ratio: node.ratio,
+        first: capture(node.first),
+        second: capture(node.second),
+      };
+    };
+    return {
+      root: capture(group.root),
+      focusedIndex: terminalIds(group.root).indexOf(group.focusedTerminalId),
+    };
   }
   function groupForTerminal(id: string) {
     return groups.value.find((g) => terminalIds(g.root).includes(id));
@@ -489,6 +613,7 @@ export const useWorkspace = defineStore("workspace", () => {
     dropTarget,
     add,
     addSavedHosts,
+    snapshotWorkspace,
     canDuplicateSession,
     duplicateSession,
     remove,

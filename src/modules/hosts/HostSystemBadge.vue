@@ -33,6 +33,8 @@ const style = computed(() => ({
   align-items: center;
   justify-content: center;
   line-height: 1;
+  /* 与类型图标一致，尺寸观察尚未回调时也保持居中。 */
+  transform: translate(-50%, -50%);
 }
 .host-system-badge :deep(.n-icon) {
   display: flex;

@@ -32,8 +32,9 @@ export interface TelnetConfig {
 export type HostKind = "ssh" | "serial" | "telnet";
 export interface HostProfile extends Omit<SshConfig, "configVersion"> {
   id: string;
-  kind: HostKind;
+  kind: HostKind | "workspace";
   serialConfig?: SerialConfig | null;
+  workspace?: SavedWorkspace | null;
   name: string;
   groupId: string | null;
   favorite: boolean;
@@ -49,6 +50,24 @@ export type HostDraft = Omit<
 > & {
   id: string | null;
 };
+export type SavedLayout =
+  | { kind: "connection"; profileId: string }
+  | {
+      kind: "split";
+      axis: "horizontal" | "vertical";
+      ratio: number;
+      first: SavedLayout;
+      second: SavedLayout;
+    };
+export interface SavedWorkspace {
+  root: SavedLayout;
+  focusedIndex: number;
+}
+export interface WorkspaceDraft {
+  name: string;
+  workspace: SavedWorkspace;
+  expectedRevision: number | null;
+}
 export interface HostGroup {
   id: string;
   parentId: string | null;

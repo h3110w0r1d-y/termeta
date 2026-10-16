@@ -29,6 +29,7 @@ pub const COMMANDS: &[&str] = &[
     "session_client_heartbeat",
     "list_hosts",
     "save_host",
+    "save_workspace",
     "delete_host",
     "list_host_groups",
     "save_host_group",

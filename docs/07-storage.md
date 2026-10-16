@@ -19,7 +19,7 @@ SQLCipher由锁定的libsqlite3-sys 0.30.1内嵌4.5.7源码和vendored OpenSSL�
 
 首次无数据库和元数据时，显示设置/确认密码，至少12个字符、最多1024 UTF-8字节。不trim或变换密码。Rust在阻塞工作池使用Argon2id v19（64MiB、3轮、1并行度）输出32字节主密钥，参数固定受版本约束，不接受文件指定任意内存预算。
 
-先原子发布含随机盐与认证校验记录的元数据，再创建加密DB及schema 4，最后原子标记初始化完成。元数据通过独占临时文件、同步、原子发布持久化；中断初始化可用原密码重试。只有元数据完成并且数据库成功解密、完整性核验及结构初始化后，才向业务命令开放保险库。
+先原子发布含随机盐与认证校验记录的元数据，再创建加密DB及schema 6，最后原子标记初始化完成。元数据通过独占临时文件、同步、原子发布持久化；中断初始化可用原密码重试。只有元数据完成并且数据库成功解密、完整性核验及结构初始化后，才向业务命令开放保险库。
 
 随后将主密钥保存到系统钥匙串。如果保存失败，本次仍保持已解锁，界面明确提示下次需输入密码；不删除数据库，也不退回明文。
 
@@ -29,9 +29,9 @@ SQLCipher由锁定的libsqlite3-sys 0.30.1内嵌4.5.7源码和vendored OpenSSL�
 
 ## 3. 表结构与凭据语义
 
-schema 4沿用profile、SSH扩展、认证步骤、分组、标签、信任、设置、历史结构，所有页面均被加密。
+schema 6沿用profile、SSH扩展、认证步骤、分组、标签、信任、设置、历史结构，所有页面均被加密。
 
-保存主机现支持kind=ssh/telnet/serial；connection_profiles.kind原约束已有serial，串口全参数存于config_json.serialConfig，无新表或迁移。SSH记录继续保留ssh_profiles和认证关系，串口不创建这些行；列表改为LEFT JOIN并只读取三种已实现类型。公共HostDraft/HostProfile增加kind和serialConfig，旧DTO缺失kind默认ssh；为兼容平坦SSH契约，串口address/username为空、port=0、authPlan=[]，serialConfig必填；SSH不得混入串口配置。串口拒绝任何password字段，不创建秘密；已有记录不可更改kind。保存串口只校验SerialConfig语法，不访问设备；实际打开由串口工厂验证平台路径/独占权限。收藏、分组迁移和复制沿用相同revision事务，保留完整串口JSON；删除与整组删除共用已有语义。Telnet的address/port以TelnetConfig保存在config_json.telnetConfig，username为空、authPlan=[]、serialConfig为空，拒绝SSH认证引用和password字段。新增0002_telnet扩展kind约束，原迁移不变。credentials移除`store_backend/store_account`，新增仅Rust内部使用的`secret`列。公共DTO仅返回id/kind/label/status，主机专属项也不进入公共列表。私钥正文和可选解密密码作为一个JSON秘密保存，不依赖原文件。
+保存主机现支持kind=ssh/telnet/serial；connection_profiles.kind原约束已有serial，串口全参数存于config_json.serialConfig，无新表或迁移。SSH记录继续保留ssh_profiles和认证关系，串口不创建这些行；列表改为LEFT JOIN并读取 SSH/Telnet/串口与工作区四种类型。公共HostDraft/HostProfile增加kind和serialConfig，旧DTO缺失kind默认ssh；为兼容平坦SSH契约，串口address/username为空、port=0、authPlan=[]，serialConfig必填；SSH不得混入串口配置。串口拒绝任何password字段，不创建秘密；已有记录不可更改kind。保存串口只校验SerialConfig语法，不访问设备；实际打开由串口工厂验证平台路径/独占权限。收藏、分组迁移和复制沿用相同revision事务，保留完整串口JSON；删除与整组删除共用已有语义。Telnet的address/port以TelnetConfig保存在config_json.telnetConfig，username为空、authPlan=[]、serialConfig为空，拒绝SSH认证引用和password字段。新增0002_telnet扩展kind约束，原迁移不变。credentials移除`store_backend/store_account`，新增仅Rust内部使用的`secret`列。公共DTO仅返回id/kind/label/status，主机专属项也不进入公共列表。私钥正文和可选解密密码作为一个JSON秘密保存，不依赖原文件。
 
 直接主机密码：非空自动保存，空字符串明确移除，省略字段保留；没有记住开关。引用的公共凭据必须类型匹配且ready，专属项必须属于对应主机。复制主机不复制专属密码，现有会话保留连接快照。
 
@@ -43,7 +43,7 @@ schema 4沿用profile、SSH扩展、认证步骤、分组、标签、信任、�
 
 ## 4. 格式、备份与恢复边界
 
-新路径和schema 4不打开旧`termvexa.sqlite3`或`termvexa-credentials-v1.sqlite3`，不提供旧数据导入。源码与锁文件升级不直接操作用户已有数据库或钥匙串。
+新路径和schema 6不打开旧`termvexa.sqlite3`或`termvexa-credentials-v1.sqlite3`，不提供旧数据导入。源码与锁文件升级不直接操作用户已有数据库或钥匙串。
 
 当前不提供自动备份或密码变更功能。备份应在应用退出后同时保留数据库、必要WAL及配套vault.json；不得把SQLCipher的VACUUM INTO当成默认加密备份。密码与OS主密钥均丢失时不能恢复数据；仅有数据库、缺失其原随机盐/校验元数据时也不能按现有接口恢复。已有明文旧库不因新方案自动获得加密保护。
 
@@ -79,4 +79,22 @@ RemoteSystemStore的claim使用BEGIN IMMEDIATE，在同一事务读取app.detect
 
 0003_forwarding.sql 增加 port_forwards(id/name/profile_id/rule_json/revision/created_at/updated_at)，profile_id 引用 connection_profiles，ON DELETE SET NULL。仅允许保存时引用 SSH 主机，启动时重新读取其最新认证配置；不复制用户名/密码/私钥。规则使用乐观 revision，旧版本更新/删除被拒绝，运行中的规则不能修改或删除。删除主机不改写规则的 revision，引用置空后保留供重新选择；既有连接可继续运行至显式停止。规则不保存运行状态，不自动连接。
 
-接受空新库或同加密格式 schema 2/3/4，依次应用原迁移和新增迁移，user_version=4；保留旧迁移校验和、加密路径、元数据与主密钥。旧版本应用不能重新打开 schema 4。仅完成内存 SQLite 迁移模型及源码静态检查，SQLCipher 真实升级、故障恢复与三平台未验收，新增持久化/类型限制/乐观锁/主机删除回归源码未编译执行。
+接受空新库或同加密格式 schema 2/3/4/5/6，依次应用原迁移和新增迁移，user_version=6；保留旧迁移校验和、加密路径、元数据与主密钥。旧版本应用不能重新打开 schema 6。仅完成内存 SQLite 迁移模型及源码静态检查，SQLCipher 真实升级、故障恢复与三平台未验收，新增持久化/类型限制/乐观锁/主机删除回归源码未编译执行。
+
+## 8. 工作区存档与统一名称
+
+0004_workspaces 在既有独占初始化连接上关闭外键后重建 connection_profiles，新增 workspace 类型；保留其他表、旧迁移校验和与所有 ID。schema 5 接受同加密格式 2/3/4 升级，不修改加密路径、密钥或 vault 元数据。config_json.workspace 存放 SavedWorkspace；工作区不创建 ssh_profiles、认证或专属凭据。
+
+四种类型共享 trim(name) 的二进制唯一索引 profiles_unique_name（区分大小写）。迁移保留每个旧重名中按 created_at/id 排序的首项，其余名称截取至96字符后添加序号；避开所有原有名称，并利用全局序号同余类保证新增候选彼此不冲突，名称不超过128字符。重命名递增 revision，但不改 ID、主机配置、凭据或引用；不合并或删除主机。迁移事务失败整体回滚，发布池前仍执行外键完整性检查。
+
+save_host 事务检查四类重名；仅允许原连接保持名称/正常编辑。工作区的新建和整体替换只经 save_workspace：同名记录必须为 workspace，替换需要其 expectedRevision，新建必须为空 revision。替换保留 ID/分组/收藏，布局与引用在一个事务提交；并发新建或过期替换返回冲突。save_host 对既有工作区只允许 revision 保护的分组/收藏变更，拒绝新建、改名、认证、标签或连接字段。
+
+布局叶子为主机 ID 字符串而非外键行，删除主机有意保留失效存档；不向其他配置按名称重绑。保存时事务验证每个引用仅为 SSH/Telnet/串口，拒绝嵌套或已删除目标；打开前前端验证整份存档，再由各后端 saved 会话入口校验真实目标。不保存秘密、会话 ID、输出或广播状态。完整交互见[工作区设计](18-terminal-workspaces.md#8-显式保存与替换工作区)。仅内存 SQLite 模型与源码静态检查，SQLCipher真实升级与Rust回归源码未编译运行。
+
+## 9. 已应用迁移校验和不一致的恢复
+
+迁移4首次运行后曾误将唯一索引由name改为trim(name)，导致SQLx报告“migration 4 was previously applied but has been modified”。现已恢复0004_workspaces.sql首次运行的原始字节，SHA-384为 `cee4f9328cb293cb70c2c2f2009d0dadcb0a80b73e843a2fad34e421f3801517fb71f65f81061409bf2871ed3ded0f29`；索引变化只追加到0005_profile_name_index.sql，原有迁移记录与校验和不改写。当前schema为6，接受schema5原位升级。
+
+用户完全退出应用后，先复制整个应用数据目录作为备份（包括加密sqlite3、配套vault.json及可能存在的WAL/SHM），再重新编译并启动当前源码。macOS默认目录为 `~/Library/Application Support/com.h3110w0r1d.termvexa/`。迁移以编译期嵌入，直接启动旧二进制不会采用恢复后的SQL。预期SQLx先通过迁移4校验，再只执行迁移5的索引更换；主机/凭据/工作区内容及ID保留。不要删除数据库、vault元数据、钥匙串或_sqlx_migrations，也不要手工修改校验和。若仍不匹配，应保留备份并核对实际应用过的版本，不能忽略校验强行重跑。
+
+源码回归固定迁移4摘要，并覆盖已应用前四项的加密schema5重新打开、原迁移历史和完整主机/工作区DTO保留及schema6索引。仅格式解析、摘要与内存SQLite模型静态核对，未编译或执行Rust用例，未打开或改写真实用户数据。

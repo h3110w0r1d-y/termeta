@@ -30,6 +30,7 @@
     "allow-unlock-vault",
     "allow-list-hosts",
     "allow-save-host",
+    "allow-save-workspace",
     "allow-delete-host",
     "allow-list-host-groups",
     "allow-save-host-group",

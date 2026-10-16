@@ -61,6 +61,9 @@ function afterLeave() {
     <NText depth="3">
       请选择终端的打开方式。工作区将使用分割视图展示这些终端。
     </NText>
+    <NText v-if="hosts.some((host) => host.kind === 'workspace')" depth="3">
+      已保存的工作区会各自按原布局打开；所选打开方式仅应用于普通连接。
+    </NText>
     <template #footer>
       <NSpace justify="end">
         <NButton @click="cancel">取消</NButton>

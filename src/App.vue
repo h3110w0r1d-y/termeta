@@ -30,6 +30,7 @@ import ConfirmationDialog from "./components/ui/ConfirmationDialog.vue";
 import WorkspaceTabs from "./modules/workspace/WorkspaceTabs.vue";
 import SftpWorkspace from "./modules/files/SftpWorkspace.vue";
 import NewTabDialog from "./modules/hosts/NewTabDialog.vue";
+import SaveWorkspaceDialog from "./modules/workspace/SaveWorkspaceDialog.vue";
 import HostEditor from "./modules/hosts/HostEditor.vue";
 import SerialConnectDialog from "./modules/terminal/SerialConnectDialog.vue";
 import TerminalStage from "./modules/workspace/TerminalStage.vue";
@@ -94,6 +95,7 @@ let heartbeat: ReturnType<typeof setInterval> | undefined,
   unlisten: (() => void) | undefined,
   closingWindow = false;
 function edit(host?: HostProfile, copy = false, groupId: string | null = null) {
+  if (host?.kind === "workspace") return;
   newHostGroup.value = groupId;
   editing.value = host;
   duplicate.value = copy;
@@ -118,6 +120,7 @@ function createHost(kind: HostKind, groupId: string | null) {
     serialOpen.value = true;
   }
 }
+const savingWorkspaceId = ref("");
 function openNewTab() {
   newTabOpen.value = true;
 }
@@ -141,10 +144,14 @@ function openSerial(config: SerialConfig) {
   workspace.add(config.path, { source: "serial", config });
 }
 function connect(host: HostProfile) {
-  workspace.addSavedHosts([host]);
+  connectMany([host], "tabs");
 }
 function connectMany(profiles: HostProfile[], mode: TerminalOpenMode) {
-  workspace.addSavedHosts(profiles, mode);
+  try {
+    workspace.addSavedHosts(profiles, mode);
+  } catch (e) {
+    initError.value = errorMessage(e);
+  }
 }
 function ephemeral(target: OpenTarget, title: string) {
   workspace.add(title, target);
@@ -171,6 +178,9 @@ const {
 } = useTerminalMenu({
   perform,
   closeTab,
+  saveWorkspace: (id) => {
+    savingWorkspaceId.value = id;
+  },
   focusTerminal,
   openFind: () => {
     findOpen.value = true;
@@ -473,6 +483,11 @@ onBeforeUnmount(() => {
           :quick="quick"
           :duplicate="duplicate"
           @connect="ephemeral"
+          @after-leave="restoreTerminalFocus"
+        />
+        <SaveWorkspaceDialog
+          :group-id="savingWorkspaceId"
+          @close="savingWorkspaceId = ''"
           @after-leave="restoreTerminalFocus"
         />
         <ChallengeDialog @after-leave="restoreTerminalFocus" />

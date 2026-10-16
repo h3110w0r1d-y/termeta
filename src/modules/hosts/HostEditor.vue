@@ -35,6 +35,7 @@ import type {
 import { useSettings } from "../settings/store";
 import { builtinSchemes } from "../settings/themes";
 import { useHosts } from "./store";
+import { uniqueHostNameRule } from "./validation";
 import { groupChoices } from "./groups";
 import HostSystemIcon from "./HostSystemIcon.vue";
 import { systemIconOptions } from "./systemIcons";
@@ -192,7 +193,15 @@ const formModel = reactive({
   tagText,
 });
 const rules = computed<FormRules>(() => ({
-  "draft.name": props.quick ? [] : requiredText("名称"),
+  "draft.name": props.quick
+    ? []
+    : [
+        requiredText("名称"),
+        uniqueHostNameRule(
+          () => hosts.hosts,
+          () => draft.value.id,
+        ),
+      ],
   "draft.address": requiredText("主机地址"),
   "draft.icon": requiredText("图标"),
   "draft.username": isTelnet.value ? [] : requiredText("用户名"),

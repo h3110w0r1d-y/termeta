@@ -173,8 +173,20 @@ function createHost(kind: HostKind = "ssh") {
 const menu = ref({ show: false, hostId: "", x: 0, y: 0 });
 const menuOptions = computed(() => [
   { label: "连接", key: "connect" },
-  { label: "编辑", key: "edit", disabled: store.managementBusy },
-  { label: "复制", key: "duplicate", disabled: store.managementBusy },
+  {
+    label: "编辑",
+    key: "edit",
+    disabled:
+      store.managementBusy ||
+      store.hosts.find((h) => h.id === menu.value.hostId)?.kind === "workspace",
+  },
+  {
+    label: "复制",
+    key: "duplicate",
+    disabled:
+      store.managementBusy ||
+      store.hosts.find((h) => h.id === menu.value.hostId)?.kind === "workspace",
+  },
   { label: "移动到分组…", key: "move", disabled: store.managementBusy },
   { label: "删除", key: "delete", disabled: store.managementBusy },
 ]);
@@ -210,8 +222,9 @@ async function selectMenu(key: string) {
   if (!host) return;
   if (key === "connect") emit("connect", host);
   else if (!store.managementBusy) {
-    if (key === "edit") emit("edit", host);
-    else if (key === "duplicate") emit("edit", host, true);
+    if (key === "edit" && host.kind !== "workspace") emit("edit", host);
+    else if (key === "duplicate" && host.kind !== "workspace")
+      emit("edit", host, true);
     else if (key === "delete") await remove(host);
     else if (key === "move") {
       movingHost.value = { ...host };

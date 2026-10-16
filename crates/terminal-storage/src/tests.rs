@@ -291,7 +291,7 @@ async fn initializes_rebuilt_schema_with_password_and_private_key_credentials() 
             .fetch_all(store.pool().unwrap())
             .await
             .unwrap();
-    assert_eq!(versions, vec![1, 2, 3]);
+    assert_eq!(versions, vec![1, 2, 3, 4, 5]);
     let version: i64 = sqlx::query_scalar("PRAGMA user_version")
         .fetch_one(store.pool().unwrap())
         .await
@@ -577,6 +577,7 @@ async fn deleting_group_moves_only_direct_children_and_preserves_hosts() {
     direct.group_id = Some(group.id.clone());
     let direct = store.save_host(direct).await.unwrap();
     let mut nested = draft();
+    nested.name = "子组主机".into();
     nested.group_id = Some(child.id.clone());
     let nested = store.save_host(nested).await.unwrap();
 
@@ -622,6 +623,7 @@ async fn deleting_group_subtree_is_revision_guarded_and_preserves_shared_credent
         .await
         .unwrap();
     let mut public_host = draft();
+    public_host.name = "公共凭据主机".into();
     public_host.group_id = Some(group.id.clone());
     public_host.auth_plan = vec![AuthStep::Password {
         credential_id: Some(shared.clone()),
@@ -634,6 +636,7 @@ async fn deleting_group_subtree_is_revision_guarded_and_preserves_shared_credent
         .await
         .unwrap();
     let mut private_host = draft();
+    private_host.name = "专属凭据主机".into();
     private_host.group_id = Some(child.id.clone());
     let private_host = store
         .save_host_with_password_ref(private_host, Some(&private))
@@ -1081,4 +1084,266 @@ async fn schema_two_upgrade_preserves_profiles_children_and_history_references()
     let reopened = SqliteStore::open(&path).await.unwrap();
     assert_eq!(reopened.list_hosts("").await.unwrap().len(), 3);
     reopened.pool().unwrap().close().await;
+}
+
+fn workspace_draft(name: &str, profile_id: &str) -> WorkspaceDraft {
+    WorkspaceDraft {
+        name: name.into(),
+        expected_revision: None,
+        workspace: SavedWorkspace {
+            root: SavedLayout::Split {
+                axis: "vertical".into(),
+                ratio: 0.37,
+                first: Box::new(SavedLayout::Connection {
+                    profile_id: profile_id.into(),
+                }),
+                second: Box::new(SavedLayout::Connection {
+                    profile_id: profile_id.into(),
+                }),
+            },
+            focused_index: 1,
+        },
+    }
+}
+#[tokio::test(flavor = "current_thread")]
+async fn names_are_unique_across_all_saved_profile_kinds() {
+    let directory = TestDirectory::new();
+    let store = SqliteStore::open(directory.0.join("names.sqlite3"))
+        .await
+        .unwrap();
+    let ssh = store.save_host(draft()).await.unwrap();
+    let serial = store.save_host(serial_draft()).await.unwrap();
+    let telnet = store.save_host(telnet_draft()).await.unwrap();
+    let workspace = store
+        .save_workspace(workspace_draft("工作区", &ssh.id))
+        .await
+        .unwrap();
+    for saved in [&ssh, &serial, &telnet, &workspace] {
+        for mut candidate in [draft(), serial_draft(), telnet_draft()] {
+            candidate.name = format!(" {} ", saved.name);
+            assert!(matches!(
+                store.save_host(candidate).await,
+                Err(StorageError::Validation(_))
+            ));
+        }
+    }
+    // 保留原名可以编辑，跨类型重名修改必须回滚。
+    let saved = store.save_host(edit(ssh.clone())).await.unwrap();
+    let mut collision = edit(saved.clone());
+    collision.name = serial.name;
+    assert!(store.save_host(collision).await.is_err());
+    assert_eq!(
+        store.get_host(&ssh.id).await.unwrap().revision,
+        saved.revision
+    );
+    let (first, second) = tokio::join!(
+        store.save_workspace(workspace_draft("并发工作区", &ssh.id)),
+        store.save_workspace(workspace_draft("并发工作区", &ssh.id)),
+    );
+    assert_ne!(first.is_ok(), second.is_ok());
+    store.pool().unwrap().close().await;
+}
+#[tokio::test(flavor = "current_thread")]
+async fn workspace_replacement_preserves_identity_and_rejects_other_kinds_or_stale_writes() {
+    let directory = TestDirectory::new();
+    let store = SqliteStore::open(directory.0.join("workspaces.sqlite3"))
+        .await
+        .unwrap();
+    let host = store.save_host(draft()).await.unwrap();
+    let original = store
+        .save_workspace(workspace_draft("开发工作区", &host.id))
+        .await
+        .unwrap();
+    let group = group_fixture(&store, "工作区分组", None).await;
+    let mut metadata = edit(original.clone());
+    metadata.favorite = true;
+    metadata.group_id = Some(group.id.clone());
+    let current = store.save_host(metadata).await.unwrap();
+    let mut replacement = workspace_draft(" 开发工作区 ", &host.id);
+    replacement.expected_revision = Some(current.revision);
+    replacement.workspace.root = SavedLayout::Connection {
+        profile_id: host.id.clone(),
+    };
+    replacement.workspace.focused_index = 0;
+    let saved = store.save_workspace(replacement.clone()).await.unwrap();
+    assert_eq!(saved.id, original.id);
+    assert_eq!(saved.group_id, Some(group.id));
+    assert!(saved.favorite);
+    assert_eq!(saved.revision, current.revision + 1);
+    let reloaded = store.get_host(&saved.id).await.unwrap();
+    assert_eq!(
+        serde_json::to_value(reloaded.workspace).unwrap(),
+        serde_json::to_value(saved.workspace.clone()).unwrap()
+    );
+    assert!(matches!(
+        store.save_workspace(replacement).await,
+        Err(StorageError::Conflict)
+    ));
+    assert!(
+        store
+            .save_workspace(workspace_draft(&host.name, &host.id))
+            .await
+            .is_err()
+    );
+    assert!(
+        store
+            .save_workspace(workspace_draft("嵌套工作区", &saved.id))
+            .await
+            .is_err()
+    );
+    assert!(store.get_host_connection(&saved.id).await.is_err());
+    let mut forbidden = edit(saved.clone());
+    forbidden.name = "不能重命名".into();
+    assert!(store.save_host(forbidden).await.is_err());
+    let mut manual = edit(saved.clone());
+    manual.id = None;
+    manual.name = "手动创建".into();
+    assert!(store.save_host(manual).await.is_err());
+    // 删除连接保留失效工作区，后续保存必须重新选取有效引用。
+    store.delete_host(&host.id, host.revision).await.unwrap();
+    assert!(store.get_host(&saved.id).await.unwrap().workspace.is_some());
+    assert!(
+        store
+            .save_workspace(workspace_draft("失效引用", &host.id))
+            .await
+            .is_err()
+    );
+    store.pool().unwrap().close().await;
+}
+#[test]
+fn saved_workspace_dto_rejects_secrets_and_session_fields() {
+    let value = serde_json::json!({"name":"工作区","expectedRevision":null,"workspace":{"root":{"kind":"connection","profileId":"id","password":"secret"},"focusedIndex":0}});
+    assert!(serde_json::from_value::<WorkspaceDraft>(value).is_err());
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn schema_four_upgrade_renames_duplicates_without_changing_references() {
+    let directory = TestDirectory::new();
+    let path = directory.0.join("workspace-upgrade.sqlite3");
+    let options = SqliteConnectOptions::new()
+        .filename(&path)
+        .create_if_missing(true)
+        .pragma("key", format!("\"x'{}'\"", hex::encode([42u8; 32])))
+        .pragma("cipher_compatibility", "4")
+        .foreign_keys(true)
+        .disable_statement_logging();
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(options)
+        .await
+        .unwrap();
+    let mut initial = sqlx::migrate!("./migrations");
+    initial.migrations = std::borrow::Cow::Owned(initial.iter().take(3).cloned().collect());
+    initial.run(&pool).await.unwrap();
+    for (id, kind, name, created) in [
+        ("old-ssh", "ssh", "重复", 1i64),
+        ("old-serial", "serial", "重复", 2),
+        ("collision", "telnet", "重复 (2)", 3),
+    ] {
+        sqlx::query("INSERT INTO connection_profiles(id,kind,name,favorite,created_at,updated_at) VALUES(?,?,?,0,?,?)")
+            .bind(id).bind(kind).bind(name).bind(created).bind(created).execute(&pool).await.unwrap();
+    }
+    sqlx::query("INSERT INTO ssh_profiles VALUES('old-ssh','example.com','example.com',22,'user')")
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO port_forwards(id,name,profile_id,rule_json,created_at,updated_at) VALUES('rule','转发','old-ssh','{}',1,1)").execute(&pool).await.unwrap();
+    sqlx::query("INSERT INTO session_history(id,profile_id,display_name_snapshot,started_at,ended_at) VALUES('history','old-ssh','重复',1,2)").execute(&pool).await.unwrap();
+    pool.close().await;
+    let store = SqliteStore::open(&path).await.unwrap();
+    let names: Vec<String> =
+        sqlx::query_scalar("SELECT name FROM connection_profiles ORDER BY created_at")
+            .fetch_all(store.pool().unwrap())
+            .await
+            .unwrap();
+    assert_eq!(names, vec!["重复", "重复 (5)", "重复 (2)"]);
+    let profile: Option<String> =
+        sqlx::query_scalar("SELECT profile_id FROM port_forwards WHERE id='rule'")
+            .fetch_one(store.pool().unwrap())
+            .await
+            .unwrap();
+    assert_eq!(profile.as_deref(), Some("old-ssh"));
+    let profile: Option<String> =
+        sqlx::query_scalar("SELECT profile_id FROM session_history WHERE id='history'")
+            .fetch_one(store.pool().unwrap())
+            .await
+            .unwrap();
+    assert_eq!(profile.as_deref(), Some("old-ssh"));
+    assert!(store.get_host_connection("old-ssh").await.is_ok());
+    let duplicate = sqlx::query("INSERT INTO connection_profiles(id,kind,name,favorite,created_at,updated_at) VALUES('new','workspace',' 重复 ',0,1,1)").execute(store.pool().unwrap()).await;
+    assert!(duplicate.is_err());
+    store.pool().unwrap().close().await;
+}
+
+#[test]
+fn applied_workspace_migration_keeps_its_original_checksum() {
+    use sha2::Digest;
+    // 固定实际运行过的初版迁移摘要，后续调整只能追加迁移文件。
+    let checksum = sha2::Sha384::digest(include_bytes!("../migrations/0004_workspaces.sql"));
+    assert_eq!(
+        hex::encode(checksum),
+        "cee4f9328cb293cb70c2c2f2009d0dadcb0a80b73e843a2fad34e421f3801517fb71f65f81061409bf2871ed3ded0f29"
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn applied_workspace_migration_upgrades_without_rewriting_history_or_profiles() {
+    let directory = TestDirectory::new();
+    let path = directory.0.join("applied-workspaces.sqlite3");
+    let options = SqliteConnectOptions::new()
+        .filename(&path)
+        .create_if_missing(true)
+        .pragma("key", format!("\"x'{}'\"", hex::encode([42u8; 32])))
+        .pragma("cipher_compatibility", "4")
+        .foreign_keys(true)
+        .disable_statement_logging();
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(options)
+        .await
+        .unwrap();
+    let mut initial = sqlx::migrate!("./migrations");
+    initial.migrations = std::borrow::Cow::Owned(initial.iter().take(4).cloned().collect());
+    initial.run(&pool).await.unwrap();
+    let old = SqliteStore::locked(&path);
+    assert!(old.pool.set(pool).is_ok());
+    let host = old.save_host(draft()).await.unwrap();
+    let workspace = old
+        .save_workspace(workspace_draft("升级保留工作区", &host.id))
+        .await
+        .unwrap();
+    let before: Vec<(i64, Vec<u8>)> =
+        sqlx::query_as("SELECT version,checksum FROM _sqlx_migrations ORDER BY version")
+            .fetch_all(old.pool().unwrap())
+            .await
+            .unwrap();
+    old.pool().unwrap().close().await;
+    let store = SqliteStore::open(&path).await.unwrap();
+    let after: Vec<(i64, Vec<u8>)> = sqlx::query_as(
+        "SELECT version,checksum FROM _sqlx_migrations WHERE version<=4 ORDER BY version",
+    )
+    .fetch_all(store.pool().unwrap())
+    .await
+    .unwrap();
+    assert_eq!(before, after);
+    assert_eq!(
+        serde_json::to_value(store.get_host(&host.id).await.unwrap()).unwrap(),
+        serde_json::to_value(host).unwrap()
+    );
+    assert_eq!(
+        serde_json::to_value(store.get_host(&workspace.id).await.unwrap()).unwrap(),
+        serde_json::to_value(workspace).unwrap()
+    );
+    let version: i64 = sqlx::query_scalar("PRAGMA user_version")
+        .fetch_one(store.pool().unwrap())
+        .await
+        .unwrap();
+    assert_eq!(version, 6);
+    let index: String =
+        sqlx::query_scalar("SELECT sql FROM sqlite_master WHERE name='profiles_unique_name'")
+            .fetch_one(store.pool().unwrap())
+            .await
+            .unwrap();
+    assert!(index.contains("trim(name)"));
+    store.pool().unwrap().close().await;
 }

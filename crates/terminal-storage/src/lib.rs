@@ -3,6 +3,8 @@ mod forwarding;
 pub use forwarding::*;
 mod groups;
 mod hosts;
+mod workspaces;
+use workspaces::ensure_unique_profile_name;
 mod key_files;
 mod metadata;
 mod model;
@@ -21,7 +23,7 @@ use std::{
 };
 use thiserror::Error;
 
-const SCHEMA_VERSION: i64 = 4;
+const SCHEMA_VERSION: i64 = 6;
 
 #[derive(Debug, Error)]
 pub enum StorageError {
@@ -140,9 +142,9 @@ impl SqliteStore {
         let version: i64 = sqlx::query_scalar("PRAGMA user_version")
             .fetch_one(pool)
             .await?;
-        if ![0, 2, 3, SCHEMA_VERSION].contains(&version) {
+        if ![0, 2, 3, 4, 5, SCHEMA_VERSION].contains(&version) {
             return Err(StorageError::Validation(
-                "数据库格式不兼容，仅支持当前加密格式及 schema 2/3 升级",
+                "数据库格式不兼容，仅支持当前加密格式及 schema 2/3/4/5 升级",
             ));
         }
         private_file(path)?;

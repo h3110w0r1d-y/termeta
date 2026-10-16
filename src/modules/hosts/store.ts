@@ -5,6 +5,7 @@ import type {
   HostDraft,
   HostGroup,
   HostProfile,
+  WorkspaceDraft,
 } from "../../services/desktop/types";
 export const useHosts = defineStore("hosts", () => {
   const managementBusy = ref(false);
@@ -29,6 +30,17 @@ export const useHosts = defineStore("hosts", () => {
   ) {
     const saved = await desktop.saveHost(host, revision, password);
     // 提交成功后直接更新轻量列表，避免后续读取失败被误判为保存失败。
+    hosts.value = [
+      ...hosts.value.filter((item) => item.id !== saved.id),
+      saved,
+    ].sort(
+      (a, b) =>
+        Number(b.favorite) - Number(a.favorite) || a.name.localeCompare(b.name),
+    );
+    return saved;
+  }
+  async function saveWorkspace(draft: WorkspaceDraft) {
+    const saved = await desktop.saveWorkspace(draft);
     hosts.value = [
       ...hosts.value.filter((item) => item.id !== saved.id),
       saved,
@@ -70,6 +82,7 @@ export const useHosts = defineStore("hosts", () => {
     groups,
     load,
     save,
+    saveWorkspace,
     remove,
     favorite,
     moveHost,

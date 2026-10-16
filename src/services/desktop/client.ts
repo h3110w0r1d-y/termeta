@@ -16,6 +16,7 @@ import type {
   CredentialDraft,
   HistoryEntry,
   HostDraft,
+  WorkspaceDraft,
   HostGroup,
   HostProfile,
   KnownHost,
@@ -28,6 +29,8 @@ import type {
 
 // 原生交互只通过此门面，组件不能获得通用 invoke 或任意文件读取能力。
 export const desktop = {
+  saveWorkspace: (draft: WorkspaceDraft) =>
+    invoke<HostProfile>("save_workspace", { draft }),
   listPortForwards: () =>
     invoke<{ profiles: ForwardProfile[]; sessions: SessionSnapshot[] }>(
       "list_port_forwards",

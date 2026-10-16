@@ -69,8 +69,7 @@ async function onKey(event: KeyboardEvent) {
   const session = props.tabs.some((tab) => tab.id === id);
   if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
     event.preventDefault();
-    if (props.tabs.some((tab) => tab.id === id && !tab.split))
-      emit("menu", event, id);
+    if (props.tabs.some((tab) => tab.id === id)) emit("menu", event, id);
     return;
   }
   if (event.altKey || event.ctrlKey || event.metaKey) return;
@@ -187,7 +186,7 @@ watch(
             :data-sort-tab="tab.id"
             @pointerdown="tabDrag.start($event, tab.id)"
             role="presentation"
-            @contextmenu.prevent="!tab.split && emit('menu', $event, tab.id)"
+            @contextmenu.prevent="emit('menu', $event, tab.id)"
           >
             <button
               type="button"

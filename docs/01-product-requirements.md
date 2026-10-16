@@ -42,6 +42,7 @@ Termvexa 面向需要频繁连接服务器的开发、运维和设备工程师�
 | [x] | HOST-04 | M2/P0 | 全局新建标签页弹窗复用主页搜索/字段配置，结果内嵌；快速连接入口位于主页和弹窗，均支持协议下拉 | 标签＋、Cmd/Ctrl+T及原新连接动作打开；空查询列出保存主机，收藏优先；↑/↓/Enter选择且保留IME；旧绑定兼容不抢占 |
 | [x] | HOST-05 | M2/P0 | 保存 SSH 主机一次性系统识别、图标字段与卡片Logo；默认开启，检测脚本只读 | 成功/失败/超时/中断后重连与重启不重试；并发只探测一次；手动图标优先；Local/临时SSH/独立SFTP不检测；图标来源为用户指定Termius素材 |
 | [x] | HOST-06 | M2/P0 | 保存主机统一SSH、Telnet与串口，支持新建/编辑/复制配置、分组/收藏/标签/配色及统一搜索；新建与快速连接为协议下拉 | 串口保存不打开设备，临时连接不保存；保留kind与串口参数，SFTP仅SSH；Telnet默认23端口，终端内明文登录；schema 2→3扩展类型约束 |
+| [x] | HOST-08 | M3/P0 | 主机页工作区类型、Tab右键保存、按名称替换与四类名称唯一 | 无手动创建/编辑/复制；仅引用保存SSH/Telnet/串口，打开新会话；schema 5，待运行验收 |
 | [x] | HOST-07 | M2/P0 | 双击侧栏分组批量连接（包含子分组），单台直接打开，多台确认后选独立Tab或Workspace分割视图 | 空组不操作；键盘Enter同入口；取消/切页不连接；新工作区均分面积/广播关闭，SSH/串口独立会话，失败保留终端 |
 | [x] | UX-04 | M2/P0 | 业务表单统一Naive UI rules及提交前校验，必填红星由库生成 | 字段旁显示错误；快速连接名称、可选密码及服务器空回答保持可选 |
 | [x] | SSH-01   | M1/P0            | SSH2 直连；域名、IPv4、IPv6、自定义端口                                                                 | DNS/TCP/握手错误可区分；全过程可取消                                                                                                  |
@@ -86,7 +87,7 @@ Termvexa 面向需要频繁连接服务器的开发、运维和设备工程师�
 | [ ] | PRO-01  | M3/P0   | 两种 SFTP 工作区与完整文件传输，细项见下表             | 独立文件服务与统一任务；不经过 xterm 字节流，详见 16 |
 | [x] | PRO-02  | M3      | Local/Remote/Dynamic forwarding                        | 保险箱引用SSH主机；三模式、独立连接、卡片启停、高亮与受界流；运行待验收       |
 | [ ] | PRO-03  | M3      | ProxyJump、Agent、SSH config/known_hosts 导入          | 连接路线/认证扩展；不执行导入的 ProxyCommand         |
-| [ ] | PRO-04  | M3      | Snippets、终端日志、布局保存/恢复（内存分屏提前至 M2） | 显式执行、日志策略、独立布局模型                     |
+| [ ] | PRO-04  | M3      | Snippets、终端日志、布局保存/恢复（内存分屏提前至 M2） | 布局显式保存/恢复已实现，Snippets与日志未实现                     |
 | [ ] | EXT-01  | M4      | Local Terminal：Shell、cwd、env、PTY、退出/清理        | `SessionFactory`、能力发现；本地进程与信号适配       |
 | [ ] | EXT-02  | M4      | Serial：枚举、串口参数、连接、DTR/RTS                  | 枚举/参数/独占文本连接及配置保存已实现；手动DTR/RTS控制未实现                    |
 | [ ] | EXT-03  | M4      | HEX、时间戳、文本/HEX 发送、换行、Local Echo           | 显示模式独立于 session kind；不把二进制强制转 UTF-8  |
@@ -136,9 +137,9 @@ M1/M2 主体源码已落地、M3 SFTP 部分实现，尚未通过完整集成、
 | SSH 与认证   | [SSH](../crates/terminal-ssh/src/lib.rs)：密码/公钥、动态交互认证、PAM 保存密码单次自动响应、空白零输入轮免弹窗、信任与变更阻断、PTY/resize/KeepAlive                                                                           | 密码/加密私钥/OTP/失败矩阵待完成，专门睡眠恢复未实现                                                                                           |
 | 终端生命周期 | [registry](../src/modules/terminal/registry.ts)：稳定 terminalId/xterm、断线/失败保留、同实例手动重连、旧流隔离、消费 ACK                                                                                                       | 历史/全屏/尾输出/压力与三平台待验收                                                                                                            |
 | Serial文本终端 | [适配器](../crates/terminal-serial/src/lib.rs)、[配置窗](../src/modules/terminal/SerialConnectDialog.vue)：设备枚举/刷新、波特率和高级参数、独占、双向字符集转换、错误与原缓冲重开 | macOS指定ESP32-C3的115200输出/关闭、15项Rust测试与xterm无界面缓冲对比通过；桌面与其他平台待验收，手动DTR/RTS、DSR/DTR流控及HEX未实现 |
-| 标签与分屏   | [WorkspaceTabs](../src/modules/workspace/WorkspaceTabs.vue)、[store](../src/modules/workspace/store.ts)：固定页、标题栏集成（macOS Overlay 原生按钮下移对齐54px栏中线（待复验）、Windows/Linux 库按钮、左侧模式独立窗口栏）、横向32px/纵向36px标签（横向关闭按钮22px、图标16px）、排序/嵌套分屏/比例、窗格拖回 Tab/跨组重排、普通标签复制/拆分、双击动作设置；Workspace 标签无右键菜单 | 布局只驻内存，无整组迁移/跨窗口/保存恢复                                                                                                       |
+| 标签与分屏   | [WorkspaceTabs](../src/modules/workspace/WorkspaceTabs.vue)、[store](../src/modules/workspace/store.ts)：固定页、标题栏集成（macOS Overlay 原生按钮下移对齐54px栏中线（待复验）、Windows/Linux 库按钮、左侧模式独立窗口栏）、横向32px/纵向36px标签（横向关闭按钮22px、图标16px）、排序/嵌套分屏/比例、窗格拖回 Tab/跨组重排、普通标签复制/拆分、双击动作设置；Workspace 标签右键保存工作区 | 支持显式保存/重新打开，无整组迁移/跨窗口/自动恢复                                                                                                       |
 | 工作区广播   | [inputRouter](../src/modules/terminal/inputRouter.ts)、[inputOrigin](../src/modules/terminal/inputOrigin.ts)：键盘/IME/粘贴/远端滚轮，点击与应答隔离                                                                            | 默认关闭、重组关闭，固定 xterm 内部事件适配待实际验证                                                                                          |
-| 凭据与存储   | [storage](../crates/terminal-storage/src/lib.rs)、[security](../crates/terminal-security/src/vault.rs)：公共密码/私钥、主机专属密码、SQLCipher schema 4全库加密（同格式schema 2/3升级）、Argon2id首次密码、单OS主密钥/密码恢复                                                                   | 独立加密新库，不迁移旧库；原生依赖编译、OS主密钥/中断恢复/三平台待验收                                                                                  |
+| 凭据与存储   | [storage](../crates/terminal-storage/src/lib.rs)、[security](../crates/terminal-security/src/vault.rs)：公共密码/私钥、主机专属密码、SQLCipher schema 6全库加密（同格式schema 2/3/4/5升级）、Argon2id首次密码、单OS主密钥/密码恢复                                                                   | 独立加密新库，不迁移旧库；原生依赖编译、OS主密钥/中断恢复/三平台待验收                                                                                  |
 | 设置与 UI    | [设置](../src/modules/settings/SettingsPage.vue)：Naive UI 2.45.3、业务 CSS 归属 Vue scoped 样式（入口仅留基础/共享规则）、页头/滚动/固定 footer、常规页等宽布局、标签位置单选/外观图标单选、配色页统一默认方案入口、独立设置窗口/应用菜单及自动保存/跨窗口热应用                                                         | 工作区标签自定义，其余优先库组件；小窗口/IME/焦点待验收                                                                                        |
 | 字体与配色   | [字体](../src/modules/settings/fonts.ts)、[主题](../src/modules/terminal/theme.ts)：12 本地家族默认 DejaVu Sans Mono，64 配色默认 Pro，JSON/自定义/多层覆盖/热应用                                                              | 不清历史、粗体不提亮；字宽/选区/许可及来源发布处理待验证                                                                                       |
 | 快捷键       | [快捷键](../src/modules/settings/ShortcutSettings.vue)：分类、多绑定/录制/冲突/JSON、链接修饰键路由                                                                                                                             | 系统后台热键未实现，Local 动作已启用                                                                                                           |
@@ -165,11 +166,11 @@ M1/M2 主体源码已落地、M3 SFTP 部分实现，尚未通过完整集成、
 
 - core：每会话 actor、owner/request 幂等、20 活动/4 建立并发、独立取消、输入去重、challenge 与终态摘要。
 - 数据面：24 字节帧头、32 KiB 帧、256 KiB 信用、512 KiB 输出字节预算、64 KiB 输入、解析后累计 ACK/finalOffset。
-- 存储：schema 4（同加密格式schema 2/3原位升级）、独立 `termvexa-encrypted-v2.sqlite3` 与配套vault.json；SQLCipher加密所有业务表，OS只缓存一把Argon2id派生主密钥。旧库与旧OS项不迁移/删除。首次密码、自动解锁、密码恢复及缓存失败警告均已落源码；测试源码未运行。
+- 存储：schema 6（同加密格式schema 2/3/4/5原位升级）、独立 `termvexa-encrypted-v2.sqlite3` 与配套vault.json；SQLCipher加密所有业务表，OS只缓存一把Argon2id派生主密钥。旧库与旧OS项不迁移/删除。首次密码、自动解锁、密码恢复及缓存失败警告均已落源码；测试源码未运行。
 - 前端：固定保险箱/SFTP，已打开终端独立保活；OSC 标题展示，关闭提示依据 OSC 133 或标题首个冒号前缀变化；本地状态消息不无条件恢复旧光标。
 - 分屏：纯数据树计算矩形、扁平 keyed 宿主保活；广播只处理用户输入，成员重组关闭，不重放旧代次输入。
 
-基础Serial文本终端已落源码；DTR/RTS控制、DSR/DTR流控、HEX、跳板/Agent、布局持久化与系统后台热键尚未实现。
+基础Serial文本终端已落源码；DTR/RTS控制、DSR/DTR流控、HEX、跳板/Agent、打开标签自动恢复与系统后台热键尚未实现。
 
 ### 8.5 SFTP 当前边界
 
@@ -268,3 +269,7 @@ EXT-04源码完成：协议菜单启用Telnet，主机编辑共用Naive UI表单
 端口转发已加入保险箱，位于主机与凭据之间：支持本地、远程及动态 SOCKS5，引用保存的 SSH 主机，独立连接且不申请 PTY/Shell、不新建 Tab；监听就绪后卡片高亮，支持搜索、新建/编辑/复制/删除及启停，切页保留连接。复用主机信任与密码/私钥/OTP，默认回环监听；SOCKS5 仅回环、无认证、TCP CONNECT，域名由 SSH 服务器解析。新增 port_forwards 与 schema 4，同加密格式 schema 2/3 原位升级，删除主机保留失效规则供重选；运行状态不持久化、不自动启动。每规则64条流/32个远程待接收项，独立取消与窗口关闭/心跳失联清理。仅静态验证，新增 Rust 回归源码未编译执行；三平台、实际转发与 SQLCipher 升级待运行验收。契约见[端口转发设计](21-port-forwarding.md)。
 
 源码入口：[页面](../src/modules/forwarding/PortForwardingPage.vue)、[SSH 转发](../crates/terminal-ssh/src/forwarding.rs)、[SOCKS5](../crates/terminal-ssh/src/socks.rs)、[命令与权限](../src-tauri/src/commands/forwarding.rs)、[存储](../crates/terminal-storage/src/forwarding.rs)。没有网络连接或桌面运行验收，需求勾选仅表示源码完成。
+
+### 工作区存档（2026-10-16）
+
+工作区保存源码已接入：主机页新增 workspace 类型，仅从 Workspace Tab 右键“保存工作区”创建；保存分割方向/比例、焦点和已保存 SSH/Telnet/串口的 ID 引用，打开建立全新会话，广播关闭。默认填写当前工作区名称，只能替换同名工作区，保留 ID/分组/收藏；无编辑或复制配置入口。四类名称 trim 后按大小写精确比较、全库唯一，前端提示与 Rust 事务/数据库唯一索引同时约束。schema 5 原位升级同加密格式 2/3/4，历史重名保留最早项、其他项自动加无冲突序号且保留 ID/引用。临时连接与 Local 暂不保存，失效引用阻止打开/保存；不自动恢复打开的标签或终端历史。仅前端类型、结构、格式、权限及内存 SQLite 迁移模型静态检查，新增 Rust 回归源码未编译执行；未构建、启动或连接设备，SQLCipher 升级和三平台交互待运行验收。 契约与验收见[工作区保存](18-terminal-workspaces.md#8-显式保存与替换工作区)。

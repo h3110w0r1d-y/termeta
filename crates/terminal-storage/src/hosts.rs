@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 impl SqliteStore {
     pub async fn list_hosts(&self, search: &str) -> Result<Vec<HostProfile>> {
-        let rows = sqlx::query("SELECT p.*,s.address,s.port,s.username FROM connection_profiles p LEFT JOIN ssh_profiles s ON s.profile_id=p.id WHERE p.kind IN ('ssh','serial','telnet') ORDER BY p.favorite DESC,p.name COLLATE NOCASE")
+        let rows = sqlx::query("SELECT p.*,s.address,s.port,s.username FROM connection_profiles p LEFT JOIN ssh_profiles s ON s.profile_id=p.id WHERE p.kind IN ('ssh','serial','telnet','workspace') ORDER BY p.favorite DESC,p.name COLLATE NOCASE")
             .fetch_all(self.pool()?).await?;
         let mut profiles = Vec::with_capacity(rows.len());
         let search = search.to_lowercase();
@@ -56,6 +56,11 @@ impl SqliteStore {
                 None
             };
             let host = HostProfile {
+                workspace: if kind == "workspace" {
+                    Some(serde_json::from_value(config["workspace"].clone())?)
+                } else {
+                    None
+                },
                 kind,
                 serial_config,
                 icon: config["icon"].as_str().unwrap_or("ssh").to_owned(),
@@ -183,6 +188,12 @@ impl SqliteStore {
         password_ref: Option<&str>,
         preserve_password: bool,
     ) -> Result<HostProfile> {
+        if draft.kind == "workspace" {
+            if password_ref.is_some() {
+                return Err(StorageError::Validation("工作区不支持凭据"));
+            }
+            return self.update_workspace_metadata(draft).await;
+        }
         validate_name(&draft.name)?;
         if !terminal_core::HOST_SYSTEM_ICONS.contains(&draft.icon.as_str()) {
             return Err(StorageError::Validation("主机图标无效"));
@@ -268,6 +279,7 @@ impl SqliteStore {
             .clone()
             .or_else(|| scoped_owner.clone())
             .unwrap_or_else(|| Uuid::new_v4().to_string());
+        ensure_unique_profile_name(&mut tx, draft.name.trim(), Some(&id)).await?;
         if scoped_owner.as_deref().is_some_and(|owner| owner != id) {
             return Err(StorageError::Validation("主机密码归属不符"));
         }
@@ -375,6 +387,7 @@ impl SqliteStore {
                 .await?;
         let metadata: serde_json::Value = serde_json::from_str(&config_json)?;
         let saved = HostProfile {
+            workspace: None,
             kind: draft.kind,
             serial_config: draft.serial_config,
             icon: draft.icon,

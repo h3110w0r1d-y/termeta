@@ -38,6 +38,19 @@ pub async fn save_host(
         .map_err(security_error)
 }
 #[tauri::command]
+pub async fn save_workspace(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    draft: terminal_storage::WorkspaceDraft,
+) -> Result<HostProfile> {
+    owner(&window)?;
+    state
+        .store
+        .save_workspace(draft)
+        .await
+        .map_err(storage_error)
+}
+#[tauri::command]
 pub async fn delete_host(
     window: WebviewWindow,
     state: State<'_, AppState>,

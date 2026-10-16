@@ -28,6 +28,8 @@ pub struct HostDraft {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostProfile {
+    #[serde(default)]
+    pub workspace: Option<SavedWorkspace>,
     #[serde(default = "default_host_kind")]
     pub kind: String,
     #[serde(default)]
@@ -132,4 +134,33 @@ fn default_host_icon() -> String {
 
 fn default_host_kind() -> String {
     "ssh".into()
+}
+
+/// 保存布局只含主机引用，不保存会话、终端缓冲、认证或广播状态。
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
+pub enum SavedLayout {
+    Connection {
+        #[serde(rename = "profileId")]
+        profile_id: String,
+    },
+    Split {
+        axis: String,
+        ratio: f64,
+        first: Box<SavedLayout>,
+        second: Box<SavedLayout>,
+    },
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SavedWorkspace {
+    pub root: SavedLayout,
+    pub focused_index: usize,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkspaceDraft {
+    pub name: String,
+    pub workspace: SavedWorkspace,
+    pub expected_revision: Option<i64>,
 }

@@ -139,7 +139,7 @@ UI tokens、基础与共享规则集中于 `src/App.vue` 的非 scoped 样式；
 
 ## 10. 终端工作区布局
 
-M2-13 提前引入内存分屏。WorkspaceStore.tabs 继续表示所有终端，groups 独立维护标签顺序、二叉布局树和 focusedTerminalId；activeId 是组ID，active 是聚焦终端。layout.ts 提供无副作用树/矩形操作，useTabDrag.ts 处理 Pointer Events 与命中，TerminalStage 扁平 keyed 渲染全部宿主。布局树不决定组件父子层级，因此合并/排序/缩放不重建 xterm 或后端会话。App 协调组关闭与单窗格关闭，菜单/命令路由到聚焦叶子；无新增 IPC、存储或协议层职责。契约与限制见 [终端工作区](18-terminal-workspaces.md)。
+M2-13 提前引入内存分屏。WorkspaceStore.tabs 继续表示所有终端，groups 独立维护标签顺序、二叉布局树和 focusedTerminalId；activeId 是组ID，active 是聚焦终端。layout.ts 提供无副作用树/矩形操作，useTabDrag.ts 处理 Pointer Events 与命中，TerminalStage 扁平 keyed 渲染全部宿主。布局树不决定组件父子层级，因此合并/排序/缩放不重建 xterm 或后端会话。App 协调组关闭与单窗格关闭，菜单/命令路由到聚焦叶子；内存操作不增加协议层职责；显式存档复用 connection_profiles，并新增 save_workspace IPC。契约与限制见 [终端工作区](18-terminal-workspaces.md)。
 
 窗格迁移：拖动来源为 `WorkspaceDragSource`（tab/tabId 或 pane/terminalId），同一个指针控制器处理标题拖动、标签插入与悬停切页。纯函数 `relocateTerminal` 先校验双方并计算收缩/分割结果，Store同步提交；窗格拖回标签栏新建组ID但保留terminalId、终端元数据与会话，避免原组ID碰撞。
 
@@ -155,7 +155,7 @@ M2-14只扩展前端输入路由。WorkspaceTab增加内存broadcast/broadcastRe
 
 拖放分层：`src-tauri/src/file_drag.rs`登记原生拖入短期owner-bound引用并广播无路径事件；`file_drag_macos.rs`封装AppKit文件承诺和拖动生命周期，不承担SSH协议。`commands/file_drag.rs`校验main/session/许可并为原生承诺注入受界下载回调；`commands/files.rs`保留授权选择与传输编排，`files/browser.rs`复用浏览器获取，`files/upload.rs`负责批次扫描、覆盖原生确认及直接上传，`files/download.rs`负责文件/目录安全下载。`terminal-sftp`仅提供元数据/目录合并/安全新建或确认后截断写入，`terminal-files`仍只承载协议无关DTO与64KiB复制。Vue批次队列仅轻量状态，正文继续留Rust。5个SFTP命令均纳入单份AppManifest名单和ACL，Windows/Linux拖出当前明确不支持，不引入第二套任意路径接口。
 
-加密启动边界（2026-10-16）：App通过VaultGate等待首次设置/密码恢复/钥匙串自动解锁；只有vault_status与unlock_vault可在锁定状态调用。窗口所有权和本地导航校验不变，其他用例命令额外检查保险库已解锁。core不依赖SQLCipher/Argon2或UI。新库schema 4，允许同加密格式schema 2/3原位升级，不兼容早期旧代际，详见[存储](07-storage.md)。
+加密启动边界（2026-10-16）：App通过VaultGate等待首次设置/密码恢复/钥匙串自动解锁；只有vault_status与unlock_vault可在锁定状态调用。窗口所有权和本地导航校验不变，其他用例命令额外检查保险库已解锁。core不依赖SQLCipher/Argon2或UI。新库schema 6，允许同加密格式schema 2/3/4/5原位升级，不兼容早期旧代际，详见[存储](07-storage.md)。
 
 主机分组页面由HostsPage、HostGroupTree与轻量groups工具协作：前者负责当前范围/主机菜单，后者负责Naive UI树、分组表单/删除选择，useHostGroupDrag负责Pointer Events迁移；store复用desktop门面保存元数据，界面不触碰秘密。左右独立NScrollbar，原生外层保持v-show保活。只有连同主机删除子树新增storage事务方法，命令仍为delete_host_group的可选deleteHosts分支，schema与通用会话架构不变。
 
@@ -190,3 +190,5 @@ Telnet适配器依赖既有terminal-core、async-trait与Tokio，不引入桌面
 ## SSH 端口转发
 
 core 的 ForwardRule/ForwardMode 与 SessionConfig::Forwarding 表达规则和后端加载的 SSH 配置，仍不依赖协议实现；terminal-ssh 的 for_forwarding 工厂复用身份核验与认证，在 Opening 后直接建立监听，不申请 PTY/Shell/SFTP 或系统识别。壳内 forward_sessions 独立于终端和文件会话，但共用挑战响应、窗口 owner 与取消；所有转发流只在 Rust 内通过 SSH channel 和 Tokio 有界缓冲中转。Vue/Pinia 只保存规则和状态，导航不创建终端或布局节点。详见[端口转发设计](21-port-forwarding.md)。
+
+工作区存档与运行树分离：SavedLayout只持有profileId与分割参数，Rust storage/workspaces负责限额、引用、同名替换与revision事务，commands/data只校验main所有权并调用仓库；WorkspaceStore按存档生成全新终端和运行布局，不持久化actor/xterm/broadcast。schema 5唯一索引覆盖四类保存项，既有save_host只开放工作区分组/收藏。契约见[显式保存工作区](18-terminal-workspaces.md#8-显式保存与替换工作区)。

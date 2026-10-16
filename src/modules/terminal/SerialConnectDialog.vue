@@ -33,6 +33,7 @@ import type {
 import { requiredText, validateForm } from "../../services/forms/rules";
 import { clone } from "../../services/data/clone";
 import { useHosts } from "../hosts/store";
+import { uniqueHostNameRule } from "../hosts/validation";
 import { groupChoices } from "../hosts/groups";
 import { useSettings } from "../settings/store";
 import { builtinSchemes } from "../settings/themes";
@@ -129,7 +130,15 @@ const parityOptions = [
   { label: "Even", value: "even" },
 ];
 const rules = computed<FormRules>(() => ({
-  name: props.save ? requiredText("名称") : [],
+  name: props.save
+    ? [
+        requiredText("名称"),
+        uniqueHostNameRule(
+          () => hosts.hosts,
+          () => (props.duplicate ? null : props.host?.id),
+        ),
+      ]
+    : [],
   path: {
     required: true,
     trigger: ["input", "change", "blur"],

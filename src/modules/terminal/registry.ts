@@ -541,6 +541,8 @@ export const terminalRegistry = {
       if (tab.target.source === "saved") {
         const profileId = tab.target.profileId;
         const profile = useHosts().hosts.find((host) => host.id === profileId);
+        if (profile?.kind === "workspace")
+          throw new Error("工作区不能作为单个终端连接");
         if (profile) {
           tab.kind = profile.kind;
           tab.serialConfig = profile.serialConfig

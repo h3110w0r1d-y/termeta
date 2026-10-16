@@ -7,6 +7,7 @@ import { useWorkspace, isActive } from "./store";
 
 export function useTerminalMenu(options: {
   perform: (action: () => void | Promise<void>) => void;
+  saveWorkspace: (id: string) => void;
   closeTab: (id: string) => void | Promise<void>;
   focusTerminal: (id: string) => Promise<void>;
   openFind: () => void;
@@ -14,7 +15,7 @@ export function useTerminalMenu(options: {
   const workspace = useWorkspace();
   const settings = useSettings();
   const { perform, closeTab, focusTerminal } = options;
-  const tabMenu = ref({ show: false, id: "", x: 0, y: 0 });
+  const tabMenu = ref({ show: false, id: "", groupId: "", x: 0, y: 0 });
   // 同时约束主菜单和配色子菜单，滚动与边缘翻转交给Naive UI处理。
   const terminalMenuProps = () => ({
     "data-ui-popup-open": tabMenu.value.show ? "" : undefined,
@@ -29,46 +30,58 @@ export function useTerminalMenu(options: {
     () =>
       workspace.groupForTerminal(tabMenu.value.id)?.root.kind === "terminal",
   );
-  const tabMenuOptions = computed(() => [
-    {
-      label: `终端：${menuTab.value?.title ?? ""}`,
-      key: "target",
-      disabled: true,
-    },
-    ...(menuIsSingleTerminal.value
-      ? [
+  const tabMenuOptions = computed(() =>
+    tabMenu.value.groupId
+      ? [{ label: "保存工作区…", key: "save-workspace" }]
+      : [
           {
-            label: "复制标签页",
-            key: "duplicate",
-            disabled: !workspace.canDuplicateSession(tabMenu.value.id),
+            label: `终端：${menuTab.value?.title ?? ""}`,
+            key: "target",
+            disabled: true,
           },
+          ...(menuIsSingleTerminal.value
+            ? [
+                {
+                  label: "复制标签页",
+                  key: "duplicate",
+                  disabled: !workspace.canDuplicateSession(tabMenu.value.id),
+                },
+                {
+                  label: "拆分会话",
+                  key: "split",
+                  disabled: !workspace.canDuplicateSession(
+                    tabMenu.value.id,
+                    true,
+                  ),
+                },
+              ]
+            : []),
+          { label: "搜索历史", key: "find" },
           {
-            label: "拆分会话",
-            key: "split",
-            disabled: !workspace.canDuplicateSession(tabMenu.value.id, true),
+            label: "终端配色",
+            key: "theme",
+            children: [
+              { label: "跟随主机 / 默认配色", key: "scheme:default" },
+              ...[...builtinThemeOptions, ...settings.value.customSchemes].map(
+                (scheme) => ({
+                  label: scheme.name,
+                  key: `scheme:${scheme.id}`,
+                }),
+              ),
+            ],
           },
-        ]
-      : []),
-    { label: "搜索历史", key: "find" },
-    {
-      label: "终端配色",
-      key: "theme",
-      children: [
-        { label: "跟随主机 / 默认配色", key: "scheme:default" },
-        ...[...builtinThemeOptions, ...settings.value.customSchemes].map(
-          (scheme) => ({ label: scheme.name, key: `scheme:${scheme.id}` }),
-        ),
-      ],
-    },
-    isActive(menuTab.value?.state ?? "closed")
-      ? { label: "断开", key: "disconnect" }
-      : { label: "重新连接", key: "reconnect" },
-  ]);
+          isActive(menuTab.value?.state ?? "closed")
+            ? { label: "断开", key: "disconnect" }
+            : { label: "重新连接", key: "reconnect" },
+        ],
+  );
   function openTabMenu(event: MouseEvent | KeyboardEvent, id: string) {
     event.preventDefault();
     const group = workspace.groups.find((item) => item.id === id);
-    if (group?.root.kind === "terminal")
-      openTerminalMenu(event, group.focusedTerminalId);
+    if (!group) return;
+    openTerminalMenu(event, group.focusedTerminalId);
+    if (group.root.kind === "split" || group.savedProfileId)
+      tabMenu.value.groupId = group.id;
   }
   function duplicateTerminal(id: string, split: boolean) {
     if (!workspace.canDuplicateSession(id, split)) return;
@@ -80,7 +93,7 @@ export function useTerminalMenu(options: {
     if (action === "close") perform(() => closeTab(id));
     else if (action === "duplicate" || action === "split") {
       const group = workspace.groups.find((item) => item.id === id);
-      if (group?.root.kind === "terminal")
+      if (group?.root.kind === "terminal" && !group.savedProfileId)
         duplicateTerminal(group.root.terminalId, action === "split");
     }
   }
@@ -90,12 +103,17 @@ export function useTerminalMenu(options: {
     tabMenu.value = {
       show: true,
       id,
+      groupId: "",
       x: event instanceof MouseEvent ? event.clientX : rect.left,
       y: event instanceof MouseEvent ? event.clientY : rect.bottom,
     };
   }
   async function selectTabAction(key: string) {
     tabMenu.value.show = false;
+    if (key === "save-workspace") {
+      options.saveWorkspace(tabMenu.value.groupId);
+      return;
+    }
     const tab = menuTab.value;
     if (!tab) return;
     if (key === "duplicate" || key === "split") {
