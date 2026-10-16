@@ -76,3 +76,9 @@ Finder 请求兑现目标后才显示下载任务、进度及传输中状态。�
 静态检查只能说明类型、格式和契约一致；用户已确认 macOS 取消后的交互恢复；本轮双栏独立连接与对拷仅做静态检查，未完成完整 Rust 编译、真实 SSH 或 Finder 运行验收。SP-10/11 覆盖目录分页与链接、上传合并/覆盖/取消、资源上限、断线隔离、三平台拖入、macOS 文件及目录拖出、无效落点与目标冲突；详见 [运行验收边界](01-product-requirements.md#11-运行验收边界)。
 
 参考：[russh-sftp 3.0.1](https://docs.rs/russh-sftp/3.0.1/russh_sftp/)、[Tauri Webview](https://v2.tauri.app/reference/javascript/api/namespacewebview/)、[NSFilePromiseProvider](https://developer.apple.com/documentation/appkit/nsfilepromiseprovider)。原生拖放必须独立验收，Web DnD 可用不代表系统文件管理器已通过。
+
+## 源码职责
+
+固定双栏和侧栏均位于src/modules/files，workspace只负责固定Tab承载；types.ts保存端点/选择契约。fileEntries.ts共享目录优先排序、链接判定和名称展示；useSftpTransferQueue.ts管理侧栏任务，不持有DOM或监听原生拖放。分页代次、原生手势与双栏Pointer Events仍由各自视图维护。
+
+壳内files/browser、upload、download复用浏览器获取及受界文件操作，commands保留owner校验、授权与调用编排；下载回调不再从其他command模块导入。terminal-sftp通过browser、remote_file和copy分离目录浏览、句柄读写与对拷，原有导出保持兼容。此次为结构调整，未新增IPC、权限、租约或持久化策略；取消/覆盖/拖放仍待运行复验。

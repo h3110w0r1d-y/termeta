@@ -149,3 +149,5 @@ fontFamily 保存规范家族名称；Rust 仅接受上述12项。读取旧自�
 手动右键菜单统一由 `src/components/ui/contextMenu.ts` 处理外部关闭：Naive UI 的 clickoutside 实际基于 mousedown/mouseup，保活菜单会收到打开菜单那次右键松开；忽略右键及 macOS Control+单击，保留其他外部点击关闭。分组行/树空白、主机卡片、普通终端标签与窗格菜单共用此规则，继续由 contextmenu 更新目标与坐标，选择和Escape沿用库行为。不改依赖、不加延迟或全局事件拦截。
 
 macOS原生Window菜单的Close Window保留显式菜单操作，但不带Cmd+W；该组合交给应用标签路由，模态弹窗打开时显式消费并保持当前界面。原生窗口按钮与菜单关闭仍走现有会话/传输确认。实现见 `src-tauri/src/macos_menu.rs` 和 `src/services/commands/registry.ts`，待桌面运行复验。
+
+首页导航及页面容器位于layout/HomeLayout.vue，主机页HostsPage保留原生DOM显隐与搜索聚焦；SettingsPage保留内嵌模式和现有保存语义。App保留根布局与终端宿主，关闭/菜单由workspace组合函数协调，切换固定页或标签位置不重建终端。首页左右标签布局、窄窗口尺寸、菜单焦点和关闭确认需运行复验。

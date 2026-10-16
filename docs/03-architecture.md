@@ -51,9 +51,10 @@ flowchart TB
 src-tauri ──> terminal-core
           ├─> terminal-ssh ──────> terminal-core
           ├─> terminal-storage ─> terminal-core
-          └─> terminal-security > terminal-core
+          └─> terminal-security > terminal-core + terminal-storage
 
-后续 terminal-local / terminal-serial ──> terminal-core
+terminal-local ──> terminal-core
+后续 terminal-serial ──> terminal-core
 src-tauri ──> terminal-files（FileProvider / 受界复制）
              └─> terminal-sftp ──> terminal-files + terminal-ssh
 本地文件适配隔离于 terminal-files 平台模块，不依赖 portable-pty
@@ -76,7 +77,7 @@ core 的模型与端口允许使用 serde、bytes、Tokio 通道、async-trait �
 | crates/terminal-core、terminal-ssh         | 通用会话及 SSH 协议                  |
 | crates/terminal-storage、terminal-security | SQLCipher 与主密钥缓存                    |
 | crates/terminal-files、terminal-sftp       | 文件 DTO/有界复制与 SFTP provider    |
-| src-tauri/src/commands、ipc、state.rs      | owner 校验、原生交互、流桥与依赖装配 |
+| src-tauri/src/commands、files、state.rs      | owner 校验、原生交互、流桥与依赖装配 |
 
 根 Cargo workspace 使用 resolver 3、edition 2024，统一 release profile 和 Cargo.lock。Serial、独立 TransferManager 及通用连接租约尚未创建或完成；双栏文件连接已由独立 SessionManager 和 files-only SSH 工厂管理，开发对应功能时再引入实际模块。
 
@@ -143,10 +144,20 @@ M2-14只扩展前端输入路由。WorkspaceTab增加内存broadcast/broadcastRe
 
 壳持有按sessionId缓存的浏览器、原生文件选择与4任务并发限额，每命令校验owner/session状态；浏览器内每次只允许1个操作，不在全局锁内等待协议/磁盘/对话框。当前独立认证/连接租约与完整TransferManager仍未实现，Shell结束会关闭同一SSH传输，不支持关闭Tab后后台传输。30秒维护周期清理结束会话的浏览器注册并取消残留任务。前端TerminalPane内稳定宿主与SftpPanel并列，首次开启才挂载、随后显隐，既有ResizeObserver负责终端尺寸变化；WorkspaceStore中sftpOpen是仅内存的布局合并约束，不持久化。
 
-拖放分层：`src-tauri/src/file_drag.rs`登记原生拖入短期owner-bound引用并广播无路径事件；`file_drag_macos.rs`封装AppKit文件承诺和拖动生命周期，不承担SSH协议。`commands/file_drag.rs`校验main/session/许可并为原生承诺注入受界下载回调；`commands/files.rs`复用批次扫描、覆盖原生确认及直接上传。`terminal-sftp`仅提供元数据/目录合并/安全新建或确认后截断写入，`terminal-files`仍只承载协议无关DTO与64KiB复制。Vue批次队列仅轻量状态，正文继续留Rust。5个SFTP命令均纳入单份AppManifest名单和ACL，Windows/Linux拖出当前明确不支持，不引入第二套任意路径接口。
+拖放分层：`src-tauri/src/file_drag.rs`登记原生拖入短期owner-bound引用并广播无路径事件；`file_drag_macos.rs`封装AppKit文件承诺和拖动生命周期，不承担SSH协议。`commands/file_drag.rs`校验main/session/许可并为原生承诺注入受界下载回调；`commands/files.rs`保留授权选择与传输编排，`files/browser.rs`复用浏览器获取，`files/upload.rs`负责批次扫描、覆盖原生确认及直接上传，`files/download.rs`负责文件/目录安全下载。`terminal-sftp`仅提供元数据/目录合并/安全新建或确认后截断写入，`terminal-files`仍只承载协议无关DTO与64KiB复制。Vue批次队列仅轻量状态，正文继续留Rust。5个SFTP命令均纳入单份AppManifest名单和ACL，Windows/Linux拖出当前明确不支持，不引入第二套任意路径接口。
 
 加密启动边界（2026-10-16）：App通过VaultGate等待首次设置/密码恢复/钥匙串自动解锁；只有vault_status与unlock_vault可在锁定状态调用。窗口所有权和本地导航校验不变，其他用例命令额外检查保险库已解锁。core不依赖SQLCipher/Argon2或UI。新库schema 2，不兼容旧代际，详见[存储](07-storage.md)。
 
-主机分组页面由HostsSidebar、HostGroupTree与轻量groups工具协作：前者负责当前范围/主机菜单，后者负责Naive UI树、分组表单/删除选择及Pointer Events迁移；store复用desktop门面保存元数据，界面不触碰秘密。左右独立NScrollbar，原生外层保持v-show保活。只有连同主机删除子树新增storage事务方法，命令仍为delete_host_group的可选deleteHosts分支，schema与通用会话架构不变。
+主机分组页面由HostsPage、HostGroupTree与轻量groups工具协作：前者负责当前范围/主机菜单，后者负责Naive UI树、分组表单/删除选择，useHostGroupDrag负责Pointer Events迁移；store复用desktop门面保存元数据，界面不触碰秘密。左右独立NScrollbar，原生外层保持v-show保活。只有连同主机删除子树新增storage事务方法，命令仍为delete_host_group的可选deleteHosts分支，schema与通用会话架构不变。
 
-HostSearch独立维护内存搜索索引与NAutoComplete下拉，不改变HostsSidebar的分组范围；静态拼音表位于src/assets/conf，算法仅处理元数据。主机页持久化偏好由settings store统一串行保存至app.hostsView，前后端类型/校验同步，无新存储层或协议服务。
+HostSearch独立维护内存搜索索引与NAutoComplete下拉，不改变HostsPage的分组范围；静态拼音表位于src/assets/conf，算法仅处理元数据。主机页持久化偏好由settings store统一串行保存至app.hostsView，前后端类型/校验同步，无新存储层或协议服务。
+
+## 13. 物理结构与静态约束
+
+`src/layout/HomeLayout.vue`承载首页导航与三页容器，保留原生DOM上的v-show；布局样式随组件迁移，顶部/左侧响应式规则通过明确祖先选择器适配。`useAppAppearance`管理系统主题监听。App保留根装配、窗口退出及终端宿主；终端关闭和菜单分别由workspace的useTerminalClose/useTerminalMenu协调，不改变terminalId、xterm实例或会话代次。
+
+files模块持有固定双栏SftpWorkspace、SftpEndpointPane、侧栏SftpPanel和types。fileEntries统一目录/链接判定、名称和排序；useSftpTransferQueue维护侧栏队列、进度和取消，通过窄接口回调刷新及拖动收尾。两种视图各自保留异步分页生命周期，原生拖放与Web栏间对拷继续独立。terminal-sftp的lib只导出browser/remote_file/copy及协议错误转换，公开API不变。
+
+命令Binding/Modifier定义在services/commands/types，settings/model重导出以兼容使用方。security目前直接依赖storage协调加密库解锁、凭据与主机引用事务，这是现行适配器依赖；core保持独立，不在本轮引入额外仓库端口。
+
+`pnpm check:types`与`pnpm check:structure`为独立静态入口，不触发构建。结构脚本检查原生API门面、命令服务依赖方向和core依赖边界，业务前端文件超过500行仅提示人工复查，静态数据排除。该脚本是基础约束检查，不能代替完整依赖图、编译或运行验收。

@@ -33,14 +33,18 @@ M1/M2 SSH 主体源码已落地，处于体验修复与集成验收阶段，不�
 
 ## 4. 架构约定
 
+当前源码已按职责提取首页布局、终端关闭/菜单、主机分组拖动及侧栏传输队列，目录展示规则由两种 SFTP 视图共享；仅静态验证，交互与三平台仍待验收。
+
 当前已建立 `src/modules/`、`src/services/desktop/`、`src-tauri/src/commands/` 及 core/ssh/local/storage/security/files/sftp 七个 crate。完整目标结构见 [架构文档](docs/03-architecture.md)，后续领域仍是计划。
 
+- `src/layout/`：首页布局与应用外观监听；App 保留根装配和稳定终端宿主。主机/设置页面为 `HostsPage.vue` / `SettingsPage.vue`；固定双栏 `SftpWorkspace.vue` 属于 files 模块。
+- `src-tauri/src/files/`：壳内 SFTP 浏览器获取、上传与下载服务，commands 仅承担入口校验、授权和编排；`terminal-sftp` 分为 browser/remote_file/copy，公开类型路径不变。
 - `src/modules/*`：hosts、credentials、terminal、workspace、settings、files；完整 transfers 服务仍为后续；Vue/Pinia 只保存轻量状态，不保存终端输出或文件正文字节。CommandRegistry 统一动作与快捷键；终端配色优先级见 terminal/registry.ts，转换见 settings/themes.ts，选区合成薄适配见 terminal/theme.ts。KeymapService/TerminalThemeService 为设计职责名，不能假定存在同名类。
 - `src/services/desktop/`：唯一 Tauri IPC 门面；组件不直接调用 `invoke`。
 - `src-tauri/src/`：命令 DTO、窗口所有权校验、Channel 桥接、依赖组装；不承载协议核心逻辑。
 - `crates/terminal-core/`：不依赖 Tauri/Vue/russh 的会话模型、能力、actor 控制、生命周期和扩展协议。
 - `crates/terminal-ssh/`：russh、主机密钥校验、认证、PTY/Shell、KeepAlive；依赖 core，通过接口使用凭据与信任仓库。
-- `crates/terminal-storage/`、`crates/terminal-security/`：SQLCipher全库加密与主密钥派生/系统钥匙串缓存适配器。核心定义端口，壳负责注入。
+- `crates/terminal-storage/`、`crates/terminal-security/`：SQLCipher全库加密与主密钥派生/系统钥匙串缓存适配器。security 当前直接依赖 storage 协调凭据事务，core 不依赖二者，壳负责注入。
 - Local 已由 terminal-local/portable-pty 工厂实现；Serial 的工厂与配置扩展点保留。SFTP/隧道通过 SSH 连接服务扩展，不塞进通用终端接口。`terminal-files` 已定义首批文件元数据/provider/受界传输端口，`terminal-sftp` 经 owner-bound `SshChannels` 复用已认证连接；侧栏随终端生命周期，固定双栏另由文件专用 SessionManager 管理两条独立连接。通用连接租约、完整冲突/任务管理和本地浏览仍是 M3 后续；本地浏览不依赖 Local PTY，独立 SFTP 不启动 Shell。
 
 会话采用**每会话 actor + 有界字节队列 + 独立取消信号**；重连创建新的后端 session ID，但保留同一 Tab、terminalId 与 xterm 实例，在原缓冲中追加输出。断线、连接失败和后端终态均不得自动关闭 Tab、清空或销毁终端；历史继续可滚动、选择、复制和搜索。TerminalRegistry 按 terminalId 持有实例，不能以 sessionId 变化触发重建。输出走二进制 Channel，控制事件走类型化 Channel，使用消费 ACK 实现端到端背压。所有凭据、信任与网络操作由 Rust 管理。

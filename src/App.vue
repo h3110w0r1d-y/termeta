@@ -4,18 +4,17 @@ import {
   NConfigProvider,
   NGlobalStyle,
   NAlert,
-  NMenu,
   NDropdown,
-  darkTheme,
   zhCN,
   dateZhCN,
 } from "naive-ui";
+import { useAppAppearance } from "./layout/useAppAppearance";
+import HomeLayout from "./layout/HomeLayout.vue";
 import VaultGate from "./components/VaultGate.vue";
 import WindowControls from "./components/WindowControls.vue";
 import { isMac } from "./services/commands/registry";
 import AppButton from "./components/ui/AppButton.vue";
 import AppInput from "./components/ui/AppInput.vue";
-import AppScrollArea from "./components/ui/AppScrollArea.vue";
 import { confirmAction } from "./components/ui/confirmation";
 import {
   computed,
@@ -26,21 +25,18 @@ import {
   watch,
 } from "vue";
 import ConfirmationDialog from "./components/ui/ConfirmationDialog.vue";
-import CredentialsPage from "./modules/credentials/CredentialsPage.vue";
 import WorkspaceTabs from "./modules/workspace/WorkspaceTabs.vue";
-import SftpWorkspace from "./modules/workspace/SftpWorkspace.vue";
-import HostsSidebar from "./modules/hosts/HostsSidebar.vue";
+import SftpWorkspace from "./modules/files/SftpWorkspace.vue";
 import NewTabDialog from "./modules/hosts/NewTabDialog.vue";
 import HostEditor from "./modules/hosts/HostEditor.vue";
-import SettingsDialog from "./modules/settings/SettingsDialog.vue";
 import TerminalStage from "./modules/workspace/TerminalStage.vue";
-import { terminalIds } from "./modules/workspace/layout";
-import { builtinSchemes as builtinThemeOptions } from "./modules/settings/themes";
+import { useTerminalMenu } from "./modules/workspace/useTerminalMenu";
+import { useTerminalClose } from "./modules/workspace/useTerminalClose";
 import PasteDialog from "./modules/terminal/PasteDialog.vue";
 import ChallengeDialog from "./modules/terminal/ChallengeDialog.vue";
 import { useHosts } from "./modules/hosts/store";
 import { useSettings } from "./modules/settings/store";
-import { useWorkspace, stateLabels, isActive } from "./modules/workspace/store";
+import { useWorkspace, stateLabels } from "./modules/workspace/store";
 import { schemeForTab, terminalRegistry } from "./modules/terminal/registry";
 import { needsCloseConfirmation } from "./modules/terminal/activity";
 import { commands } from "./services/commands/registry";
@@ -71,17 +67,7 @@ const terminalBackground = computed(() =>
     ? schemeForTab(workspace.active).colors.background
     : undefined,
 );
-const systemAppearance = window.matchMedia("(prefers-color-scheme: dark)");
-const systemDark = ref(systemAppearance.matches);
-const naiveTheme = computed(() =>
-  settings.value.appearance === "dark" ||
-  (settings.value.appearance === "system" && systemDark.value)
-    ? darkTheme
-    : null,
-);
-function updateSystemAppearance(event: MediaQueryListEvent) {
-  systemDark.value = event.matches;
-}
+const { naiveTheme } = useAppAppearance();
 let heartbeat: ReturnType<typeof setInterval> | undefined,
   unlisten: (() => void) | undefined,
   closingWindow = false;
@@ -111,76 +97,7 @@ function connect(host: HostProfile) {
 function ephemeral(config: SshConfig, title: string) {
   workspace.add(title, { source: "ephemeral", kind: "ssh", config });
 }
-async function closeTerminals(ids: string[], title: string) {
-  if (ids.some((id) => workspace.closingTerminalIds.includes(id))) return;
-  const terminals = workspace.tabs.filter((tab) =>
-    ids.includes(tab.terminalId),
-  );
-  if (!terminals.length) return;
-  workspace.closingTerminalIds.push(...ids);
-  const restoreTabFocus = !!document.activeElement?.closest(
-    "[data-workspace-tab], .workspace-tab-close",
-  );
-  try {
-    if (
-      terminals.some((tab) => tab.sftpTransferring) &&
-      !(await confirmAction(
-        "此终端有 SFTP 传输正在进行，关闭将取消传输，确定继续？",
-      ))
-    )
-      return;
-    const running = terminals.filter(needsCloseConfirmation);
-    if (
-      running.length > 0 &&
-      settings.value.confirmClose &&
-      !(await confirmAction(
-        `“${title}”${terminals.length > 1 ? `中有 ${running.length} 个终端` : ""}可能正在执行命令，关闭将断开连接并释放终端历史，确定继续？`,
-      ))
-    )
-      return;
-    // 每个终端成功释放后才从布局删除，失败的窗格与历史保留以便重试。
-    await Promise.all(
-      terminals.map(async (tab) => {
-        try {
-          await terminalRegistry.dispose(tab.terminalId);
-          workspace.dismiss(tab.sessionId ?? "");
-          workspace.remove(tab.terminalId);
-        } catch (error) {
-          tab.error = errorMessage(error);
-        }
-      }),
-    );
-    await nextTick();
-    if (restoreTabFocus)
-      document
-        .querySelector<HTMLElement>(
-          '[data-workspace-tab][aria-selected="true"]',
-        )
-        ?.focus({ preventScroll: true });
-    else if (workspace.active)
-      terminalRegistry.focus(workspace.active.terminalId);
-  } finally {
-    workspace.closingTerminalIds = workspace.closingTerminalIds.filter(
-      (id) => !ids.includes(id),
-    );
-  }
-}
-function closeTab(id: string) {
-  const group = workspace.groups.find((item) => item.id === id);
-  if (group)
-    return closeTerminals(
-      terminalIds(group.root),
-      group.root.kind === "split"
-        ? "Workspace"
-        : (workspace.tabs.find(
-            (tab) => tab.terminalId === group.focusedTerminalId,
-          )?.title ?? "终端"),
-    );
-}
-function closePane(id: string) {
-  const terminal = workspace.tabs.find((tab) => tab.terminalId === id);
-  if (terminal) return closeTerminals([id], terminal.title);
-}
+const { closeTab, closePane } = useTerminalClose();
 function perform(action: () => void | Promise<void>) {
   try {
     Promise.resolve(action()).catch((e) => {
@@ -191,108 +108,22 @@ function perform(action: () => void | Promise<void>) {
     initError.value = errorMessage(e);
   }
 }
-const tabMenu = ref({ show: false, id: "", x: 0, y: 0 });
-// 同时约束主菜单和配色子菜单，滚动与边缘翻转交给Naive UI处理。
-const terminalMenuProps = () => ({
-  "data-ui-popup-open": tabMenu.value.show ? "" : undefined,
-  class: "terminal-context-menu",
-  style:
-    "max-height: min(420px, calc(100dvh - 24px)); max-width: min(320px, calc(100dvw - 24px))",
-});
-const menuTab = computed(() =>
-  workspace.tabs.find((tab) => tab.terminalId === tabMenu.value.id),
-);
-const menuIsSingleTerminal = computed(
-  () => workspace.groupForTerminal(tabMenu.value.id)?.root.kind === "terminal",
-);
-const tabMenuOptions = computed(() => [
-  {
-    label: `终端：${menuTab.value?.title ?? ""}`,
-    key: "target",
-    disabled: true,
-  },
-  ...(menuIsSingleTerminal.value
-    ? [
-        {
-          label: "复制标签页",
-          key: "duplicate",
-          disabled: !workspace.canDuplicateSession(tabMenu.value.id),
-        },
-        {
-          label: "拆分会话",
-          key: "split",
-          disabled: !workspace.canDuplicateSession(tabMenu.value.id, true),
-        },
-      ]
-    : []),
-  { label: "搜索历史", key: "find" },
-  {
-    label: "终端配色",
-    key: "theme",
-    children: [
-      { label: "跟随主机 / 默认配色", key: "scheme:default" },
-      ...[...builtinThemeOptions, ...settings.value.customSchemes].map(
-        (scheme) => ({ label: scheme.name, key: `scheme:${scheme.id}` }),
-      ),
-    ],
-  },
-  isActive(menuTab.value?.state ?? "closed")
-    ? { label: "断开", key: "disconnect" }
-    : { label: "重新连接", key: "reconnect" },
-]);
-function openTabMenu(event: MouseEvent | KeyboardEvent, id: string) {
-  event.preventDefault();
-  const group = workspace.groups.find((item) => item.id === id);
-  if (group?.root.kind === "terminal")
-    openTerminalMenu(event, group.focusedTerminalId);
-}
-function duplicateTerminal(id: string, split: boolean) {
-  if (!workspace.canDuplicateSession(id, split)) return;
-  workspace.duplicateSession(id, split);
-  perform(() => focusTerminal(workspace.activeId));
-}
-function doubleClickTab(id: string) {
-  const action = settings.value.tabDoubleClickAction;
-  if (action === "close") perform(() => closeTab(id));
-  else if (action === "duplicate" || action === "split") {
-    const group = workspace.groups.find((item) => item.id === id);
-    if (group?.root.kind === "terminal")
-      duplicateTerminal(group.root.terminalId, action === "split");
-  }
-}
-function openTerminalMenu(event: MouseEvent | KeyboardEvent, id: string) {
-  event.preventDefault();
-  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-  tabMenu.value = {
-    show: true,
-    id,
-    x: event instanceof MouseEvent ? event.clientX : rect.left,
-    y: event instanceof MouseEvent ? event.clientY : rect.bottom,
-  };
-}
-async function selectTabAction(key: string) {
-  tabMenu.value.show = false;
-  const tab = menuTab.value;
-  if (!tab) return;
-  if (key === "duplicate" || key === "split") {
-    duplicateTerminal(tab.terminalId, key === "split");
-  } else if (key === "disconnect") {
-    if (
-      tab.sftpTransferring &&
-      !(await confirmAction("断开 SSH 将取消当前 SFTP 传输，确定继续？"))
-    )
-      return;
-    perform(() => terminalRegistry.disconnect(tab.terminalId));
-  } else if (key === "reconnect") perform(() => terminalRegistry.connect(tab));
-  else if (key === "find") {
-    workspace.focusTerminal(tab.terminalId);
-    await nextTick();
+const {
+  tabMenu,
+  terminalMenuProps,
+  tabMenuOptions,
+  openTabMenu,
+  openTerminalMenu,
+  doubleClickTab,
+  selectTabAction,
+} = useTerminalMenu({
+  perform,
+  closeTab,
+  focusTerminal,
+  openFind: () => {
     findOpen.value = true;
-  } else if (key.startsWith("scheme:")) {
-    tab.schemeId = key === "scheme:default" ? undefined : key.slice(7);
-    terminalRegistry.apply();
-  }
-}
+  },
+});
 async function focusTerminal(id: string) {
   const group = workspace.groups.find((item) => item.id === id);
   if (!group) return;
@@ -319,13 +150,6 @@ watch(
   { deep: true },
 );
 watch(
-  () => settings.value.appearance,
-  (value) => {
-    document.documentElement.dataset.appearance = value;
-  },
-  { immediate: true },
-);
-watch(
   () => [workspace.activeId, workspace.active?.terminalId],
   () => {
     tabMenu.value.show = false;
@@ -339,7 +163,6 @@ watch(
   () => terminalRegistry.apply(),
 );
 onMounted(async () => {
-  systemAppearance.addEventListener("change", updateSystemAppearance);
   commands.register("workspace.newConnection", openNewTab);
   commands.register("workspace.newTab", openNewTab);
   commands.register("workspace.newLocalTerminal", openLocalTerminal);
@@ -404,7 +227,6 @@ onMounted(async () => {
   }
 });
 onBeforeUnmount(() => {
-  systemAppearance.removeEventListener("change", updateSystemAppearance);
   document.removeEventListener("keydown", globalKey, true);
   if (heartbeat) clearInterval(heartbeat);
   unlisten?.();
@@ -466,55 +288,11 @@ onBeforeUnmount(() => {
             @close="initError = ''"
             >{{ initError }}</NAlert
           >
-          <section
-            id="page-home"
-            aria-labelledby="workspace-tab-home"
-            v-show="workspace.activeId === 'home'"
-            class="home-workspace"
-            role="tabpanel"
-            aria-label="首页"
-          >
-            <aside class="home-navigation">
-              <NMenu
-                :value="workspace.homeSection"
-                :options="[
-                  { key: 'hosts', label: '主机' },
-                  { key: 'credentials', label: '凭据' },
-                  { key: 'settings', label: '设置' },
-                ]"
-                @update:value="workspace.openHome($event)"
-              />
-            </aside>
-            <div class="home-content">
-              <!-- 显隐挂在原生容器上，避免滚动组件内部的观察器根节点丢失指令。 -->
-              <div
-                v-show="workspace.homeSection === 'hosts'"
-                class="home-page-scroll"
-              >
-                <HostsSidebar
-                  :active="
-                    workspace.activeId === 'home' &&
-                    workspace.homeSection === 'hosts'
-                  "
-                  @connect="connect"
-                  @local="openLocalTerminal"
-                  @edit="edit"
-                />
-              </div>
-              <AppScrollArea
-                v-if="workspace.homeSection === 'credentials'"
-                class="home-page-scroll"
-                label="凭据内容"
-              >
-                <CredentialsPage />
-              </AppScrollArea>
-              <SettingsDialog
-                v-if="workspace.homeSection === 'settings'"
-                :embedded="true"
-                :open="true"
-              />
-            </div>
-          </section>
+          <HomeLayout
+            @connect="connect"
+            @local="openLocalTerminal"
+            @edit="edit"
+          />
           <SftpWorkspace v-show="workspace.activeId === 'sftp'" />
           <!-- 终端宿主始终留在同一组件树内；页面与布局切换仅改变可见性。 -->
           <section
@@ -811,32 +589,6 @@ p {
   min-height: 0;
   overflow: hidden;
 }
-.home-workspace {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-}
-.home-navigation {
-  width: 190px;
-  flex-shrink: 0;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid var(--border);
-  background: var(--surface);
-}
-.home-content {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
-.home-page-scroll {
-  flex: 1;
-  min-height: 0;
-}
 .terminal-workspace {
   flex: 1;
   min-height: 0;
@@ -871,21 +623,6 @@ p {
 }
 .find-bar .ui-input {
   max-width: 300px;
-}
-.tabs-left .home-navigation {
-  width: 160px;
-  padding-left: 8px;
-  padding-right: 8px;
-}
-@media (max-width: 900px) {
-  .home-navigation {
-    width: 150px;
-    padding-left: 8px;
-    padding-right: 8px;
-  }
-  .tabs-left .home-navigation {
-    width: 130px;
-  }
 }
 .status-bar > .status-sftp-toggle {
   margin-left: auto;

@@ -21,7 +21,8 @@ import {
 import { desktop, errorMessage } from "../../services/desktop/client";
 import type { FileEntry } from "../../services/desktop/types";
 import { useHosts } from "../hosts/store";
-import type { SftpEndpoint, SftpSelection } from "./workspace";
+import type { SftpEndpoint, SftpSelection } from "./types";
+import { directoryRows, entryLabel, isDirectory } from "./fileEntries";
 import FileEntryIcon from "./FileEntryIcon.vue";
 import { formatFileSize } from "./format";
 import { useSettings } from "../settings/store";
@@ -93,36 +94,9 @@ const disabled = computed(() => !ready.value || loading.value || props.busy);
 const chosen = computed(() =>
   entries.value.filter((entry) => checked.value.includes(entry.name)),
 );
-const parent: FileEntry = {
-  name: "..",
-  kind: "directory",
-  size: null,
-  modified: null,
-  permissions: null,
-  linkTarget: null,
-  targetKind: null,
-};
-const isDirectory = (entry: FileEntry) =>
-  entry.kind === "directory" ||
-  (entry.kind === "symlink" && entry.targetKind === "directory");
-const rows = computed(() => [
-  parent,
-  ...entries.value
-    .filter((entry) => hidden.value || !entry.name.startsWith("."))
-    .sort((a, b) => {
-      const group = Number(isDirectory(b)) - Number(isDirectory(a));
-      return (
-        group ||
-        (order.value
-          ? (order.value === "descend" ? -1 : 1) * a.name.localeCompare(b.name)
-          : 0)
-      );
-    }),
-]);
-const label = (entry: FileEntry) =>
-  entry.kind === "symlink" && entry.linkTarget !== null
-    ? `${entry.name} -> ${entry.linkTarget}`
-    : entry.name;
+const rows = computed(() =>
+  directoryRows(entries.value, hidden.value, order.value),
+);
 const columns = computed<DataTableColumns<FileEntry>>(() => [
   {
     type: "selection",
@@ -136,9 +110,9 @@ const columns = computed<DataTableColumns<FileEntry>>(() => [
     sorter: true,
     sortOrder: order.value,
     render: (row) =>
-      h("span", { class: "file-name", title: label(row) }, [
+      h("span", { class: "file-name", title: entryLabel(row) }, [
         h(FileEntryIcon, { kind: row.kind, targetKind: row.targetKind }),
-        h("span", label(row)),
+        h("span", entryLabel(row)),
       ]),
   },
   {

@@ -1,4 +1,4 @@
-use super::files::{browser, connected};
+use crate::files::{browser, connected};
 use crate::state::{AppState, owner, storage_error};
 use std::sync::Arc;
 use tauri::{State, WebviewWindow, ipc::Channel};

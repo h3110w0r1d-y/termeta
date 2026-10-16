@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "check:types": "vue-tsc --noEmit",
+    "check:structure": "node scripts/check-structure.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "2.11.0",

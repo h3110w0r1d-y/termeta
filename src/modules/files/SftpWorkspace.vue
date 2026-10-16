@@ -15,10 +15,10 @@ import type {
   SessionSnapshot,
   TransferProgress,
 } from "../../services/desktop/types";
-import { useWorkspace } from "./store";
-import SftpEndpointPane from "../files/SftpEndpointPane.vue";
-import type { SftpEndpoint, SftpSelection } from "../files/workspace";
-import { formatFileSize } from "../files/format";
+import { useWorkspace } from "../workspace/store";
+import SftpEndpointPane from "./SftpEndpointPane.vue";
+import type { SftpEndpoint, SftpSelection } from "./types";
+import { formatFileSize } from "./format";
 
 const workspace = useWorkspace();
 const endpoints = reactive<SftpEndpoint[]>(

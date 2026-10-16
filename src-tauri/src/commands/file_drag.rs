@@ -1,4 +1,4 @@
-use super::files::{browser, connected, download_directory_to_path, download_to_path};
+use crate::files::{browser, connected, download_directory_to_path, download_to_path};
 use crate::{
     file_drag::PromisedFile,
     state::{AppState, owner},

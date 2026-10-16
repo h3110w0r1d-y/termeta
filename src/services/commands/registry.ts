@@ -1,4 +1,4 @@
-import type { Binding, Modifier } from "../../modules/settings/model";
+import type { Binding, Modifier } from "./types";
 export const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
 export const commandDefinitions = [
   ["workspace.newTab", "新建标签页", "application", "Primary+T"],

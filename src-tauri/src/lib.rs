@@ -1,5 +1,6 @@
 mod commands;
 mod file_drag;
+mod files;
 #[cfg(target_os = "macos")]
 mod macos_menu;
 mod settings;

@@ -20,13 +20,14 @@ import {
 import { desktop, errorMessage } from "../../services/desktop/client";
 import type {
   FileEntry,
-  TransferProgress,
   SftpLocalDrop,
   SftpDropPosition,
 } from "../../services/desktop/types";
 import { useWorkspace } from "../workspace/store";
 import type { TerminalTab } from "../workspace/store";
 import { confirmAction } from "../../components/ui/confirmation";
+import { directoryRows, entryLabel, isDirectory } from "./fileEntries";
+import { useSftpTransferQueue } from "./useSftpTransferQueue";
 import FileEntryIcon from "./FileEntryIcon.vue";
 import { formatFileSize } from "./format";
 import { useSettings } from "../settings/store";
@@ -96,27 +97,7 @@ const selected = computed(() =>
   selectedEntries.value.length === 1 ? selectedEntries.value[0] : undefined,
 );
 const nameSort = ref<DataTableSortState["order"]>("ascend");
-const parentEntry: FileEntry = {
-  name: "..",
-  kind: "directory",
-  linkTarget: null,
-  targetKind: null,
-  size: null,
-  modified: null,
-  permissions: null,
-};
 const atRoot = computed(() => directory.value === "/");
-function isDirectory(entry: FileEntry) {
-  return (
-    entry.kind === "directory" ||
-    (entry.kind === "symlink" && entry.targetKind === "directory")
-  );
-}
-function entryLabel(entry: FileEntry) {
-  return entry.kind === "symlink" && entry.linkTarget !== null
-    ? `${entry.name} -> ${entry.linkTarget}`
-    : entry.name;
-}
 const settings = useSettings();
 const hidden = computed(() => settings.value.sftpShowHidden);
 async function updateHidden(show: boolean) {
@@ -127,37 +108,34 @@ async function updateHidden(show: boolean) {
   }
 }
 const loading = ref(false);
-const transferring = ref(false);
 const hasMore = ref(false);
 const error = ref("");
 const notice = ref("");
-type TransferTask = {
-  id: string;
-  sessionId: string;
-  path: string;
-  upload: boolean;
-  name: string | null;
-  dropId?: string;
-  dragNames?: string[];
-  dragDirectories?: string[];
-  started?: boolean;
-  status: "queued" | "running" | "done" | "cancelled" | "failed";
-  progress?: TransferProgress;
-  message?: string;
-  cancelRequested?: boolean;
-};
-const tasks = ref<TransferTask[]>([]);
-// 拖动手势不是传输；外部目标请求内容后才显示任务和下载进度。
-const visibleTasks = computed(() =>
-  tasks.value.filter((task) => !task.dragNames || task.started),
-);
-const visibleTransfer = computed(
-  () =>
-    transferring.value &&
-    visibleTasks.value.some((task) => task.status === "running"),
-);
+const {
+  tasks,
+  visibleTasks,
+  visibleTransfer,
+  transferring,
+  progress,
+  enqueue,
+  cancelQueued,
+  cancel,
+  cancelActive,
+} = useSftpTransferQueue({
+  tab: () => props.tab,
+  busy: () => busy.value,
+  disposed: () => disposed,
+  connected: () => connected.value,
+  sameSession,
+  refresh: (path) => load(path),
+  releaseDrag: () => {
+    releaseFilePointer();
+    suppressClick = false;
+  },
+  error,
+});
+
 const dropTarget = ref<string>();
-const progress = ref<TransferProgress>();
 const consumedDrops = new Set<string>();
 const eventUnlisteners: (() => void)[] = [];
 let pendingDrop = false;
@@ -180,21 +158,9 @@ const stale = computed(
   () => !connected.value || listSession.value !== props.tab.sessionId,
 );
 const busy = computed(() => loading.value || transferring.value);
-const rows = computed(() => {
-  const files = entries.value.filter(
-    (entry) => hidden.value || !entry.name.startsWith("."),
-  );
-  files.sort((a, b) => {
-    // 目录优先级不随名称排序方向变化，取消排序时仍保持目录在前。
-    const directoryOrder = Number(isDirectory(b)) - Number(isDirectory(a));
-    if (directoryOrder) return directoryOrder;
-    return nameSort.value
-      ? (nameSort.value === "descend" ? -1 : 1) * a.name.localeCompare(b.name)
-      : 0;
-  });
-  // 上级目录为导航专用行，始终置顶，不计入100项远端分页和文件选择。
-  return [parentEntry, ...files];
-});
+const rows = computed(() =>
+  directoryRows(entries.value, hidden.value, nameSort.value),
+);
 function updateSort(sort: DataTableSortState | DataTableSortState[] | null) {
   nameSort.value = (Array.isArray(sort) ? sort[0] : sort)?.order ?? false;
 }
@@ -234,7 +200,6 @@ const columns = computed<DataTableColumns<FileEntry>>(() => [
 ]);
 let generation = 0;
 let disposed = false;
-let currentTransfer: { sessionId: string; id: string } | undefined;
 async function load(path = directory.value, more = false) {
   const sessionId = props.tab.sessionId;
   if (!connected.value || !sessionId || busy.value) return;
@@ -267,38 +232,6 @@ function sameSession(sessionId: string | undefined) {
     listSession.value === sessionId
   );
 }
-function enqueue(task: Omit<TransferTask, "id" | "status">) {
-  // 原生拖动依赖当前鼠标手势，绝不排队到鼠标释放后再启动。
-  if (
-    task.dragNames &&
-    (busy.value ||
-      tasks.value.some(
-        (item) => item.status === "queued" || item.status === "running",
-      ))
-  ) {
-    error.value = "请等待当前操作完成后重新拖动文件。";
-    return;
-  }
-  // 保留最近的任务记录，等待任务上限防止长期积压授权引用。
-  if (tasks.value.filter((item) => item.status === "queued").length >= 32) {
-    error.value = "待传输任务已达 32 项，请等待当前任务完成。";
-    return;
-  }
-  tasks.value = [
-    ...tasks.value
-      .filter((item) => item.status === "queued" || item.status === "running")
-      .concat(
-        tasks.value
-          .filter(
-            (item) => item.status !== "queued" && item.status !== "running",
-          )
-          .slice(-19),
-      ),
-    { ...task, id: crypto.randomUUID(), status: "queued" },
-  ];
-  if (!task.dragNames) props.tab.sftpTransferring = true;
-  void runQueue();
-}
 async function transfer(upload: boolean) {
   if (
     stale.value ||
@@ -312,98 +245,6 @@ async function transfer(upload: boolean) {
     upload,
     name: upload ? null : selected.value!.name,
   });
-}
-async function runQueue() {
-  if (transferring.value || disposed) return;
-  const task = tasks.value.find((item) => item.status === "queued");
-  if (!task) {
-    props.tab.sftpTransferring = false;
-    return;
-  }
-  if (!sameSession(task.sessionId)) {
-    task.status = "cancelled";
-    task.message = "连接已变化，任务未执行";
-    void runQueue();
-    return;
-  }
-  task.status = "running";
-  transferring.value = true;
-  currentTransfer = { sessionId: task.sessionId, id: task.id };
-  progress.value = undefined;
-  const onProgress = (value: TransferProgress) => {
-    if (currentTransfer?.id === task.id) {
-      task.started = true;
-      props.tab.sftpTransferring = true;
-      task.progress = value;
-      progress.value = value;
-      // 若取消早于后端任务登记，首次进度到达后补发取消。
-      if (task.cancelRequested) {
-        task.cancelRequested = false;
-        void desktop.sftpCancel(task.sessionId, task.id).catch(() => {});
-      }
-    }
-  };
-  try {
-    const saved = task.dragNames
-      ? await desktop.sftpStartDrag(
-          task.sessionId,
-          task.id,
-          task.path,
-          task.dragNames,
-          task.dragDirectories ?? [],
-          onProgress,
-        )
-      : task.dropId
-        ? await desktop.sftpDropUpload(
-            task.sessionId,
-            task.id,
-            task.dropId,
-            task.path,
-            onProgress,
-          )
-        : await desktop.sftpTransfer(
-            task.sessionId,
-            task.id,
-            task.path,
-            task.name,
-            task.upload,
-            onProgress,
-          );
-    task.status = saved ? "done" : "cancelled";
-    task.message = saved ? "传输完成" : "已取消";
-  } catch (cause) {
-    const cancelled =
-      typeof cause === "object" &&
-      cause !== null &&
-      "code" in cause &&
-      cause.code === "CANCELLED";
-    task.status = cancelled ? "cancelled" : "failed";
-    task.message = cancelled ? "已取消" : errorMessage(cause);
-    if (task.dragNames && !task.started && !cancelled)
-      error.value = task.message;
-  } finally {
-    if (task.dragNames) {
-      releaseFilePointer();
-      suppressClick = false;
-    }
-    transferring.value = false;
-    currentTransfer = undefined;
-  }
-  if (task.dragNames && !task.started) {
-    tasks.value = tasks.value.filter((item) => item.id !== task.id);
-  } else if (sameSession(task.sessionId)) await load(directory.value);
-  else if (!disposed && connected.value) await load(".");
-  if (disposed) return;
-  void runQueue();
-}
-function cancelQueued(task: TransferTask) {
-  task.status = "cancelled";
-  task.message = "已移出队列";
-  if (
-    !transferring.value &&
-    !tasks.value.some((item) => item.status === "queued")
-  )
-    props.tab.sftpTransferring = false;
 }
 function targetAt(position: SftpDropPosition): string | undefined {
   if (
@@ -514,17 +355,6 @@ function moveFileDrag(event: PointerEvent) {
     dragDirectories: start.directories,
   });
 }
-async function cancel() {
-  const transfer = currentTransfer;
-  if (!transfer) return;
-  const task = tasks.value.find((item) => item.id === transfer.id);
-  if (task) task.cancelRequested = true;
-  try {
-    await desktop.sftpCancel(transfer.sessionId, transfer.id);
-  } catch (cause) {
-    error.value = errorMessage(cause);
-  }
-}
 function rowProps(row: FileEntry) {
   return {
     onPointerdown: (event: PointerEvent) => startFileDrag(event, row),
@@ -575,10 +405,7 @@ watch(
     dropTarget.value = undefined;
     for (const task of tasks.value)
       if (task.status === "queued") cancelQueued(task);
-    if (currentTransfer)
-      void desktop
-        .sftpCancel(currentTransfer.sessionId, currentTransfer.id)
-        .catch(() => {});
+    cancelActive();
     if (connected.value && !transferring.value) void load(".");
   },
   { immediate: true },
@@ -608,10 +435,7 @@ onBeforeUnmount(() => {
   for (const unlisten of eventUnlisteners) unlisten();
   disposed = true;
   generation++;
-  if (currentTransfer)
-    void desktop
-      .sftpCancel(currentTransfer.sessionId, currentTransfer.id)
-      .catch(() => {});
+  cancelActive();
 });
 </script>
 <template>
