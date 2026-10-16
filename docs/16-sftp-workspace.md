@@ -73,6 +73,6 @@ Finder 请求兑现目标后才显示下载任务、进度及传输中状态。�
 
 ## 7. 验证与资料
 
-静态检查只能说明类型、格式和契约一致；用户已确认 macOS 取消后的交互恢复；本轮双栏独立连接与对拷仅做静态检查，未完成完整 Rust 编译、真实 SSH 或 Finder 运行验收。SP-10/11 覆盖目录分页与链接、上传合并/覆盖/取消、资源上限、断线隔离、三平台拖入、macOS 文件及目录拖出、无效落点与目标冲突；详见 [验证计划](11-validation.md)。
+静态检查只能说明类型、格式和契约一致；用户已确认 macOS 取消后的交互恢复；本轮双栏独立连接与对拷仅做静态检查，未完成完整 Rust 编译、真实 SSH 或 Finder 运行验收。SP-10/11 覆盖目录分页与链接、上传合并/覆盖/取消、资源上限、断线隔离、三平台拖入、macOS 文件及目录拖出、无效落点与目标冲突；详见 [运行验收边界](01-product-requirements.md#11-运行验收边界)。
 
 参考：[russh-sftp 3.0.1](https://docs.rs/russh-sftp/3.0.1/russh_sftp/)、[Tauri Webview](https://v2.tauri.app/reference/javascript/api/namespacewebview/)、[NSFilePromiseProvider](https://developer.apple.com/documentation/appkit/nsfilepromiseprovider)。原生拖放必须独立验收，Web DnD 可用不代表系统文件管理器已通过。

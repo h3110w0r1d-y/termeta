@@ -33,12 +33,24 @@ export interface Binding {
   platform: "all";
   enabled: boolean;
 }
+export interface HostsViewSettings {
+  includeChildren: boolean;
+  expandedGroupIds: string[];
+}
+export type HostSearchField =
+  "name" | "address" | "username" | "tags" | "group";
+export interface HostSearchSettings {
+  pinyin: boolean;
+  fields: HostSearchField[];
+}
 export interface AppSettings {
   schemaVersion: 1;
   appearance: "dark" | "light" | "system";
   tabPosition: "top" | "left";
   tabDoubleClickAction: "none" | "close" | "duplicate" | "split";
   sftpShowHidden: boolean;
+  hostsView: HostsViewSettings;
+  hostSearch: HostSearchSettings;
   fontFamily: string;
   fontSize: number;
   scrollback: number;

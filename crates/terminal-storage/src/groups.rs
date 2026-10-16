@@ -55,6 +55,36 @@ impl SqliteStore {
             .find(|g| g.id == id)
             .ok_or(StorageError::NotFound)
     }
+    /// 整棵子树与主机在单个事务中删除，不能用前端逐项调用替代原子性。
+    pub async fn delete_group_and_hosts(&self, id: &str, revision: i64) -> Result<()> {
+        let mut tx = self.pool()?.begin_with("BEGIN IMMEDIATE").await?;
+        let current: Option<i64> =
+            sqlx::query_scalar("SELECT revision FROM host_groups WHERE id=?")
+                .bind(id)
+                .fetch_optional(&mut *tx)
+                .await?;
+        if current != Some(revision) {
+            return Err(StorageError::Conflict);
+        }
+        let descendants: Vec<String> = sqlx::query_scalar(
+            "WITH RECURSIVE subtree(id,depth) AS (SELECT id,0 FROM host_groups WHERE id=? UNION ALL SELECT g.id,s.depth+1 FROM host_groups g JOIN subtree s ON g.parent_id=s.id) SELECT id FROM subtree ORDER BY depth DESC"
+        ).bind(id).fetch_all(&mut *tx).await?;
+        // 先解除主机认证引用，再从叶到根删除分组，遵守外键 RESTRICT。
+        for group in descendants {
+            sqlx::query("UPDATE credentials SET status='deleting',updated_at=? WHERE owner_profile_id IN (SELECT id FROM connection_profiles WHERE group_id=?)")
+                .bind(now()).bind(&group).execute(&mut *tx).await?;
+            sqlx::query("DELETE FROM connection_profiles WHERE group_id=?")
+                .bind(&group)
+                .execute(&mut *tx)
+                .await?;
+            sqlx::query("DELETE FROM host_groups WHERE id=?")
+                .bind(&group)
+                .execute(&mut *tx)
+                .await?;
+        }
+        tx.commit().await?;
+        Ok(())
+    }
     pub async fn delete_group(&self, id: &str, revision: i64) -> Result<()> {
         let mut tx = self.pool()?.begin_with("BEGIN IMMEDIATE").await?;
         let parent = sqlx::query_scalar::<_, Option<String>>(

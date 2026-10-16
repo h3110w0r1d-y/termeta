@@ -58,7 +58,7 @@ Local 使用 [portable-pty](https://docs.rs/portable-pty/latest/portable_pty/) �
 | SP-10 | SFTP-only、双栏各端点组合、metadata/冲突/取消/中转与共享连接公平性是否满足？                               | 调整 provider/独立连接/能力策略；不跳过身份或覆盖检查            |
 | SP-11 | 原生拖入/拖出能否在三平台文件管理器工作，staging 生命周期/冲突是否可靠？                                   | 替换原生适配、明确受限平台；需求未通过不得声称完整交付           |
 
-SP-01~05、SP-07~09 未执行；SP-10/11 的首批源码已实现待验收，SP-06 到 M4，系统后台快捷键到 M5。执行规则和证据记录见 [验证计划](11-validation.md)。
+SP-01~05、SP-07~09 未执行；SP-10/11 的首批源码已实现待验收，SP-06 到 M4，系统后台快捷键到 M5。执行规则和证据记录见 [运行验收边界](01-product-requirements.md#11-运行验收边界)。
 
 发布前须对实际启用依赖重新检查公告、传递 MSRV、许可证 notices 与三平台支持；静态 API/格式检查不能替代这些门槛。
 
@@ -72,3 +72,9 @@ SP-01~05、SP-07~09 未执行；SP-10/11 的首批源码已实现待验收，SP-
 | rand_core / hex | 0.6.4（getrandom）/0.4.3 | OS随机盐/nonce；SQLCipher raw-key编码，编码不代替加密 |
 
 来源：[SQLCipher设计](https://www.zetetic.net/sqlcipher/design/)、[libsqlite3-sys固定源码](https://docs.rs/crate/libsqlite3-sys/0.30.1/source/)、[Argon2固定API](https://docs.rs/argon2/0.6.0/argon2/)、[AES-GCM固定API](https://docs.rs/aes-gcm/0.11.1/aes_gcm/)。实际以锁定registry源码核对使用的接口、features、MSRV与许可证；未编译或执行，不据此宣称完成密码学审计或三平台支持验收。
+
+主机拼音搜索（2026-10-16）沿用Naive UI2.45.3 NAutoComplete，静态核对clearAfterSelect/blurAfterSelect/renderLabel/menuProps及键盘/IME处理入口。用户指定roco-helper-web的静态拼音配置和连续音节匹配算法已复制适配，无新增npm依赖；配置数据一致性、来源摘要见[静态资源](../resources/README.md#主机搜索拼音表)。下拉展示与三平台IME未运行验收。
+
+## 2026-10-16：portable-pty 0.9.0 落地
+
+固定依赖[portable-pty 0.9.0](https://crates.io/crates/portable-pty/0.9.0)，MIT；核对发布包源码的native_pty_system/openpty、CommandBuilder、try_clone_reader/take_writer、resize、Child::try_wait/kill/wait API。Unix使用PTY，Windows使用ConPTY，阻塞API不在异步执行器直接读写。该发布包未声明rust-version，工作区维持Rust 1.89/edition 2024，MSRV与三平台可编译性未验证；已更新锁文件，未编译运行。Unix实现setsid，默认Child::kill发送SIGHUP，本项目关闭时使用libc 0.2.190终止初始进程组并回收。未完成独立安全公告数据库审计，不能据此宣称无公告或完整进程树清理已验收。

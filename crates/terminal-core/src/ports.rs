@@ -38,6 +38,6 @@ pub trait SessionSink: Send + Sync {
 pub trait SessionFactory: Send + Sync {
     fn kind(&self) -> &'static str;
     fn capabilities(&self) -> SessionCapabilities;
-    fn validate(&self, config: &SshConfig) -> Result<()>;
-    async fn run(&self, config: SshConfig, context: DriverContext) -> Result<SessionEnd>;
+    fn validate(&self, config: &SessionConfig) -> Result<()>;
+    async fn run(&self, config: SessionConfig, context: DriverContext) -> Result<SessionEnd>;
 }

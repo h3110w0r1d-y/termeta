@@ -1,6 +1,6 @@
 # SSH 连接、安全信任与认证
 
-日期：2026-10-16。首期直连 SSH2 已按 russh 0.64.1 源码实现；本轮仅静态检查，用户反馈的密码/公钥 + OTP 互通修复仍待复验。依赖公告与待验收项见 [实施状态](17-implementation-status.md)。
+日期：2026-10-16。首期直连 SSH2 已按 russh 0.64.1 源码实现；本轮仅静态检查，用户反馈的密码/公钥 + OTP 互通修复仍待复验。依赖公告与待验收项见 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)。
 
 ## 1. 连接配置
 
@@ -129,4 +129,4 @@ ProxyJump 后续通过明确 hop 列表，为每一跳独立校验密钥与认�
 
 实现位于 terminal-ssh 的 connection/host_key/auth/driver。固定配置为 256 KiB SSH window、32 KiB maximum packet、16 条 channel 消息、30 秒 KeepAlive 与 max=3；russh 收到包会重置保活计数，且超出 max 才断开，不能解释为精确 90 秒。库内部 channel 满时的协议公平性仍须 SP-05 验证，socket shutdown 取消不依赖输出 ACK。
 
-已静态核对 russh 0.64.1 的认证、交互及 PTY/Shell API。当前源码不等于认证互通验收：公共/专属密码、加密/无密码私钥、密码或私钥加 OTP、仅 PAM、错误重试、取消与超时仍须真实服务器验证。RSA 算法选择不消除实现侧信道风险，依赖公告见 [实施状态](17-implementation-status.md)。
+已静态核对 russh 0.64.1 的认证、交互及 PTY/Shell API。当前源码不等于认证互通验收：公共/专属密码、加密/无密码私钥、密码或私钥加 OTP、仅 PAM、错误重试、取消与超时仍须真实服务器验证。RSA 算法选择不消除实现侧信道风险，依赖公告见 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)。

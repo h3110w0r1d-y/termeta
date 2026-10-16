@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import {
+  NForm,
+  NFormItem,
+  type FormInst,
+  type FormRules,
   NAlert,
   NEmpty,
   NList,
@@ -12,7 +16,7 @@ import {
 } from "naive-ui";
 import AppSelect from "../../components/ui/AppSelect.vue";
 import AppInput from "../../components/ui/AppInput.vue";
-import AppLabel from "../../components/ui/AppLabel.vue";
+import { requiredText, validateForm } from "../../services/forms/rules";
 import AppButton from "../../components/ui/AppButton.vue";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { confirmAction } from "../../components/ui/confirmation";
@@ -59,11 +63,22 @@ onMounted(load);
 onUnmounted(() => {
   clearSecrets();
 });
-const valid = computed(
-  () =>
-    !!label.value.trim() &&
-    (kind.value === "password" ? !!secret.value : !!keyFileRef.value),
-);
+const form = ref<FormInst>();
+const formModel = computed(() => ({
+  label: label.value,
+  kind: kind.value,
+  secret: secret.value,
+  keyFileRef: keyFileRef.value,
+}));
+const rules = computed<FormRules>(() => ({
+  label: requiredText("名称"),
+  kind: requiredText("类型"),
+  secret:
+    kind.value === "password"
+      ? { required: true, message: "请输入密码", trigger: ["input", "blur"] }
+      : [],
+  keyFileRef: kind.value === "privateKey" ? requiredText("私钥文件") : [],
+}));
 function clearSecrets() {
   secret.value = "";
   passphrase.value = "";
@@ -94,7 +109,7 @@ function add() {
   editorOpen.value = true;
 }
 async function save() {
-  if (!valid.value || busy.value) return;
+  if (busy.value || !(await validateForm(form.value))) return;
   busy.value = true;
   error.value = "";
   try {
@@ -222,37 +237,44 @@ async function remove(item: CredentialMetadata) {
       :locked="busy"
       @update:open="closeEditor"
     >
-      <form
+      <NForm
+        ref="form"
+        :model="formModel"
+        :rules="rules"
+        label-placement="top"
+        novalidate
         id="credential-editor-form"
         class="form-grid"
         @submit.prevent="save"
       >
-        <AppLabel class="span-2"
-          >名称<AppInput
+        <NFormItem class="span-2" label="名称" path="label"
+          ><AppInput
             v-model="label"
             :disabled="busy"
-            required
             maxlength="120"
-            placeholder="例如：生产环境 SSH 密码" /></AppLabel
-        ><AppLabel class="span-2"
-          >类型<AppSelect
+            placeholder="例如：生产环境 SSH 密码" /></NFormItem
+        ><NFormItem class="span-2" label="类型" path="kind"
+          ><AppSelect
             v-model="kind"
             :disabled="busy"
             :options="[
               { value: 'password', label: 'SSH 密码' },
               { value: 'privateKey', label: 'SSH 私钥' },
             ]"
-        /></AppLabel>
-        <AppLabel v-if="kind === 'password'" class="span-2"
-          >密码<AppInput
+        /></NFormItem>
+        <NFormItem
+          v-if="kind === 'password'"
+          class="span-2"
+          label="密码"
+          path="secret"
+          ><AppInput
             v-model="secret"
-            required
             type="password"
             autocomplete="new-password"
             :disabled="busy"
-        /></AppLabel>
+        /></NFormItem>
         <template v-else>
-          <div class="field span-2">
+          <NFormItem class="span-2" label="私钥文件" path="keyFileRef">
             <AppButton :disabled="busy" @click="selectKey"
               >选择并导入 OpenSSH 私钥</AppButton
             >
@@ -260,18 +282,21 @@ async function remove(item: CredentialMetadata) {
               keyName ||
               "通过系统文件选择器授权读取，保存后由本地保险库加密保护私钥。"
             }}</span>
-          </div>
-          <AppLabel class="span-2"
-            >私钥解密密码（可选）<AppInput
+          </NFormItem>
+          <NFormItem
+            class="span-2"
+            label="私钥解密密码（可选）"
+            path="passphrase"
+            ><AppInput
               v-model="passphrase"
               type="password"
               autocomplete="new-password"
               :disabled="busy"
               placeholder="留空时如需解密，将在连接时询问"
-          /></AppLabel>
+          /></NFormItem>
         </template>
         <p v-if="error" class="error span-2" role="alert">{{ error }}</p>
-      </form>
+      </NForm>
       <template #footer>
         <NFlex justify="end">
           <AppButton type="button" :disabled="busy" @click="closeEditor(false)">
@@ -280,7 +305,7 @@ async function remove(item: CredentialMetadata) {
             type="submit"
             form="credential-editor-form"
             class="primary"
-            :disabled="busy || !valid"
+            :disabled="busy"
           >
             {{ busy ? "保存中…" : "保存凭据" }}
           </AppButton>

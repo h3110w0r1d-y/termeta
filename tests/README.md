@@ -10,7 +10,13 @@ Node用例使用内置测试/断言模块，直接导入TypeScript需要Node **2
 授权后的执行入口：
 
 ```sh
-node --test tests/workspace-layout.test.mjs tests/terminal-broadcast.test.mjs
+node --test tests/workspace-layout.test.mjs tests/terminal-broadcast.test.mjs tests/host-search.test.mjs
 ```
 
-Rust单元测试随对应crate源码保存，执行会编译，同样需要明确授权。实际终端、IME、vim、文件拖放及Finder文件承诺须另行运行验收，见 [验证方案](../docs/11-validation.md)。
+Rust单元测试随对应crate源码保存，执行会编译，同样需要明确授权。实际终端、IME、vim、文件拖放及Finder文件承诺须另行运行验收，见 [运行验收边界](../docs/01-product-requirements.md#11-运行验收边界)。
+
+主机分组的Rust回归测试源码位于`crates/terminal-storage/src/tests.rs`：保留上移的直属范围、整树删除的外部主机/共享凭据保护、过期revision及后置失败回滚。均未编译或执行。界面还需覆盖文件夹树计数、左右独立滚动、键盘菜单、主机/分组迁移防环、Esc/失焦/切页/无效落点取消、取消后首次点击、两步删除和持久化。
+
+`host-search.test.mjs`为新增拼音匹配回归源码，覆盖全拼/首字母/部分音节/中文混输、多音字、地址数字与多词；Rust设置校验新增旧数据兼容、有效偏好、非法类型/重复UUID/未知字段用例。均未执行。还需授权后覆盖偏好重启恢复、快速连续展开/收起、失败回退、设置旧草稿与SFTP即时偏好交错保存，以及搜索下拉不改变分组列表、收藏置顶、键盘/IME交互。
+
+搜索配置Rust校验用例还覆盖固定name、字段白名单/去重、布尔类型及未知属性拒绝（仅测试源码，未编译执行）。新增运行验收点：拼音开关和字段选择重启恢复、设置页/下拉互相同步、失效保存提示、下拉复选框键盘操作，以及所有业务表单的必填红星、字段错误与可选项空值。

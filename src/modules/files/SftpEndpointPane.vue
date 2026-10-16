@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { validateForm } from "../../services/forms/rules";
 import { computed, h, ref, watch } from "vue";
 import {
   NAlert,
@@ -13,6 +14,9 @@ import {
   type DataTableColumns,
   type DataTableRowKey,
   type DataTableSortState,
+  NForm,
+  NFormItem,
+  type FormInst,
 } from "naive-ui";
 import { desktop, errorMessage } from "../../services/desktop/client";
 import type { FileEntry } from "../../services/desktop/types";
@@ -35,6 +39,19 @@ const emit = defineEmits<{
 }>();
 const hosts = useHosts();
 const profile = ref<string | null>(null);
+const connectForm = ref<FormInst>();
+const connectRules = {
+  profile: {
+    required: true,
+    message: "请选择已保存的 SSH 主机",
+    trigger: "change",
+  },
+};
+async function connect() {
+  if (props.busy || props.endpoint.opening || props.endpoint.sessionId) return;
+  if ((await validateForm(connectForm.value)) && profile.value)
+    emit("connect", profile.value);
+}
 const options = computed(() =>
   hosts.hosts.map((host) => ({
     label: `${host.name} · ${host.username}@${host.address}:${host.port}`,
@@ -43,6 +60,17 @@ const options = computed(() =>
 );
 const directory = ref(".");
 const pathInput = ref(".");
+const pathForm = ref<FormInst>();
+const pathRules = {
+  path: {
+    required: true,
+    message: "请输入远端路径",
+    trigger: ["input", "blur"],
+  },
+};
+async function navigatePath() {
+  if (await validateForm(pathForm.value)) await load(pathInput.value);
+}
 const entries = ref<FileEntry[]>([]);
 const checked = ref<DataTableRowKey[]>([]);
 const loading = ref(false);
@@ -224,29 +252,35 @@ defineExpose({ refresh: () => load(), path: directory, available });
 
 <template>
   <section class="endpoint-pane">
-    <NFlex :wrap="false">
-      <NSelect
-        v-model:value="profile"
-        :options="options"
-        filterable
-        placeholder="选择已保存的 SSH 主机"
-        :disabled="busy || endpoint.opening || !!endpoint.sessionId"
-        style="flex: 1; min-width: 0"
-      />
-      <NButton
-        v-if="!endpoint.sessionId"
-        :disabled="!profile || busy || endpoint.opening"
-        :loading="endpoint.opening"
-        @click="profile && emit('connect', profile)"
-        >连接</NButton
-      >
-      <NButton
-        v-else
-        :disabled="busy || endpoint.opening"
-        @click="emit('disconnect')"
-        >断开</NButton
-      >
-    </NFlex>
+    <NForm
+      ref="connectForm"
+      :model="{ profile }"
+      :rules="connectRules"
+      @submit.prevent="connect"
+      ><NFlex :wrap="false">
+        <NFormItem label="SSH 主机" path="profile" class="path-form"
+          ><NSelect
+            v-model:value="profile"
+            :options="options"
+            filterable
+            placeholder="选择已保存的 SSH 主机"
+            :disabled="busy || endpoint.opening || !!endpoint.sessionId"
+        /></NFormItem>
+        <NButton
+          v-if="!endpoint.sessionId"
+          :disabled="busy || endpoint.opening"
+          :loading="endpoint.opening"
+          @click="connect"
+          >连接</NButton
+        >
+        <NButton
+          v-else
+          :disabled="busy || endpoint.opening"
+          @click="emit('disconnect')"
+          >断开</NButton
+        >
+      </NFlex></NForm
+    >
     <NAlert v-if="endpoint.error || error" type="error" :bordered="false">{{
       endpoint.error || error
     }}</NAlert>
@@ -260,12 +294,18 @@ defineExpose({ refresh: () => load(), path: directory, available });
         <NButton :disabled="disabled" @click="load('.')">主目录</NButton>
         <NButton :disabled="disabled" @click="load()">刷新</NButton>
       </NFlex>
-      <NInput
-        v-model:value="pathInput"
-        :disabled="disabled"
-        placeholder="远端路径"
-        @keydown.enter="load(pathInput)"
-      />
+      <NForm
+        ref="pathForm"
+        :model="{ path: pathInput }"
+        :rules="pathRules"
+        @submit.prevent="navigatePath"
+        class="path-form"
+        ><NFormItem label="远端路径" path="path" :show-label="false">
+          <NInput
+            v-model:value="pathInput"
+            :disabled="disabled"
+            placeholder="远端路径" /></NFormItem
+      ></NForm>
       <NFlex align="center" justify="space-between"
         ><NCheckbox
           :checked="hidden"
@@ -319,6 +359,10 @@ defineExpose({ refresh: () => load(), path: directory, available });
 </template>
 
 <style scoped>
+.path-form {
+  flex: 1;
+  min-width: 0;
+}
 .endpoint-pane {
   display: flex;
   flex-direction: column;

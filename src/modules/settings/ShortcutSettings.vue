@@ -8,6 +8,7 @@ import { computed, ref } from "vue";
 import {
   commandDefinitions,
   defaults,
+  upgradeBindings,
   keyLabel,
   validateBindings,
   conflict,
@@ -84,7 +85,7 @@ async function importKeys(event: Event) {
       bindings: unknown;
     };
     if (raw.schemaVersion !== 1) throw new Error("快捷键版本不支持");
-    const result = validateBindings(raw.bindings);
+    const result = upgradeBindings(validateBindings(raw.bindings));
     if (await confirmAction(`导入 ${result.length} 个绑定并替换当前编辑内容？`))
       draft.value.keymap = { schemaVersion: 1, bindings: result };
   } catch (e) {
@@ -117,6 +118,7 @@ async function importKeys(event: Event) {
         v-else
         :class="{ recording: recording === b.id }"
         @click="recording = b.id"
+        data-shortcut-recorder
         @keydown="record($event, b)"
       >
         {{
@@ -149,8 +151,8 @@ async function importKeys(event: Event) {
       {{ conflict(draft.keymap.bindings) }}
     </p>
     <p class="muted">
-      Ctrl+C 等远端控制键若被配置，将被本地截获。Local
-      动作尚不可用；系统后台热键未启用。
+      Ctrl+C
+      等远端控制键若被配置，将被本地截获。本地终端动作已启用；系统后台热键未启用。
     </p>
     <div class="button-row">
       <AppButton @click="draft.keymap.bindings = defaults()"

@@ -249,3 +249,35 @@ pub struct SessionEnd {
     pub exit_code: Option<u32>,
     pub exit_signal: Option<String>,
 }
+
+/// 协议配置按类型区分，本地终端不携带远端认证字段。
+#[derive(Clone, Debug)]
+pub enum SessionConfig {
+    Ssh(SshConfig),
+    Local,
+}
+impl SessionConfig {
+    pub fn validate(&self) -> Result<()> {
+        match self {
+            Self::Ssh(config) => config.validate(),
+            Self::Local => Ok(()),
+        }
+    }
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Self::Ssh(_) => "ssh",
+            Self::Local => "local",
+        }
+    }
+    pub fn title(&self) -> String {
+        match self {
+            Self::Ssh(config) => format!("{}@{}", config.username, config.address),
+            Self::Local => "本地终端".into(),
+        }
+    }
+}
+impl From<SshConfig> for SessionConfig {
+    fn from(config: SshConfig) -> Self {
+        Self::Ssh(config)
+    }
+}

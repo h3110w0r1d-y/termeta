@@ -3,6 +3,9 @@ import {
   NTabs,
   NTabPane,
   NForm,
+  NFormItem,
+  type FormInst,
+  type FormRules,
   NFlex,
   NH1,
   NText,
@@ -14,7 +17,12 @@ import {
 import AppNumberField from "../../components/ui/AppNumberField.vue";
 import AppCheckbox from "../../components/ui/AppCheckbox.vue";
 import AppSelect from "../../components/ui/AppSelect.vue";
-import AppLabel from "../../components/ui/AppLabel.vue";
+import SearchPreferences from "./SearchPreferences.vue";
+import {
+  requiredText,
+  integerRange,
+  validateForm,
+} from "../../services/forms/rules";
 import AppButton from "../../components/ui/AppButton.vue";
 import { h, ref, watch } from "vue";
 import AppDialog from "../../components/ui/AppDialog.vue";
@@ -86,8 +94,24 @@ function cancel() {
   if (props.embedded) resetDraft();
   else emit("update:open", false);
 }
+const form = ref<FormInst>();
+const rules: FormRules = {
+  tabPosition: requiredText("标签栏位置"),
+  tabDoubleClickAction: requiredText("双击标签页动作"),
+  appearance: requiredText("应用外观"),
+  fontFamily: requiredText("终端字体"),
+  fontSize: {
+    required: true,
+    type: "number",
+    min: 10,
+    max: 32,
+    message: "字号须为10–32",
+    trigger: ["blur", "change"],
+  },
+  scrollback: integerRange("滚屏行数", 1000, 50000),
+};
 async function save() {
-  if (busy.value) return;
+  if (busy.value || !(await validateForm(form.value))) return;
   const snapshot = clone(draft.value);
   busy.value = true;
   error.value = "";
@@ -120,7 +144,7 @@ async function save() {
     :embedded="embedded"
     :open="open"
     title="设置"
-    description="设置成功保存后统一应用。终端配色独立于应用外观。"
+    description="搜索设置即时保存，其余设置保存后应用。终端配色独立于应用外观。"
     wide
     :locked="busy"
     :class="{ 'embedded-settings': embedded }"
@@ -130,11 +154,11 @@ async function save() {
       <header v-if="embedded" class="page-heading">
         <div>
           <NH1>设置</NH1>
-          <NText depth="3">让工作区适合你的习惯。修改后保存即可应用。</NText>
+          <NText depth="3">搜索设置即时保存，其余修改后保存即可应用。</NText>
         </div>
       </header>
-      <NForm :disabled="busy" @submit.prevent="save"
-        ><fieldset class="settings-body" :disabled="busy">
+      <div>
+        <fieldset class="settings-body" :disabled="busy">
           <NTabs v-model:value="tab" type="line" animated>
             <NTabPane
               name="general"
@@ -142,19 +166,25 @@ async function save() {
               :disabled="busy"
               display-directive="show:lazy"
             >
-              <div class="form-grid">
-                <div class="ui-label">
-                  <span id="settings-tab-position-label">标签栏位置</span>
+              <NForm
+                ref="form"
+                :model="draft"
+                :rules="rules"
+                label-placement="top"
+                :disabled="busy"
+                @submit.prevent="save"
+                class="form-grid"
+              >
+                <NFormItem label="标签栏位置" path="tabPosition">
                   <NRadioGroup
                     v-model:value="draft.tabPosition"
-                    aria-labelledby="settings-tab-position-label"
+                    aria-label="标签栏位置"
                   >
                     <NRadioButton value="top">顶部</NRadioButton>
                     <NRadioButton value="left">左侧</NRadioButton>
                   </NRadioGroup>
-                </div>
-                <AppLabel>
-                  双击标签页
+                </NFormItem>
+                <NFormItem label="双击标签页" path="tabDoubleClickAction">
                   <AppSelect
                     v-model="draft.tabDoubleClickAction"
                     :options="[
@@ -164,12 +194,11 @@ async function save() {
                       { value: 'split', label: '拆分会话' },
                     ]"
                   />
-                </AppLabel>
-                <div class="ui-label">
-                  <span id="settings-appearance-label">应用外观</span>
+                </NFormItem>
+                <NFormItem label="应用外观" path="appearance">
                   <NRadioGroup
                     v-model:value="draft.appearance"
-                    aria-labelledby="settings-appearance-label"
+                    aria-label="应用外观"
                   >
                     <NRadioButton value="dark" title="深色">
                       <span class="appearance-option">
@@ -221,22 +250,22 @@ async function save() {
                       </span>
                     </NRadioButton>
                   </NRadioGroup>
-                </div>
-                <AppLabel
-                  >终端字体<AppSelect
+                </NFormItem>
+                <NFormItem label="终端字体" path="fontFamily"
+                  ><AppSelect
                     v-model="draft.fontFamily"
                     :options="terminalFontOptions"
-                    :render-label="renderFontLabel" /></AppLabel
-                ><AppLabel
-                  >字号<AppNumberField
+                    :render-label="renderFontLabel" /></NFormItem
+                ><NFormItem label="字号" path="fontSize"
+                  ><AppNumberField
                     v-model="draft.fontSize"
                     :min="10"
-                    :max="32" /></AppLabel
-                ><AppLabel
-                  >滚屏行数<AppNumberField
+                    :max="32" /></NFormItem
+                ><NFormItem label="滚屏行数" path="scrollback"
+                  ><AppNumberField
                     v-model="draft.scrollback"
                     :min="1000"
-                    :max="50000" /></AppLabel
+                    :max="50000" /></NFormItem
                 ><AppCheckbox v-model="draft.confirmClose" class="span-2"
                   >关闭可能正在执行命令的终端前确认</AppCheckbox
                 ><AppCheckbox v-model="draft.multilinePaste" class="span-2"
@@ -245,8 +274,15 @@ async function save() {
                 <p class="muted span-2">
                   终端历史仅保留在当前窗口内存中。主机、信任、设置和凭据加密保存在本地；系统钥匙串仅缓存保险库主密钥。
                 </p>
-              </div>
+              </NForm>
             </NTabPane>
+            <NTabPane
+              name="search"
+              tab="搜索"
+              :disabled="busy"
+              display-directive="show:lazy"
+              ><SearchPreferences
+            /></NTabPane>
             <NTabPane
               name="themes"
               tab="终端配色"
@@ -268,8 +304,9 @@ async function save() {
               display-directive="show:lazy"
               ><SecuritySettings
             /></NTabPane>
-          </NTabs></fieldset
-      ></NForm>
+          </NTabs>
+        </fieldset>
+      </div>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
       <p v-if="saved" class="save-success" role="status">设置已保存并应用。</p>
     </div>

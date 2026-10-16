@@ -1,6 +1,6 @@
 # IPC 契约与终端数据流
 
-日期：2026-10-15。协议版本 1，首期命令/Channel/ACL 已落源码，尚未运行验证。Rust/TS 实际入口及差异见 [实施状态](17-implementation-status.md)。
+日期：2026-10-15。协议版本 1，首期命令/Channel/ACL 已落源码，尚未运行验证。Rust/TS 实际入口及差异见 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)。
 
 ## 1. 控制面与数据面
 
@@ -47,6 +47,7 @@ interface SessionSnapshot {
 }
 
 type OpenTarget =
+  | { source: "local" }
   | { source: "saved"; profileId: string }
   | { source: "ephemeral"; kind: "ssh"; config: SshConfigV1 };
 
@@ -62,7 +63,7 @@ type AuthStepV1 =
   | { type: "privateKey"; credentialId: string };
 ```
 
-首期公开 OpenTarget 只接受 SSH。Local/Serial 配置在对应阶段新增受校验分支，不先允许任意对象。未传 password ref 时由认证 challenge 获取秘密，open_session 不需要明文密码字段。
+OpenTarget 接受保存/临时 SSH 与 `{source:"local"}`，Local 不接受任意命令、路径、环境或认证字段。available_session_kinds 返回 ssh/local 对应工厂能力，SessionSnapshot.kind 同步支持 local；本地复用现有 open/write/resize/ack/close 与ACL/owner/解锁校验。Serial 尚未开放。未传 password ref 时由认证 challenge 获取秘密，open_session 不需要明文密码字段。
 
 前端另有不参与原生授权的稳定视图绑定：`TerminalBinding { terminalId, currentSessionId?, bindingGeneration }`。terminalId 在工作区创建时生成，重连不变；后端 sessionId 每次连接新建。前端 registry 按 terminalId 持有 xterm，session/channel 回调捕获各自的 sessionId 与 bindingGeneration。不能将 sessionId 用作 xterm 宿主的 Vue key，也不能接到 failed/ended 就删除对应终端。
 
@@ -84,7 +85,7 @@ type AuthStepV1 =
 | `list_sessions` / `get_session`                              | 可选 sessionId                                                | 当前 owner 的快照/终态缓存                                  |
 | `session_client_heartbeat`                                   | 无或已拥有 session ID 列表                                    | 窗口级失联检测；不能由前端指定 owner                        |
 | `list_hosts` / `save_host` / `delete_host`                   | 查询/版本化 Host DTO/id                                       | 参数化 repository CRUD；save 使用 revision 乐观锁           |
-| `list_host_groups` / `save_host_group` / `delete_host_group` | 分组 DTO/id                                                   | 防环；默认移动子项后删除                                    |
+| `list_host_groups` / `save_host_group` / `delete_host_group` | 分组 DTO/id/revision，删除可选 deleteHosts                     | 防环；默认保留上移，true 原子删除子树及主机                                    |
 | `list_known_hosts` / `revoke_known_host`                     | endpoint 查询/信任记录 id                                     | 替换策略需二次显式操作，不在连接流程静默覆盖                |
 | `select_private_key_file`                                    | 原生文件选择                                                  | opaque keyFileRef、名称、公钥元数据（可解析时）；不返回私钥 |
 | `list_credentials` / `delete_credential`                     | id                                                            | 仅元数据；无通用 get_secret 命令                            |
@@ -247,3 +248,11 @@ macOS 拖出 names 最多 100 个普通文件或真实目录根，directories �
 `vault_status() -> {mode: "setup"|"locked"|"unlocked", keychainWarning: string|null}` 每进程最多自动尝试一次系统主密钥；`unlock_vault({password: string, setup: boolean})` 在Rust阻塞池派生并校验，成功后返回同一状态DTO。二者均校验main窗口及本地导航，加入AppManifest命令名单与main capability。密码/主密钥不出现在返回值或事件中。其他用例命令先检查保险库已解锁，否则返回VAULT_LOCKED；前端统一经desktop门面。
 
 已移除旧`recover_credential`：secret与ready现在在同一加密数据库写入，未完成公共pending项由用户删除后重建。原有主机/凭据DTO保持不返回秘密。
+
+分组删除契约（2026-10-16）：`delete_host_group(id, revision, deleteHosts?: boolean)` 沿用原命令与 main owner/保险库门禁/ACL，省略或 false 保留直属主机和子组并上移；true 按根组 revision 校验后，在同一数据库事务内从叶到根删除整个子树和主机、将专属凭据登记 deleting，再复用协调器清理。共享凭据不删除，已连接会话保持快照，不新增命令或 schema。前端选择 true 必须另弹最终确认。主机拖拽复用 `save_host` 并省略 password，分组拖拽复用 `save_host_group` 的 parentId/sortOrder/revision；无需新建移动接口。
+
+主机页设置契约：现有AppSettings增加可选旧格式兼容的`hostsView`对象，新保存包含`includeChildren: boolean`与`expandedGroupIds: string[]`；Rust白名单校验字段、UUID去重及10000项/整条256KiB上限。复用get_settings/save_settings，不新增IPC/ACL。前端保护包含子组、展开集合及sftpShowHidden不被设置草稿回退。全局拼音搜索只用已有轻量HostProfile列表，无逐次搜索IPC或网络请求。
+
+搜索偏好通过既有get_settings/save_settings保存app.hostSearch（pinyin布尔值与fields字段集合），name强制存在，其他字段为address/username/tags/group且去重；缺失兼容旧数据。搜索下拉与设置页即时保存共用设置队列，普通草稿合并最新hostSearch，无新增IPC或ACL。
+
+新建标签页弹窗只使用既有HostProfile/设置，无新IPC。keymap.commandId增加workspace.newTab（application/workspace），Rust设置白名单同步；前端读取或导入旧keymap补充Primary+T绑定，保留已有动作/冲突配置及绑定数量上限。

@@ -141,8 +141,8 @@ export const desktop = {
     group: Omit<HostGroup, "id" | "revision"> & { id: string | null },
     expectedRevision: number | null,
   ) => invoke<HostGroup>("save_host_group", { group, expectedRevision }),
-  deleteGroup: (id: string, revision: number) =>
-    invoke<void>("delete_host_group", { id, revision }),
+  deleteGroup: (id: string, revision: number, deleteHosts = false) =>
+    invoke<void>("delete_host_group", { id, revision, deleteHosts }),
   getSettings: () => invoke<AppSettings | null>("get_settings"),
   saveSettings: (settings: AppSettings) =>
     invoke<void>("save_settings", { settings }),

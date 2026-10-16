@@ -220,8 +220,8 @@ watch(
     <div class="workspace-tab-end" :class="{ 'drop-at-end': dropAtEnd }">
       <AppButton
         class="icon-button new-tab"
-        aria-label="新建 SSH 连接"
-        title="新建 SSH 连接"
+        aria-label="新建标签页"
+        title="新建标签页 (Cmd/Ctrl+T)"
         @click="emit('create')"
         >＋</AppButton
       >
@@ -382,8 +382,8 @@ watch(
 .app-tabs .new-tab {
   align-self: center;
   flex: 0 0 auto;
-  width: 36px;
-  height: 36px;
+  width: var(--tab-height);
+  height: var(--tab-height);
   padding: 0;
 }
 .workspace-tabs-spacer {
@@ -517,8 +517,8 @@ watch(
   position: relative;
   align-self: center;
   flex: 0 0 auto;
-  width: 36px;
-  height: 36px;
+  width: var(--tab-height);
+  height: var(--tab-height);
 }
 .app-tabs.is-dragging .new-tab {
   pointer-events: none;
@@ -534,7 +534,8 @@ watch(
   pointer-events: none;
 }
 .tabs-vertical .workspace-tab-end {
-  align-self: flex-start;
+  align-self: stretch;
+  width: 100%;
 }
 .tabs-vertical .workspace-tab-end.drop-at-end::before {
   left: 3px;
@@ -558,8 +559,8 @@ watch(
   grid-row: 2;
   min-height: 0;
 }
-.tabs-vertical .new-tab {
-  align-self: flex-start;
+.app-tabs.tabs-vertical .new-tab {
+  width: 100%;
   margin: 0;
 }
 </style>

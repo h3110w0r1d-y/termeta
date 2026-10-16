@@ -51,10 +51,10 @@ impl SessionFactory for FakeFactory {
     fn capabilities(&self) -> SessionCapabilities {
         SessionCapabilities::ssh()
     }
-    fn validate(&self, config: &SshConfig) -> Result<()> {
+    fn validate(&self, config: &SessionConfig) -> Result<()> {
         config.validate()
     }
-    async fn run(&self, _config: SshConfig, context: DriverContext) -> Result<SessionEnd> {
+    async fn run(&self, _config: SessionConfig, context: DriverContext) -> Result<SessionEnd> {
         self.attempts.fetch_add(1, Ordering::SeqCst);
         if self.trust {
             let decision = context
@@ -301,4 +301,80 @@ async fn host_challenge_is_bound_to_session_and_single_use() {
         .wait_for(|| !capture.frames.lock().unwrap().is_empty())
         .await;
     manager.close("main", &session.session_id).unwrap();
+}
+
+struct FakeLocalFactory;
+#[async_trait]
+impl SessionFactory for FakeLocalFactory {
+    fn kind(&self) -> &'static str {
+        "local"
+    }
+    fn capabilities(&self) -> SessionCapabilities {
+        SessionCapabilities::ssh()
+    }
+    fn validate(&self, config: &SessionConfig) -> Result<()> {
+        assert!(matches!(config, SessionConfig::Local));
+        Ok(())
+    }
+    async fn run(&self, _: SessionConfig, context: DriverContext) -> Result<SessionEnd> {
+        context.events.state(SessionState::Connected)?;
+        context.cancel.cancelled().await;
+        Err(SessionError::cancelled())
+    }
+}
+
+#[tokio::test]
+async fn local_factory_uses_shared_registry_and_owner_boundary() {
+    let ssh = Arc::new(FakeFactory {
+        attempts: AtomicUsize::new(0),
+        trust: false,
+    });
+    let manager = SessionManager::new(ssh.clone()).with_factory(Arc::new(FakeLocalFactory));
+    let capture = Arc::new(Capture::default());
+    let request = uuid::Uuid::new_v4().to_string();
+    let terminal = uuid::Uuid::new_v4().to_string();
+    let snapshot = manager
+        .open(
+            "main",
+            request.clone(),
+            terminal.clone(),
+            SessionConfig::Local,
+            TerminalSize { cols: 80, rows: 24 },
+            capture.clone(),
+        )
+        .unwrap();
+    assert_eq!(snapshot.kind, "local");
+    assert_eq!(snapshot.title, "本地终端");
+    assert_eq!(manager.available_kinds().len(), 2);
+    assert_eq!(
+        manager.get("other", &snapshot.session_id).unwrap_err().code,
+        "FORBIDDEN"
+    );
+    let duplicate = manager
+        .open(
+            "main",
+            request,
+            terminal,
+            SessionConfig::Local,
+            TerminalSize { cols: 80, rows: 24 },
+            capture.clone(),
+        )
+        .unwrap();
+    assert_eq!(snapshot.session_id, duplicate.session_id);
+    capture
+        .wait_for(|| {
+            manager.get("main", &snapshot.session_id).unwrap().state == SessionState::Connected
+        })
+        .await;
+    assert_eq!(ssh.attempts.load(Ordering::SeqCst), 0);
+    manager.close_owner("main");
+    capture
+        .wait_for(|| {
+            manager
+                .get("main", &snapshot.session_id)
+                .unwrap()
+                .state
+                .terminal()
+        })
+        .await;
 }

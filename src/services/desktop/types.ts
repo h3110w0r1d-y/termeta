@@ -44,13 +44,14 @@ export interface HostGroup {
   revision: number;
 }
 export type OpenTarget =
+  | { source: "local" }
   | { source: "saved"; profileId: string }
   | { source: "ephemeral"; kind: "ssh"; config: SshConfig };
 export interface SessionSnapshot {
   protocolVersion: 1;
   requestId: string;
   sessionId: string;
-  kind: "ssh";
+  kind: "ssh" | "local";
   title: string;
   state: SessionState;
   stateRevision: number;

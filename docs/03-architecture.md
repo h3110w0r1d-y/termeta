@@ -1,6 +1,6 @@
 # 系统架构与模块边界
 
-日期：2026-10-15。当前六个领域 crate 与桌面工作区已落源码（files/sftp首批实现见末尾）；以下同时保留后续目标结构。实现待验证，实际差异见 [实施状态](17-implementation-status.md)。
+日期：2026-10-15。当前七个领域 crate 与桌面工作区已落源码（files/sftp首批实现见末尾）；以下同时保留后续目标结构。实现待验证，实际差异见 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)。
 
 ## 1. 总体结构
 
@@ -13,7 +13,7 @@ flowchart TB
   App --> Core[terminal-core / SessionManager / 每会话 actor]
   Core --> Factory[SessionFactory 注册表]
   Factory --> SSH[terminal-ssh / russh]
-  Factory -. 后续 .-> Local[terminal-local / portable-pty]
+  Factory --> Local[terminal-local / portable-pty]
   Factory -. 后续 .-> Serial[terminal-serial / 串口适配]
   App --> Store[terminal-storage / SQLite]
   App --> Security[terminal-security / 主密钥与加密保险库]
@@ -78,7 +78,7 @@ core 的模型与端口允许使用 serde、bytes、Tokio 通道、async-trait �
 | crates/terminal-files、terminal-sftp       | 文件 DTO/有界复制与 SFTP provider    |
 | src-tauri/src/commands、ipc、state.rs      | owner 校验、原生交互、流桥与依赖装配 |
 
-根 Cargo workspace 使用 resolver 3、edition 2024，统一 release profile 和 Cargo.lock。Local、Serial、独立 TransferManager 及通用连接租约尚未创建或完成；双栏文件连接已由独立 SessionManager 和 files-only SSH 工厂管理，开发对应功能时再引入实际模块。
+根 Cargo workspace 使用 resolver 3、edition 2024，统一 release profile 和 Cargo.lock。Serial、独立 TransferManager 及通用连接租约尚未创建或完成；双栏文件连接已由独立 SessionManager 和 files-only SSH 工厂管理，开发对应功能时再引入实际模块。
 
 ## 5. 前端与终端生命周期
 
@@ -101,7 +101,7 @@ UI 使用 Naive UI 现成组件及 `src/components/ui/` 薄适配，NConfigProvi
 - 输出恒为 bytes；终端/HEX 是两个消费视图。将来单 session 在二者切换要定义缓存与重放范围，不承诺无限历史。
 - 配置使用版本化 discriminated union，DTO 映射到 core typed enum；不把 ssh 地址/用户名放进所有会话必填字段。
 
-为防过度抽象，第一版只实现 SSH 分支，但使用 fake driver 检验管理器不引用 SSH 类型；Local/Serial 控制与配置以设计保留。
+为防过度抽象，会话配置以 SessionConfig::Ssh/Local 区分；SessionManager 在统一会话表内选择已注册工厂，保留共享限额、所有权、取消与输出ACK。Serial 配置后续扩展。
 
 ## 7. SSH connection 与 terminal session
 
@@ -123,9 +123,9 @@ CommandRegistry 统一菜单、按钮与按键动作，KeymapService 合并平�
 
 ## 当前源码边界
 
-六个领域 crate、Tauri commands/state 与 Vue modules 已创建。当前只注入 SshFactory，不为未实现的 Local/Serial 构建空工厂；仍通过 SessionFactory trait 隔离协议。原生壳只做 DTO/owner/资源桥接，具体握手、认证、PTY 与 socket 取消在 terminal-ssh。SQLite 复合写使用 BEGIN IMMEDIATE，不在应用全局锁内等待数据库。
+七个领域 crate、Tauri commands/state 与 Vue modules 已创建。当前注入 SshFactory 与 terminal-local::LocalFactory；Serial 尚未实现；仍通过 SessionFactory trait 隔离协议。原生壳只做 DTO/owner/资源桥接，具体握手、认证、PTY 与 socket 取消在 terminal-ssh。SQLite 复合写使用 BEGIN IMMEDIATE，不在应用全局锁内等待数据库。
 
-UI tokens、基础与共享规则集中于 `src/App.vue` 的非 scoped 样式；业务布局/尺寸在所属 Vue 的 `<style scoped>`，跨组件动态 DOM 显式使用 `:deep()` 或入口全局适配；字体资源仍在独立资源 CSS。已移除 `src/styles.css` 及入口导入。项目交互封装为 `src/components/ui/`；命令注册表在 `src/services/commands/`，只有 `src/services/desktop/` 能调用 invoke。终端注册表和设置/主机/工作区分模块维护；设置面板拆为配色、快捷键、安全子组件。尚无独立 transfers 模块或 Local/Serial crate。实际交付与限制见 [实施状态](17-implementation-status.md)。
+UI tokens、基础与共享规则集中于 `src/App.vue` 的非 scoped 样式；业务布局/尺寸在所属 Vue 的 `<style scoped>`，跨组件动态 DOM 显式使用 `:deep()` 或入口全局适配；字体资源仍在独立资源 CSS。已移除 `src/styles.css` 及入口导入。项目交互封装为 `src/components/ui/`；命令注册表在 `src/services/commands/`，只有 `src/services/desktop/` 能调用 invoke。终端注册表和设置/主机/工作区分模块维护；设置面板拆为配色、快捷键、安全子组件。已有 terminal-local crate，尚无独立 transfers 模块或 Serial crate。实际交付与限制见 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)。
 
 ## 10. 终端工作区布局
 
@@ -146,3 +146,7 @@ M2-14只扩展前端输入路由。WorkspaceTab增加内存broadcast/broadcastRe
 拖放分层：`src-tauri/src/file_drag.rs`登记原生拖入短期owner-bound引用并广播无路径事件；`file_drag_macos.rs`封装AppKit文件承诺和拖动生命周期，不承担SSH协议。`commands/file_drag.rs`校验main/session/许可并为原生承诺注入受界下载回调；`commands/files.rs`复用批次扫描、覆盖原生确认及直接上传。`terminal-sftp`仅提供元数据/目录合并/安全新建或确认后截断写入，`terminal-files`仍只承载协议无关DTO与64KiB复制。Vue批次队列仅轻量状态，正文继续留Rust。5个SFTP命令均纳入单份AppManifest名单和ACL，Windows/Linux拖出当前明确不支持，不引入第二套任意路径接口。
 
 加密启动边界（2026-10-16）：App通过VaultGate等待首次设置/密码恢复/钥匙串自动解锁；只有vault_status与unlock_vault可在锁定状态调用。窗口所有权和本地导航校验不变，其他用例命令额外检查保险库已解锁。core不依赖SQLCipher/Argon2或UI。新库schema 2，不兼容旧代际，详见[存储](07-storage.md)。
+
+主机分组页面由HostsSidebar、HostGroupTree与轻量groups工具协作：前者负责当前范围/主机菜单，后者负责Naive UI树、分组表单/删除选择及Pointer Events迁移；store复用desktop门面保存元数据，界面不触碰秘密。左右独立NScrollbar，原生外层保持v-show保活。只有连同主机删除子树新增storage事务方法，命令仍为delete_host_group的可选deleteHosts分支，schema与通用会话架构不变。
+
+HostSearch独立维护内存搜索索引与NAutoComplete下拉，不改变HostsSidebar的分组范围；静态拼音表位于src/assets/conf，算法仅处理元数据。主机页持久化偏好由settings store统一串行保存至app.hostsView，前后端类型/校验同步，无新存储层或协议服务。

@@ -31,6 +31,7 @@ struct Registry {
 #[derive(Clone)]
 pub struct SessionManager {
     factory: Arc<dyn SessionFactory>,
+    additional: Vec<Arc<dyn SessionFactory>>,
     registry: Arc<Mutex<Registry>>,
     connecting: Arc<Semaphore>,
 }
@@ -38,12 +39,23 @@ impl SessionManager {
     pub fn new(factory: Arc<dyn SessionFactory>) -> Self {
         Self {
             factory,
+            additional: Vec::new(),
             registry: Arc::new(Mutex::new(Registry {
                 sessions: HashMap::new(),
                 requests: HashMap::new(),
             })),
             connecting: Arc::new(Semaphore::new(4)),
         }
+    }
+    pub fn with_factory(mut self, factory: Arc<dyn SessionFactory>) -> Self {
+        self.additional.push(factory);
+        self
+    }
+    pub fn available_kinds(&self) -> Vec<(&str, SessionCapabilities)> {
+        std::iter::once(&self.factory)
+            .chain(self.additional.iter())
+            .map(|factory| (factory.kind(), factory.capabilities()))
+            .collect()
     }
     pub fn capabilities(&self) -> SessionCapabilities {
         self.factory.capabilities()
@@ -53,11 +65,17 @@ impl SessionManager {
         owner: &str,
         request_id: String,
         terminal_id: String,
-        config: SshConfig,
+        config: impl Into<SessionConfig>,
         size: TerminalSize,
         sink: Arc<dyn SessionSink>,
     ) -> Result<SessionSnapshot> {
-        self.factory.validate(&config)?;
+        let config = config.into();
+        let factory = std::iter::once(&self.factory)
+            .chain(self.additional.iter())
+            .find(|factory| factory.kind() == config.kind())
+            .cloned()
+            .ok_or_else(|| SessionError::new("UNSUPPORTED_KIND", "opening", "不支持的会话类型"))?;
+        factory.validate(&config)?;
         size.validate()?;
         if uuid::Uuid::parse_str(&request_id).is_err()
             || uuid::Uuid::parse_str(&terminal_id).is_err()
@@ -92,11 +110,11 @@ impl SessionManager {
             request_id: request_id.clone(),
             session_id: session_id.clone(),
             terminal_id,
-            kind: self.factory.kind().into(),
-            title: format!("{}@{}", config.username, config.address),
+            kind: factory.kind().into(),
+            title: config.title(),
             state: SessionState::Created,
             state_revision: 0,
-            capabilities: self.factory.capabilities(),
+            capabilities: factory.capabilities(),
             size,
         };
         let cancel = CancellationToken::new();
@@ -141,7 +159,6 @@ impl SessionManager {
             events: events.clone(),
             challenges: challenges.clone(),
         };
-        let factory = self.factory.clone();
         let connecting = self.connecting.clone();
         tokio::spawn(async move {
             let result = tokio::select! {

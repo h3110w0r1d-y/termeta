@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { validateForm } from "../../services/forms/rules";
 import { computed, h, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
   NAlert,
@@ -12,6 +13,9 @@ import {
   type DataTableColumns,
   type DataTableRowKey,
   type DataTableSortState,
+  NForm,
+  NFormItem,
+  type FormInst,
 } from "naive-ui";
 import { desktop, errorMessage } from "../../services/desktop/client";
 import type {
@@ -72,6 +76,17 @@ function resizeKey(event: KeyboardEvent) {
 }
 const directory = ref(".");
 const pathInput = ref(".");
+const pathForm = ref<FormInst>();
+const pathRules = {
+  path: {
+    required: true,
+    message: "请输入远端路径",
+    trigger: ["input", "blur"],
+  },
+};
+async function navigatePath() {
+  if (await validateForm(pathForm.value)) await load(pathInput.value);
+}
 const entries = ref<FileEntry[]>([]);
 const checkedNames = ref<DataTableRowKey[]>([]);
 const selectedEntries = computed(() =>
@@ -651,18 +666,21 @@ onBeforeUnmount(() => {
     >
     <NText v-if="notice" type="success">{{ notice }}</NText>
     <NFlex :wrap="false">
-      <NInput
-        v-model:value="pathInput"
-        size="small"
-        placeholder="远端路径"
-        :disabled="busy || !connected"
-        @keydown.enter="load(pathInput)"
-        aria-label="远端路径"
-      />
-      <NButton
-        size="small"
-        :disabled="busy || !connected"
-        @click="load(pathInput)"
+      <NForm
+        ref="pathForm"
+        :model="{ path: pathInput }"
+        :rules="pathRules"
+        @submit.prevent="navigatePath"
+        class="path-form"
+        ><NFormItem label="远端路径" path="path" :show-label="false">
+          <NInput
+            v-model:value="pathInput"
+            size="small"
+            placeholder="远端路径"
+            :disabled="busy || !connected"
+            aria-label="远端路径" /></NFormItem
+      ></NForm>
+      <NButton size="small" :disabled="busy || !connected" @click="navigatePath"
         >前往</NButton
       >
     </NFlex>
@@ -784,6 +802,10 @@ onBeforeUnmount(() => {
   </aside>
 </template>
 <style scoped>
+.path-form {
+  flex: 1;
+  min-width: 0;
+}
 .sftp-panel {
   position: relative;
   max-width: calc(100% - 100px);

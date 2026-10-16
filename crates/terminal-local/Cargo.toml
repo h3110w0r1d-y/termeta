@@ -1,0 +1,14 @@
+[package]
+name = "terminal-local"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.89"
+
+[dependencies]
+terminal-core = { path = "../terminal-core" }
+portable-pty = "=0.9.0"
+async-trait = "=0.1.89"
+tokio = { version = "=1.50.0", features = ["rt", "sync", "time", "macros"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "=0.2.190"

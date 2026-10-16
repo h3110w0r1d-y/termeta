@@ -46,4 +46,10 @@ VaultGate使用Naive UI的NCard/NForm/NInput/NButton/NSpin/NAlert，先完成首
 
 已核对2.45.3包manifest、类型和许可证：Node要求>=20，Vue peer为^3.0.0，MIT。包声明sideEffects:false，未构建因此不报告实际体积或tree-shaking效果。来源：[官网](https://www.naiveui.com/)、[仓库](https://github.com/tusen-ai/naive-ui)、[固定版本元数据](https://registry.npmjs.org/naive-ui/2.45.3)。API以锁定包源码为准。
 
-待验收：三平台高DPI、系统主题、弹层焦点/IME、表单Enter/校验、横纵标签、隐藏终端、文件选择/拖放和颜色往返。类型、格式及静态契约检查不代表桌面交互已通过，见 [验证方案](11-validation.md)。
+待验收：三平台高DPI、系统主题、弹层焦点/IME、表单Enter/校验、横纵标签、隐藏终端、文件选择/拖放和颜色往返。类型、格式及静态契约检查不代表桌面交互已通过，见 [运行验收边界](01-product-requirements.md#11-运行验收边界)。
+
+业务表单使用NForm/NFormItem的model/rules/path和validate；由required规则生成红星，提交按钮不因输入未填而提前禁用，提交时显示字段错误。自定义配色与常规设置使用独立表单，禁止嵌套HTML form。主机搜索采用NSelect的remote/filterable与header插槽，顶部字段复选框共用即时搜索设置。
+
+NSelect.focus仅聚焦选择器外壳，主机搜索通过focusInput获取真实光标。搜索字段复选框mousedown阻止默认焦点转移；有效关键词为空时菜单隐藏。AppDialog转发Naive UI after-leave，供连接/认证弹窗完成焦点陷阱退场后恢复终端。搜索和上下文菜单使用display-directive=show，并让data-ui-popup-open随真实显示状态变化，防止过渡期间的旧节点阻断快捷键。
+
+全局NewTabDialog复用AppDialog、NInput、NScrollbar、NList/NButton和SearchPreferences，主机结果直接位于正文，无第二层下拉；共享useHostSearch保证与主页字段/拼音语义一致。AppDialog转发after-enter供真实输入聚焦、after-leave供弹窗串行交接，footer提供快速连接入口。

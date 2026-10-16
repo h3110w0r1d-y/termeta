@@ -5,11 +5,14 @@ import {
   NButton,
   NCard,
   NForm,
+  type FormInst,
+  type FormRules,
   NFormItem,
   NInput,
   NSpin,
   NText,
 } from "naive-ui";
+import { validateForm } from "../services/forms/rules";
 import WindowControls from "./WindowControls.vue";
 import { isMac } from "../services/commands/registry";
 import { desktop, errorMessage } from "../services/desktop/client";
@@ -23,6 +26,30 @@ const busy = ref(false),
 const password = ref(""),
   confirmation = ref("");
 const setup = computed(() => status.value?.mode === "setup");
+const form = ref<FormInst>();
+const rules = computed<FormRules>(() => ({
+  password: {
+    required: true,
+    trigger: ["input", "blur"],
+    validator: () => {
+      if (!password.value) return new Error("请输入保险库密码");
+      if (
+        setup.value &&
+        ([...password.value].length < 12 ||
+          new TextEncoder().encode(password.value).length > 1024)
+      )
+        return new Error("密码至少12个字符，UTF-8编码不超过1024字节");
+      return true;
+    },
+  },
+  confirmation: {
+    required: true,
+    trigger: ["input", "blur"],
+    validator: () =>
+      (!!confirmation.value && confirmation.value === password.value) ||
+      new Error("两次输入的密码须一致"),
+  },
+}));
 async function accept(next: VaultStatus) {
   status.value = next;
   warning.value = next.keychainWarning ?? "";
@@ -45,13 +72,7 @@ async function inspect() {
 async function submit() {
   if (busy.value) return;
   error.value = "";
-  if (
-    setup.value &&
-    ([...password.value].length < 12 || password.value !== confirmation.value)
-  ) {
-    error.value = "请设置至少12个字符的密码，并确保两次输入一致。";
-    return;
-  }
+  if (!(await validateForm(form.value))) return;
   busy.value = true;
   try {
     await accept(await desktop.unlockVault(password.value, setup.value));
@@ -103,10 +124,14 @@ onMounted(inspect);
           }}</NText>
           <NAlert v-if="warning" type="warning">{{ warning }}</NAlert>
           <NForm
+            ref="form"
+            :model="{ password, confirmation }"
+            :rules="rules"
             v-if="status && status.mode !== 'unlocked'"
             @submit.prevent="submit"
           >
             <NFormItem
+              path="password"
               :label="setup ? '设置密码（至少12个字符）' : '保险库密码'"
             >
               <NInput
@@ -121,7 +146,7 @@ onMounted(inspect);
                 autofocus
               />
             </NFormItem>
-            <NFormItem v-if="setup" label="确认密码">
+            <NFormItem v-if="setup" label="确认密码" path="confirmation">
               <NInput
                 v-model:value="confirmation"
                 type="password"
@@ -133,7 +158,7 @@ onMounted(inspect);
               type="primary"
               attr-type="submit"
               :loading="busy"
-              :disabled="busy || !password"
+              :disabled="busy"
               >{{ setup ? "创建并解锁" : "解锁" }}</NButton
             >
           </NForm>

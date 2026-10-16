@@ -79,13 +79,25 @@ pub async fn delete_host_group(
     state: State<'_, AppState>,
     id: String,
     revision: i64,
+    delete_hosts: Option<bool>,
 ) -> Result<()> {
     owner(&window)?;
-    state
-        .store
-        .delete_group(&id, revision)
-        .await
-        .map_err(storage_error)
+    if delete_hosts.unwrap_or(false) {
+        state
+            .store
+            .delete_group_and_hosts(&id, revision)
+            .await
+            .map_err(storage_error)?;
+        // 删除已提交，专属秘密清理失败由后续解锁继续回收，公共凭据不受影响。
+        let _ = state.vault.reconcile_deletions().await;
+        Ok(())
+    } else {
+        state
+            .store
+            .delete_group(&id, revision)
+            .await
+            .map_err(storage_error)
+    }
 }
 #[tauri::command]
 pub async fn list_known_hosts(

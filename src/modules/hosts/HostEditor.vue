@@ -1,5 +1,11 @@
 <script setup lang="ts">
-import { NFlex, NForm } from "naive-ui";
+import {
+  NFlex,
+  NForm,
+  NFormItem,
+  type FormInst,
+  type FormRules,
+} from "naive-ui";
 import { clone } from "../../services/data/clone";
 import { computed, ref, watch } from "vue";
 import AppDialog from "../../components/ui/AppDialog.vue";
@@ -7,7 +13,11 @@ import AppSelect from "../../components/ui/AppSelect.vue";
 import AppCheckbox from "../../components/ui/AppCheckbox.vue";
 import AppButton from "../../components/ui/AppButton.vue";
 import AppInput from "../../components/ui/AppInput.vue";
-import AppLabel from "../../components/ui/AppLabel.vue";
+import {
+  requiredText,
+  integerRange,
+  validateForm,
+} from "../../services/forms/rules";
 import AppNumberField from "../../components/ui/AppNumberField.vue";
 import { desktop, errorMessage } from "../../services/desktop/client";
 import type {
@@ -20,16 +30,19 @@ import type {
 import { useSettings } from "../settings/store";
 import { builtinSchemes } from "../settings/themes";
 import { useHosts } from "./store";
+import { groupChoices } from "./groups";
 const props = defineProps<{
   open: boolean;
   host?: HostProfile;
   quick?: boolean;
   duplicate?: boolean;
+  initialGroupId?: string | null;
 }>();
 const emit = defineEmits<{
   "update:open": [boolean];
   connect: [SshConfig, string];
   saved: [];
+  "after-leave": [];
 }>();
 const settings = useSettings();
 const hosts = useHosts(),
@@ -51,7 +64,7 @@ const blank = (): HostDraft => ({
   username: "",
   favorite: false,
   tags: [],
-  groupId: null,
+  groupId: props.initialGroupId ?? null,
   authPlan: [{ type: "password" }],
 });
 const draft = ref<HostDraft>(blank());
@@ -139,7 +152,7 @@ const schemeOptions = computed(() => [
 ]);
 const groupOptions = computed(() => [
   { value: "", label: "未分组" },
-  ...hosts.groups.map((group) => ({ value: group.id, label: group.name })),
+  ...groupChoices(hosts.groups),
 ]);
 const groupId = computed({
   get: () => draft.value.groupId ?? "",
@@ -147,18 +160,23 @@ const groupId = computed({
     draft.value.groupId = value || null;
   },
 });
-const valid = computed(
-  () =>
-    draft.value.address.trim() &&
-    draft.value.username.trim() &&
-    Number.isInteger(draft.value.port) &&
-    draft.value.port > 0 &&
-    draft.value.port < 65536 &&
-    !(!props.quick && !draft.value.name.trim()) &&
-    (auth.value !== "privateKey" || !!credentialId.value),
-);
+const form = ref<FormInst>();
+const formModel = computed(() => ({
+  ...draft.value,
+  auth: auth.value,
+  credentialId: credentialId.value,
+}));
+const rules = computed<FormRules>(() => ({
+  name: props.quick ? [] : requiredText("名称"),
+  address: requiredText("主机地址"),
+  username: requiredText("用户名"),
+  port: integerRange("端口", 1, 65535),
+  auth: requiredText("认证方式"),
+  credentialId: auth.value === "privateKey" ? requiredText("私钥凭据") : [],
+}));
 async function submit() {
-  if (!valid.value || busy.value) return;
+  if (busy.value || (!committedHost.value && !(await validateForm(form.value))))
+    return;
   busy.value = true;
   error.value = "";
   try {
@@ -224,73 +242,71 @@ async function submit() {
 <template>
   <AppDialog
     :open="open"
+    @after-leave="emit('after-leave')"
     :locked="busy"
     :title="quick ? '快速连接' : host && !duplicate ? '编辑主机' : '新建主机'"
     description="选择密码或公钥认证；额外验证由服务器在连接时自动提示。"
     @update:open="emit('update:open', $event)"
   >
     <NForm
+      ref="form"
+      :model="formModel"
+      :rules="rules"
+      label-placement="top"
+      novalidate
       id="host-editor-form"
       :disabled="fieldsLocked"
       @submit.prevent="submit"
     >
       <fieldset class="host-fields form-grid" :disabled="fieldsLocked">
-        <div class="field span-2">
-          <AppLabel for="host-name">名称</AppLabel>
+        <NFormItem class="field span-2" label="名称" path="name">
           <AppInput
             id="host-name"
             v-model="draft.name"
-            :required="!quick"
             maxlength="120"
             placeholder="例如：生产环境 · 上海"
           />
-        </div>
-        <div class="field">
-          <AppLabel for="host-address">主机地址</AppLabel>
+        </NFormItem>
+        <NFormItem class="field" label="主机地址" path="address">
           <AppInput
             id="host-address"
             v-model="draft.address"
-            required
             maxlength="253"
             placeholder="example.com / IPv6"
           />
-        </div>
-        <div class="field">
-          <AppLabel for="host-port">端口</AppLabel>
+        </NFormItem>
+        <NFormItem class="field" label="端口" path="port">
           <AppNumberField
             id="host-port"
             v-model="draft.port"
             :min="1"
             :max="65535"
-            required
           />
-        </div>
-        <div class="field">
-          <AppLabel for="host-username">用户名</AppLabel>
+        </NFormItem>
+        <NFormItem class="field" label="用户名" path="username">
           <AppInput
             id="host-username"
             v-model="draft.username"
-            required
             maxlength="256"
             autocomplete="off"
           />
-        </div>
-        <div class="field">
-          <AppLabel for="host-auth">认证方式</AppLabel>
+        </NFormItem>
+        <NFormItem class="field" label="认证方式" path="auth">
           <AppSelect
             id="host-auth"
             v-model="auth"
             :options="authOptions"
             :disabled="fieldsLocked"
           />
-        </div>
+        </NFormItem>
         <p class="muted span-2 auth-hint">
           连接时自动识别服务器要求的后续认证，需要验证码时会提示输入。
         </p>
-        <div class="field span-2">
-          <AppLabel for="host-credential">{{
-            auth === "privateKey" ? "私钥凭据" : "密码凭据"
-          }}</AppLabel>
+        <NFormItem
+          class="field span-2"
+          :label="auth === 'privateKey' ? '私钥凭据' : '密码凭据'"
+          path="credentialId"
+        >
           <AppSelect
             id="host-credential"
             v-model="credentialId"
@@ -300,18 +316,19 @@ async function submit() {
           <p v-if="auth === 'privateKey'" class="muted auth-hint">
             私钥及其可选解密密码统一在凭据页创建和管理。
           </p>
-        </div>
+        </NFormItem>
         <div v-if="auth === 'password' && !credentialId" class="field span-2">
           <template v-if="!quick">
-            <AppLabel for="host-password">主机专属密码（可选）</AppLabel>
-            <AppInput
-              id="host-password"
-              v-model="secret"
-              type="password"
-              autocomplete="new-password"
-              :disabled="fieldsLocked"
-              placeholder="填写后随主机安全保存；留空则连接时询问"
-            />
+            <NFormItem label="主机专属密码（可选）">
+              <AppInput
+                id="host-password"
+                v-model="secret"
+                type="password"
+                autocomplete="new-password"
+                :disabled="fieldsLocked"
+                placeholder="填写后随主机安全保存；留空则连接时询问"
+              />
+            </NFormItem>
             <p class="muted auth-hint">
               此密码仅用于当前主机，不进入可复用凭据库。{{
                 host?.hasPassword && !duplicate
@@ -326,33 +343,35 @@ async function submit() {
             快速连接不保存专属密码，本次连接时会询问。
           </p>
         </div>
-        <div v-if="!quick" class="field span-2">
-          <AppLabel for="host-scheme">主机终端配色</AppLabel>
+        <NFormItem
+          v-if="!quick"
+          class="field span-2"
+          label="主机终端配色"
+          path="scheme"
+        >
           <AppSelect
             id="host-scheme"
             v-model="hostScheme"
             :options="schemeOptions"
             :disabled="fieldsLocked"
           />
-        </div>
+        </NFormItem>
         <template v-if="!quick">
-          <div class="field">
-            <AppLabel for="host-group">分组</AppLabel>
+          <NFormItem class="field" label="分组" path="group">
             <AppSelect
               id="host-group"
               v-model="groupId"
               :options="groupOptions"
               :disabled="fieldsLocked"
             />
-          </div>
-          <div class="field">
-            <AppLabel for="host-tags">标签</AppLabel>
+          </NFormItem>
+          <NFormItem class="field" label="标签" path="tags">
             <AppInput
               id="host-tags"
               v-model="tagText"
               placeholder="生产, Linux"
             />
-          </div>
+          </NFormItem>
           <AppCheckbox
             v-model="draft.favorite"
             class="span-2"
@@ -372,7 +391,7 @@ async function submit() {
           type="submit"
           form="host-editor-form"
           class="primary"
-          :disabled="busy || !valid"
+          :disabled="busy"
           >{{
             busy
               ? "处理中…"

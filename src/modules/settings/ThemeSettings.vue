@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import {
+  NForm,
+  NFormItem,
+  type FormInst,
+  type FormRules,
   NFlex,
   NGrid,
   NGridItem,
@@ -10,7 +14,7 @@ import {
 import AppCollapsible from "../../components/ui/AppCollapsible.vue";
 import AppInput from "../../components/ui/AppInput.vue";
 import AppTextarea from "../../components/ui/AppTextarea.vue";
-import AppLabel from "../../components/ui/AppLabel.vue";
+import { requiredText, validateForm } from "../../services/forms/rules";
 import AppButton from "../../components/ui/AppButton.vue";
 import {
   computed,
@@ -146,7 +150,27 @@ function editScheme(s: Scheme) {
     editor.value.source = "user";
   }
 }
-function saveScheme() {
+const form = ref<FormInst>();
+const rules: FormRules = {
+  name: requiredText("方案名称"),
+  indexed: {
+    trigger: ["input", "blur"],
+    validator: () => {
+      try {
+        const next = clone(editor.value);
+        next.colors.indexedOverrides = parseJson(
+          indexed.value || "{}",
+        ) as Record<string, string>;
+        parseScheme(JSON.stringify(next));
+        return true;
+      } catch (e) {
+        return new Error(errorMessage(e));
+      }
+    },
+  },
+};
+async function saveScheme() {
+  if (!(await validateForm(form.value))) return;
   try {
     editor.value.colors.indexedOverrides = parseJson(
       indexed.value || "{}",
@@ -282,80 +306,89 @@ function confirmImport() {
         title="自定义当前配色"
         display-directive="show"
       >
-        <NFlex vertical :size="16">
-          <p class="muted">
-            内置方案编辑后保存为自定义副本。修改将在保存设置后应用。
-          </p>
-          <AppLabel
-            >方案名称<AppInput v-model="editor.name" maxlength="80"
-          /></AppLabel>
-          <div ref="previewHost" class="theme-preview" />
-          <p v-if="contrast < 4.5" class="error">
-            前景 / 背景对比度 {{ contrast.toFixed(2) }}:1，低于
-            4.5:1。保存时保留你的选色。
-          </p>
-          <div class="color-grid">
-            <ColorField
-              v-for="key in baseKeys"
-              :key="key"
-              v-model="editor.colors[key]"
-              :label="key"
-              :reset="defaultScheme.colors[key]"
-            />
-          </div>
-          <AppCollapsible title="ANSI 16 色（取色 / HEX / RGB）">
+        <NForm
+          ref="form"
+          :model="{ ...editor, indexed }"
+          :rules="rules"
+          label-placement="top"
+          @submit.prevent="saveScheme"
+          ><NFlex vertical :size="16">
+            <p class="muted">
+              内置方案编辑后保存为自定义副本。修改将在保存设置后应用。
+            </p>
+            <NFormItem label="方案名称" path="name"
+              ><AppInput v-model="editor.name" maxlength="80"
+            /></NFormItem>
+            <div ref="previewHost" class="theme-preview" />
+            <p v-if="contrast < 4.5" class="error">
+              前景 / 背景对比度 {{ contrast.toFixed(2) }}:1，低于
+              4.5:1。保存时保留你的选色。
+            </p>
             <div class="color-grid">
               <ColorField
-                v-for="(_, i) in editor.colors.ansi"
-                :key="i"
-                v-model="editor.colors.ansi[i]"
-                :label="'ANSI ' + i"
-                :reset="defaultScheme.colors.ansi[i]"
-              />
-            </div>
-          </AppCollapsible>
-          <AppCollapsible title="滚动条辅助颜色">
-            <div v-if="editor.colors.scrollbar" class="color-grid">
-              <ColorField
-                v-for="key in scrollbarKeys"
+                v-for="key in baseKeys"
                 :key="key"
-                v-model="editor.colors.scrollbar[key]"
+                v-model="editor.colors[key]"
                 :label="key"
+                :path="`colors.${key}`"
+                :optional="key === 'selectionForeground'"
+                :reset="defaultScheme.colors[key]"
               />
             </div>
-          </AppCollapsible>
-          <AppLabel
-            >索引色覆盖（16–255，HEX JSON）<AppTextarea
-              v-model="indexed"
-              rows="3"
-              spellcheck="false"
-          /></AppLabel>
-          <NFlex>
-            <AppButton @click="exportTheme">导出 JSON</AppButton>
-            <AppButton
-              class="danger"
-              :disabled="!draft.customSchemes.some((s) => s.id === editor.id)"
-              @click="deleteScheme"
-              >删除自定义</AppButton
-            >
-            <AppButton
-              @click="
-                editScheme(
-                  resolveScheme(draft.defaultSchemeId, draft.customSchemes),
-                )
-              "
-              >撤销编辑</AppButton
-            >
-            <AppButton v-if="imported" @click="confirmImport"
-              >确认导入副本</AppButton
-            >
-          </NFlex>
-          <NFlex justify="end">
-            <AppButton class="primary" @click="saveScheme"
-              >保存为自定义</AppButton
-            >
-          </NFlex>
-        </NFlex>
+            <AppCollapsible title="ANSI 16 色（取色 / HEX / RGB）">
+              <div class="color-grid">
+                <ColorField
+                  v-for="(_, i) in editor.colors.ansi"
+                  :key="i"
+                  v-model="editor.colors.ansi[i]"
+                  :label="'ANSI ' + i"
+                  :path="`colors.ansi.${i}`"
+                  :reset="defaultScheme.colors.ansi[i]"
+                />
+              </div>
+            </AppCollapsible>
+            <AppCollapsible title="滚动条辅助颜色">
+              <div v-if="editor.colors.scrollbar" class="color-grid">
+                <ColorField
+                  v-for="key in scrollbarKeys"
+                  :key="key"
+                  v-model="editor.colors.scrollbar[key]"
+                  :label="key"
+                  :path="`colors.scrollbar.${key}`"
+                  optional
+                />
+              </div>
+            </AppCollapsible>
+            <NFormItem label="索引色覆盖（16–255，HEX JSON）" path="indexed"
+              ><AppTextarea v-model="indexed" rows="3" spellcheck="false"
+            /></NFormItem>
+            <NFlex>
+              <AppButton @click="exportTheme">导出 JSON</AppButton>
+              <AppButton
+                class="danger"
+                :disabled="!draft.customSchemes.some((s) => s.id === editor.id)"
+                @click="deleteScheme"
+                >删除自定义</AppButton
+              >
+              <AppButton
+                @click="
+                  editScheme(
+                    resolveScheme(draft.defaultSchemeId, draft.customSchemes),
+                  )
+                "
+                >撤销编辑</AppButton
+              >
+              <AppButton v-if="imported" @click="confirmImport"
+                >确认导入副本</AppButton
+              >
+            </NFlex>
+            <NFlex justify="end">
+              <AppButton class="primary" @click="saveScheme"
+                >保存为自定义</AppButton
+              >
+            </NFlex>
+          </NFlex></NForm
+        >
       </NCollapseItem>
     </NCollapse>
     <p v-if="error" class="error" role="alert">{{ error }}</p>

@@ -1,12 +1,19 @@
 <script setup lang="ts">
-import { NFlex } from "naive-ui";
+import {
+  NFlex,
+  NForm,
+  NFormItem,
+  type FormInst,
+  type FormRules,
+} from "naive-ui";
 import AppButton from "../../components/ui/AppButton.vue";
 import AppInput from "../../components/ui/AppInput.vue";
-import AppLabel from "../../components/ui/AppLabel.vue";
+import { validateForm } from "../../services/forms/rules";
 import { computed, nextTick, ref, watch } from "vue";
 import AppDialog from "../../components/ui/AppDialog.vue";
 import { useWorkspace } from "../workspace/store";
 import { desktop, errorMessage } from "../../services/desktop/client";
+const emit = defineEmits<{ "after-leave": [] }>();
 const workspace = useWorkspace(),
   current = computed(() => workspace.challenges[0]),
   targetTitle = computed(
@@ -15,7 +22,7 @@ const workspace = useWorkspace(),
         ?.title ?? workspace.fileSessionTitles[current.value?.sessionId ?? ""],
   );
 const answers = ref<string[]>([]),
-  authForm = ref<HTMLFormElement>(),
+  authForm = ref<FormInst>(),
   busy = ref(false),
   error = ref("");
 watch(current, async (c) => {
@@ -27,10 +34,22 @@ watch(current, async (c) => {
     c?.type === "authChallenge"
   )
     (
-      authForm.value?.querySelector<HTMLElement>("input") ??
+      document.querySelector<HTMLElement>("#auth-challenge-form input") ??
       document.getElementById("auth-challenge-continue")
     )?.focus();
 });
+const rules = computed<FormRules>(() =>
+  Object.fromEntries(
+    answers.value.map((_, index) => [
+      String(index),
+      {
+        max: 16384,
+        message: "回答最多16384个字符",
+        trigger: ["input", "blur"],
+      },
+    ]),
+  ),
+);
 async function hostKey(decision: "reject" | "allowOnce" | "trustAndSave") {
   if (busy.value) return;
   const c = current.value;
@@ -51,6 +70,7 @@ async function auth(cancel = false) {
   if (busy.value) return;
   const c = current.value;
   if (c?.type !== "authChallenge") return;
+  if (!cancel && !(await validateForm(authForm.value))) return;
   busy.value = true;
   const secrets = [...answers.value];
   answers.value = answers.value.map(() => "");
@@ -70,6 +90,7 @@ async function auth(cancel = false) {
 <template>
   <AppDialog
     :open="!!current"
+    @after-leave="emit('after-leave')"
     :locked="true"
     :description="targetTitle ? `连接目标：${targetTitle}` : undefined"
     :title="
@@ -93,7 +114,9 @@ async function auth(cancel = false) {
         保存信任不会自动替换已经信任的不同密钥。指纹变更会被阻断。
       </p>
     </template>
-    <form
+    <NForm
+      :model="answers"
+      :rules="rules"
       v-else-if="current?.type === 'authChallenge'"
       ref="authForm"
       id="auth-challenge-form"
@@ -101,19 +124,20 @@ async function auth(cancel = false) {
       @submit.prevent="auth()"
     >
       <p class="span-2">{{ current.instructions }}</p>
-      <AppLabel
+      <NFormItem
+        :label="prompt.text"
+        :path="String(index)"
         v-for="(prompt, index) in current.prompts"
         :key="index"
         class="span-2"
-        >{{ prompt.text
-        }}<AppInput
+        ><AppInput
           v-model="answers[index]"
           :type="prompt.echo ? 'text' : 'password'"
           autocomplete="off"
           :autofocus="index === 0"
           maxlength="16384"
-      /></AppLabel>
-    </form>
+      /></NFormItem>
+    </NForm>
     <p v-if="error" class="error" role="alert">{{ error }}</p>
     <template #footer>
       <NFlex v-if="current?.type === 'hostKeyChallenge'" justify="end">

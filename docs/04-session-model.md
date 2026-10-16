@@ -1,6 +1,6 @@
 # 统一会话模型与生命周期
 
-日期：2026-10-15。core 会话管理、流控与 SSH 驱动已实现待验证；领域测试仅编写未运行。源码与实际差异见 [实施状态](17-implementation-status.md)。
+日期：2026-10-15。core 会话管理、流控与 SSH 驱动已实现待验证；领域测试仅编写未运行。源码与实际差异见 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)。
 
 ## 1. 概念与标识
 
@@ -138,3 +138,7 @@ retryable 只表示用户可以重新尝试连接，不表示允许自动重放 
 M2 内存分屏不改变 actor 或 session 模型：标签组ID、terminalId、后端sessionId各自独立；一个组可含多个稳定terminalId，各自保有独立会话/队列/历史。排序/合并只改前端树，断线保留原窗格；重连仅更换该叶子后端sessionId。全局终端动作以聚焦叶子为目标，关闭标签协调所有叶子，关闭单窗格仅回收自身。详见 [终端工作区](18-terminal-workspaces.md)。
 
 工作区广播：工作区广播是前端输入分发，不创建共享actor或合并会话队列；每目标独立inputSeq、字节限额与stream代次，断线不补发、不自动重放。多行确认期间保存组广播版本及目标代次，失效不转交给新连接；开启广播不影响输出/ACK/KeepAlive/取消。
+
+## 本地驱动（2026-10-16）
+
+SessionFactory 接收 SessionConfig（Ssh/Local），SessionManager::open 兼容 SshConfig 的 Into 转换；with_factory 注册本地工厂，共享20个活动会话限额与连接额度。Local 使用独立阻塞读写线程、有界4×32KiB读取桥和单块输入桥，InputChunk 保留字节预算许可；输出泵与resize/退出轮询并行，取消丢弃驱动时终止子进程并异步回收。PTY创建放在阻塞任务内，晚到的创建结果同样由RAII清理。Unix 初始进程组强制结束；已脱离组的子进程、Windows完整进程树仍待完善。Shell退出后等待PTY输出排空，再由核心发布Ended并保留前端历史。

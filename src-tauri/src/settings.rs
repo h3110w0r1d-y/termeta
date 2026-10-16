@@ -40,6 +40,8 @@ pub fn validate(settings: &Value) -> Result<()> {
         "tabPosition",
         "tabDoubleClickAction",
         "sftpShowHidden",
+        "hostsView",
+        "hostSearch",
         "fontFamily",
         "fontSize",
         "scrollback",
@@ -79,6 +81,39 @@ pub fn validate(settings: &Value) -> Result<()> {
         || !settings["multilinePaste"].is_boolean()
     {
         return Err(invalid());
+    }
+    // 主机页即时偏好兼容旧设置缺失；只允许布尔开关和有界的分组 UUID 集合。
+    if let Some(view) = object.get("hostsView") {
+        fields(view, &["includeChildren", "expandedGroupIds"])?;
+        let expanded = view["expandedGroupIds"].as_array().ok_or_else(invalid)?;
+        let mut ids = std::collections::HashSet::new();
+        if !view["includeChildren"].is_boolean()
+            || expanded.len() > 10000
+            || expanded.iter().any(|value| {
+                !value
+                    .as_str()
+                    .is_some_and(|id| uuid::Uuid::parse_str(id).is_ok() && ids.insert(id))
+            })
+        {
+            return Err(invalid());
+        }
+    }
+    // 旧设置缺失时沿用全部字段和拼音；名称始终可搜索，字段不得重复。
+    if let Some(search) = object.get("hostSearch") {
+        fields(search, &["pinyin", "fields"])?;
+        let selected = search["fields"].as_array().ok_or_else(invalid)?;
+        let mut unique = std::collections::HashSet::new();
+        if !search["pinyin"].is_boolean()
+            || !selected.iter().any(|field| field == "name")
+            || selected.iter().any(|field| {
+                !field.as_str().is_some_and(|key| {
+                    matches!(key, "name" | "address" | "username" | "tags" | "group")
+                        && unique.insert(key)
+                })
+            })
+        {
+            return Err(invalid());
+        }
     }
     let schemes = settings["customSchemes"].as_array().ok_or_else(invalid)?;
     if schemes.len() > 64 {
@@ -297,6 +332,7 @@ pub fn normalize_legacy_schemes(settings: &mut Value) {
 fn command(id: &str) -> bool {
     [
         "workspace.newConnection",
+        "workspace.newTab",
         "workspace.closeTab",
         "workspace.nextTab",
         "workspace.previousTab",
@@ -321,4 +357,71 @@ fn fields(value: &Value, allowed: &[&str]) -> Result<()> {
         return Err(invalid());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn baseline() -> Value {
+        json!({
+            "schemaVersion": 1, "appearance": "dark", "fontFamily": DEFAULT_TERMINAL_FONT,
+            "fontSize": 14, "scrollback": 5000, "defaultSchemeId": "pro",
+            "confirmClose": true, "multilinePaste": true,
+            "customSchemes": [], "hostSchemes": {},
+            "keymap": {"schemaVersion": 1, "bindings": []}
+        })
+    }
+
+    #[test]
+    fn hosts_view_accepts_legacy_settings_and_valid_group_preferences() {
+        let mut settings = baseline();
+        assert!(validate(&settings).is_ok());
+        settings["hostsView"] = json!({
+            "includeChildren": true,
+            "expandedGroupIds": ["00000000-0000-0000-0000-000000000001"]
+        });
+        assert!(validate(&settings).is_ok());
+    }
+
+    #[test]
+    fn hosts_view_rejects_invalid_types_duplicate_ids_and_unknown_fields() {
+        let mut settings = baseline();
+        for view in [
+            json!({"includeChildren": "true", "expandedGroupIds": []}),
+            json!({"includeChildren": false, "expandedGroupIds": ["not-a-group-id"]}),
+            json!({"includeChildren": false, "expandedGroupIds": null}),
+            json!({"includeChildren": false, "expandedGroupIds": [], "extra": true}),
+            json!({"includeChildren": false, "expandedGroupIds": [
+                "00000000-0000-0000-0000-000000000001",
+                "00000000-0000-0000-0000-000000000001"
+            ]}),
+        ] {
+            settings["hostsView"] = view;
+            assert!(validate(&settings).is_err());
+        }
+    }
+    #[test]
+    fn host_search_requires_name_and_known_unique_fields() {
+        let mut settings = baseline();
+        for search in [
+            json!({"pinyin": true, "fields": ["name"]}),
+            json!({"pinyin": false, "fields": ["name", "address", "username", "tags", "group"]}),
+        ] {
+            settings["hostSearch"] = search;
+            assert!(validate(&settings).is_ok());
+        }
+        for search in [
+            json!({"pinyin": true, "fields": []}),
+            json!({"pinyin": true, "fields": ["address"]}),
+            json!({"pinyin": true, "fields": ["name", "name"]}),
+            json!({"pinyin": true, "fields": ["name", "password"]}),
+            json!({"pinyin": "true", "fields": ["name"]}),
+            json!({"pinyin": true, "fields": ["name"], "extra": false}),
+        ] {
+            settings["hostSearch"] = search;
+            assert!(validate(&settings).is_err());
+        }
+    }
 }

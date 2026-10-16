@@ -56,7 +56,8 @@ pub fn run() {
             let factory = SshFactory::new(store.clone(), vault.clone());
             let ssh_channels = factory.channels();
             let file_sessions = SessionManager::new(Arc::new(factory.for_files()));
-            let sessions = SessionManager::new(Arc::new(factory));
+            let sessions = SessionManager::new(Arc::new(factory))
+                .with_factory(Arc::new(terminal_local::LocalFactory));
             app.manage(file_drag::LocalDropRegistry::default());
             app.manage(AppState {
                 sessions,

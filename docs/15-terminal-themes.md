@@ -28,6 +28,6 @@
 
 ## 验证入口
 
-重点验证全局/主机/临时优先级、原终端热切换不丢历史、JSON往返与非法/超限拒绝、删除引用回退、透明选区及中英文/emoji预览。终端右键配色菜单使用 Naive UI滚动与视口约束。静态检查不能代替WebView视觉验收，见 [验证方案](11-validation.md) 与 [实施状态](17-implementation-status.md)。
+重点验证全局/主机/临时优先级、原终端热切换不丢历史、JSON往返与非法/超限拒绝、删除引用回退、透明选区及中英文/emoji预览。终端右键配色菜单使用 Naive UI滚动与视口约束。静态检查不能代替WebView视觉验收，见 [运行验收边界](01-product-requirements.md#11-运行验收边界) 与 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)。
 
 API参考：[xterm ITheme](https://xtermjs.org/docs/api/terminal/interfaces/itheme/)，实际支持字段以锁定依赖和本项目映射为准。

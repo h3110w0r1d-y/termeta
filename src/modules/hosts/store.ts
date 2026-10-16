@@ -7,6 +7,7 @@ import type {
   HostProfile,
 } from "../../services/desktop/types";
 export const useHosts = defineStore("hosts", () => {
+  const managementBusy = ref(false);
   const hosts = ref<HostProfile[]>([]),
     groups = ref<HostGroup[]>([]);
   async function load() {
@@ -33,11 +34,39 @@ export const useHosts = defineStore("hosts", () => {
   }
   async function remove(host: HostProfile) {
     await desktop.deleteHost(host.id, host.revision);
-    await load();
+    // 删除已提交，直接更新列表，避免重读失败被误报为删除失败。
+    hosts.value = hosts.value.filter((item) => item.id !== host.id);
   }
   async function favorite(host: HostProfile) {
     const { revision, hasPassword: _hasPassword, ...draft } = host;
     await save({ ...draft, favorite: !host.favorite }, revision);
   }
-  return { hosts, groups, load, save, remove, favorite };
+  async function moveHost(host: HostProfile, groupId: string | null) {
+    if (host.groupId === groupId) return;
+    const { revision, hasPassword: _hasPassword, ...draft } = host;
+    // 不传密码字段，保持专属密码和公共认证引用，不读取或重写秘密。
+    await save({ ...draft, groupId }, revision);
+  }
+  async function saveGroup(
+    group: Omit<HostGroup, "id" | "revision"> & { id: string | null },
+    revision: number | null,
+  ) {
+    const saved = await desktop.saveGroup(group, revision);
+    groups.value = [
+      ...groups.value.filter((item) => item.id !== saved.id),
+      saved,
+    ];
+    return saved;
+  }
+  return {
+    managementBusy,
+    hosts,
+    groups,
+    load,
+    save,
+    remove,
+    favorite,
+    moveHost,
+    saveGroup,
+  };
 });

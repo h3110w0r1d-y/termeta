@@ -8,7 +8,11 @@ defineProps<{
   locked?: boolean;
   embedded?: boolean;
 }>();
-const emit = defineEmits<{ "update:open": [value: boolean] }>();
+const emit = defineEmits<{
+  "update:open": [value: boolean];
+  "after-leave": [];
+  "after-enter": [];
+}>();
 </script>
 <template>
   <section v-if="embedded" class="embedded-dialog">
@@ -40,6 +44,8 @@ const emit = defineEmits<{ "update:open": [value: boolean] }>();
     aria-modal="true"
     role="dialog"
     :aria-label="title"
+    @after-enter="emit('after-enter')"
+    @after-leave="emit('after-leave')"
     @update:show="(value) => !locked && emit('update:open', value)"
   >
     <p v-if="description" class="muted">{{ description }}</p>

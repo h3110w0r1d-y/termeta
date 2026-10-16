@@ -2,8 +2,12 @@ import { clone } from "../../services/data/clone";
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import { desktop } from "../../services/desktop/client";
-import { defaults } from "../../services/commands/registry";
-import type { AppSettings } from "./model";
+import { defaults, upgradeBindings } from "../../services/commands/registry";
+import type {
+  AppSettings,
+  HostsViewSettings,
+  HostSearchSettings,
+} from "./model";
 import { defaultSchemeId } from "./themes";
 import { defaultTerminalFont, normalizeTerminalFont } from "./fonts";
 export function defaultSettings(): AppSettings {
@@ -13,6 +17,11 @@ export function defaultSettings(): AppSettings {
     tabPosition: "top",
     tabDoubleClickAction: "none",
     sftpShowHidden: false,
+    hostsView: { includeChildren: false, expandedGroupIds: [] },
+    hostSearch: {
+      pinyin: true,
+      fields: ["name", "address", "username", "tags", "group"],
+    },
     fontFamily: defaultTerminalFont,
     fontSize: 14,
     scrollback: 5000,
@@ -32,6 +41,10 @@ export const useSettings = defineStore("settings", () => {
       value.value = {
         ...defaultSettings(),
         ...saved,
+        keymap: {
+          schemaVersion: 1,
+          bindings: upgradeBindings(saved.keymap?.bindings ?? defaults()),
+        },
         fontFamily: normalizeTerminalFont(
           saved.fontFamily ?? defaultTerminalFont,
         ),
@@ -54,6 +67,8 @@ export const useSettings = defineStore("settings", () => {
     return persist(() => ({
       ...snapshot,
       sftpShowHidden: value.value.sftpShowHidden,
+      hostsView: clone(value.value.hostsView),
+      hostSearch: clone(value.value.hostSearch),
     }));
   }
   async function setSftpShowHidden(show: boolean) {
@@ -65,5 +80,27 @@ export const useSettings = defineStore("settings", () => {
       savingSftpHidden.value = false;
     }
   }
-  return { value, load, save, savingSftpHidden, setSftpShowHidden };
+  function setHostsView(patch: Partial<HostsViewSettings>) {
+    const snapshot = clone(patch);
+    return persist(() => ({
+      ...clone(value.value),
+      hostsView: { ...clone(value.value.hostsView), ...snapshot },
+    }));
+  }
+  function setHostSearch(patch: Partial<HostSearchSettings>) {
+    const snapshot = clone(patch);
+    return persist(() => ({
+      ...clone(value.value),
+      hostSearch: { ...clone(value.value.hostSearch), ...snapshot },
+    }));
+  }
+  return {
+    setHostSearch,
+    value,
+    load,
+    save,
+    savingSftpHidden,
+    setSftpShowHidden,
+    setHostsView,
+  };
 });

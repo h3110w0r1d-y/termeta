@@ -52,10 +52,21 @@ impl SessionFactory for SshFactory {
         }
         capabilities
     }
-    fn validate(&self, config: &SshConfig) -> Result<()> {
-        config.validate()
+    fn validate(&self, config: &SessionConfig) -> Result<()> {
+        match config {
+            SessionConfig::Ssh(config) => config.validate(),
+            _ => Err(SessionError::new(
+                "UNSUPPORTED_KIND",
+                "opening",
+                "SSH工厂仅接受SSH配置",
+            )),
+        }
     }
-    async fn run(&self, config: SshConfig, context: DriverContext) -> Result<SessionEnd> {
+    async fn run(&self, config: SessionConfig, context: DriverContext) -> Result<SessionEnd> {
+        self.validate(&config)?;
+        let SessionConfig::Ssh(config) = config else {
+            unreachable!()
+        };
         context.events.state(SessionState::Connecting)?;
         let (mut connection, _transport) =
             connection::connect(&config, &context, self.trust.clone()).await?;

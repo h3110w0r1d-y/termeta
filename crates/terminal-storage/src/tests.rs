@@ -316,3 +316,153 @@ async fn encrypted_database_rejects_wrong_key_and_preserves_data() {
     assert!(corrupt.unlock(&[17; 32]).await.is_err());
     assert!(!corrupt.is_unlocked());
 }
+
+async fn group_fixture(store: &SqliteStore, name: &str, parent_id: Option<String>) -> HostGroup {
+    store
+        .save_group(GroupDraft {
+            id: None,
+            revision: None,
+            name: name.into(),
+            parent_id,
+            sort_order: 0,
+        })
+        .await
+        .unwrap()
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn deleting_group_moves_only_direct_children_and_preserves_hosts() {
+    let directory = TestDirectory::new();
+    let store = SqliteStore::open(directory.0.join("groups.sqlite3"))
+        .await
+        .unwrap();
+    let parent = group_fixture(&store, "父组", None).await;
+    let group = group_fixture(&store, "目标组", Some(parent.id.clone())).await;
+    let child = group_fixture(&store, "子组", Some(group.id.clone())).await;
+    let mut direct = draft();
+    direct.group_id = Some(group.id.clone());
+    let direct = store.save_host(direct).await.unwrap();
+    let mut nested = draft();
+    nested.group_id = Some(child.id.clone());
+    let nested = store.save_host(nested).await.unwrap();
+
+    store.delete_group(&group.id, group.revision).await.unwrap();
+    let groups = store.list_groups().await.unwrap();
+    assert!(!groups.iter().any(|item| item.id == group.id));
+    assert_eq!(
+        groups
+            .iter()
+            .find(|item| item.id == child.id)
+            .unwrap()
+            .parent_id,
+        Some(parent.id.clone())
+    );
+    assert_eq!(
+        store.get_host(&direct.id).await.unwrap().group_id,
+        Some(parent.id)
+    );
+    assert_eq!(
+        store.get_host(&nested.id).await.unwrap().group_id,
+        Some(child.id)
+    );
+    store.pool().unwrap().close().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn deleting_group_subtree_is_revision_guarded_and_preserves_shared_credentials() {
+    let directory = TestDirectory::new();
+    let store = SqliteStore::open(directory.0.join("groups.sqlite3"))
+        .await
+        .unwrap();
+    let parent = group_fixture(&store, "父组", None).await;
+    let group = group_fixture(&store, "目标组", Some(parent.id.clone())).await;
+    let child = group_fixture(&store, "子组", Some(group.id.clone())).await;
+    let sibling = group_fixture(&store, "同级组", Some(parent.id.clone())).await;
+    let unaffected = store.save_host(draft()).await.unwrap();
+    let shared = store
+        .begin_credential("password", "共享密码")
+        .await
+        .unwrap();
+    store
+        .set_credential_secret(&shared, "共享测试秘密")
+        .await
+        .unwrap();
+    let mut public_host = draft();
+    public_host.group_id = Some(group.id.clone());
+    public_host.auth_plan = vec![AuthStep::Password {
+        credential_id: Some(shared.clone()),
+    }];
+    let public_host = store.save_host(public_host).await.unwrap();
+    let owner = uuid::Uuid::new_v4().to_string();
+    let private = store.begin_host_password(&owner, "专属密码").await.unwrap();
+    store
+        .set_credential_secret(&private, "专属测试秘密")
+        .await
+        .unwrap();
+    let mut private_host = draft();
+    private_host.group_id = Some(child.id.clone());
+    let private_host = store
+        .save_host_with_password_ref(private_host, Some(&private))
+        .await
+        .unwrap();
+
+    // 过期版本不能留下已删除主机或提前标记的秘密。
+    assert!(matches!(
+        store
+            .delete_group_and_hosts(&group.id, group.revision + 1)
+            .await,
+        Err(StorageError::Conflict)
+    ));
+    assert!(store.get_host(&public_host.id).await.is_ok());
+    assert_eq!(
+        store.get_credential(&private).await.unwrap().status,
+        "ready"
+    );
+
+    // 注入后置失败，证明主机删除和专属凭据状态也随整个事务回滚。
+    sqlx::query("CREATE TRIGGER reject_group_delete BEFORE DELETE ON host_groups BEGIN SELECT RAISE(ABORT, '测试回滚'); END")
+        .execute(store.pool().unwrap()).await.unwrap();
+    assert!(
+        store
+            .delete_group_and_hosts(&group.id, group.revision)
+            .await
+            .is_err()
+    );
+    assert!(store.get_host(&private_host.id).await.is_ok());
+    assert_eq!(
+        store.get_credential(&private).await.unwrap().status,
+        "ready"
+    );
+    sqlx::query("DROP TRIGGER reject_group_delete")
+        .execute(store.pool().unwrap())
+        .await
+        .unwrap();
+
+    store
+        .delete_group_and_hosts(&group.id, group.revision)
+        .await
+        .unwrap();
+    let groups = store.list_groups().await.unwrap();
+    assert_eq!(groups.len(), 2);
+    assert!(groups.iter().any(|item| item.id == parent.id));
+    assert!(groups.iter().any(|item| item.id == sibling.id));
+    assert!(matches!(
+        store.get_host(&public_host.id).await,
+        Err(StorageError::NotFound)
+    ));
+    assert!(matches!(
+        store.get_host(&private_host.id).await,
+        Err(StorageError::NotFound)
+    ));
+    assert!(store.get_host(&unaffected.id).await.is_ok());
+    assert_eq!(store.get_credential(&shared).await.unwrap().status, "ready");
+    assert_eq!(
+        store.get_credential(&private).await.unwrap().status,
+        "deleting"
+    );
+    assert_eq!(
+        &*store.credential_secret(&shared).await.unwrap(),
+        "共享测试秘密"
+    );
+    store.pool().unwrap().close().await;
+}

@@ -1,0 +1,12 @@
+{
+  "copiedOn": "2026-10-16",
+  "sourceProject": "roco-helper-web",
+  "sourceTable": "src/assets/conf/PINYIN_CONF.ts",
+  "sourceAlgorithm": "src/modules/big-map/petNameSearch.ts",
+  "localTable": "src/assets/conf/PINYIN_CONF.ts",
+  "localAlgorithm": "src/modules/hosts/search.ts",
+  "sourceSha256": "04c964c89347b15ae152786a957351e88dcf3818394f4a27b00ad2866beccee5",
+  "localSha256": "b8a1bfbcb4021670e611cf97bc0adb31108e553443d22a7d64fe8b97190e583c",
+  "entryCount": 20903,
+  "notes": "按用户要求复制。仅将配置文件头注释改为中文，配置数据一致；匹配逻辑适配主机元数据，不引入上游业务、网络请求或新依赖。"
+}

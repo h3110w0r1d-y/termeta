@@ -14,6 +14,7 @@ pub enum OpenTarget {
     Saved {
         profile_id: String,
     },
+    Local,
     Ephemeral {
         kind: String,
         config: SshConfig,
@@ -25,7 +26,16 @@ pub fn available_session_kinds(
     state: State<'_, AppState>,
 ) -> Result<serde_json::Value> {
     owner(&window)?;
-    Ok(serde_json::json!([{"kind":"ssh","capabilities":state.sessions.capabilities()}]))
+    Ok(serde_json::json!(
+        state
+            .sessions
+            .available_kinds()
+            .into_iter()
+            .map(
+                |(kind, capabilities)| serde_json::json!({"kind":kind,"capabilities":capabilities})
+            )
+            .collect::<Vec<_>>()
+    ))
 }
 #[tauri::command]
 pub async fn open_session(
@@ -60,6 +70,7 @@ pub async fn open_session(
         return Ok(snapshot);
     }
     let (config, profile_id, name) = match target {
+        OpenTarget::Local => (SessionConfig::Local, None, "本地终端".to_string()),
         OpenTarget::Saved { profile_id } => {
             let host = state
                 .store
@@ -71,14 +82,14 @@ pub async fn open_session(
                 .get_host_connection(&profile_id)
                 .await
                 .map_err(storage_error)?;
-            (config, Some(profile_id), host.name)
+            (SessionConfig::Ssh(config), Some(profile_id), host.name)
         }
         OpenTarget::Ephemeral { kind, config } => {
             if kind != "ssh" {
                 return Err(SessionError::new(
                     "UNSUPPORTED_KIND",
                     "opening",
-                    "首期仅提供 SSH 连接",
+                    "临时远端连接仅支持 SSH，本地终端请使用 local 目标",
                 ));
             }
             // 临时连接只能引用公共库，不能冒用任何主机的专属秘密。
@@ -111,16 +122,20 @@ pub async fn open_session(
                 }
             }
             let name = format!("{}@{}", config.username, config.address);
-            (config, None, name)
+            (SessionConfig::Ssh(config), None, name)
         }
     };
     config.validate()?;
     size.validate()?;
     // 历史记录只存连接摘要；requestId 在同一窗口内同时承担幂等键。
-    let endpoint = if config.address.contains(':') {
-        format!("[{}]:{}", config.address, config.port)
+    let endpoint = if let SessionConfig::Ssh(config) = &config {
+        if config.address.contains(':') {
+            format!("[{}]:{}", config.address, config.port)
+        } else {
+            format!("{}:{}", config.address, config.port)
+        }
     } else {
-        format!("{}:{}", config.address, config.port)
+        "local".into()
     };
     let history_id = state
         .store

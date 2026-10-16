@@ -106,6 +106,7 @@ export const useWorkspace = defineStore("workspace", () => {
   // 序号按连接身份递增，不依赖可变的显示名称，也不将密码纳入键。
   const connectionNumbers = new Map<string, number>();
   function connectionKey(target: OpenTarget) {
+    if (target.source === "local") return "local";
     return target.source === "saved"
       ? JSON.stringify(["saved", target.profileId])
       : JSON.stringify([
@@ -363,6 +364,7 @@ export const useWorkspace = defineStore("workspace", () => {
       closingTerminalIds.value.includes(tab.terminalId)
     )
       return;
+    if (tab.target.source === "local") return;
     if (!tab.sftpOpen && tab.state !== "connected") return;
     tab.sftpOpen = !tab.sftpOpen;
   }

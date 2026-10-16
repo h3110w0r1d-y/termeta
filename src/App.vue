@@ -29,6 +29,7 @@ import CredentialsPage from "./modules/credentials/CredentialsPage.vue";
 import WorkspaceTabs from "./modules/workspace/WorkspaceTabs.vue";
 import SftpWorkspace from "./modules/workspace/SftpWorkspace.vue";
 import HostsSidebar from "./modules/hosts/HostsSidebar.vue";
+import NewTabDialog from "./modules/hosts/NewTabDialog.vue";
 import HostEditor from "./modules/hosts/HostEditor.vue";
 import SettingsDialog from "./modules/settings/SettingsDialog.vue";
 import TerminalStage from "./modules/workspace/TerminalStage.vue";
@@ -47,10 +48,12 @@ import type { HostProfile, SshConfig } from "./services/desktop/types";
 const hosts = useHosts(),
   settings = useSettings(),
   workspace = useWorkspace();
+const newTabOpen = ref(false);
 const editorOpen = ref(false),
   quick = ref(false),
   editing = ref<HostProfile>(),
   duplicate = ref(false),
+  newHostGroup = ref<string | null>(null),
   initError = ref(""),
   findOpen = ref(false),
   query = ref("");
@@ -81,17 +84,25 @@ function updateSystemAppearance(event: MediaQueryListEvent) {
 let heartbeat: ReturnType<typeof setInterval> | undefined,
   unlisten: (() => void) | undefined,
   closingWindow = false;
-function edit(host?: HostProfile, copy = false) {
+function edit(host?: HostProfile, copy = false, groupId: string | null = null) {
+  newHostGroup.value = groupId;
   editing.value = host;
   duplicate.value = copy;
   quick.value = false;
   editorOpen.value = true;
 }
+function openNewTab() {
+  newTabOpen.value = true;
+}
 function quickConnect() {
+  newHostGroup.value = null;
   editing.value = undefined;
   quick.value = true;
   duplicate.value = false;
   editorOpen.value = true;
+}
+function openLocalTerminal() {
+  workspace.add("本地终端", { source: "local" });
 }
 function connect(host: HostProfile) {
   workspace.add(host.name, { source: "saved", profileId: host.id });
@@ -182,7 +193,7 @@ function perform(action: () => void | Promise<void>) {
 const tabMenu = ref({ show: false, id: "", x: 0, y: 0 });
 // 同时约束主菜单和配色子菜单，滚动与边缘翻转交给Naive UI处理。
 const terminalMenuProps = () => ({
-  "data-ui-popup-open": "",
+  "data-ui-popup-open": tabMenu.value.show ? "" : undefined,
   class: "terminal-context-menu",
   style:
     "max-height: min(420px, calc(100dvh - 24px)); max-width: min(320px, calc(100dvw - 24px))",
@@ -287,6 +298,11 @@ async function focusTerminal(id: string) {
   await nextTick();
   terminalRegistry.focus(group.focusedTerminalId);
 }
+function restoreTerminalFocus() {
+  // 连接/认证弹窗的焦点陷阱退场后再聚焦，避免库恢复到已经隐藏的首页控件。
+  if (!findOpen.value && workspace.active)
+    terminalRegistry.focus(workspace.active.terminalId);
+}
 function closeFind() {
   findOpen.value = false;
   if (workspace.active) terminalRegistry.focus(workspace.active.terminalId);
@@ -323,7 +339,9 @@ watch(
 );
 onMounted(async () => {
   systemAppearance.addEventListener("change", updateSystemAppearance);
-  commands.register("workspace.newConnection", quickConnect);
+  commands.register("workspace.newConnection", openNewTab);
+  commands.register("workspace.newTab", openNewTab);
+  commands.register("workspace.newLocalTerminal", openLocalTerminal);
   commands.register("workspace.closeTab", () => {
     if (workspace.activeGroup) void closeTab(workspace.activeGroup.id);
   });
@@ -342,7 +360,7 @@ onMounted(async () => {
   commands.register("terminal.scrollToBottom", () => {
     if (workspace.active) terminalRegistry.bottom(workspace.active.terminalId);
   });
-  document.addEventListener("keydown", globalKey);
+  document.addEventListener("keydown", globalKey, true);
   try {
     unlisten = await desktop.onCloseRequested(async (event) => {
       if (closingWindow) return;
@@ -386,7 +404,7 @@ onMounted(async () => {
 });
 onBeforeUnmount(() => {
   systemAppearance.removeEventListener("change", updateSystemAppearance);
-  document.removeEventListener("keydown", globalKey);
+  document.removeEventListener("keydown", globalKey, true);
   if (heartbeat) clearInterval(heartbeat);
   unlisten?.();
 });
@@ -422,7 +440,7 @@ onBeforeUnmount(() => {
           @close="closeTab"
           @double-click="doubleClickTab"
           @menu="openTabMenu"
-          @create="commands.execute('workspace.newConnection')"
+          @create="commands.execute('workspace.newTab')"
         />
         <NDropdown
           :show="tabMenu.show"
@@ -430,10 +448,10 @@ onBeforeUnmount(() => {
           :y="tabMenu.y"
           :options="tabMenuOptions"
           :menu-props="terminalMenuProps"
+          display-directive="show"
           scrollable
           :flip="true"
           trigger="manual"
-          display-directive="if"
           placement="bottom-start"
           @select="selectTabAction"
           @clickoutside="tabMenu.show = false"
@@ -472,17 +490,15 @@ onBeforeUnmount(() => {
                 v-show="workspace.homeSection === 'hosts'"
                 class="home-page-scroll"
               >
-                <AppScrollArea label="主机内容">
-                  <HostsSidebar
-                    :active="
-                      workspace.activeId === 'home' &&
-                      workspace.homeSection === 'hosts'
-                    "
-                    @connect="connect"
-                    @edit="edit"
-                    @quick="quickConnect"
-                  />
-                </AppScrollArea>
+                <HostsSidebar
+                  :active="
+                    workspace.activeId === 'home' &&
+                    workspace.homeSection === 'hosts'
+                  "
+                  @connect="connect"
+                  @local="openLocalTerminal"
+                  @edit="edit"
+                />
               </div>
               <AppScrollArea
                 v-if="workspace.homeSection === 'credentials'"
@@ -554,40 +570,53 @@ onBeforeUnmount(() => {
               <TerminalStage @close="closePane" @menu="openTerminalMenu" />
             </div>
             <footer v-if="workspace.active" class="status-bar">
-              <span>SSH · {{ stateLabels[workspace.active.state] }}</span
+              <span
+                >{{
+                  workspace.active.target.source === "local" ? "本地" : "SSH"
+                }}
+                · {{ stateLabels[workspace.active.state] }}</span
               ><span
                 >{{ workspace.active.size.cols }} ×
                 {{ workspace.active.size.rows }} · UTF-8</span
               ><span>历史在断线后保留</span>
               <AppButton
+                v-if="
+                  workspace.active.target.source !== 'local' &&
+                  workspace.activeGroup?.root.kind === 'terminal'
+                "
                 class="status-sftp-toggle"
                 size="tiny"
                 :variant="workspace.active.sftpOpen ? 'primary' : 'default'"
                 :aria-pressed="!!workspace.active.sftpOpen"
                 :disabled="
-                  workspace.activeGroup?.root.kind !== 'terminal' ||
                   !!workspace.drag ||
                   (!workspace.active.sftpOpen &&
                     workspace.active.state !== 'connected')
                 "
-                :title="
-                  workspace.activeGroup?.root.kind === 'split'
-                    ? 'Workspace 中不可用'
-                    : '显示或隐藏此终端的 SFTP 侧栏'
-                "
+                title="显示或隐藏此终端的 SFTP 侧栏"
                 @click="workspace.toggleSftp()"
                 >SFTP</AppButton
               >
             </footer>
           </section>
         </main>
+        <NewTabDialog
+          v-model:open="newTabOpen"
+          @connect="connect"
+          @quick="quickConnect"
+          @after-leave="restoreTerminalFocus"
+        />
         <HostEditor
           v-model:open="editorOpen"
           :host="editing"
+          :initial-group-id="newHostGroup"
           :quick="quick"
           :duplicate="duplicate"
           @connect="ephemeral"
-        /><ChallengeDialog /><PasteDialog /><ConfirmationDialog />
+          @after-leave="restoreTerminalFocus"
+        /><ChallengeDialog
+          @after-leave="restoreTerminalFocus"
+        /><PasteDialog /><ConfirmationDialog />
       </div>
     </VaultGate>
   </NConfigProvider>

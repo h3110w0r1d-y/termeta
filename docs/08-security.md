@@ -126,3 +126,9 @@ OSC 标题：remoteTitle仅作前端内存中的展示后缀，控制字符/双�
 窗口标题栏（2026-10-16）：仅 main 窗口增加 core:window 的 allow-start-dragging、allow-internal-toggle-maximize、allow-minimize、allow-toggle-maximize 权限，使用 Tauri 内置窗口命令；不新增自定义 Rust 命令或放宽远端资源范围。关闭沿用已有 allow-close 与会话/传输确认，组件通过 desktop 门面操作。
 
 加密保险库威胁边界：静态文件丢失不直接暴露主机与凭据，但不防御已解锁进程被注入、内存转储、同用户恶意程序或root。SQLx连接选项及SQLCipher内部必须持有可用密钥，Zeroizing只尽早清理受控临时值，不能承诺库内部和JS副本完全清零。校验元数据不含密码/主密钥，但可供离线猜测，密码强度与Argon2id成本仍重要；GCM认证与SQLCipher页HMAC不提供整库旧快照回放检测。密码及OS主密钥同时丢失不可恢复。旧明文库不会自动加密或清理。
+
+主机分组删除（2026-10-16）：前端“一并删除”必须显示范围并独立二次确认；Rust继续校验main窗口/保险库门禁和根组revision，整树删除与专属凭据deleting标记在同一事务。只按owner_profile_id清理被删除主机的专属项，不删除公共凭据，也不主动关闭已建立会话。默认删除仍为保留上移。主机拖拽只提交轻量HostDraft并省略password，不读取秘密；分组父级由Rust再次防环。没有新增通用SQL或批量凭据删除接口；交互和回归测试源码待运行验证。
+
+## 本地终端边界（2026-10-16）
+
+本地Shell以当前用户权限运行，只有解锁后的main窗口可通过现有open_session ACL启动；本地目标仅接受source=local，不从前端接收可执行路径、启动命令、环境或cwd，不自动执行终端输出。启动继承桌面应用环境及用户主目录，不将环境或正文写入数据库；历史只记录“本地终端”及local摘要。Unix初始进程组清理不覆盖主动脱离会话的进程，Windows完整进程树清理仍待完善，三平台运行未验收。

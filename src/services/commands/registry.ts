@@ -1,6 +1,7 @@
 import type { Binding, Modifier } from "../../modules/settings/model";
 export const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
 export const commandDefinitions = [
+  ["workspace.newTab", "新建标签页", "application", "Primary+T"],
   [
     "workspace.newConnection",
     "新建 SSH 连接",
@@ -48,7 +49,7 @@ export const commandDefinitions = [
   ["terminal.openLink", "打开链接", "terminal", ""],
   [
     "workspace.newLocalTerminal",
-    "新建本地终端（后续提供）",
+    "新建本地终端",
     "application",
     isMac ? "Primary+L" : "Primary+Shift+L",
   ],
@@ -76,6 +77,20 @@ export function defaults(): Binding[] {
       enabled: !!combo || commandId === "terminal.openLink",
     };
   });
+}
+// 给旧设置补充新增动作；保留禁用和自定义绑定，已有按键冲突时不抢占。
+export function upgradeBindings(bindings: Binding[]): Binding[] {
+  if (
+    bindings.length >= 100 ||
+    bindings.some((binding) => binding.commandId === "workspace.newTab")
+  )
+    return bindings;
+  const added = defaults().find(
+    (binding) => binding.commandId === "workspace.newTab",
+  )!;
+  added.id = crypto.randomUUID();
+  if (conflict([...bindings, added])) added.enabled = false;
+  return [...bindings, added];
 }
 export function modifierMatches(
   event: MouseEvent | KeyboardEvent,
@@ -173,25 +188,24 @@ export class CommandRegistry {
   }
   route(event: KeyboardEvent, bindings: Binding[], terminal: boolean) {
     if (
+      (event.target instanceof Element &&
+        event.target.closest("[data-shortcut-recorder]")) ||
       event.defaultPrevented ||
       event.isComposing ||
       event.getModifierState("AltGraph") ||
-      document.querySelector("[data-modal-open], [data-ui-popup-open]")
+      document.querySelector("[data-modal-open]")
     )
       return false;
-    const target = event.target as HTMLElement;
-    if (
-      !terminal &&
-      target.closest(
-        "input,textarea,select,[role=combobox],[role=slider],[role=spinbutton],[contenteditable=true]",
-      )
-    )
-      return false;
+    // 页面输入框不改变应用动作的作用域；模态、录制和其他弹层仍优先。
+    const popupBlocksShortcuts = !!document.querySelector(
+      "[data-ui-popup-open]:not([data-application-shortcuts])",
+    );
     const candidates = bindings.filter(
       (b) =>
         b.enabled &&
         b.trigger.type === "key" &&
-        (b.scope === "application" || terminal),
+        (b.scope === "application" || terminal) &&
+        !popupBlocksShortcuts,
     );
     candidates.sort(
       (a, b) => Number(b.scope === "terminal") - Number(a.scope === "terminal"),
