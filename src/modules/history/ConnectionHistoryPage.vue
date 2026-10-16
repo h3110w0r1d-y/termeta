@@ -49,18 +49,19 @@ async function clearHistory() {
   <section class="home-page" aria-label="连接历史">
     <header class="page-heading">
       <div>
-        <NH1>连接历史</NH1
-        ><NText depth="3">最近 20 次 SSH 与本地终端连接</NText>
+        <NH1>连接历史</NH1>
+        <NText depth="3">最近 20 次 SSH 与本地终端连接</NText>
       </div>
-      <NFlex
-        ><AppButton :disabled="loading || busy" @click="load">刷新</AppButton
-        ><AppButton
+      <NFlex>
+        <AppButton :disabled="loading || busy" @click="load">刷新</AppButton>
+        <AppButton
           class="danger"
           :disabled="loading || busy || !history.length"
           @click="clearHistory"
-          >清空历史</AppButton
-        ></NFlex
-      >
+        >
+          清空历史
+        </AppButton>
+      </NFlex>
     </header>
     <NFlex vertical :size="16">
       <NAlert v-if="error" type="error">{{ error }}</NAlert>
@@ -69,9 +70,9 @@ async function clearHistory() {
           v-if="!loading && !history.length"
           description="尚无连接历史。"
         />
-        <NList v-else bordered
-          ><NListItem v-for="item in history" :key="item.id"
-            ><NThing
+        <NList v-else bordered>
+          <NListItem v-for="item in history" :key="item.id">
+            <NThing
               :title="item.displayName"
               :description="
                 item.endpoint +
@@ -81,8 +82,10 @@ async function clearHistory() {
                 (item.endReason || '进行中') +
                 ' ' +
                 (item.errorCode || '')
-              " /></NListItem
-        ></NList>
+              "
+            />
+          </NListItem>
+        </NList>
       </NSpin>
     </NFlex>
   </section>

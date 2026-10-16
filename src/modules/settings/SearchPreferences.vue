@@ -51,19 +51,20 @@ function select(values: (string | number)[]) {
       :disabled="busy"
       @update:value="select"
     >
-      <NSpace
-        ><NCheckbox
+      <NSpace>
+        <NCheckbox
           v-for="field in fields"
           :key="field.value"
           :value="field.value"
           :disabled="busy || field.value === 'name'"
-          >{{ field.label }}</NCheckbox
-        ></NSpace
-      >
+        >
+          {{ field.label }}
+        </NCheckbox>
+      </NSpace>
     </NCheckboxGroup>
-    <NText v-if="!compact" depth="3"
-      >搜索设置修改后立即保存；名称始终参与搜索。</NText
-    >
+    <NText v-if="!compact" depth="3">
+      搜索设置修改后立即保存；名称始终参与搜索。
+    </NText>
     <NText v-if="error" type="error" role="alert">{{ error }}</NText>
   </NSpace>
 </template>

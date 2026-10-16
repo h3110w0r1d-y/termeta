@@ -231,40 +231,45 @@ defineExpose({ refresh: () => load(), path: directory, available });
       :model="{ profile }"
       :rules="connectRules"
       @submit.prevent="connect"
-      ><NFlex :wrap="false">
-        <NFormItem label="SSH 主机" path="profile" class="path-form"
-          ><NSelect
+    >
+      <NFlex :wrap="false">
+        <NFormItem label="SSH 主机" path="profile" class="path-form">
+          <NSelect
             v-model:value="profile"
             :options="options"
             filterable
             placeholder="选择已保存的 SSH 主机"
             :disabled="busy || endpoint.opening || !!endpoint.sessionId"
-        /></NFormItem>
+          />
+        </NFormItem>
         <NButton
           v-if="!endpoint.sessionId"
           :disabled="busy || endpoint.opening"
           :loading="endpoint.opening"
           @click="connect"
-          >连接</NButton
         >
+          连接
+        </NButton>
         <NButton
           v-else
           :disabled="busy || endpoint.opening"
           @click="emit('disconnect')"
-          >断开</NButton
         >
-      </NFlex></NForm
-    >
-    <NAlert v-if="endpoint.error || error" type="error" :bordered="false">{{
-      endpoint.error || error
-    }}</NAlert>
+          断开
+        </NButton>
+      </NFlex>
+    </NForm>
+    <NAlert v-if="endpoint.error || error" type="error" :bordered="false">
+      {{ endpoint.error || error }}
+    </NAlert>
     <template v-if="ready">
       <NFlex :wrap="false">
         <NButton
           :disabled="disabled || directory === '/'"
           @click="load(directory.slice(0, directory.lastIndexOf('/')) || '/')"
-          >上级</NButton
         >
+          上级
+        </NButton>
         <NButton :disabled="disabled" @click="load('.')">主目录</NButton>
         <NButton :disabled="disabled" @click="load()">刷新</NButton>
       </NFlex>
@@ -274,25 +279,31 @@ defineExpose({ refresh: () => load(), path: directory, available });
         :rules="pathRules"
         @submit.prevent="navigatePath"
         class="path-form"
-        ><NFormItem label="远端路径" path="path" :show-label="false">
+      >
+        <NFormItem label="远端路径" path="path" :show-label="false">
           <NInput
             v-model:value="pathInput"
             :disabled="disabled"
-            placeholder="远端路径" /></NFormItem
-      ></NForm>
-      <NFlex align="center" justify="space-between"
-        ><NCheckbox
+            placeholder="远端路径"
+          />
+        </NFormItem>
+      </NForm>
+      <NFlex align="center" justify="space-between">
+        <NCheckbox
           :checked="hidden"
           :disabled="disabled || settings.savingSftpHidden"
           @update:checked="updateHidden"
-          >显示隐藏文件</NCheckbox
-        ><NButton
+        >
+          显示隐藏文件
+        </NCheckbox>
+        <NButton
           size="small"
           :disabled="disabled || !chosen.length || !canCopy"
           @click="copySelected"
-          >复制到另一侧</NButton
-        ></NFlex
-      >
+        >
+          复制到另一侧
+        </NButton>
+      </NFlex>
       <NDataTable
         class="file-table"
         :columns="columns"
@@ -308,17 +319,19 @@ defineExpose({ refresh: () => load(), path: directory, available });
         @update:checked-row-keys="(keys) => (checked = keys)"
         @update:sorter="updateSort"
       />
-      <NFlex justify="space-between" align="center"
-        ><NText depth="3"
-          >已加载 {{ entries.length }} 项 · 已选 {{ checked.length }} 项</NText
-        ><NButton
+      <NFlex justify="space-between" align="center">
+        <NText depth="3">
+          已加载 {{ entries.length }} 项 · 已选 {{ checked.length }} 项
+        </NText>
+        <NButton
           v-if="hasMore"
           size="small"
           :disabled="disabled"
           @click="load(directory, true)"
-          >加载更多</NButton
-        ></NFlex
-      >
+        >
+          加载更多
+        </NButton>
+      </NFlex>
     </template>
     <NEmpty
       v-else

@@ -97,8 +97,9 @@ const rules: FormRules = {
                               stroke-width="1.5"
                               stroke-linejoin="round"
                             />
-                          </svg> </NIcon
-                        ><span class="appearance-label">深色</span>
+                          </svg>
+                        </NIcon>
+                        <span class="appearance-label">深色</span>
                       </span>
                     </NRadioButton>
                     <NRadioButton value="light" title="浅色">
@@ -115,8 +116,9 @@ const rules: FormRules = {
                             <path
                               d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"
                             />
-                          </svg> </NIcon
-                        ><span class="appearance-label">浅色</span>
+                          </svg>
+                        </NIcon>
+                        <span class="appearance-label">浅色</span>
                       </span>
                     </NRadioButton>
                     <NRadioButton value="system" title="跟随系统">
@@ -132,49 +134,62 @@ const rules: FormRules = {
                           >
                             <rect x="3" y="4" width="18" height="13" rx="2" />
                             <path d="M12 17v4m-4 0h8" />
-                          </svg> </NIcon
-                        ><span class="appearance-label">跟随系统</span>
+                          </svg>
+                        </NIcon>
+                        <span class="appearance-label">跟随系统</span>
                       </span>
                     </NRadioButton>
                   </NRadioGroup>
                 </NFormItem>
-                <NFormItem label="终端字体" path="fontFamily"
-                  ><AppSelect
+                <NFormItem label="终端字体" path="fontFamily">
+                  <AppSelect
                     v-model="draft.fontFamily"
                     :options="terminalFontOptions"
-                    :render-label="renderFontLabel" /></NFormItem
-                ><NFormItem label="字号" path="fontSize"
-                  ><AppNumberField
+                    :render-label="renderFontLabel"
+                  />
+                </NFormItem>
+                <NFormItem label="字号" path="fontSize">
+                  <AppNumberField
                     v-model="draft.fontSize"
                     :min="10"
-                    :max="32" /></NFormItem
-                ><NFormItem label="滚屏行数" path="scrollback"
-                  ><AppNumberField
+                    :max="32"
+                  />
+                </NFormItem>
+                <NFormItem label="滚屏行数" path="scrollback">
+                  <AppNumberField
                     v-model="draft.scrollback"
                     :min="1000"
-                    :max="50000" /></NFormItem
-                ><AppCheckbox v-model="draft.confirmClose" class="span-2"
-                  >关闭可能正在执行命令的终端前确认</AppCheckbox
-                ><AppCheckbox v-model="draft.multilinePaste" class="span-2"
-                  >多行粘贴前确认</AppCheckbox
-                >
+                    :max="50000"
+                  />
+                </NFormItem>
+                <AppCheckbox v-model="draft.confirmClose" class="span-2">
+                  关闭可能正在执行命令的终端前确认
+                </AppCheckbox>
+                <AppCheckbox v-model="draft.multilinePaste" class="span-2">
+                  多行粘贴前确认
+                </AppCheckbox>
                 <p class="muted span-2">
                   终端历史仅保留在当前窗口内存中。主机、信任、设置和凭据加密保存在本地；系统钥匙串仅缓存保险库主密钥。
                 </p>
               </NForm>
             </NTabPane>
-            <NTabPane name="search" tab="搜索" display-directive="show:lazy"
-              ><SearchPreferences
-            /></NTabPane>
-            <NTabPane name="themes" tab="终端配色" display-directive="show:lazy"
-              ><ThemeSettings v-model:settings="draft"
-            /></NTabPane>
+            <NTabPane name="search" tab="搜索" display-directive="show:lazy">
+              <SearchPreferences />
+            </NTabPane>
+            <NTabPane
+              name="themes"
+              tab="终端配色"
+              display-directive="show:lazy"
+            >
+              <ThemeSettings v-model:settings="draft" />
+            </NTabPane>
             <NTabPane
               name="shortcuts"
               tab="快捷键"
               display-directive="show:lazy"
-              ><ShortcutSettings v-model:settings="draft"
-            /></NTabPane>
+            >
+              <ShortcutSettings v-model:settings="draft" />
+            </NTabPane>
           </NTabs>
         </fieldset>
       </div>

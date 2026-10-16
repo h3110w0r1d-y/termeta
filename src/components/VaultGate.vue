@@ -101,8 +101,9 @@ onMounted(inspect);
       type="warning"
       closable
       @close="warning = ''"
-      >{{ warning }}</NAlert
     >
+      {{ warning }}
+    </NAlert>
     <slot />
   </template>
   <div v-else class="vault-gate" :class="{ 'platform-mac': isMac }">
@@ -117,11 +118,13 @@ onMounted(inspect);
         class="vault-card"
       >
         <NSpin :show="busy">
-          <NText tag="p" depth="3">{{
-            setup
-              ? "主机配置和凭据将加密保存在本机。请牢记此密码，系统钥匙串不可用时需要用它恢复访问；遗忘密码且丢失钥匙串主密钥将无法恢复数据。"
-              : "正在尝试使用系统钥匙串自动解锁。若无法自动解锁，请输入首次设置的保险库密码。"
-          }}</NText>
+          <NText tag="p" depth="3">
+            {{
+              setup
+                ? "主机配置和凭据将加密保存在本机。请牢记此密码，系统钥匙串不可用时需要用它恢复访问；遗忘密码且丢失钥匙串主密钥将无法恢复数据。"
+                : "正在尝试使用系统钥匙串自动解锁。若无法自动解锁，请输入首次设置的保险库密码。"
+            }}
+          </NText>
           <NAlert v-if="warning" type="warning">{{ warning }}</NAlert>
           <NForm
             ref="form"
@@ -159,18 +162,20 @@ onMounted(inspect);
               attr-type="submit"
               :loading="busy"
               :disabled="busy"
-              >{{ setup ? "创建并解锁" : "解锁" }}</NButton
             >
+              {{ setup ? "创建并解锁" : "解锁" }}
+            </NButton>
           </NForm>
-          <NAlert v-if="error" type="error" class="vault-error">{{
-            error
-          }}</NAlert>
+          <NAlert v-if="error" type="error" class="vault-error">
+            {{ error }}
+          </NAlert>
           <NButton
             v-if="!status || status.mode === 'unlocked'"
             :disabled="busy"
             @click="inspect"
-            >重试</NButton
           >
+            重试
+          </NButton>
         </NSpin>
       </NCard>
     </main>

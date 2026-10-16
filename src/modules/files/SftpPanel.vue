@@ -467,27 +467,30 @@ onBeforeUnmount(() => {
         size="tiny"
         @click="tab.sftpOpen = false"
         :title="visibleTransfer ? '隐藏面板，传输继续' : '隐藏 SFTP 侧栏'"
-        >隐藏</NButton
       >
+        隐藏
+      </NButton>
     </NFlex>
-    <NAlert v-if="stale" type="warning" :show-icon="false">{{
-      connected ? "列表已过期，请刷新" : "SSH 未连接，列表已过期"
-    }}</NAlert>
+    <NAlert v-if="stale" type="warning" :show-icon="false">
+      {{ connected ? "列表已过期，请刷新" : "SSH 未连接，列表已过期" }}
+    </NAlert>
     <NAlert
       v-if="error"
       type="error"
       :show-icon="false"
       closable
       @close="error = ''"
-      >{{ error }}</NAlert
     >
+      {{ error }}
+    </NAlert>
     <NAlert
       v-if="dropTarget !== undefined"
       class="sftp-drop-indicator"
       type="info"
       :show-icon="false"
-      >松开上传到 {{ dropTarget }}</NAlert
     >
+      松开上传到 {{ dropTarget }}
+    </NAlert>
     <NText v-if="notice" type="success">{{ notice }}</NText>
     <NFlex :wrap="false">
       <NForm
@@ -496,56 +499,68 @@ onBeforeUnmount(() => {
         :rules="pathRules"
         @submit.prevent="navigatePath"
         class="path-form"
-        ><NFormItem label="远端路径" path="path" :show-label="false">
+      >
+        <NFormItem label="远端路径" path="path" :show-label="false">
           <NInput
             v-model:value="pathInput"
             size="small"
             placeholder="远端路径"
             :disabled="busy || !connected"
-            aria-label="远端路径" /></NFormItem
-      ></NForm>
-      <NButton size="small" :disabled="busy || !connected" @click="navigatePath"
-        >前往</NButton
+            aria-label="远端路径"
+          />
+        </NFormItem>
+      </NForm>
+      <NButton
+        size="small"
+        :disabled="busy || !connected"
+        @click="navigatePath"
       >
+        前往
+      </NButton>
     </NFlex>
     <NFlex>
-      <NButton size="tiny" :disabled="busy || !connected" @click="load('.')"
-        >主目录</NButton
-      >
+      <NButton size="tiny" :disabled="busy || !connected" @click="load('.')">
+        主目录
+      </NButton>
       <NButton
         size="tiny"
         :disabled="busy || stale || atRoot"
         @click="load(directory.replace(/\/$/, '') + '/..')"
-        >上级</NButton
       >
-      <NButton size="tiny" :disabled="busy || !connected" @click="load()"
-        >刷新</NButton
-      >
+        上级
+      </NButton>
+      <NButton size="tiny" :disabled="busy || !connected" @click="load()">
+        刷新
+      </NButton>
       <NCheckbox
         :checked="hidden"
         :disabled="settings.savingSftpHidden"
         size="small"
         @update:checked="updateHidden"
-        >显示隐藏文件</NCheckbox
       >
+        显示隐藏文件
+      </NCheckbox>
     </NFlex>
     <NFlex>
-      <NButton size="tiny" :disabled="loading || stale" @click="transfer(true)"
-        >上传</NButton
-      >
+      <NButton size="tiny" :disabled="loading || stale" @click="transfer(true)">
+        上传
+      </NButton>
       <NButton
         size="tiny"
         :disabled="busy || stale || selected?.kind !== 'file'"
         @click="transfer(false)"
-        >下载</NButton
       >
+        下载
+      </NButton>
     </NFlex>
     <NFlex v-if="visibleTransfer" align="center" justify="space-between">
-      <NText>{{
-        progress
-          ? `已传输 ${formatFileSize(progress.transferred)} / ${progress.total === null ? "?" : formatFileSize(progress.total)}`
-          : "选择文件或准备传输…"
-      }}</NText>
+      <NText>
+        {{
+          progress
+            ? `已传输 ${formatFileSize(progress.transferred)} / ${progress.total === null ? "?" : formatFileSize(progress.total)}`
+            : "选择文件或准备传输…"
+        }}
+      </NText>
       <NButton size="tiny" @click="cancel">取消传输</NButton>
     </NFlex>
     <NScrollbar
@@ -580,8 +595,9 @@ onBeforeUnmount(() => {
           v-if="task.status === 'queued'"
           size="tiny"
           @click="cancelQueued(task)"
-          >移除</NButton
         >
+          移除
+        </NButton>
       </NFlex>
     </NScrollbar>
     <NDataTable
@@ -604,25 +620,26 @@ onBeforeUnmount(() => {
       :single-line="false"
     />
     <NFlex justify="space-between" align="center">
-      <NText depth="3"
-        >{{ rows.length - 1 }} 项{{ hasMore ? "（尚未全部加载）" : "" }}</NText
-      >
+      <NText depth="3">
+        {{ rows.length - 1 }} 项{{ hasMore ? "（尚未全部加载）" : "" }}
+      </NText>
       <NButton
         v-if="hasMore"
         size="tiny"
         :disabled="busy || stale || entries.length >= 10000"
         @click="load(directory, true)"
-        >加载更多（100 项）</NButton
       >
+        加载更多（100 项）
+      </NButton>
     </NFlex>
-    <NText v-if="entries.length >= 10000 && hasMore" type="warning"
-      >已达当前视图条目上限，请按路径进入子目录。</NText
-    >
-    <NText v-if="selectedEntries.length" depth="3" class="sftp-selection"
-      >已选择 {{ selectedEntries.length }} 项{{
+    <NText v-if="entries.length >= 10000 && hasMore" type="warning">
+      已达当前视图条目上限，请按路径进入子目录。
+    </NText>
+    <NText v-if="selectedEntries.length" depth="3" class="sftp-selection">
+      已选择 {{ selectedEntries.length }} 项{{
         selected ? `：${selected.name}` : ""
-      }}</NText
-    >
+      }}
+    </NText>
   </aside>
 </template>
 <style scoped>

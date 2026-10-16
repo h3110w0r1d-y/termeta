@@ -20,6 +20,8 @@
 
 ## 样式归属
 
+Vue 模板由现有 Prettier 3.9.10 统一格式化，仓库 `.prettierrc.json` 对 `*.vue` 设置 `htmlWhitespaceSensitivity: "ignore"`，避免为保留行内空白而拆开闭合标签或连接相邻组件；多行正文与闭合标签自然分行，短元素允许单行。`pnpm format:vue` 批量修复，`pnpm check:format:vue` 仅静态校验。精确依赖行内边界空格的内容使用显式文本表达式或局部 `prettier-ignore`，预格式化内容保持原样。此次批量整理不修改脚本逻辑、样式、接口或依赖；行内文本边界的视觉效果仍待运行复验。
+
 2026-10-16 将原集中式 `src/styles.css` 拆入对应 Vue 的 `<style scoped>`：WorkspaceTabs 维护标签/排序及横纵布局，TerminalStage 维护分屏容器/分隔条，TerminalPane 维护窗格与 xterm 宿主，窗口按钮、弹窗及各设置页维护自己的布局。标签组件按 position/isMac 在自身根节点表达布局状态，避免依赖父组件的 scoped 选择器。对 xterm 动态节点和跨子组件的调整仅用明确的 `:deep()`。
 
 `App.vue` 的 scoped 样式管理应用外壳/保险箱/状态栏；非 scoped 样式只保留主题 tokens、基础规则、共享表单/页头/状态点以及同时用于实际终端与预览的 xterm 选区、传送菜单适配。字体资源 CSS 独立保留。已删除 `src/styles.css` 及 main.ts 导入，并清理没有模板引用或始终被覆盖的旧规则。此轮仅静态检查，视觉、横纵布局、小窗口和弹层/xterm 仍待运行复验。

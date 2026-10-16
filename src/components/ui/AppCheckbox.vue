@@ -10,6 +10,7 @@ const emit = defineEmits<{ "update:modelValue": [value: boolean] }>();
     :checked="modelValue"
     :disabled="disabled"
     @update:checked="emit('update:modelValue', $event)"
-    ><slot
-  /></NCheckbox>
+  >
+    <slot />
+  </NCheckbox>
 </template>

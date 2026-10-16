@@ -304,10 +304,9 @@ function confirmImport() {
           @click="selectScheme(s)"
         >
           <NFlex vertical :size="4" align="center">
-            <span
-              >{{ draft.defaultSchemeId === s.id ? "✓ " : ""
-              }}{{ s.name }}</span
-            >
+            <span>
+              {{ draft.defaultSchemeId === s.id ? "✓ " : "" }}{{ s.name }}
+            </span>
             <span class="swatches" aria-hidden="true">
               <i
                 v-for="(c, index) in s.colors.ansi.slice(1, 7)"
@@ -332,13 +331,14 @@ function confirmImport() {
           :rules="rules"
           label-placement="top"
           @submit.prevent="saveScheme"
-          ><NFlex vertical :size="16">
+        >
+          <NFlex vertical :size="16">
             <p class="muted">
               编辑内置方案会自动创建自定义副本，修改实时应用。
             </p>
-            <NFormItem label="方案名称" path="name"
-              ><AppInput v-model="editor.name" maxlength="80"
-            /></NFormItem>
+            <NFormItem label="方案名称" path="name">
+              <AppInput v-model="editor.name" maxlength="80" />
+            </NFormItem>
             <div ref="previewHost" class="theme-preview" />
             <p v-if="contrast < 4.5" class="error">
               前景 / 背景对比度 {{ contrast.toFixed(2) }}:1，低于
@@ -385,31 +385,33 @@ function confirmImport() {
                 </NGridItem>
               </NGrid>
             </AppCollapsible>
-            <NFormItem label="索引色覆盖（16–255，HEX JSON）" path="indexed"
-              ><AppTextarea v-model="indexed" rows="3" spellcheck="false"
-            /></NFormItem>
+            <NFormItem label="索引色覆盖（16–255，HEX JSON）" path="indexed">
+              <AppTextarea v-model="indexed" rows="3" spellcheck="false" />
+            </NFormItem>
             <NFlex>
               <AppButton @click="exportTheme">导出 JSON</AppButton>
               <AppButton
                 class="danger"
                 :disabled="!draft.customSchemes.some((s) => s.id === editor.id)"
                 @click="deleteScheme"
-                >删除自定义</AppButton
               >
+                删除自定义
+              </AppButton>
               <AppButton
                 @click="
                   editScheme(
                     resolveScheme(draft.defaultSchemeId, draft.customSchemes),
                   )
                 "
-                >撤销编辑</AppButton
               >
-              <AppButton v-if="imported" @click="confirmImport"
-                >确认导入副本</AppButton
-              >
+                撤销编辑
+              </AppButton>
+              <AppButton v-if="imported" @click="confirmImport">
+                确认导入副本
+              </AppButton>
             </NFlex>
-          </NFlex></NForm
-        >
+          </NFlex>
+        </NForm>
       </NCollapseItem>
     </NCollapse>
     <p v-if="error" class="error" role="alert">{{ error }}</p>

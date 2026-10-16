@@ -26,6 +26,7 @@ const tone = computed(
     :type="tone"
     :quaternary="classes.includes('icon-button') || classes.includes('subtle')"
     :block="classes.includes('full')"
-    ><slot
-  /></NButton>
+  >
+    <slot />
+  </NButton>
 </template>

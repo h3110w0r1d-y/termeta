@@ -291,8 +291,9 @@ onBeforeUnmount(() => {
             type="error"
             closable
             @close="initError = ''"
-            >{{ initError }}</NAlert
           >
+            {{ initError }}
+          </NAlert>
           <VaultLayout
             @connect="connect"
             @local="openLocalTerminal"
@@ -329,14 +330,16 @@ onBeforeUnmount(() => {
                   )
                 "
               >
-                上一个</AppButton
-              ><AppButton
+                上一个
+              </AppButton>
+              <AppButton
                 @click="
                   terminalRegistry.find(workspace.active.terminalId, query)
                 "
               >
-                下一个</AppButton
-              ><AppButton
+                下一个
+              </AppButton>
+              <AppButton
                 class="icon-button"
                 aria-label="关闭搜索"
                 @click="closeFind()"
@@ -362,8 +365,8 @@ onBeforeUnmount(() => {
               </span>
               <span>
                 {{ workspace.active.size.cols }} ×
-                {{ workspace.active.size.rows }} · UTF-8</span
-              >
+                {{ workspace.active.size.rows }} · UTF-8
+              </span>
               <AppButton
                 v-if="
                   workspace.active.target.source !== 'local' &&
@@ -380,8 +383,9 @@ onBeforeUnmount(() => {
                 "
                 title="显示或隐藏此终端的 SFTP 侧栏"
                 @click="workspace.toggleSftp()"
-                >SFTP</AppButton
               >
+                SFTP
+              </AppButton>
             </footer>
           </section>
         </main>
@@ -399,9 +403,10 @@ onBeforeUnmount(() => {
           :duplicate="duplicate"
           @connect="ephemeral"
           @after-leave="restoreTerminalFocus"
-        /><ChallengeDialog
-          @after-leave="restoreTerminalFocus"
-        /><PasteDialog /><ConfirmationDialog />
+        />
+        <ChallengeDialog @after-leave="restoreTerminalFocus" />
+        <PasteDialog />
+        <ConfirmationDialog />
       </div>
     </VaultGate>
   </NConfigProvider>

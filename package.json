@@ -4,6 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "format:vue": "prettier --write \"src/**/*.vue\"",
+    "check:format:vue": "prettier --check \"src/**/*.vue\"",
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",

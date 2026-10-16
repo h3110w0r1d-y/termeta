@@ -384,8 +384,9 @@ defineExpose({ startHostDrag });
             store.groups.some((g) => g.id === modelValue) ? modelValue : null,
           )
         "
-        >新建分组</NButton
       >
+        新建分组
+      </NButton>
     </div>
     <NScrollbar class="groups-scroll">
       <NTree
@@ -434,36 +435,40 @@ defineExpose({ startHostDrag });
         :rules="groupRules"
         @submit.prevent="saveGroup"
       >
-        <NFormItem label="分组名称" path="name"
-          ><NInput
+        <NFormItem label="分组名称" path="name">
+          <NInput
             v-model:value="name"
             autofocus
             maxlength="128"
             @keydown.enter.prevent="saveGroup"
-        /></NFormItem>
-        <NFormItem label="父分组"
-          ><NSelect
+          />
+        </NFormItem>
+        <NFormItem label="父分组">
+          <NSelect
             :value="parent ?? ''"
             :options="parentOptions"
             filterable
             @update:value="parent = $event || null"
-        /></NFormItem>
-        <NText v-if="dialogError" type="error" role="alert">{{
-          dialogError
-        }}</NText>
+          />
+        </NFormItem>
+        <NText v-if="dialogError" type="error" role="alert">
+          {{ dialogError }}
+        </NText>
       </NForm>
-      <template #footer
-        ><NSpace justify="end"
-          ><NButton :disabled="store.managementBusy" @click="editor = false"
-            >取消</NButton
-          ><NButton
+      <template #footer>
+        <NSpace justify="end">
+          <NButton :disabled="store.managementBusy" @click="editor = false">
+            取消
+          </NButton>
+          <NButton
             type="primary"
             :loading="store.managementBusy"
             @click="saveGroup"
-            >保存</NButton
-          ></NSpace
-        ></template
-      >
+          >
+            保存
+          </NButton>
+        </NSpace>
+      </template>
     </AppDialog>
     <AppDialog
       :open="!!deleteTarget"
@@ -476,39 +481,40 @@ defineExpose({ startHostDrag });
       "
     >
       <p>删除“{{ deleteTarget?.name }}”，请选择如何处理其中内容：</p>
-      <NRadioGroup v-model:value="deleteMode" name="delete-group-mode"
-        ><NSpace vertical>
+      <NRadioGroup v-model:value="deleteMode" name="delete-group-mode">
+        <NSpace vertical>
           <NRadio value="move">保留主机与子分组，移到父级</NRadio>
-          <NText depth="3"
-            >{{ deletePreview.direct }} 台直属主机和直属子分组移到
-            {{ deletePreview.parent }}，子分组内的内容保持原层级。</NText
-          >
+          <NText depth="3">
+            {{ deletePreview.direct }} 台直属主机和直属子分组移到
+            {{ deletePreview.parent }}，子分组内的内容保持原层级。
+          </NText>
           <NRadio value="delete">一并删除所有子分组和主机</NRadio>
-          <NText depth="3"
-            >删除 {{ deletePreview.groups }} 个子分组和其中全部
-            {{ deletePreview.hosts }} 台主机，需要再次确认。</NText
-          >
-        </NSpace></NRadioGroup
-      >
-      <NText v-if="deleteError" type="error" role="alert">{{
-        deleteError
-      }}</NText>
-      <template #footer
-        ><NSpace justify="end"
-          ><NButton
+          <NText depth="3">
+            删除 {{ deletePreview.groups }} 个子分组和其中全部
+            {{ deletePreview.hosts }} 台主机，需要再次确认。
+          </NText>
+        </NSpace>
+      </NRadioGroup>
+      <NText v-if="deleteError" type="error" role="alert">
+        {{ deleteError }}
+      </NText>
+      <template #footer>
+        <NSpace justify="end">
+          <NButton
             :disabled="store.managementBusy"
             @click="deleteTarget = undefined"
-            >取消</NButton
-          ><NButton
+          >
+            取消
+          </NButton>
+          <NButton
             :type="deleteMode === 'delete' ? 'error' : 'primary'"
             :loading="store.managementBusy"
             @click="deleteGroup"
-            >{{
-              deleteMode === "delete" ? "继续…" : "删除分组并移动内容"
-            }}</NButton
-          ></NSpace
-        ></template
-      >
+          >
+            {{ deleteMode === "delete" ? "继续…" : "删除分组并移动内容" }}
+          </NButton>
+        </NSpace>
+      </template>
     </AppDialog>
   </aside>
 </template>

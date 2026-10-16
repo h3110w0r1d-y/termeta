@@ -37,10 +37,11 @@ const emit = defineEmits<{ "update:modelValue": [string] }>();
         title="重置单色"
         :aria-label="label + '重置单色'"
         @click="emit('update:modelValue', reset)"
-        >↺</AppButton
       >
-    </div></NFormItem
-  >
+        ↺
+      </AppButton>
+    </div>
+  </NFormItem>
 </template>
 <style scoped>
 .color-field-row {

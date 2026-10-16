@@ -100,8 +100,9 @@ async function auth(cancel = false) {
           ? current.name || 'SSH 身份认证'
           : ''
     "
-    ><template v-if="current?.type === 'hostKeyChallenge'"
-      ><p>请通过可信渠道核对服务器指纹。只有核验后才会提交认证信息。</p>
+  >
+    <template v-if="current?.type === 'hostKeyChallenge'">
+      <p>请通过可信渠道核对服务器指纹。只有核验后才会提交认证信息。</p>
       <dl class="fingerprint">
         <dt>主机</dt>
         <dd>{{ current.endpoint.host }}:{{ current.endpoint.port }}</dd>
@@ -130,42 +131,47 @@ async function auth(cancel = false) {
         v-for="(prompt, index) in current.prompts"
         :key="index"
         class="span-2"
-        ><AppInput
+      >
+        <AppInput
           v-model="answers[index]"
           :type="prompt.echo ? 'text' : 'password'"
           autocomplete="off"
           :autofocus="index === 0"
           maxlength="16384"
-      /></NFormItem>
+        />
+      </NFormItem>
     </NForm>
     <p v-if="error" class="error" role="alert">{{ error }}</p>
     <template #footer>
       <NFlex v-if="current?.type === 'hostKeyChallenge'" justify="end">
         <AppButton :disabled="busy" @click="hostKey('reject')">拒绝</AppButton>
-        <AppButton :disabled="busy" @click="hostKey('allowOnce')"
-          >仅本次信任</AppButton
-        >
+        <AppButton :disabled="busy" @click="hostKey('allowOnce')">
+          仅本次信任
+        </AppButton>
         <AppButton
           class="primary"
           :disabled="busy"
           @click="hostKey('trustAndSave')"
-          >信任并保存</AppButton
         >
+          信任并保存
+        </AppButton>
       </NFlex>
       <NFlex v-else-if="current?.type === 'authChallenge'" justify="end">
         <AppButton type="button" :disabled="busy" @click="auth(true)">
-          取消连接</AppButton
-        ><AppButton
+          取消连接
+        </AppButton>
+        <AppButton
           id="auth-challenge-continue"
           type="submit"
           form="auth-challenge-form"
           class="primary"
           :disabled="busy"
-          >继续</AppButton
         >
+          继续
+        </AppButton>
       </NFlex>
-    </template></AppDialog
-  >
+    </template>
+  </AppDialog>
 </template>
 
 <style scoped>

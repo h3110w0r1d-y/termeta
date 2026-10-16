@@ -69,9 +69,9 @@ onBeforeUnmount(() => {
   <NConfigProvider :theme="naiveTheme" :locale="zhCN" :date-locale="dateZhCN">
     <NGlobalStyle />
     <div class="settings-window">
-      <NAlert v-if="error || sync.error.value" type="error">{{
-        error || sync.error.value
-      }}</NAlert>
+      <NAlert v-if="error || sync.error.value" type="error">
+        {{ error || sync.error.value }}
+      </NAlert>
       <SettingsPage v-if="ready" ref="page" />
       <ConfirmationDialog />
     </div>

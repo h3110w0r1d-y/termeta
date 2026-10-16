@@ -96,25 +96,27 @@ async function importKeys(event: Event) {
 <template>
   <div>
     <div class="button-row">
-      <NTabs v-model:value="category" type="segment" aria-label="快捷键分类"
-        ><NTab name="application">全局快捷键</NTab
-        ><NTab name="terminal">终端快捷键</NTab></NTabs
-      >
+      <NTabs v-model:value="category" type="segment" aria-label="快捷键分类">
+        <NTab name="application">全局快捷键</NTab>
+        <NTab name="terminal">终端快捷键</NTab>
+      </NTabs>
       <AppInput v-model="shortcutSearch" placeholder="搜索动作或按键…" />
     </div>
     <div v-for="b in bindings" :key="b.id" class="shortcut-row">
-      <AppCheckbox v-model="b.enabled">{{
-        commandDefinitions.find((d) => d[0] === b.commandId)?.[1]
-      }}</AppCheckbox
-      ><template v-if="b.trigger.type === 'pointer'"
-        ><AppSelect
+      <AppCheckbox v-model="b.enabled">
+        {{ commandDefinitions.find((d) => d[0] === b.commandId)?.[1] }}
+      </AppCheckbox>
+      <template v-if="b.trigger.type === 'pointer'">
+        <AppSelect
           v-model="b.trigger.modifiers[0]"
           :options="[
             { value: 'Primary', label: 'Cmd / Ctrl + 点击' },
             { value: 'Alt', label: 'Alt + 点击' },
             { value: 'Shift', label: 'Shift + 点击' },
-          ]" /></template
-      ><AppButton
+          ]"
+        />
+      </template>
+      <AppButton
         v-else
         :class="{ recording: recording === b.id }"
         @click="recording = b.id"
@@ -123,8 +125,9 @@ async function importKeys(event: Event) {
       >
         {{
           recording === b.id ? "按组合键，Esc 取消" : keyLabel(b) || "未绑定"
-        }}</AppButton
-      ><AppButton
+        }}
+      </AppButton>
+      <AppButton
         class="icon-button"
         title="增加同动作绑定"
         @click="
@@ -135,8 +138,9 @@ async function importKeys(event: Event) {
           })
         "
       >
-        ＋</AppButton
-      ><AppButton
+        ＋
+      </AppButton>
+      <AppButton
         class="icon-button"
         title="恢复此动作默认"
         @click="resetBinding(b)"
@@ -155,11 +159,12 @@ async function importKeys(event: Event) {
       等远端控制键若被配置，将被本地截获。本地终端动作已启用；系统后台热键未启用。
     </p>
     <div class="button-row">
-      <AppButton @click="draft.keymap.bindings = defaults()"
-        >全部恢复默认</AppButton
-      ><AppButton @click="exportKeys">导出配置</AppButton
-      ><AppButton @click="keyFile?.click()">导入配置</AppButton
-      ><input
+      <AppButton @click="draft.keymap.bindings = defaults()">
+        全部恢复默认
+      </AppButton>
+      <AppButton @click="exportKeys">导出配置</AppButton>
+      <AppButton @click="keyFile?.click()">导入配置</AppButton>
+      <input
         ref="keyFile"
         hidden
         type="file"

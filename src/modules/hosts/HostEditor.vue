@@ -376,23 +376,25 @@ async function submit() {
             v-model="draft.favorite"
             class="span-2"
             :disabled="fieldsLocked"
-            >加入收藏</AppCheckbox
           >
+            加入收藏
+          </AppCheckbox>
         </template>
         <p v-if="error" class="error span-2" role="alert">{{ error }}</p>
       </fieldset>
     </NForm>
     <template #footer>
       <NFlex justify="end">
-        <AppButton :disabled="busy" @click="emit('update:open', false)">{{
-          committedHost ? "关闭" : "取消"
-        }}</AppButton>
+        <AppButton :disabled="busy" @click="emit('update:open', false)">
+          {{ committedHost ? "关闭" : "取消" }}
+        </AppButton>
         <AppButton
           type="submit"
           form="host-editor-form"
           class="primary"
           :disabled="busy"
-          >{{
+        >
+          {{
             busy
               ? "处理中…"
               : committedHost
@@ -400,8 +402,8 @@ async function submit() {
                 : quick
                   ? "连接"
                   : "保存主机"
-          }}</AppButton
-        >
+          }}
+        </AppButton>
       </NFlex>
     </template>
   </AppDialog>

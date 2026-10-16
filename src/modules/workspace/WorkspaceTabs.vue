@@ -211,10 +211,8 @@ watch(
             @click="activate(tab.id)"
             @dblclick="emit('doubleClick', tab.id)"
           >
-            <i class="status-dot" :class="tab.state" aria-hidden="true" /><span
-              class="workspace-tab-title"
-              >{{ tab.title }}</span
-            >
+            <i class="status-dot" :class="tab.state" aria-hidden="true" />
+            <span class="workspace-tab-title">{{ tab.title }}</span>
           </button>
           <button
             type="button"
@@ -245,8 +243,9 @@ watch(
         aria-label="新建标签页"
         title="新建标签页 (Cmd/Ctrl+T)"
         @click="emit('create')"
-        >＋</AppButton
       >
+        ＋
+      </AppButton>
     </div>
     <div
       v-if="workspace.drag"
@@ -267,11 +266,10 @@ watch(
     <span
       :data-tauri-drag-region="position === 'top' ? '' : undefined"
       class="connection-count"
-      ><i class="status-dot" :class="{ connected: connected > 0 }" />{{
-        connected
-      }}
-      个连接</span
     >
+      <i class="status-dot" :class="{ connected: connected > 0 }" />
+      {{ connected }} 个连接
+    </span>
     <WindowControls
       v-if="position === 'top'"
       @error="emit('windowError', $event)"

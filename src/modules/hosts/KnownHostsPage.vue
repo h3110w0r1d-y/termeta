@@ -49,14 +49,12 @@ async function revoke(id: string) {
   <section class="home-page" aria-label="主机信任">
     <header class="page-heading">
       <div>
-        <NH1>主机信任</NH1
-        ><NText depth="3">Known Hosts · 已保存的 SSH 主机密钥与指纹</NText>
+        <NH1>主机信任</NH1>
+        <NText depth="3">Known Hosts · 已保存的 SSH 主机密钥与指纹</NText>
       </div>
-      <NFlex
-        ><AppButton :disabled="loading || busy" @click="load"
-          >刷新</AppButton
-        ></NFlex
-      >
+      <NFlex>
+        <AppButton :disabled="loading || busy" @click="load">刷新</AppButton>
+      </NFlex>
     </header>
     <NFlex vertical :size="16">
       <NAlert v-if="error" type="error">{{ error }}</NAlert>
@@ -65,22 +63,24 @@ async function revoke(id: string) {
           v-if="!loading && !known.length"
           description="尚未保存主机信任。"
         />
-        <NList v-else bordered
-          ><NListItem v-for="host in known" :key="host.id"
-            ><NThing
+        <NList v-else bordered>
+          <NListItem v-for="host in known" :key="host.id">
+            <NThing
               class="selectable-text"
               :title="host.canonicalHost + ':' + host.port"
               :description="host.keyAlgorithm + ' · ' + host.fingerprintSha256"
-            /><template #suffix
-              ><AppButton
+            />
+            <template #suffix>
+              <AppButton
                 class="danger"
                 :disabled="loading || busy"
                 @click="revoke(host.id)"
-                >撤销信任</AppButton
-              ></template
-            ></NListItem
-          ></NList
-        >
+              >
+                撤销信任
+              </AppButton>
+            </template>
+          </NListItem>
+        </NList>
       </NSpin>
     </NFlex>
   </section>

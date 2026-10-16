@@ -216,8 +216,9 @@ watch(group, () => {
         type="primary"
         :disabled="store.managementBusy"
         @click="createHost"
-        >新建主机</NButton
       >
+        新建主机
+      </NButton>
       <NButton @click="emit('local')">本地终端</NButton>
     </NSpace>
     <NAlert
@@ -226,8 +227,9 @@ watch(group, () => {
       type="error"
       closable
       @close="error = ''"
-      >{{ error }}</NAlert
     >
+      {{ error }}
+    </NAlert>
     <div class="host-layout">
       <HostGroupTree
         ref="groupTree"
@@ -237,17 +239,18 @@ watch(group, () => {
       />
       <section class="host-content" aria-label="分组主机">
         <div class="host-scope">
-          <NEllipsis
-            ><NText strong>{{ groupName }}</NText></NEllipsis
-          >
+          <NEllipsis>
+            <NText strong>{{ groupName }}</NText>
+          </NEllipsis>
           <NText depth="3">{{ visible.length }} 台主机</NText>
           <NCheckbox
             v-if="selectedGroup"
             :checked="includeChildren"
             :disabled="savingIncludeChildren"
             @update:checked="setIncludeChildren"
-            >包含子分组</NCheckbox
           >
+            包含子分组
+          </NCheckbox>
         </div>
         <NScrollbar class="host-list-scroll">
           <NEmpty
@@ -255,13 +258,13 @@ watch(group, () => {
             class="hosts-empty"
             description="此分组暂无主机，可新建或从其他分组拖入。"
           >
-            <template #extra
-              ><NSpace justify="center">
-                <NButton :disabled="store.managementBusy" @click="createHost"
-                  >在此新建主机</NButton
-                >
-              </NSpace></template
-            >
+            <template #extra>
+              <NSpace justify="center">
+                <NButton :disabled="store.managementBusy" @click="createHost">
+                  在此新建主机
+                </NButton>
+              </NSpace>
+            </template>
           </NEmpty>
           <div v-else class="host-grid">
             <NCard
@@ -283,9 +286,9 @@ watch(group, () => {
               <template #header>
                 <div class="host-card-title">
                   <NEllipsis class="host-card-name">{{ host.name }}</NEllipsis>
-                  <NTag class="host-protocol" type="info" size="small"
-                    >SSH</NTag
-                  >
+                  <NTag class="host-protocol" type="info" size="small">
+                    SSH
+                  </NTag>
                 </div>
               </template>
               <template #header-extra>
@@ -297,24 +300,25 @@ watch(group, () => {
                   :aria-label="host.favorite ? '取消收藏' : '收藏'"
                   @dblclick.stop
                   @click.stop="favorite(host)"
-                  >{{ host.favorite ? "★" : "☆" }}</NButton
                 >
+                  {{ host.favorite ? "★" : "☆" }}
+                </NButton>
               </template>
               <NSpace vertical>
-                <NText depth="3">{{
-                  groupPath(store.groups, host.groupId)
-                }}</NText>
-                <NEllipsis class="selectable-text"
-                  >{{ host.username }}@{{
+                <NText depth="3">
+                  {{ groupPath(store.groups, host.groupId) }}
+                </NText>
+                <NEllipsis class="selectable-text">
+                  {{ host.username }}@{{
                     host.address.includes(":")
                       ? "[" + host.address + "]"
                       : host.address
-                  }}:{{ host.port }}</NEllipsis
-                >
+                  }}:{{ host.port }}
+                </NEllipsis>
                 <NSpace v-if="host.tags.length" size="small">
-                  <NTag v-for="tag in host.tags" :key="tag" size="small">{{
-                    tag
-                  }}</NTag>
+                  <NTag v-for="tag in host.tags" :key="tag" size="small">
+                    {{ tag }}
+                  </NTag>
                 </NSpace>
               </NSpace>
             </NCard>
@@ -346,28 +350,33 @@ watch(group, () => {
       "
     >
       <p>将“{{ movingHost?.name }}”移到：</p>
-      <NForm ref="moveForm" :model="{ destination }" :rules="moveRules"
-        ><NFormItem label="目标分组" path="destination"
-          ><NSelect
+      <NForm ref="moveForm" :model="{ destination }" :rules="moveRules">
+        <NFormItem label="目标分组" path="destination">
+          <NSelect
             v-model:value="destination"
             :options="moveOptions"
-            filterable /></NFormItem
-      ></NForm>
+            filterable
+          />
+        </NFormItem>
+      </NForm>
       <NText v-if="moveError" type="error" role="alert">{{ moveError }}</NText>
-      <template #footer
-        ><NSpace justify="end"
-          ><NButton
+      <template #footer>
+        <NSpace justify="end">
+          <NButton
             :disabled="store.managementBusy"
             @click="movingHost = undefined"
-            >取消</NButton
-          ><NButton
+          >
+            取消
+          </NButton>
+          <NButton
             type="primary"
             :loading="store.managementBusy"
             @click="moveHost"
-            >移动</NButton
-          ></NSpace
-        ></template
-      >
+          >
+            移动
+          </NButton>
+        </NSpace>
+      </template>
     </AppDialog>
   </section>
 </template>

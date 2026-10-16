@@ -119,8 +119,8 @@ function enter(event: KeyboardEvent) {
         @keydown.enter="enter"
       />
       <div @mousedown.prevent @click="focus"><SearchPreferences compact /></div>
-      <NScrollbar style="max-height: 40dvh"
-        ><div ref="list">
+      <NScrollbar style="max-height: 40dvh">
+        <div ref="list">
           <NList
             v-if="visible.length"
             :show-divider="false"
@@ -144,14 +144,14 @@ function enter(event: KeyboardEvent) {
               >
                 <NFlex vertical align="start" :size="4" class="result-text">
                   <NText>{{ host.favorite ? "★ " : "" }}{{ host.name }}</NText>
-                  <NText depth="3"
-                    >{{ host.username }}@{{
+                  <NText depth="3">
+                    {{ host.username }}@{{
                       host.address.includes(":")
                         ? `[${host.address}]`
                         : host.address
                     }}:{{ host.port }} ·
-                    {{ groupPath(hosts.groups, host.groupId) }}</NText
-                  >
+                    {{ groupPath(hosts.groups, host.groupId) }}
+                  </NText>
                 </NFlex>
               </NButton>
             </NListItem>
@@ -161,18 +161,19 @@ function enter(event: KeyboardEvent) {
             :description="
               query.trim() ? '没有匹配的主机' : '还没有保存主机，可使用快速连接'
             "
-          /></div
-      ></NScrollbar>
-      <NText v-if="results.length > 100" depth="3"
-        >共 {{ results.length }} 台，仅显示前100台，请缩小搜索范围。</NText
-      >
+          />
+        </div>
+      </NScrollbar>
+      <NText v-if="results.length > 100" depth="3">
+        共 {{ results.length }} 台，仅显示前100台，请缩小搜索范围。
+      </NText>
     </NFlex>
-    <template #footer
-      ><NFlex justify="space-between"
-        ><NButton @click="quick">快速连接</NButton
-        ><NButton @click="emit('update:open', false)">取消</NButton></NFlex
-      ></template
-    >
+    <template #footer>
+      <NFlex justify="space-between">
+        <NButton @click="quick">快速连接</NButton>
+        <NButton @click="emit('update:open', false)">取消</NButton>
+      </NFlex>
+    </template>
   </AppDialog>
 </template>
 <style scoped>

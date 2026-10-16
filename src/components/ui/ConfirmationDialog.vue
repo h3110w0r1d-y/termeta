@@ -26,7 +26,8 @@ async function submit() {
     :open="!!currentConfirmation"
     :title="currentConfirmation?.input === undefined ? '确认操作' : '输入信息'"
     @update:open="(value) => !value && settleConfirmation(false)"
-    ><NForm
+  >
+    <NForm
       ref="form"
       :model="currentConfirmation"
       :rules="rules"
@@ -39,22 +40,25 @@ async function submit() {
         v-if="currentConfirmation.input !== undefined"
         label="输入信息"
         path="input"
-        ><AppInput
+      >
+        <AppInput
           v-model="currentConfirmation.input"
           maxlength="120"
           autofocus
-        /> </NFormItem
-    ></NForm>
+        />
+      </NFormItem>
+    </NForm>
     <template #footer>
       <NFlex justify="end">
-        <AppButton type="button" @click="settleConfirmation(false)"
-          >取消</AppButton
-        ><AppButton type="submit" form="confirmation-form" class="primary"
-          >确认</AppButton
-        >
+        <AppButton type="button" @click="settleConfirmation(false)">
+          取消
+        </AppButton>
+        <AppButton type="submit" form="confirmation-form" class="primary">
+          确认
+        </AppButton>
       </NFlex>
-    </template></AppDialog
-  >
+    </template>
+  </AppDialog>
 </template>
 
 <style scoped>
