@@ -100,6 +100,12 @@ impl CredentialVault {
         password: Option<Zeroizing<String>>,
     ) -> Result<HostProfile, SecurityError> {
         let _guard = self.operations.lock().await;
+        // 非 SSH 配置不接受任何密码字段，避免凭据被悄悄忽略或写入。
+        if host.kind != "ssh" && password.is_some() {
+            return Err(
+                terminal_storage::StorageError::Validation("非 SSH 主机不支持密码凭据").into(),
+            );
+        }
         let Some(password) = password else {
             let saved = self.store.save_host(host).await?;
             // 主机事务已提交；数据库清理失败保留 deleting，不能把成功保存误报为失败。

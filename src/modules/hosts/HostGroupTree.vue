@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ScrollFade from "../../components/ui/ScrollFade.vue";
 import { closeContextMenuOnOutside } from "../../components/ui/contextMenu";
 import { computed, h, nextTick, ref, watch, reactive } from "vue";
 import {
@@ -22,7 +23,7 @@ import { requiredText, validateForm } from "../../services/forms/rules";
 import AppDialog from "../../components/ui/AppDialog.vue";
 import { confirmAction } from "../../components/ui/confirmation";
 import { desktop, errorMessage } from "../../services/desktop/client";
-import HostSystemBadge from "./HostSystemBadge.vue";
+import HostProfileIcon from "./HostProfileIcon.vue";
 import type { HostGroup, HostProfile } from "../../services/desktop/types";
 import { descendantIds, groupChoices, groupPath } from "./groups";
 import { useHosts } from "./store";
@@ -34,6 +35,7 @@ const emit = defineEmits<{
   "update:modelValue": [string];
   error: [string];
   connect: [HostProfile];
+  connectGroup: [string];
   hostMenu: [MouseEvent | KeyboardEvent, HostProfile];
   editHost: [HostProfile];
 }>();
@@ -349,6 +351,17 @@ function nodeProps({ option }: { option: TreeOption }) {
         ? "group-drop-target"
         : undefined,
     onContextmenu: (event: MouseEvent) => openMenu(event, id),
+    onDblclick: (event: MouseEvent) => {
+      // 展开箭头只控制树展开；双击分组正文才发起连接。
+      if ((event.target as HTMLElement).closest(".n-tree-node-switcher"))
+        return;
+      if (props.active && !store.managementBusy && !drag.value?.moved) {
+        event.stopPropagation();
+        cancelDrag();
+        menu.value.show = false;
+        emit("connectGroup", id);
+      }
+    },
     onPointerdown: (event: PointerEvent) => {
       if (!["all", "ungrouped"].includes(id))
         startDrag(event, "group", id, String(option.label));
@@ -356,7 +369,7 @@ function nodeProps({ option }: { option: TreeOption }) {
   };
 }
 function treeKey(event: KeyboardEvent) {
-  if (store.managementBusy) return;
+  if (!props.active || store.managementBusy || event.isComposing) return;
   const pendingRow = (
     event.currentTarget as HTMLElement
   ).querySelector<HTMLElement>(".n-tree-node--pending");
@@ -367,6 +380,16 @@ function treeKey(event: KeyboardEvent) {
     event.preventDefault();
     event.stopPropagation();
     emit("connect", host);
+    return;
+  }
+  if (!host && event.key === "Enter") {
+    event.preventDefault();
+    event.stopPropagation();
+    menu.value.show = false;
+    emit(
+      "connectGroup",
+      pendingRow?.dataset.hostGroupTarget ?? props.modelValue,
+    );
     return;
   }
   if (
@@ -408,7 +431,7 @@ function treeKey(event: KeyboardEvent) {
 }
 function nodeIcon({ option }: { option: TreeOption }) {
   const host = hostFromOption(option);
-  if (host) return h(HostSystemBadge, { icon: host.icon, size: 20 });
+  if (host) return h(HostProfileIcon, { host, size: 20 });
   return folderIcon();
 }
 function selectNode(keys: Array<string | number>) {
@@ -496,27 +519,29 @@ defineExpose({ startHostDrag, cancelDrag });
         @update:value="setShowHosts"
       />
     </div>
-    <NScrollbar class="groups-scroll">
-      <NTree
-        block-line
-        selectable
-        :cancelable="false"
-        :data="tree"
-        :selected-keys="[modelValue]"
-        :expanded-keys="expanded"
-        :node-props="nodeProps"
-        :render-prefix="nodeIcon"
-        @keydown.capture="treeKey"
-        :render-suffix="
-          ({ option }) =>
-            option.hostId
-              ? null
-              : h(NText, { depth: 3 }, () => `(${option.count})`)
-        "
-        @update:expanded-keys="setExpanded($event.map(String))"
-        @update:selected-keys="selectNode"
-      />
-    </NScrollbar>
+    <ScrollFade class="groups-scroll" background="var(--bg)" :size="20">
+      <NScrollbar>
+        <NTree
+          block-line
+          selectable
+          :cancelable="false"
+          :data="tree"
+          :selected-keys="[modelValue]"
+          :expanded-keys="expanded"
+          :node-props="nodeProps"
+          :render-prefix="nodeIcon"
+          @keydown.capture="treeKey"
+          :render-suffix="
+            ({ option }) =>
+              option.hostId
+                ? null
+                : h(NText, { depth: 3 }, () => `(${option.count})`)
+          "
+          @update:expanded-keys="setExpanded($event.map(String))"
+          @update:selected-keys="selectNode"
+        />
+      </NScrollbar>
+    </ScrollFade>
     <NDropdown
       :show="menu.show"
       :x="menu.x"

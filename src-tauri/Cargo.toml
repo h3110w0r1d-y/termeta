@@ -12,6 +12,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "=2.6.3", features = [] }
 
 [dependencies]
+terminal-telnet = { path = "../crates/terminal-telnet" }
 terminal-local = { path = "../crates/terminal-local" }
 terminal-serial = { path = "../crates/terminal-serial" }
 tauri = { version = "=2.11.5", features = [] }

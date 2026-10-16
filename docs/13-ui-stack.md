@@ -22,26 +22,42 @@
 
 库没有独立Label时保留HTML标签关联；语义布局、form/fieldset和普通文本无需组件化。配色JSON的隐藏文件输入只作明确选择桥，不用于读取SSH秘密。
 
+## 共用滚动渐隐
+
+`components/ui/ScrollFade.vue`为滚动容器的薄装饰，主机列表、分组树和工作区标签复用；内部滚动继续由NScrollbar或原生DOM负责，不创建第二个滚动容器。`background`接收所在区域的CSS颜色/变量（默认`var(--bg)`），`size`为渐隐像素长度（默认20，非负且最多占当前方向的20%），`direction`为vertical（默认）或horizontal。主机页两栏传`var(--bg)`，Tab栏传`var(--surface)`，主题变化直接跟随CSS变量，不混用底色。
+
+对NScrollbar默认在插槽内查找`.n-scrollbar-container/.n-scrollbar-content`；锁定2.45.3公开实例只有scrollTo/scrollBy，不依赖内部实例ref，该DOM约定与已有主机拖动适配一致，升级库须复核。原生滚动节点传`viewport`，必要时可显式传`content`。外层只需承担布局尺寸；内容增删/标题变化由MutationObserver、viewport/内容尺寸和字体变化由ResizeObserver触发，scroll被动监听并按动画帧合并测量。无溢出、不可见或到达边缘时移除对应端渐隐，小数及弹性滚动容差1px；卸载清理观察器/监听/动画帧。
+
+渐隐用外层伪元素绘制背景色至透明渐变，pointer-events:none，无额外焦点或无障碍节点。固定标题/分组开关、固定标签与新建按钮不包含在渐隐区，滚轮、键盘滚入可见、滚动条及拖动边缘自动滚动沿用实际viewport。useTabScroll只保留顶部纵轮转横向，不重复测量边缘。
+
+```vue
+<ScrollFade background="var(--bg)" :size="20">
+  <NScrollbar>…</NScrollbar>
+</ScrollFade>
+```
+
+仅类型、结构、格式与差异等静态检查；未构建或启动，三平台明暗主题、滚动边界/列表与树变化、隐藏恢复和拖动命中待运行验收。
+
 ## 图标来源与替换范围
 
-通用 UI 图标默认使用 xicons 的 Vue 3 包 `@vicons/ionicons5` 0.13.0，通过 NIcon 保持尺寸、颜色与按钮可访问名称。按用户明确要求，8 个指定图标例外使用 Termius 官方包解包目录中的 SVG，原样复制至 `src/assets/svg/`，通过 `components/ui/AssetIcon.vue` 的静态 raw 导入和 NIcon 承载，保留 currentColor；不接收运行时外部 SVG。装饰图标不参与无障碍名称，新建标签按钮保留原入口行为。
+通用 UI 图标统一使用 xicons 的 Vue 3 包 `@vicons/ionicons5` 0.13.0，通过 NIcon 保持尺寸、颜色与按钮可访问名称。按用户最新要求，保险箱等8个按钮/导航图标已移除Termius SVG，AssetIcon保留语义名称并静态映射到Ionicons；SSH主机系统/类型图标完整保留，不接收运行时外部SVG。装饰图标不参与无障碍名称。
 
-| 解包文件 | 项目文件 | 引用位置 |
+| AssetIcon名称 | Ionicons组件 | 引用位置 |
 | --- | --- | --- |
-| Add.react-56c2754e.svg | add.svg | 标签栏新建标签（14px） |
-| Sftp.react-191e53d2.svg | sftp.svg | 固定 SFTP 标签（16px） |
-| Hosts.react-045ec94d.svg | hosts.svg | 保险箱主机导航 |
-| home.react-b597ef8e.svg | vault.svg | 固定保险箱标签 |
-| key_filled.react-09f66844.svg | credentials.svg | 凭据导航 |
-| Local Filled.react-c03303cf.svg | local-terminal.svg | 主机页本地终端按钮 |
-| fingerprint.react-b6cd786f.svg | host-trust.svg | 主机信任导航 |
-| history.react-c0c03b3c.svg | connection-history.svg | 连接历史导航 |
+| add | AddOutline | 标签栏新建标签 |
+| sftp | FolderOpenOutline | 固定SFTP标签 |
+| hosts | ServerOutline | 保险箱主机导航 |
+| vault | LockClosedOutline | 固定保险箱标签 |
+| credentials | KeyOutline | 凭据导航 |
+| local-terminal | TerminalOutline | 主机页本地终端按钮 |
+| host-trust | ShieldCheckmarkOutline | 主机信任导航 |
+| connection-history | TimeOutline | 连接历史导航 |
 
-素材由用户指定。本次未新增依赖；其余图标沿用 Ionicons，SFTP 文件类型和主机分组文件夹保留现有图案。
+无新增依赖。SFTP文件类型及主机分组文件夹保留现有自绘图案；系统原生窗口图标、品牌资源和Naive UI/xterm内部图标不在替换范围内。SSH卡片继续使用HostSystemBadge及原28个系统/类型SVG；串口使用HardwareChipOutline。页面favicon沿用带Ionicons MIT声明的TerminalOutline静态SVG。
 
-迁移前，7 个组件共 13 处自绘 SVG 创建位置（12 个模板 svg 加 1 个 h("svg")，条件分支按创建位置计数，并非独立图案数）。此前 Ionicons 迁移后仅保留 3 处：FileEntryIcon 的 SFTP 文件/目录/链接图标、HostGroupTree 的分组文件夹、WorkspaceTabs 固定 SFTP 标签文件夹；其余自绘图案及字符图标已替换。终端尺寸的乘号等正文符号保留。Naive UI/xterm 内部图标不改写。页面 favicon 改为该发布包 TerminalOutline 的静态 SVG，文件内保留 Ionicons MIT 声明；未引用的 Vue/Vite/Tauri 模板 SVG 与桌面打包品牌图标不计入上述业务统计。
+主机页新建主机与快速连接、NewTabDialog快速连接共用ConnectionTypeDropdown薄适配NDropdown/NButton，统一placement="bottom-start"从按钮下方起始边对齐，悬浮显示SSH/Telnet/串口，Telnet已启用。显式处理外部点击、Tab、Escape及窗口失焦关闭，页面隐藏时同步关闭；新建标签页搜索在类型菜单展开时让菜单处理方向键与Enter，退场后再打开所选快速连接表单。Telnet与SSH共用HostEditor的Naive UI表单布局，Telnet隐藏SSH认证字段并显示明文说明；不增加另一套表单控件。
 
-仅静态检查通过，三平台图标尺寸、对齐、主题颜色与按钮交互仍待运行验收；不报告构建体积。
+仅静态检查通过，三平台图标尺寸、对齐、主题颜色与菜单键盘/IME交互仍待运行验收；不报告构建体积。
 
 ## 样式归属
 
@@ -65,7 +81,7 @@ Vue 模板由现有 Prettier 3.9.10 统一格式化，仓库 `.prettierrc.json` 
 VaultGate使用Naive UI的NCard/NForm/NInput/NButton/NSpin/NAlert，先完成首次密码设置或自动/密码解锁再挂载业务页面；输入提交后清空，系统主密钥缓存失败显示警告。本轮仅静态检查，首次/恢复焦点和密码输入体验待运行验收。
 
 
-主机/快速连接提供密码和公钥认证；OTP/PAM/Keyboard-interactive由服务端协商动态触发。凭据仅密码/私钥，私钥可带解密密码；主机专属密码非空自动保存、显式空值改为连接时询问，OTP不保存。认证挑战不能因浮层Escape或焦点变化被意外提交/取消。
+SSH主机/快速连接提供密码和公钥认证；OTP/PAM/Keyboard-interactive由服务端协商动态触发。凭据仅密码/私钥，私钥可带解密密码；主机专属密码非空自动保存、显式空值改为连接时询问，OTP不保存。认证挑战不能因浮层Escape或焦点变化被意外提交/取消。
 
 私钥及文件正文字节在Rust读取；前端不获得任意本地路径读写能力。保留CSP既定style-src范围，不为组件库放宽script-src、导航或IPC所有权检查。SFTP拖放与限制见 [SFTP设计](16-sftp-workspace.md)。
 
@@ -95,10 +111,12 @@ Naive UI 2.45.3 的 NSelect 更新回调结束后立即触发 change/input；For
 
 主机编辑布局使用 NGrid（双列、16px列距、不另加行距）与 NFormItemGi，跨列说明/密码块/收藏/错误由 NGi 承载，移除 host-fields/form-grid 与 field 的自定义 grid。避免原18px行距与 NFormItem 自带反馈区间距叠加；纵向表单间距沿用库默认。禁用状态继续由 NForm 和既有控件属性控制，提交与校验不变。仅静态检查，实际间距和窄窗口视觉待运行复验。
 
-固定 SFTP 标签现已改用上述解包素材；新建图标由20px缩至14px，按钮尺寸保持。
+固定SFTP标签及新建标签图标现使用上述Ionicons映射。新建标签页加号取消此前14px的单独缩小，恢复20px，按钮尺寸沿用原值；仅静态检查，视觉待运行复验。
 
 ## 用户指定的SSH系统/类型图标例外
 
-本轮按用户明确要求，28个Termius主机系统/类型SVG原样复制至src/assets/svg/systems，清单[host-system-icons.json](../resources/host-system-icons.json)保留原文件名、语义标识和SHA-256。类型包括检测器的发行版/系统以及SSH、Pi、AWS、DigitalOcean手动选项；raspbian/pi共用原pi素材、suse对应原suze素材。此范围扩展此前8个指定SVG例外，其余通用图标仍用Ionicons。
+本轮按用户明确要求，28个Termius主机系统/类型SVG原样复制至src/assets/svg/systems，清单[host-system-icons.json](../resources/host-system-icons.json)保留原文件名、语义标识和SHA-256。类型包括检测器的发行版/系统以及SSH、Pi、AWS、DigitalOcean手动选项；raspbian/pi共用原pi素材、suse对应原suze素材。系统/类型SVG继续作为明确例外保留，原8个按钮/导航SVG已由Ionicons替换。
 
 主机卡片的HostSystemBadge用NAvatar承载40×40px系统色底/12px圆角和24px白色Logo，不增加描边；系统色取解包reconnectSaga-e37b5571.css变量，Debian为#CE0056。HostSystemIcon用NIcon承载，静态白名单raw资源、逐Vue实例重写SVG内部ID和引用，避免多卡片/选择器裁切路径串用；图标为装饰，文字提供可访问名称。不接受动态外部素材。主机编辑用NSelect图文标签，设置用现有NCheckbox/NCollapse/NInput只读文本，保留库样式。静态摘要/主动内容检查通过，三平台视觉待验收。
+
+2026-10-16：用户指定SSH默认项改用`host.react-ecf6b335.svg`，原样替换`src/assets/svg/systems/ssh.svg`并更新清单来源与SHA-256；id=ssh和背景/尺寸不变，卡片/列表/侧栏/选择器及未知图标回退共享该素材，其他系统图标保留。仅资源与格式/差异静态检查，未构建或启动，视觉待运行验收。

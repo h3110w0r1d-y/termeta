@@ -1,6 +1,6 @@
 # 系统架构与模块边界
 
-日期：2026-10-15。当前八个领域 crate 与桌面工作区已落源码（files/sftp首批实现见末尾）；以下同时保留后续目标结构。实现待验证，实际差异见 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)。
+日期：2026-10-16。当前九个领域 crate 与桌面工作区已落源码（files/sftp首批实现见末尾）；以下同时保留后续目标结构。实现待验证，实际差异见 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)。
 
 ## 1. 总体结构
 
@@ -13,6 +13,7 @@ flowchart TB
   App --> Core[terminal-core / SessionManager / 每会话 actor]
   Core --> Factory[SessionFactory 注册表]
   Factory --> SSH[terminal-ssh / russh]
+  Factory --> Telnet[terminal-telnet / Tokio TCP / IAC协商]
   Factory --> Local[terminal-local / portable-pty]
   Factory --> Serial[terminal-serial / serialport / 字符集转换]
   App --> Store[terminal-storage / SQLite]
@@ -47,6 +48,8 @@ flowchart TB
 
 表单状态由前端组件持有同一响应式 model，控件写入与 NForm 事件校验读取同一字段；禁止渲染时复制业务 ref 生成校验快照。嵌套对象使用一致的 rules/path，程序更新通过公开 FormItem 校验入口补齐事件，详见 [表单模型规范](13-ui-stack.md#表单响应式模型与校验时序)。此约定不影响 IPC、存储或终端生命周期。
 
+主机是保存连接配置的统一入口，当前kind支持SSH、Telnet与Serial。共用轻量名称/分组/收藏/标签，协议参数仍由各自配置校验与工厂处理；存储复用connection_profiles.kind/config_json及原SSH子表，不因UI统一而要求串口具备认证、SFTP或resize。壳的saved/profileId入口按数据库类型装配SessionConfig，前端TerminalTab另存kind及串口展示参数，权限和实际配置始终由Rust决定。临时快速连接与保存表单共用协议参数控件；Telnet由独立terminal-telnet工厂处理TCP与流式协商，TelnetConfig只含版本、地址、端口；存入config_json.telnetConfig，schema 2→3仅扩展kind约束，不创建SSH子表或认证引用。
+
 ## 3. Rust 编译依赖
 
 ```text
@@ -55,6 +58,7 @@ src-tauri ──> terminal-core
           ├─> terminal-storage ─> terminal-core
           └─> terminal-security > terminal-core + terminal-storage
 
+terminal-telnet ──> terminal-core
 terminal-local ──> terminal-core
 terminal-serial ──> terminal-core
 src-tauri ──> terminal-files（FileProvider / 受界复制）
@@ -77,6 +81,7 @@ core 的模型与端口允许使用 serde、bytes、Tokio 通道、async-trait �
 | src/services/desktop                       | 唯一 invoke/Channel 门面             |
 | src/services/commands                      | 命令注册、快捷键与焦点路由           |
 | crates/terminal-core、terminal-ssh         | 通用会话及 SSH 协议                  |
+| crates/terminal-telnet | TCP与受界Telnet流式协商 |
 | crates/terminal-local、terminal-serial | 本地PTY与串口文本适配、设备独占和字符集转换 |
 | crates/terminal-storage、terminal-security | SQLCipher 与主密钥缓存                    |
 | crates/terminal-files、terminal-sftp       | 文件 DTO/有界复制与 SFTP provider    |
@@ -98,14 +103,14 @@ UI 使用 Naive UI 现成组件及 `src/components/ui/` 薄适配，NConfigProvi
 
 ## 6. 扩展接口
 
-- `SessionKind`：首期 `ssh`；模型认可 `local`/`serial`，未注册的工厂返回 `UNSUPPORTED_SESSION_KIND`，UI 不展示可连接入口。
+- `SessionKind`：当前 `ssh`/`telnet`/`local`/`serial`，未注册的工厂返回 `UNSUPPORTED_SESSION_KIND`，UI 不展示可连接入口。
 - `SessionFactory`：验证该 kind 的版本化配置，创建 driver；`available_session_kinds` 返回已注册工厂能力。
 - `SessionCapabilities`：如 resize、PTY、binaryOutput、serialControl；通用 UI 根据能力启用，不根据 `kind === ssh` 推断。
 - `SessionControl`：通用 Write/Resize；未来 SerialControl 为受类型约束的专用扩展，不提供 `executeAnything` 或任意 JSON 逃逸口。
 - 输出恒为 bytes；Serial文本模式在适配器按所选字符集转为UTF-8，帧偏移统计转换后字节，后续HEX需另定义原始字节通道。终端/HEX 是两个消费视图。将来单 session 在二者切换要定义缓存与重放范围，不承诺无限历史。
 - 配置使用版本化 discriminated union，DTO 映射到 core typed enum；不把 ssh 地址/用户名放进所有会话必填字段。
 
-为防过度抽象，会话配置以 SessionConfig::Ssh/Local/Serial 区分；SessionManager 在统一会话表内选择已注册工厂，保留共享限额、所有权、取消与输出ACK。Serial配置与文本编码边界见[串口设计](19-serial-terminal.md)。
+为防过度抽象，会话配置以 SessionConfig::Ssh/Telnet/Local/Serial 区分；SessionManager 在统一会话表内选择已注册工厂，保留共享限额、所有权、取消与输出ACK。Serial配置与文本编码边界见[串口设计](19-serial-terminal.md)。
 
 ## 7. SSH connection 与 terminal session
 
@@ -127,7 +132,7 @@ CommandRegistry 统一菜单、按钮与按键动作，KeymapService 合并平�
 
 ## 当前源码边界
 
-八个领域 crate、Tauri commands/state 与 Vue modules 已创建。当前注入 SshFactory、terminal-local::LocalFactory 与 terminal-serial::SerialFactory；仍通过 SessionFactory trait 隔离协议。原生壳只做 DTO/owner/资源桥接，具体握手、认证、PTY 与 socket 取消在 terminal-ssh。SQLite 复合写使用 BEGIN IMMEDIATE，不在应用全局锁内等待数据库。
+九个领域 crate、Tauri commands/state 与 Vue modules 已创建。当前注入 SshFactory、terminal-telnet::TelnetFactory、terminal-local::LocalFactory 与 terminal-serial::SerialFactory；仍通过 SessionFactory trait 隔离协议。原生壳只做 DTO/owner/资源桥接，具体握手、认证、PTY 与 socket 取消在 terminal-ssh。SQLite 复合写使用 BEGIN IMMEDIATE，不在应用全局锁内等待数据库。
 
 UI tokens、基础与共享规则集中于 `src/App.vue` 的非 scoped 样式；业务布局/尺寸在所属 Vue 的 `<style scoped>`，跨组件动态 DOM 显式使用 `:deep()` 或入口全局适配；字体资源仍在独立资源 CSS。已移除 `src/styles.css` 及入口导入。项目交互封装为 `src/components/ui/`；命令注册表在 `src/services/commands/`，只有 `src/services/desktop/` 能调用 invoke。终端注册表和设置/主机/工作区分模块维护；设置面板拆为配色、快捷键、安全子组件。已有 terminal-local/terminal-serial crate，尚无独立 transfers 模块。实际交付与限制见 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)。
 
@@ -149,7 +154,7 @@ M2-14只扩展前端输入路由。WorkspaceTab增加内存broadcast/broadcastRe
 
 拖放分层：`src-tauri/src/file_drag.rs`登记原生拖入短期owner-bound引用并广播无路径事件；`file_drag_macos.rs`封装AppKit文件承诺和拖动生命周期，不承担SSH协议。`commands/file_drag.rs`校验main/session/许可并为原生承诺注入受界下载回调；`commands/files.rs`保留授权选择与传输编排，`files/browser.rs`复用浏览器获取，`files/upload.rs`负责批次扫描、覆盖原生确认及直接上传，`files/download.rs`负责文件/目录安全下载。`terminal-sftp`仅提供元数据/目录合并/安全新建或确认后截断写入，`terminal-files`仍只承载协议无关DTO与64KiB复制。Vue批次队列仅轻量状态，正文继续留Rust。5个SFTP命令均纳入单份AppManifest名单和ACL，Windows/Linux拖出当前明确不支持，不引入第二套任意路径接口。
 
-加密启动边界（2026-10-16）：App通过VaultGate等待首次设置/密码恢复/钥匙串自动解锁；只有vault_status与unlock_vault可在锁定状态调用。窗口所有权和本地导航校验不变，其他用例命令额外检查保险库已解锁。core不依赖SQLCipher/Argon2或UI。新库schema 2，不兼容旧代际，详见[存储](07-storage.md)。
+加密启动边界（2026-10-16）：App通过VaultGate等待首次设置/密码恢复/钥匙串自动解锁；只有vault_status与unlock_vault可在锁定状态调用。窗口所有权和本地导航校验不变，其他用例命令额外检查保险库已解锁。core不依赖SQLCipher/Argon2或UI。新库schema 3，允许同加密格式schema 2原位升级，不兼容早期旧代际，详见[存储](07-storage.md)。
 
 主机分组页面由HostsPage、HostGroupTree与轻量groups工具协作：前者负责当前范围/主机菜单，后者负责Naive UI树、分组表单/删除选择，useHostGroupDrag负责Pointer Events迁移；store复用desktop门面保存元数据，界面不触碰秘密。左右独立NScrollbar，原生外层保持v-show保活。只有连同主机删除子树新增storage事务方法，命令仍为delete_host_group的可选deleteHosts分支，schema与通用会话架构不变。
 
@@ -174,3 +179,9 @@ main.ts按desktop窗口身份动态加载App或SettingsWindow；公共基础样�
 ## SSH 系统识别职责
 
 core新增RemoteSystemStore持久化端口和hostSystemChanged控制事件，SshConfig只携带后端注入且不序列化的主机ID。terminal-storage实现原子claim/条件complete，壳给SshFactory注入store；SSH crate不依赖storage/Tauri。terminal-ssh/os_detection负责服务端标识/独立exec/受界解析，正常driver与检测并发，files-only分支禁用检测。前端hosts持有轻量icon/尝试状态，HostSystemIcon只渲染白名单静态SVG。设置与Rust检测读取同份命令资源，UI只读。新增SSH对现有serde_json 1.0.154的直接依赖，无新增第三方库种类；静态通过不代表编译运行验收。
+
+侧栏分组批量连接由HostGroupTree派发范围ID，HostsPage固定包含后代并保存本次主机ID集合，GroupConnectDialog确认/退场后经App路由到WorkspaceStore.addSavedHosts。Store同步创建独立saved目标并装配独立Tab或balancedLayout布局，TerminalStage仍按稳定terminalId扁平挂载；协议、认证与设备访问沿用原Rust工厂。确认取消/切页不创建会话，不新增IPC或持久化模型。仅静态验证，实际批量生命周期待验收。
+
+共用滚动装饰ScrollFade位于components/ui，接收background/size/direction与可选viewport/content节点；只做边缘测量和指针穿透的渐变，不接管滚动或业务状态。主机两栏包裹原NScrollbar、工作区标签包裹原session-tabs，useTabScroll仅保留顶部滚轮转换。组件统一DOM/ResizeObserver适配及清理，不新增依赖、IPC或持久化，终端宿主生命周期不变。
+
+Telnet适配器依赖既有terminal-core、async-trait与Tokio，不引入桌面依赖或外部Telnet库。protocol.rs持有跨块解析及双向选项状态，lib.rs负责TCP、并发读写、8项受界写队列与取消；所有连接复用SessionManager。resize能力表示NAWS通知，仅在服务端同意后发送，pty=false不影响xterm显示。具体边界见[Telnet设计](20-telnet-terminal.md)。

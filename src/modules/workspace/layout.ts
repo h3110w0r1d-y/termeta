@@ -34,6 +34,25 @@ export function terminalIds(node: LayoutNode): string[] {
     : [...terminalIds(node.first), ...terminalIds(node.second)];
 }
 
+/** 批量新建终端时交替分割方向，按叶子数分配面积，避免连续切分挤压末尾窗格。 */
+export function balancedLayout(
+  ids: readonly string[],
+  axis: SplitAxis = "horizontal",
+): LayoutNode | undefined {
+  if (!ids.length) return;
+  if (ids.length === 1) return { kind: "terminal", terminalId: ids[0]! };
+  const middle = Math.ceil(ids.length / 2);
+  const nextAxis = axis === "horizontal" ? "vertical" : "horizontal";
+  return {
+    kind: "split",
+    id: crypto.randomUUID(),
+    axis,
+    ratio: middle / ids.length,
+    first: balancedLayout(ids.slice(0, middle), nextAxis)!,
+    second: balancedLayout(ids.slice(middle), nextAxis)!,
+  };
+}
+
 export function removeTerminal(
   node: LayoutNode,
   terminalId: string,

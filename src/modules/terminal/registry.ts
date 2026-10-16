@@ -63,6 +63,7 @@ interface Entry {
 const entries = new Map<string, Entry>();
 function update(tab: TerminalTab, snapshot: SessionSnapshot) {
   if (snapshot.stateRevision >= tab.revision) {
+    tab.kind = snapshot.kind;
     tab.sessionId = snapshot.sessionId;
     tab.state = snapshot.state;
     tab.revision = snapshot.stateRevision;
@@ -537,20 +538,32 @@ export const terminalRegistry = {
         await acknowledge(entry, old);
         useWorkspace().dismiss(old.sessionId ?? "");
       }
+      if (tab.target.source === "saved") {
+        const profileId = tab.target.profileId;
+        const profile = useHosts().hosts.find((host) => host.id === profileId);
+        if (profile) {
+          tab.kind = profile.kind;
+          tab.serialConfig = profile.serialConfig
+            ? { ...profile.serialConfig }
+            : undefined;
+        }
+      }
       resetTerminalActivity(tab);
       writeLocalStatus(
         entry.term,
-        tab.target.source === "local"
+        tab.kind === "local"
           ? old
             ? "重新打开本地终端，保留终端历史"
             : "启动本地终端"
-          : tab.target.source === "serial"
+          : tab.kind === "serial"
             ? old
               ? "重新打开串口，保留终端历史"
               : "打开串口"
             : old
               ? "重新连接，保留终端历史"
-              : "开始 SSH 连接",
+              : tab.kind === "telnet"
+                ? "开始 Telnet 连接（明文传输）"
+                : "开始 SSH 连接",
       );
       const stream: Stream = {
         generation: (old?.generation ?? 0) + 1,

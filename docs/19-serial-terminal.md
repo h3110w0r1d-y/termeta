@@ -4,7 +4,7 @@
 
 ## 1. 入口与配置
 
-主机页搜索框下按“新建主机”“本地终端”“串口”排列。点击串口打开独立的 Naive UI 配置弹窗，枚举系统设备，串口选择框右侧使用Ionicons RefreshOutline刷新图标按钮，无可见文字，保留“刷新串口”提示与无障碍名称，枚举或提交期间禁用；串口和波特率均为NAutoComplete可编辑输入框，选中后仍可修改、选择文本和复制，USB描述只显示在候选项中、不写入路径。macOS候选仅保留IOKit声明的IODialinDevice（tty）节点，不返回IOCalloutDevice（cu）节点；依据系统角色属性精确匹配，不检查设备路径前缀。Windows/Linux仍沿用库枚举结果。没有设备或枚举失败时仍可提交手输路径。设备默认选择第一项，保留本进程内上次填写的配置；不创建保存主机或修改数据库 schema。
+主机页搜索框下按“新建主机”“快速连接”“本地终端”排列。前两项均使用悬浮NDropdown，下拉为SSH/Telnet/串口，Telnet仅禁用预留；独立串口按钮移除。新建主机→串口打开保存配置表单，快速连接→串口只启动临时会话（新建标签页footer也提供相同下拉），两种模式共用Naive UI串口配置弹窗，枚举系统设备，串口选择框右侧使用Ionicons RefreshOutline刷新图标按钮，无可见文字，保留“刷新串口”提示与无障碍名称，枚举或提交期间禁用；串口和波特率均为NAutoComplete可编辑输入框，选中后仍可修改、选择文本和复制，USB描述只显示在候选项中、不写入路径。macOS候选仅保留IOKit声明的IODialinDevice（tty）节点，不返回IOCalloutDevice（cu）节点；依据系统角色属性精确匹配，不检查设备路径前缀。Windows/Linux仍沿用库枚举结果。没有设备或枚举失败时仍可提交手输路径。设备在路径为空时默认选择第一项；新建/快速连接恢复默认配置，编辑/复制从保存项回填。保存模式增加必填名称、分组、标签、收藏和主机终端配色；枚举失败或加载中不阻断合法手输保存/连接。保存只提交配置，不要求设备在线，也不打开端口，不修改数据库schema。
 
 | 字段 | 默认 | 可选范围 |
 | --- | --- | --- |
@@ -28,7 +28,9 @@
 
 SessionConfig::Serial由terminal-serial::SerialFactory处理，复用20会话总限额、连接额度、owner、幂等、有界输入、Channel/ACK、心跳和窗口关闭。能力为resize=false、pty=false、binaryOutput=true、serialControl=false；后者不代表启动参数不可配置，而是当前没有会话内专用控制命令。Rust拒绝resize，前端仅本地fit，不发送远端resize。
 
-历史摘要使用端口名和`serial:<path>@<baudRate>`，不记录正文或新增重放能力；与SSH/Local合计保留最近20次。连接配置仅在前端当前会话及驱动运行期间持有，不持久化串口配置。
+保存串口沿用`{source:"saved",profileId}`，Rust依据主机kind加载完整serialConfig并派发SessionConfig::Serial；临时连接继续使用serial目标。HostDraft/HostProfile增加kind（ssh/serial，旧DTO缺失默认ssh）及可选serialConfig，串口SSH平坦字段必须为address/username空串、port=0、authPlan=[]，不接受password（即便空串）。配置存现有connection_profiles.kind与config_json.serialConfig，不创建ssh_profiles或认证记录，不改schema。禁止已有保存项变更类型，编辑、移动、收藏及复制配置保留全部参数。串口地址搜索匹配设备路径，卡片/列表/侧栏显示串口标签与Ionicons图标；系统识别仅限SSH。
+
+历史摘要使用保存名称或临时端口名和`serial:<path>@<baudRate>`，保存串口携profileId，不记录正文或新增重放能力；与SSH/Local合计保留最近20次。保存配置与设备句柄分离，只有建立会话才占用设备。
 
 ## 3. 设备与字节流
 
@@ -44,7 +46,7 @@ SessionConfig::Serial由terminal-serial::SerialFactory处理，复用20会话总
 
 ## 4. 终端与验证边界
 
-串口终端复用配色、搜索、复制粘贴、稳定terminalId与原缓冲重开。状态栏显示串口、波特率和字符集；不显示SFTP。复制标签/自动拆分建立第二条同端口连接被禁用，已有串口终端仍可在Workspace内移动或分屏布局；组广播仍须用户显式开启，逐目标应用串口编码，不自动重放。
+串口终端复用配色、搜索、复制粘贴、稳定terminalId与原缓冲重开。TerminalTab独立保存kind和serialConfig展示元数据，saved目标仍只提交profileId；状态快照按后端kind同步，重连从当前主机元数据刷新展示参数。状态栏显示串口、波特率和字符集；不显示SFTP。复制标签/自动拆分建立第二条同端口连接被禁用，已有串口终端仍可在Workspace内移动或分屏布局；组广播仍须用户显式开启，逐目标应用串口编码，不自动重放。
 
 实际静态检查见[路线记录](10-roadmap.md#2026-10-16serial-基础支持)。字符集跨块/不可表示字符/尾部、路径及参数白名单、owner/不支持resize回归已在本轮授权调试中执行通过，具体结果见下节；此前各轮静态检查不替代运行验证。运行验收仍需macOS/Windows/Linux设备枚举、手输未枚举路径/空列表/枚举失败、选中后修改与复制、符号链接及非法设备路径、macOS仅枚举系统dialin节点、手输tty/cu保持所填节点、重复连接、权限/占用、无设备/刷新、全部参数组合与驱动拒绝、USB拔插/重开、持续输出与无ACK时关闭、部分写入/流控阻塞、非UTF-8双向输入、切页/分屏保活及窗口关闭回收。DTR/RTS控制、DSR/DTR流控、HEX/Local Echo未实现，EXT-02保持部分完成。
 
@@ -60,3 +62,5 @@ cargo run --locked --offline -p terminal-serial --example serial_monitor -- /dev
 ```
 
 该工具复用实际串口打开策略，不发送应用数据，控制线初始化可能触发设备开机输出；观察时间1–30秒，预览最多16KiB，输出按转义文本展示，不执行设备控制序列。`cargo test --locked --offline -p terminal-serial -p terminal-core --lib`现共15项通过，覆盖UTF-8非法序列替换/任意读取边界/单字节读取/截断尾部/控制字节保留/输入原样传递，以及既有其他字符集、设备路径、参数及owner/resize回归。使用已安装xterm 6.0.0的Terminal在Node中写入同一构造数据并读取缓冲：原始字节为GP@KS，规范化UTF-8后为GP�@�K�S�，ANSI序列不作为正文显示。Rust格式和差异静态检查通过；本次解码修复未重新连接设备。桌面Channel/xterm显示、全部高级参数、硬件流控、其他设备和Windows/Linux仍待验收。
+
+2026-10-16：串口保存主机及类型下拉仅完成静态类型/结构/格式、SQL模型、资源与文档差异核对，新增存储回归源码未执行。此前15项串口测试及ESP32-C3证据不覆盖本次持久化/多类型主机集成；保存后重启、编辑/复制/收藏/移动、旧SSH数据兼容、saved串口重开与SFTP隔离、菜单/焦点/搜索及三平台仍待运行验收。

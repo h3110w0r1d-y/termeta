@@ -5,6 +5,7 @@ import { terminalDisplayTitle } from "../terminal/title";
 import type { TerminalActivity } from "../terminal/activity";
 import {
   terminalIds,
+  balancedLayout,
   removeTerminal,
   setSplitRatio,
   swapSplit,
@@ -17,12 +18,18 @@ import type {
   HostKeyChallenge,
   OpenTarget,
   SessionState,
+  SessionSnapshot,
+  SerialConfig,
+  HostProfile,
 } from "../../services/desktop/types";
+export type TerminalOpenMode = "tabs" | "workspace";
 export interface TerminalTab extends TerminalActivity {
   terminalId: string;
   title: string;
   baseTitle: string;
   target: OpenTarget;
+  kind: SessionSnapshot["kind"];
+  serialConfig?: SerialConfig;
   state: SessionState;
   sessionId?: string;
   sftpOpen?: boolean;
@@ -109,6 +116,12 @@ export const useWorkspace = defineStore("workspace", () => {
   const connectionNumbers = new Map<string, number>();
   function connectionKey(target: OpenTarget) {
     if (target.source === "local") return "local";
+    if (target.source === "telnet")
+      return JSON.stringify([
+        "telnet",
+        target.config.address.trim().toLowerCase(),
+        target.config.port,
+      ]);
     if (target.source === "serial")
       return JSON.stringify(["serial", target.config.path]);
     return target.source === "saved"
@@ -121,7 +134,11 @@ export const useWorkspace = defineStore("workspace", () => {
           target.config.username,
         ]);
   }
-  function add(title: string, target: OpenTarget) {
+  function add(
+    title: string,
+    target: OpenTarget,
+    metadata?: Pick<TerminalTab, "kind" | "serialConfig">,
+  ) {
     const key = connectionKey(target);
     const number = (connectionNumbers.get(key) ?? 0) + 1;
     connectionNumbers.set(key, number);
@@ -130,6 +147,22 @@ export const useWorkspace = defineStore("workspace", () => {
       title: number === 1 ? title : `${title} (${number})`,
       baseTitle: title,
       target,
+      // 保存目标仍只传profileId给Rust；界面元数据独立于IPC，避免串口误用SSH能力。
+      kind:
+        metadata?.kind ??
+        (target.source === "local"
+          ? "local"
+          : target.source === "serial"
+            ? "serial"
+            : target.source === "telnet"
+              ? "telnet"
+              : "ssh"),
+      serialConfig:
+        target.source === "serial"
+          ? clone(target.config)
+          : metadata?.serialConfig
+            ? clone(metadata.serialConfig)
+            : undefined,
       state: "created",
       revision: 0,
       error: "",
@@ -146,6 +179,37 @@ export const useWorkspace = defineStore("workspace", () => {
     activeId.value = tab.terminalId;
     return tabs.value[tabs.value.length - 1]!;
   }
+  function addSavedHosts(
+    profiles: HostProfile[],
+    mode: TerminalOpenMode = "tabs",
+  ) {
+    // 同一批每个保存配置只创建一次；不复制任何已有会话或终端历史。
+    const unique = [
+      ...new Map(profiles.map((host) => [host.id, host])).values(),
+    ];
+    const created = unique.map((host) =>
+      add(
+        host.name,
+        { source: "saved", profileId: host.id },
+        {
+          kind: host.kind,
+          serialConfig: host.serialConfig ?? undefined,
+        },
+      ),
+    );
+    const first = created[0];
+    if (!first) return;
+    if (mode === "workspace" && created.length > 1) {
+      const ids = new Set(created.map((tab) => tab.terminalId));
+      const group = groups.value.find((item) => item.id === first.terminalId)!;
+      group.root = balancedLayout([...ids])!;
+      // Vue提交前收拢本批新标签，既有标签、宿主与广播成员均不受影响。
+      groups.value = groups.value.filter(
+        (item) => item === group || !ids.has(item.id),
+      );
+    }
+    activeId.value = first.terminalId;
+  }
   function groupForTerminal(id: string) {
     return groups.value.find((g) => terminalIds(g.root).includes(id));
   }
@@ -153,7 +217,7 @@ export const useWorkspace = defineStore("workspace", () => {
     const tab = tabs.value.find((item) => item.terminalId === id);
     return !!(
       tab &&
-      tab.target.source !== "serial" &&
+      tab.kind !== "serial" &&
       groupForTerminal(id)?.root.kind === "terminal" &&
       !closingTerminalIds.value.includes(id) &&
       !drag.value &&
@@ -165,7 +229,10 @@ export const useWorkspace = defineStore("workspace", () => {
     const source = tabs.value.find((tab) => tab.terminalId === id)!;
     const group = groupForTerminal(id)!;
     // 仅复制连接配置与配色；新终端独立认证，不复制历史或输入。
-    const created = add(source.baseTitle, clone(source.target));
+    const created = add(source.baseTitle, clone(source.target), {
+      kind: source.kind,
+      serialConfig: source.serialConfig,
+    });
     created.schemeId = source.schemeId;
     if (split) {
       activeId.value = group.id;
@@ -370,7 +437,7 @@ export const useWorkspace = defineStore("workspace", () => {
       closingTerminalIds.value.includes(tab.terminalId)
     )
       return;
-    if (tab.target.source === "local" || tab.target.source === "serial") return;
+    if (tab.kind !== "ssh") return;
     if (!tab.sftpOpen && tab.state !== "connected") return;
     tab.sftpOpen = !tab.sftpOpen;
   }
@@ -420,6 +487,7 @@ export const useWorkspace = defineStore("workspace", () => {
     drag,
     dropTarget,
     add,
+    addSavedHosts,
     canDuplicateSession,
     duplicateSession,
     remove,

@@ -146,3 +146,11 @@ OSC 标题：remoteTitle仅作前端内存中的展示后缀，控制字符/双�
 ## Serial 设备权限（2026-10-16）
 
 list_serial_ports同步加入AppManifest命令名单、generate_handler和main capability，运行时校验main窗口及保险库已解锁；settings窗口不授权。open_session串口目标仍复用owner/幂等/限额校验，Rust拒绝未知参数与字符集，枚举仅作候选，允许用户输入未枚举端口。Unix输入须为/dev下绝对路径，符号链接规范化后的目标仍须在/dev下且为字符设备；serialport在传输用户输入前验证终端ioctl与参数，允许虚拟串口，拒绝普通文件。macOS候选按IOKit声明的IODialinDevice属性筛选，不按节点名前缀过滤；打开仍按用户指定节点及规范化路径独占，不自动切换tty/cu。Windows只接受COM正整数名称及其设备前缀形式并归一。打开时DTR=false，非硬件流控下尽力解除RTS，不增加复位脉冲或设备命令；信号线改变可能触发开发板启动，授权实测边界见串口设计。系统打开仍处理设备拔插竞态、权限与占用；不绕过Linux用户组/设备权限，不改变系统权限或自动安装驱动。正文仅经有界管线流入终端，不持久化；历史只存设备路径与波特率摘要。独占、取消及设备错误边界见[Serial设计](19-serial-terminal.md)，未进行三平台编译/实机验收。
+
+## 2026-10-16：保存串口与SSH能力隔离
+
+串口主机只保存配置，保存时不枚举或打开设备，不触发DTR/RTS。DTO及存储按kind白名单验证，拒绝串口混入SSH地址/认证或任何password参数，拒绝SSH混入serialConfig及已有记录更改类型。实际saved串口仍经Rust读取加密配置并调用原串口工厂，平台路径/字符设备/权限/独占验证保留；客户端kind仅作能力展示，不参与授权。SFTP选择只列SSH，后端get_host_connection再次验证kind；系统探测SQL限定SSH。临时串口不入主机库，保存配置与终端正文分离，不增加任意设备读写命令、凭据读取或新ACL。Telnet尚无可执行入口。仅静态核对，运行拒绝路径与三平台待验收。
+
+## Telnet明文边界（2026-10-16）
+
+Telnet为用户主动选择的独立协议，通过普通TCP传输；不提供加密、服务器身份校验、TLS/STARTTLS或SSH失败回退。新建/快速连接表单及状态栏明确标记明文；登录在终端内完成，不自动读取、保存或发送SSH凭据，不访问known_hosts或主机系统探测。服务器负责密码输入时的远端回显控制，应用不添加Local Echo。输入仍经受界IPC/owner/解锁检查，网络只在Rust适配器打开，不向WebView开放socket能力。子协商上限4096字节，未知选项拒绝，IAC转义且协议字节不进入终端正文；继承OSC52/外链/标题保护，不记录登录输入或正文。DNS/TCP与写入各30秒截止，所有等待可由取消终止。存储迁移保持SQLCipher与主密钥机制，详见[Telnet设计](20-telnet-terminal.md)及[存储升级](07-storage.md)。本轮仅静态检查，密码回显、恶意协商、资源回收与升级恢复未运行验收。

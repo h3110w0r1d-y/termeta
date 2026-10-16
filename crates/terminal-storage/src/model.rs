@@ -1,9 +1,13 @@
 use serde::{Deserialize, Serialize};
-use terminal_core::AuthStep;
+use terminal_core::{AuthStep, SerialConfig};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostDraft {
+    #[serde(default = "default_host_kind")]
+    pub kind: String,
+    #[serde(default)]
+    pub serial_config: Option<SerialConfig>,
     #[serde(default = "default_host_icon")]
     pub icon: String,
     pub id: Option<String>,
@@ -24,6 +28,10 @@ pub struct HostDraft {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostProfile {
+    #[serde(default = "default_host_kind")]
+    pub kind: String,
+    #[serde(default)]
+    pub serial_config: Option<SerialConfig>,
     pub icon: String,
     pub system_detection_attempted: bool,
     pub id: String,
@@ -119,5 +127,9 @@ pub struct HistoryEntry {
 }
 
 fn default_host_icon() -> String {
+    "ssh".into()
+}
+
+fn default_host_kind() -> String {
     "ssh".into()
 }

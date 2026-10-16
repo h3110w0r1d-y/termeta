@@ -7,8 +7,12 @@ import HostsPage from "../modules/hosts/HostsPage.vue";
 import CredentialsPage from "../modules/credentials/CredentialsPage.vue";
 import KnownHostsPage from "../modules/hosts/KnownHostsPage.vue";
 import ConnectionHistoryPage from "../modules/history/ConnectionHistoryPage.vue";
-import { useWorkspace, type VaultSection } from "../modules/workspace/store";
-import type { HostProfile } from "../services/desktop/types";
+import {
+  useWorkspace,
+  type VaultSection,
+  type TerminalOpenMode,
+} from "../modules/workspace/store";
+import type { HostKind, HostProfile } from "../services/desktop/types";
 const workspace = useWorkspace();
 const navigationItems: { key: VaultSection; label: string }[] = [
   { key: "hosts", label: "主机" },
@@ -22,8 +26,10 @@ const navigationOptions = navigationItems.map((item) => ({
 }));
 const emit = defineEmits<{
   connect: [host: HostProfile];
+  connectMany: [HostProfile[], TerminalOpenMode];
   local: [];
-  serial: [];
+  create: [HostKind, string | null];
+  quick: [HostKind];
   edit: [host?: HostProfile, copy?: boolean, groupId?: string | null];
 }>();
 </script>
@@ -54,8 +60,12 @@ const emit = defineEmits<{
             workspace.activeId === 'home' && workspace.vaultSection === 'hosts'
           "
           @connect="emit('connect', $event)"
+          @connect-many="
+            (profiles, mode) => emit('connectMany', profiles, mode)
+          "
           @local="emit('local')"
-          @serial="emit('serial')"
+          @create="(kind, groupId) => emit('create', kind, groupId)"
+          @quick="emit('quick', $event)"
           @edit="(host, copy, groupId) => emit('edit', host, copy, groupId)"
         />
       </div>

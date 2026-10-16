@@ -15,6 +15,9 @@ pub enum OpenTarget {
         profile_id: String,
     },
     Local,
+    Telnet {
+        config: TelnetConfig,
+    },
     Serial {
         config: SerialConfig,
     },
@@ -83,6 +86,10 @@ pub async fn open_session(
     }
     let (config, profile_id, name) = match target {
         OpenTarget::Local => (SessionConfig::Local, None, "本地终端".to_string()),
+        OpenTarget::Telnet { config } => {
+            let name = config.endpoint();
+            (SessionConfig::Telnet(config), None, name)
+        }
         OpenTarget::Serial { config } => {
             let name = config.path.clone();
             (SessionConfig::Serial(config), None, name)
@@ -93,13 +100,33 @@ pub async fn open_session(
                 .get_host(&profile_id)
                 .await
                 .map_err(storage_error)?;
-            let mut config = state
-                .store
-                .get_host_connection(&profile_id)
-                .await
-                .map_err(storage_error)?;
-            config.system_profile_id = Some(profile_id.clone());
-            (SessionConfig::Ssh(config), Some(profile_id), host.name)
+            let config = match host.kind.as_str() {
+                "ssh" => {
+                    let mut config = state
+                        .store
+                        .get_host_connection(&profile_id)
+                        .await
+                        .map_err(storage_error)?;
+                    config.system_profile_id = Some(profile_id.clone());
+                    SessionConfig::Ssh(config)
+                }
+                "telnet" => SessionConfig::Telnet(TelnetConfig {
+                    config_version: 1,
+                    address: host.address,
+                    port: host.port,
+                }),
+                "serial" => SessionConfig::Serial(host.serial_config.ok_or_else(|| {
+                    SessionError::new("INVALID_CONFIG", "validation", "串口主机缺少串口配置")
+                })?),
+                _ => {
+                    return Err(SessionError::new(
+                        "UNSUPPORTED_KIND",
+                        "opening",
+                        "不支持的主机类型",
+                    ));
+                }
+            };
+            (config, Some(profile_id), host.name)
         }
         OpenTarget::Ephemeral { kind, config } => {
             if kind != "ssh" {
@@ -153,6 +180,7 @@ pub async fn open_session(
                 format!("{}:{}", config.address, config.port)
             }
         }
+        SessionConfig::Telnet(config) => format!("telnet://{}", config.endpoint()),
         SessionConfig::Local => "local".into(),
         SessionConfig::Serial(config) => format!("serial:{}@{}", config.path, config.baud_rate),
     };
@@ -330,4 +358,25 @@ pub fn session_client_heartbeat(window: WebviewWindow, state: State<'_, AppState
     owner(&window)?;
     *state.heartbeat.lock().unwrap() = std::time::Instant::now();
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn telnet_target_is_typed_and_rejects_ssh_authentication_fields() {
+        let target = serde_json::json!({"source":"telnet","config":{"configVersion":1,"address":"::1","port":23}});
+        assert!(matches!(
+            serde_json::from_value::<OpenTarget>(target.clone()).unwrap(),
+            OpenTarget::Telnet { .. }
+        ));
+        for field in ["username", "authPlan", "serialConfig", "systemProfileId"] {
+            let mut invalid = target.clone();
+            invalid["config"][field] = serde_json::json!("forged");
+            assert!(serde_json::from_value::<OpenTarget>(invalid).is_err());
+        }
+        let mut invalid = target;
+        invalid["password"] = serde_json::json!("forged");
+        assert!(serde_json::from_value::<OpenTarget>(invalid).is_err());
+    }
 }

@@ -95,3 +95,7 @@ SP-01~05、SP-07~09 未执行；SP-10/11 的首批源码已实现待验收，SP-
 - [encoding_rs 0.8.42](https://docs.rs/encoding_rs/0.8.42/encoding_rs/)：声明MSRV1.88，沿用默认alloc，许可证表达式为(Apache-2.0 OR MIT) AND BSD-3-Clause。核对for_label、new_decoder_without_bom_handling、max_utf8_buffer_length、decode_to_string与encode；保留跨块解码状态，不可表示输入明确失败，不发送库的替换HTML引用。
 
 已执行cargo info与cargo update --workspace，只下载发布包/维护锁文件，未编译。OSV对这两个固定版本的公开查询均未返回漏洞条目；不代表完整传递依赖无公告。工作区Rust1.89版本约束、三平台工具链/系统依赖、许可证发布清单和实际运行仍待验收。实现与边界见[Serial设计](19-serial-terminal.md)。
+
+## 2026-10-16：Telnet适配
+
+新增内部terminal-telnet crate，复用锁文件既有Tokio 1.50.0、async-trait及terminal-core，无新增第三方Telnet库/系统命令依赖。协议范围参考[RFC 854](https://www.rfc-editor.org/rfc/rfc854)、[选项协商RFC 855](https://www.rfc-editor.org/rfc/rfc855)、[BINARY RFC 856](https://www.rfc-editor.org/rfc/rfc856)、[ECHO RFC 857](https://www.rfc-editor.org/rfc/rfc857)、[SGA RFC 858](https://www.rfc-editor.org/rfc/rfc858)、[终端类型RFC 1091](https://www.rfc-editor.org/rfc/rfc1091)与[NAWS RFC 1073](https://www.rfc-editor.org/rfc/rfc1073)。本轮未新增联网版本核查；按既有锁定依赖实现受界子集，兼容性以授权后的实际Telnet服务矩阵验收为准。SQLite迁移静态核对SQLx 0.8.6本地源码：SQLite apply始终事务执行，因此foreign_keys必须在专用连接的迁移事务外切换，不能依赖SQL脚本内PRAGMA或no-transaction标记。

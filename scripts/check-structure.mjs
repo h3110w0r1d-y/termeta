@@ -65,7 +65,7 @@ const manifest = await readFile(
   "utf8",
 );
 if (
-  /^\s*(?:tauri(?:-[\w-]+)?|russh(?:-[\w-]+)?|sqlx|serialport|portable-pty|terminal-(?:ssh|local|serial|sftp|storage|security|files))\s*=/m.test(
+  /^\s*(?:tauri(?:-[\w-]+)?|russh(?:-[\w-]+)?|sqlx|serialport|portable-pty|terminal-(?:ssh|local|serial|telnet|sftp|storage|security|files))\s*=/m.test(
     manifest,
   )
 ) {

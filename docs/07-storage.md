@@ -19,7 +19,7 @@ SQLCipher由锁定的libsqlite3-sys 0.30.1内嵌4.5.7源码和vendored OpenSSL�
 
 首次无数据库和元数据时，显示设置/确认密码，至少12个字符、最多1024 UTF-8字节。不trim或变换密码。Rust在阻塞工作池使用Argon2id v19（64MiB、3轮、1并行度）输出32字节主密钥，参数固定受版本约束，不接受文件指定任意内存预算。
 
-先原子发布含随机盐与认证校验记录的元数据，再创建加密DB及schema 2，最后原子标记初始化完成。元数据通过独占临时文件、同步、原子发布持久化；中断初始化可用原密码重试。只有元数据完成并且数据库成功解密、完整性核验及结构初始化后，才向业务命令开放保险库。
+先原子发布含随机盐与认证校验记录的元数据，再创建加密DB及schema 3，最后原子标记初始化完成。元数据通过独占临时文件、同步、原子发布持久化；中断初始化可用原密码重试。只有元数据完成并且数据库成功解密、完整性核验及结构初始化后，才向业务命令开放保险库。
 
 随后将主密钥保存到系统钥匙串。如果保存失败，本次仍保持已解锁，界面明确提示下次需输入密码；不删除数据库，也不退回明文。
 
@@ -29,7 +29,9 @@ SQLCipher由锁定的libsqlite3-sys 0.30.1内嵌4.5.7源码和vendored OpenSSL�
 
 ## 3. 表结构与凭据语义
 
-schema 2沿用profile、SSH扩展、认证步骤、分组、标签、信任、设置、历史结构，所有页面均被加密。credentials移除`store_backend/store_account`，新增仅Rust内部使用的`secret`列。公共DTO仅返回id/kind/label/status，主机专属项也不进入公共列表。私钥正文和可选解密密码作为一个JSON秘密保存，不依赖原文件。
+schema 3沿用profile、SSH扩展、认证步骤、分组、标签、信任、设置、历史结构，所有页面均被加密。
+
+保存主机现支持kind=ssh/telnet/serial；connection_profiles.kind原约束已有serial，串口全参数存于config_json.serialConfig，无新表或迁移。SSH记录继续保留ssh_profiles和认证关系，串口不创建这些行；列表改为LEFT JOIN并只读取三种已实现类型。公共HostDraft/HostProfile增加kind和serialConfig，旧DTO缺失kind默认ssh；为兼容平坦SSH契约，串口address/username为空、port=0、authPlan=[]，serialConfig必填；SSH不得混入串口配置。串口拒绝任何password字段，不创建秘密；已有记录不可更改kind。保存串口只校验SerialConfig语法，不访问设备；实际打开由串口工厂验证平台路径/独占权限。收藏、分组迁移和复制沿用相同revision事务，保留完整串口JSON；删除与整组删除共用已有语义。Telnet的address/port以TelnetConfig保存在config_json.telnetConfig，username为空、authPlan=[]、serialConfig为空，拒绝SSH认证引用和password字段。新增0002_telnet扩展kind约束，原迁移不变。credentials移除`store_backend/store_account`，新增仅Rust内部使用的`secret`列。公共DTO仅返回id/kind/label/status，主机专属项也不进入公共列表。私钥正文和可选解密密码作为一个JSON秘密保存，不依赖原文件。
 
 直接主机密码：非空自动保存，空字符串明确移除，省略字段保留；没有记住开关。引用的公共凭据必须类型匹配且ready，专属项必须属于对应主机。复制主机不复制专属密码，现有会话保留连接快照。
 
@@ -41,7 +43,7 @@ schema 2沿用profile、SSH扩展、认证步骤、分组、标签、信任、�
 
 ## 4. 格式、备份与恢复边界
 
-新路径和schema 2不打开旧`termvexa.sqlite3`或`termvexa-credentials-v1.sqlite3`，不提供旧数据导入。源码与锁文件升级不直接操作用户已有数据库或钥匙串。
+新路径和schema 3不打开旧`termvexa.sqlite3`或`termvexa-credentials-v1.sqlite3`，不提供旧数据导入。源码与锁文件升级不直接操作用户已有数据库或钥匙串。
 
 当前不提供自动备份或密码变更功能。备份应在应用退出后同时保留数据库、必要WAL及配套vault.json；不得把SQLCipher的VACUUM INTO当成默认加密备份。密码与OS主密钥均丢失时不能恢复数据；仅有数据库、缺失其原随机盐/校验元数据时也不能按现有接口恢复。已有明文旧库不因新方案自动获得加密保护。
 
@@ -55,7 +57,7 @@ schema 2沿用profile、SSH扩展、认证步骤、分组、标签、信任、�
 
 本地终端沿用会话历史表：profileId为空、displayName为“本地终端”、endpoint为local；不保存Shell正文或环境，不新增schema（2026-10-16）。
 
-连接历史固定保留最近20次（SSH、Local与Serial合计，按连接尝试计数，不按主机去重）：新增与裁剪在同一BEGIN IMMEDIATE事务内提交，数据库解锁初始化时同时裁剪已有超量数据；读取最多20条。排序为started_at倒序、同毫秒按rowid倒序。移除原90天清理策略，不新增schema或迁移。裁剪可能删除仍在进行的旧会话摘要，其后结束更新为空操作，不影响实际会话和终端缓冲。
+连接历史固定保留最近20次（SSH、Telnet、Local与Serial合计，按连接尝试计数，不按主机去重）：新增与裁剪在同一BEGIN IMMEDIATE事务内提交，数据库解锁初始化时同时裁剪已有超量数据；读取最多20条。排序为started_at倒序、同毫秒按rowid倒序。移除原90天清理策略，不新增schema或迁移。裁剪可能删除仍在进行的旧会话摘要，其后结束更新为空操作，不影响实际会话和终端缓冲。
 
 独立设置窗口与主窗口共用加密app设置记录：Rust设置专用队列串行执行读取/局部合并/校验/写入，hostsView与hostSearch按子字段合并，避免即时偏好覆盖；前端每窗口读写亦串行，提交成功后通知其他窗口重读。不新增表或迁移。无效输入与失败写入保持此前持久化值，设置表单保留失败输入。
 
@@ -64,3 +66,11 @@ schema 2沿用profile、SSH扩展、认证步骤、分组、标签、信任、�
 沿用schema 2的connection_profiles.config_json，新增icon（旧记录默认ssh）、systemDetectionAttempted（缺失为false）及后端专用systemDetectionToken；不修改已发布迁移SQL、不新增表或改变加密格式。HostDraft增加可编辑icon，HostProfile返回icon和systemDetectionAttempted；标记/令牌不允许通过表单回写。保存图标只做JSON局部更新，保留其他元数据，图标或目标改变时作废检测令牌。claim/complete更新revision，旧编辑草稿须重载；失败也已在claim时消耗机会。complete只接受内置icon，按令牌/目标/默认图标条件更新，不复活已删除主机。
 
 RemoteSystemStore的claim使用BEGIN IMMEDIATE，在同一事务读取app.detectSshSystem与原子登记标记，保护同主机并发打开；设置缺失默认开启、关闭时不消耗机会。complete只保存图标，不保存探测正文、Shell路径或SSH标识。复制主机保留icon但不继承标记/令牌；即使修改原主机地址，也不重置一次性状态。沿用现有app JSON设置和字段白名单，无迁移；重启后保留成功或失败状态。Rust回归源码已补，未编译执行。
+
+## schema 2→3：Telnet类型（2026-10-16）
+
+原0001_initial.sql的kind只包含ssh/local/serial，因此串口无需迁移，Telnet需要扩展约束。0002_telnet.sql在SQLx迁移事务内复制并重建connection_profiles，恢复profiles_group索引并将user_version设为3；旧迁移文件与校验和保持不变。解锁先校验SQLCipher/加密页/完整性，只接受空新库、同加密格式schema 2及3，不接受早期旧库。初始化时在同一专用连接、迁移事务外关闭foreign_keys以避免DROP父表级联删掉SSH/认证/标签或置空历史；迁移后恢复并检查foreign_key_check，再发布业务池。迁移失败不发布业务访问，SQLx事务回滚，后续正确解锁重试。加密格式、文件名termvexa-encrypted-v2.sqlite3及配套vault.json/主密钥保持原样。schema 3不应交回仅识别schema 2的旧应用。
+
+已新增加密schema 2夹具升级/SSH专属密码及分组标签/串口/历史关联/设置保留/重复解锁用例源码和Telnet往返/拒绝混合字段用例，未编译执行；内存SQLite迁移模型不代表SQLCipher与三平台升级已验收。
+
+2026-10-16用户编译反馈：已取得连接后调用Migrator::run引入Acquire生命周期约束，导致vault_status/unlock_vault的future无法满足Tauri要求的Send。改用当前固定SQLx 0.8.6提供的run_direct，保持同一连接上的外键关闭、事务迁移、恢复与检查顺序；不修改迁移SQL或加密契约。security新增两个保险库入口future的Send编译期断言测试源码，仅构造、不轮询future。修复仅静态核对及Rust格式检查，未重新编译或执行测试。

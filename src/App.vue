@@ -39,15 +39,20 @@ import PasteDialog from "./modules/terminal/PasteDialog.vue";
 import ChallengeDialog from "./modules/terminal/ChallengeDialog.vue";
 import { useHosts } from "./modules/hosts/store";
 import { useSettings } from "./modules/settings/store";
-import { useWorkspace, stateLabels } from "./modules/workspace/store";
+import {
+  useWorkspace,
+  stateLabels,
+  type TerminalOpenMode,
+} from "./modules/workspace/store";
 import { schemeForTab, terminalRegistry } from "./modules/terminal/registry";
 import { needsCloseConfirmation } from "./modules/terminal/activity";
 import { commands } from "./services/commands/registry";
 import { desktop, errorMessage } from "./services/desktop/client";
 import type {
+  HostKind,
   HostProfile,
   SerialConfig,
-  SshConfig,
+  OpenTarget,
 } from "./services/desktop/types";
 import { useSettingsSync } from "./modules/settings/useSettingsSync";
 const settingsSync = useSettingsSync();
@@ -56,6 +61,8 @@ const hosts = useHosts(),
   workspace = useWorkspace();
 const newTabOpen = ref(false);
 const serialOpen = ref(false);
+const serialSave = ref(false);
+const editorKind = ref<"ssh" | "telnet">("ssh");
 const editorOpen = ref(false),
   quick = ref(false),
   editing = ref<HostProfile>(),
@@ -89,17 +96,41 @@ function edit(host?: HostProfile, copy = false, groupId: string | null = null) {
   editing.value = host;
   duplicate.value = copy;
   quick.value = false;
-  editorOpen.value = true;
+  if (host?.kind === "serial") {
+    serialSave.value = true;
+    serialOpen.value = true;
+  } else {
+    editorKind.value = host?.kind === "telnet" ? "telnet" : "ssh";
+    editorOpen.value = true;
+  }
+}
+function createHost(kind: HostKind, groupId: string | null) {
+  if (kind !== "serial") {
+    edit(undefined, false, groupId);
+    editorKind.value = kind;
+  } else {
+    editing.value = undefined;
+    duplicate.value = false;
+    newHostGroup.value = groupId;
+    serialSave.value = true;
+    serialOpen.value = true;
+  }
 }
 function openNewTab() {
   newTabOpen.value = true;
 }
-function quickConnect() {
+function quickConnect(kind: HostKind = "ssh") {
   newHostGroup.value = null;
   editing.value = undefined;
   quick.value = true;
   duplicate.value = false;
-  editorOpen.value = true;
+  if (kind === "serial") {
+    serialSave.value = false;
+    serialOpen.value = true;
+  } else {
+    editorKind.value = kind;
+    editorOpen.value = true;
+  }
 }
 function openLocalTerminal() {
   workspace.add("本地终端", { source: "local" });
@@ -108,10 +139,13 @@ function openSerial(config: SerialConfig) {
   workspace.add(config.path, { source: "serial", config });
 }
 function connect(host: HostProfile) {
-  workspace.add(host.name, { source: "saved", profileId: host.id });
+  workspace.addSavedHosts([host]);
 }
-function ephemeral(config: SshConfig, title: string) {
-  workspace.add(title, { source: "ephemeral", kind: "ssh", config });
+function connectMany(profiles: HostProfile[], mode: TerminalOpenMode) {
+  workspace.addSavedHosts(profiles, mode);
+}
+function ephemeral(target: OpenTarget, title: string) {
+  workspace.add(title, target);
 }
 const { closeTab, closePane } = useTerminalClose();
 function perform(action: () => void | Promise<void>) {
@@ -312,8 +346,10 @@ onBeforeUnmount(() => {
           </NAlert>
           <VaultLayout
             @connect="connect"
+            @connect-many="connectMany"
             @local="openLocalTerminal"
-            @serial="serialOpen = true"
+            @create="createHost"
+            @quick="quickConnect"
             @edit="edit"
           />
           <SftpWorkspace v-show="workspace.activeId === 'sftp'" />
@@ -376,17 +412,24 @@ onBeforeUnmount(() => {
             <footer v-if="workspace.active" class="status-bar">
               <span>
                 {{
-                  workspace.active.target.source === "local"
+                  workspace.active.kind === "local"
                     ? "本地"
-                    : workspace.active.target.source === "serial"
+                    : workspace.active.kind === "serial"
                       ? "串口"
-                      : "SSH"
+                      : workspace.active.kind === "telnet"
+                        ? "Telnet · 明文"
+                        : "SSH"
                 }}
                 · {{ stateLabels[workspace.active.state] }}
               </span>
-              <span v-if="workspace.active.target.source === 'serial'">
-                {{ workspace.active.target.config.baudRate }} baud ·
-                {{ workspace.active.target.config.charset }}
+              <span
+                v-if="
+                  workspace.active.kind === 'serial' &&
+                  workspace.active.serialConfig
+                "
+              >
+                {{ workspace.active.serialConfig.baudRate }} baud ·
+                {{ workspace.active.serialConfig.charset }}
               </span>
               <span v-else>
                 {{ workspace.active.size.cols }} ×
@@ -394,8 +437,7 @@ onBeforeUnmount(() => {
               </span>
               <AppButton
                 v-if="
-                  workspace.active.target.source !== 'local' &&
-                  workspace.active.target.source !== 'serial' &&
+                  workspace.active.kind === 'ssh' &&
                   workspace.activeGroup?.root.kind === 'terminal'
                 "
                 class="status-sftp-toggle"
@@ -424,6 +466,7 @@ onBeforeUnmount(() => {
         <HostEditor
           v-model:open="editorOpen"
           :host="editing"
+          :kind="editorKind"
           :initial-group-id="newHostGroup"
           :quick="quick"
           :duplicate="duplicate"
@@ -433,6 +476,10 @@ onBeforeUnmount(() => {
         <ChallengeDialog @after-leave="restoreTerminalFocus" />
         <SerialConnectDialog
           v-model:open="serialOpen"
+          :save="serialSave"
+          :host="editing"
+          :duplicate="duplicate"
+          :initial-group-id="newHostGroup"
           @connect="openSerial"
           @after-leave="restoreTerminalFocus"
         />

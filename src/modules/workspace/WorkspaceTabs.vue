@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ScrollFade from "../../components/ui/ScrollFade.vue";
 import { CloseOutline } from "@vicons/ionicons5";
 import { computed, nextTick, ref, watch } from "vue";
 import { NIcon, useThemeVars } from "naive-ui";
@@ -29,11 +30,7 @@ const workspace = useWorkspace();
 const tabDrag = useTabDrag((id) => emit("focusTerminal", id));
 const root = ref<HTMLElement>();
 const sessionTabs = ref<HTMLElement>();
-const tabScroll = useTabScroll(
-  sessionTabs,
-  () => props.position,
-  () => props.tabs.map((tab) => `${tab.id}:${tab.title}`),
-);
+useTabScroll(sessionTabs, () => props.position);
 // 最后一个标签后方与空白区是同一插入位置，只使用新建按钮前的提示线。
 // 保留原命中类型，避免影响悬停标签切页和实际插入逻辑。
 const dropAtEnd = computed(() => {
@@ -159,75 +156,76 @@ watch(
           {{ tab.title }}
         </button>
       </div>
-      <div
-        ref="sessionTabs"
-        class="session-tabs"
-        :class="{
-          'can-scroll-start': tabScroll.edges.start,
-          'can-scroll-end': tabScroll.edges.end,
-        }"
+      <ScrollFade
+        class="session-tabs-fade"
+        :viewport="sessionTabs"
+        :direction="position === 'left' ? 'vertical' : 'horizontal'"
+        background="var(--surface)"
+        :size="20"
         role="presentation"
       >
-        <div
-          v-for="tab in tabs"
-          :key="tab.id"
-          class="workspace-tab-item"
-          :class="{
-            selected: activeId === tab.id,
-            dragging:
-              workspace.drag?.source.kind === 'tab' &&
-              workspace.drag.source.tabId === tab.id,
-            'drop-before':
-              workspace.dropTarget?.kind === 'tab' &&
-              workspace.dropTarget.tabId === tab.id &&
-              workspace.dropTarget.before,
-            'drop-after':
-              workspace.dropTarget?.kind === 'tab' &&
-              workspace.dropTarget.tabId === tab.id &&
-              !workspace.dropTarget.before &&
-              !dropAtEnd,
-          }"
-          :data-sort-tab="tab.id"
-          @pointerdown="tabDrag.start($event, tab.id)"
-          role="presentation"
-          @contextmenu.prevent="!tab.split && emit('menu', $event, tab.id)"
-        >
-          <button
-            type="button"
-            role="tab"
-            class="workspace-tab"
-            :id="'workspace-tab-' + tab.id"
-            :data-workspace-tab="tab.id"
-            :aria-selected="activeId === tab.id"
-            :tabindex="activeId === tab.id ? 0 : -1"
-            :aria-controls="'workspace-panel-' + tab.id"
-            :aria-label="
-              tab.title +
-              (tab.split ? ' · ' + tab.terminalIds.length + ' 个终端' : '') +
-              ' · ' +
-              stateLabels[tab.state]
-            "
-            :title="tab.title + ' · ' + stateLabels[tab.state]"
-            @click="activate(tab.id)"
-            @dblclick="emit('doubleClick', tab.id)"
+        <div ref="sessionTabs" class="session-tabs" role="presentation">
+          <div
+            v-for="tab in tabs"
+            :key="tab.id"
+            class="workspace-tab-item"
+            :class="{
+              selected: activeId === tab.id,
+              dragging:
+                workspace.drag?.source.kind === 'tab' &&
+                workspace.drag.source.tabId === tab.id,
+              'drop-before':
+                workspace.dropTarget?.kind === 'tab' &&
+                workspace.dropTarget.tabId === tab.id &&
+                workspace.dropTarget.before,
+              'drop-after':
+                workspace.dropTarget?.kind === 'tab' &&
+                workspace.dropTarget.tabId === tab.id &&
+                !workspace.dropTarget.before &&
+                !dropAtEnd,
+            }"
+            :data-sort-tab="tab.id"
+            @pointerdown="tabDrag.start($event, tab.id)"
+            role="presentation"
+            @contextmenu.prevent="!tab.split && emit('menu', $event, tab.id)"
           >
-            <i class="status-dot" :class="tab.state" aria-hidden="true" />
-            <span class="workspace-tab-title">{{ tab.title }}</span>
-          </button>
-          <button
-            type="button"
-            class="workspace-tab-close"
-            tabindex="-1"
-            :aria-label="'关闭 ' + tab.title"
-            :title="'关闭 ' + tab.title"
-            @click="emit('close', tab.id)"
-          >
-            <NIcon :size="position === 'top' ? 16 : 14" aria-hidden="true">
-              <CloseOutline />
-            </NIcon>
-          </button>
+            <button
+              type="button"
+              role="tab"
+              class="workspace-tab"
+              :id="'workspace-tab-' + tab.id"
+              :data-workspace-tab="tab.id"
+              :aria-selected="activeId === tab.id"
+              :tabindex="activeId === tab.id ? 0 : -1"
+              :aria-controls="'workspace-panel-' + tab.id"
+              :aria-label="
+                tab.title +
+                (tab.split ? ' · ' + tab.terminalIds.length + ' 个终端' : '') +
+                ' · ' +
+                stateLabels[tab.state]
+              "
+              :title="tab.title + ' · ' + stateLabels[tab.state]"
+              @click="activate(tab.id)"
+              @dblclick="emit('doubleClick', tab.id)"
+            >
+              <i class="status-dot" :class="tab.state" aria-hidden="true" />
+              <span class="workspace-tab-title">{{ tab.title }}</span>
+            </button>
+            <button
+              type="button"
+              class="workspace-tab-close"
+              tabindex="-1"
+              :aria-label="'关闭 ' + tab.title"
+              :title="'关闭 ' + tab.title"
+              @click="emit('close', tab.id)"
+            >
+              <NIcon :size="position === 'top' ? 16 : 14" aria-hidden="true">
+                <CloseOutline />
+              </NIcon>
+            </button>
+          </div>
         </div>
-      </div>
+      </ScrollFade>
     </div>
     <!-- 末尾标记独立于按钮，整片后方命中区只强调同一个插入位置。 -->
     <div class="workspace-tab-end" :class="{ 'drop-at-end': dropAtEnd }">
@@ -237,7 +235,7 @@ watch(
         title="新建标签页 (Cmd/Ctrl+T)"
         @click="emit('create')"
       >
-        <AssetIcon name="add" :size="14" />
+        <AssetIcon name="add" :size="20" />
       </AppButton>
     </div>
     <div
@@ -322,34 +320,9 @@ watch(
 .app-tabs:not(.tabs-vertical) .session-tabs::-webkit-scrollbar {
   display: none;
 }
-/* 渐隐露出标签栏底色，无覆盖层参与指针命中；每端独立按溢出状态开启。 */
-.session-tabs {
-  --tab-fade-start: 0px;
-  --tab-fade-end: 0px;
-  --tab-fade-direction: to right;
-}
-.session-tabs.can-scroll-start {
-  --tab-fade-start: min(20px, 20%);
-}
-.session-tabs.can-scroll-end {
-  --tab-fade-end: min(20px, 20%);
-}
-.session-tabs.can-scroll-start,
-.session-tabs.can-scroll-end {
-  -webkit-mask-image: linear-gradient(
-    var(--tab-fade-direction),
-    transparent,
-    #000 var(--tab-fade-start),
-    #000 calc(100% - var(--tab-fade-end)),
-    transparent
-  );
-  mask-image: linear-gradient(
-    var(--tab-fade-direction),
-    transparent,
-    #000 var(--tab-fade-start),
-    #000 calc(100% - var(--tab-fade-end)),
-    transparent
-  );
+.session-tabs-fade {
+  display: flex;
+  flex: 0 1 auto;
 }
 .workspace-tab-item {
   display: flex;
@@ -475,12 +448,12 @@ watch(
 }
 .tabs-vertical .workspace-tablist,
 .tabs-vertical .fixed-tabs,
+.tabs-vertical .session-tabs-fade,
 .tabs-vertical .session-tabs {
   flex-direction: column;
   align-items: stretch;
 }
 .tabs-vertical .session-tabs {
-  --tab-fade-direction: to bottom;
   overflow-x: hidden;
   overflow-y: auto;
 }
@@ -498,6 +471,7 @@ watch(
   border-right: 0;
   border-bottom: 1px solid var(--border);
 }
+.tabs-vertical .session-tabs-fade,
 .tabs-vertical .session-tabs {
   width: 100%;
   flex: 0 1 auto;

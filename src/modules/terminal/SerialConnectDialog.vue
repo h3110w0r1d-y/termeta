@@ -5,12 +5,14 @@ import {
   NAlert,
   NAutoComplete,
   NButton,
+  NCheckbox,
   NCollapse,
   NCollapseItem,
   NFlex,
   NForm,
   NFormItem,
   NIcon,
+  NInput,
   NRadioButton,
   NRadioGroup,
   NSelect,
@@ -23,18 +25,39 @@ import {
 import AppDialog from "../../components/ui/AppDialog.vue";
 import { desktop, errorMessage } from "../../services/desktop/client";
 import type {
+  HostDraft,
+  HostProfile,
   SerialConfig,
   SerialPortInfo,
 } from "../../services/desktop/types";
-import { validateForm } from "../../services/forms/rules";
+import { requiredText, validateForm } from "../../services/forms/rules";
+import { clone } from "../../services/data/clone";
+import { useHosts } from "../hosts/store";
+import { groupChoices } from "../hosts/groups";
+import { useSettings } from "../settings/store";
+import { builtinSchemes } from "../settings/themes";
 
-const props = defineProps<{ open: boolean }>();
+const props = defineProps<{
+  open: boolean;
+  save?: boolean;
+  host?: HostProfile;
+  duplicate?: boolean;
+  initialGroupId?: string | null;
+}>();
 const emit = defineEmits<{
   "update:open": [boolean];
   connect: [SerialConfig];
+  saved: [];
   "after-leave": [];
 }>();
+const hosts = useHosts();
+const settings = useSettings();
 const draft = reactive({
+  name: "",
+  groupId: "",
+  tagText: "",
+  favorite: false,
+  hostScheme: "",
   path: "",
   baudRate: "9600",
   charset: "UTF-8",
@@ -49,6 +72,20 @@ const ports = ref<SerialPortInfo[]>([]);
 const loading = ref(false);
 const submitting = ref(false);
 const error = ref("");
+const saveError = ref("");
+const committedHost = ref<HostProfile | null>(null);
+const fieldsLocked = computed(() => submitting.value || !!committedHost.value);
+const groupOptions = computed(() => [
+  { value: "", label: "未分组" },
+  ...groupChoices(hosts.groups),
+]);
+const schemeOptions = computed(() => [
+  { value: "", label: "跟随全局默认" },
+  ...[...builtinSchemes, ...settings.value.customSchemes].map((scheme) => ({
+    value: scheme.id,
+    label: scheme.name,
+  })),
+]);
 let generation = 0;
 const portOptions = computed(() =>
   ports.value.map((port) => ({
@@ -91,7 +128,8 @@ const parityOptions = [
   { label: "Odd", value: "odd" },
   { label: "Even", value: "even" },
 ];
-const rules: FormRules = {
+const rules = computed<FormRules>(() => ({
+  name: props.save ? requiredText("名称") : [],
   path: {
     required: true,
     trigger: ["input", "change", "blur"],
@@ -110,7 +148,7 @@ const rules: FormRules = {
         Number(value) <= 4_000_000) ||
       new Error("波特率须为 1–4000000 的整数"),
   },
-};
+}));
 async function refresh() {
   if (loading.value) return;
   const request = ++generation;
@@ -120,7 +158,8 @@ async function refresh() {
     const items = await desktop.listSerialPorts();
     if (!props.open || request !== generation) return;
     ports.value = items;
-    if (!draft.path && items.length) draft.path = items[0]!.path;
+    if (!draft.path && items.length && !fieldsLocked.value)
+      draft.path = items[0]!.path;
     // 枚举/默认选择是程序更新，使用库公开API重验当前共享字段。
     if (draft.path) void portField.value?.validate().catch(() => {});
   } catch (cause) {
@@ -138,24 +177,90 @@ watch(
     generation++;
     loading.value = false;
     submitting.value = false;
+    error.value = "";
+    saveError.value = "";
     if (open) {
+      const host = props.save ? props.host : undefined;
+      const config = host?.serialConfig;
+      // 每次打开都重建当前草稿，编辑和复制保留保存时的全部串口参数。
+      Object.assign(draft, {
+        name: host ? `${host.name}${props.duplicate ? " 副本" : ""}` : "",
+        groupId: host ? (host.groupId ?? "") : (props.initialGroupId ?? ""),
+        tagText: host?.tags.join(", ") ?? "",
+        favorite: host?.favorite ?? false,
+        hostScheme: host ? (settings.value.hostSchemes[host.id] ?? "") : "",
+        path: config?.path ?? "",
+        baudRate: String(config?.baudRate ?? 9600),
+        charset: config?.charset ?? "UTF-8",
+        dataBits: config?.dataBits ?? 8,
+        stopBits: config?.stopBits ?? 1,
+        flowControl: config?.flowControl ?? "none",
+        parity: config?.parity ?? "none",
+      });
+      committedHost.value = null;
       ports.value = [];
       form.value?.restoreValidation();
       void refresh();
+    } else {
+      form.value?.restoreValidation();
     }
   },
 );
 async function connect() {
-  if (loading.value || submitting.value) return;
+  if (submitting.value) return;
   submitting.value = true;
+  saveError.value = "";
   try {
-    if (!(await validateForm(form.value)) || !props.open) return;
-    emit("connect", {
-      ...draft,
+    if (!committedHost.value && !(await validateForm(form.value))) return;
+    if (!props.open) return;
+    const config: SerialConfig = {
       path: draft.path.trim(),
       baudRate: Number(draft.baudRate),
-    });
+      charset: draft.charset,
+      dataBits: draft.dataBits,
+      stopBits: draft.stopBits,
+      flowControl: draft.flowControl,
+      parity: draft.parity,
+    };
+    if (props.save) {
+      const host: HostDraft = {
+        id: props.host && !props.duplicate ? props.host.id : null,
+        kind: "serial",
+        icon: props.host?.icon ?? "ssh",
+        name: draft.name.trim(),
+        groupId: draft.groupId || null,
+        favorite: draft.favorite,
+        tags: draft.tagText
+          .split(/[,，]/)
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+        address: "",
+        port: 0,
+        username: "",
+        authPlan: [],
+        serialConfig: config,
+      };
+      // 设备枚举只辅助选择；保存仅提交配置，不打开串口设备。
+      const saved =
+        committedHost.value ??
+        (await hosts.save(
+          host,
+          props.host && !props.duplicate ? props.host.revision : null,
+        ));
+      committedHost.value = saved;
+      const next = clone(settings.value);
+      if (draft.hostScheme) next.hostSchemes[saved.id] = draft.hostScheme;
+      else delete next.hostSchemes[saved.id];
+      await settings.save(next);
+      emit("saved");
+    } else {
+      emit("connect", config);
+    }
     emit("update:open", false);
+  } catch (cause) {
+    saveError.value = committedHost.value
+      ? `串口主机已保存，配色保存失败；重试只保存配色。${errorMessage(cause)}`
+      : errorMessage(cause);
   } finally {
     submitting.value = false;
   }
@@ -165,12 +270,28 @@ async function connect() {
 <template>
   <AppDialog
     :open="open"
-    title="串口连接"
+    :title="
+      save ? (host && !duplicate ? '编辑串口主机' : '新建串口主机') : '串口连接'
+    "
+    :locked="submitting"
     :auto-focus="false"
     @update:open="emit('update:open', $event)"
     @after-leave="emit('after-leave')"
   >
-    <NForm ref="form" :model="draft" :rules="rules" @submit.prevent="connect">
+    <NForm
+      ref="form"
+      :model="draft"
+      :rules="rules"
+      :disabled="fieldsLocked"
+      @submit.prevent="connect"
+    >
+      <NFormItem v-if="save" label="名称" path="name">
+        <NInput
+          v-model:value="draft.name"
+          maxlength="120"
+          placeholder="例如：开发板串口"
+        />
+      </NFormItem>
       <NFormItem ref="portField" label="串口" path="path">
         <NFlex class="serial-port-row" :wrap="false" align="center">
           <NAutoComplete
@@ -179,13 +300,13 @@ async function connect() {
             :options="portOptions"
             :render-label="renderPortLabel"
             :loading="loading"
-            :disabled="submitting"
+            :disabled="fieldsLocked"
             :blur-after-select="false"
             placeholder="选择或输入串口设备路径/名称"
           />
           <NButton
             :loading="loading"
-            :disabled="loading || submitting"
+            :disabled="loading || fieldsLocked"
             aria-label="刷新串口"
             title="刷新串口"
             @click="refresh"
@@ -205,7 +326,7 @@ async function connect() {
         <NAutoComplete
           v-model:value="draft.baudRate"
           :options="baudOptions"
-          :disabled="submitting"
+          :disabled="fieldsLocked"
           :blur-after-select="false"
           placeholder="选择或输入波特率（默认9600）"
         />
@@ -268,17 +389,34 @@ async function connect() {
           </NFormItem>
         </NCollapseItem>
       </NCollapse>
+      <template v-if="save">
+        <NFormItem label="主机终端配色" path="hostScheme">
+          <NSelect v-model:value="draft.hostScheme" :options="schemeOptions" />
+        </NFormItem>
+        <NFormItem label="分组" path="groupId">
+          <NSelect v-model:value="draft.groupId" :options="groupOptions" />
+        </NFormItem>
+        <NFormItem label="标签" path="tagText">
+          <NInput v-model:value="draft.tagText" placeholder="开发板, 调试" />
+        </NFormItem>
+        <NFormItem>
+          <NCheckbox v-model:checked="draft.favorite">加入收藏</NCheckbox>
+        </NFormItem>
+      </template>
+      <NAlert v-if="saveError" type="error">{{ saveError }}</NAlert>
     </NForm>
     <template #footer>
       <NSpace justify="end">
-        <NButton @click="emit('update:open', false)">取消</NButton>
+        <NButton :disabled="submitting" @click="emit('update:open', false)">
+          {{ committedHost ? "关闭" : "取消" }}
+        </NButton>
         <NButton
           type="primary"
           :loading="submitting"
-          :disabled="loading || !draft.path.trim()"
+          :disabled="submitting || !draft.path.trim()"
           @click="connect"
         >
-          连接
+          {{ committedHost ? "重试保存配色" : save ? "保存主机" : "连接" }}
         </NButton>
       </NSpace>
     </template>

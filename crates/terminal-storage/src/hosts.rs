@@ -1,11 +1,11 @@
 use crate::*;
 use sqlx::Row;
-use terminal_core::{AuthStep, SshConfig};
+use terminal_core::{AuthStep, SshConfig, TelnetConfig};
 use uuid::Uuid;
 
 impl SqliteStore {
     pub async fn list_hosts(&self, search: &str) -> Result<Vec<HostProfile>> {
-        let rows = sqlx::query("SELECT p.*,s.address,s.port,s.username FROM connection_profiles p JOIN ssh_profiles s ON s.profile_id=p.id ORDER BY p.favorite DESC,p.name COLLATE NOCASE")
+        let rows = sqlx::query("SELECT p.*,s.address,s.port,s.username FROM connection_profiles p LEFT JOIN ssh_profiles s ON s.profile_id=p.id WHERE p.kind IN ('ssh','serial','telnet') ORDER BY p.favorite DESC,p.name COLLATE NOCASE")
             .fetch_all(self.pool()?).await?;
         let mut profiles = Vec::with_capacity(rows.len());
         let search = search.to_lowercase();
@@ -40,7 +40,24 @@ impl SqliteStore {
                 });
             }
             let config: serde_json::Value = serde_json::from_str(row.try_get("config_json")?)?;
+            let kind: String = row.try_get("kind")?;
+            let serial_config = if kind == "serial" {
+                Some(serde_json::from_value(config["serialConfig"].clone())?)
+            } else {
+                None
+            };
+            let telnet = if kind == "telnet" {
+                let target: TelnetConfig = serde_json::from_value(config["telnetConfig"].clone())?;
+                target
+                    .validate()
+                    .map_err(|_| StorageError::Validation("Telnet 配置无效"))?;
+                Some(target)
+            } else {
+                None
+            };
             let host = HostProfile {
+                kind,
+                serial_config,
                 icon: config["icon"].as_str().unwrap_or("ssh").to_owned(),
                 system_detection_attempted: config["systemDetectionAttempted"]
                     .as_bool()
@@ -48,9 +65,20 @@ impl SqliteStore {
                 id,
                 revision: row.try_get("revision")?,
                 name: row.try_get("name")?,
-                address: row.try_get("address")?,
-                port: row.try_get::<i64, _>("port")? as u16,
-                username: row.try_get("username")?,
+                address: if let Some(target) = &telnet {
+                    target.address.clone()
+                } else {
+                    row.try_get::<Option<String>, _>("address")?
+                        .unwrap_or_default()
+                },
+                port: if let Some(target) = &telnet {
+                    target.port
+                } else {
+                    row.try_get::<Option<i64>, _>("port")?.unwrap_or_default() as u16
+                },
+                username: row
+                    .try_get::<Option<String>, _>("username")?
+                    .unwrap_or_default(),
                 group_id: row.try_get("group_id")?,
                 favorite: row.try_get("favorite")?,
                 tags,
@@ -58,9 +86,17 @@ impl SqliteStore {
                 has_password,
             };
             if search.is_empty()
-                || [&host.name, &host.address, &host.username]
-                    .iter()
-                    .any(|s| s.to_lowercase().contains(&search))
+                || [
+                    &host.name,
+                    &host.address,
+                    &host.username,
+                    host.serial_config
+                        .as_ref()
+                        .map(|config| &config.path)
+                        .unwrap_or(&host.address),
+                ]
+                .iter()
+                .any(|s| s.to_lowercase().contains(&search))
                 || host.tags.iter().any(|t| t.to_lowercase().contains(&search))
             {
                 profiles.push(host);
@@ -78,6 +114,16 @@ impl SqliteStore {
     /// 连接配置只供后端使用，主机专属引用不得经公共主机 DTO 返回。
     pub async fn get_host_connection(&self, id: &str) -> Result<SshConfig> {
         let mut tx = self.pool()?.begin().await?;
+        let kind: String = sqlx::query_scalar("SELECT kind FROM connection_profiles WHERE id=?")
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or(StorageError::NotFound)?;
+        if kind != "ssh" {
+            return Err(StorageError::Validation(
+                "只有 SSH 主机支持 SSH 与 SFTP 连接",
+            ));
+        }
         let row = sqlx::query("SELECT address,port,username FROM ssh_profiles WHERE profile_id=?")
             .bind(id)
             .fetch_optional(&mut *tx)
@@ -141,16 +187,59 @@ impl SqliteStore {
         if !terminal_core::HOST_SYSTEM_ICONS.contains(&draft.icon.as_str()) {
             return Err(StorageError::Validation("主机图标无效"));
         }
-        SshConfig {
-            config_version: 1,
-            system_profile_id: None,
-            address: draft.address.clone(),
-            port: draft.port,
-            username: draft.username.clone(),
-            auth_plan: draft.auth_plan.clone(),
+        match draft.kind.as_str() {
+            "ssh" => {
+                if draft.serial_config.is_some() {
+                    return Err(StorageError::Validation("SSH 主机不能包含串口配置"));
+                }
+                SshConfig {
+                    config_version: 1,
+                    system_profile_id: None,
+                    address: draft.address.clone(),
+                    port: draft.port,
+                    username: draft.username.clone(),
+                    auth_plan: draft.auth_plan.clone(),
+                }
+                .validate()
+                .map_err(|_| StorageError::Validation("SSH 配置无效"))?;
+            }
+            "telnet" => {
+                if draft.serial_config.is_some()
+                    || !draft.username.is_empty()
+                    || !draft.auth_plan.is_empty()
+                    || password_ref.is_some()
+                {
+                    return Err(StorageError::Validation(
+                        "Telnet 主机不能包含 SSH 凭据或串口配置",
+                    ));
+                }
+                TelnetConfig {
+                    config_version: 1,
+                    address: draft.address.clone(),
+                    port: draft.port,
+                }
+                .validate()
+                .map_err(|_| StorageError::Validation("Telnet 配置无效"))?;
+            }
+            "serial" => {
+                if !draft.address.is_empty()
+                    || draft.port != 0
+                    || !draft.username.is_empty()
+                    || !draft.auth_plan.is_empty()
+                    || password_ref.is_some()
+                {
+                    return Err(StorageError::Validation("串口主机不能包含 SSH 配置或凭据"));
+                }
+                // 保存只校验参数语法，不枚举、打开或要求设备当前存在。
+                draft
+                    .serial_config
+                    .as_ref()
+                    .ok_or(StorageError::Validation("串口配置缺失"))?
+                    .validate()
+                    .map_err(|_| StorageError::Validation("串口配置无效"))?;
+            }
+            _ => return Err(StorageError::Validation("主机类型无效")),
         }
-        .validate()
-        .map_err(|_| StorageError::Validation("SSH 配置无效"))?;
         if draft.tags.len() > 32
             || draft.tags.iter().any(|t| {
                 t.trim().is_empty() || t.chars().count() > 64 || t.chars().any(char::is_control)
@@ -190,6 +279,15 @@ impl SqliteStore {
         };
         let password_ref = password_ref.or(preserved_ref.as_deref());
         if draft.id.is_some() {
+            let kind: String =
+                sqlx::query_scalar("SELECT kind FROM connection_profiles WHERE id=?")
+                    .bind(&id)
+                    .fetch_optional(&mut *tx)
+                    .await?
+                    .ok_or(StorageError::NotFound)?;
+            if kind != draft.kind {
+                return Err(StorageError::Validation("不能更改已保存主机的连接类型"));
+            }
             let revision = draft.revision.ok_or(StorageError::Conflict)?;
             let changed = sqlx::query("UPDATE connection_profiles SET name=?,group_id=?,favorite=?,revision=revision+1,updated_at=? WHERE id=? AND revision=?")
                 .bind(draft.name.trim()).bind(&draft.group_id).bind(draft.favorite).bind(now()).bind(&id).bind(revision).execute(&mut *tx).await?;
@@ -205,15 +303,29 @@ impl SqliteStore {
                 .execute(&mut *tx)
                 .await?;
         } else {
-            sqlx::query("INSERT INTO connection_profiles(id,name,group_id,favorite,created_at,updated_at) VALUES(?,?,?,?,?,?)")
-                .bind(&id).bind(draft.name.trim()).bind(&draft.group_id).bind(draft.favorite).bind(now()).bind(now()).execute(&mut *tx).await?;
+            sqlx::query("INSERT INTO connection_profiles(id,kind,name,group_id,favorite,created_at,updated_at) VALUES(?,?,?,?,?,?,?)")
+                .bind(&id).bind(&draft.kind).bind(draft.name.trim()).bind(&draft.group_id).bind(draft.favorite).bind(now()).bind(now()).execute(&mut *tx).await?;
         }
         // 只合并可编辑图标；检测标记和令牌不能由主机表单回写。
         sqlx::query("UPDATE connection_profiles SET config_json=json_set(CASE WHEN coalesce(json_extract(config_json,'$.icon'),'ssh')<>? OR EXISTS(SELECT 1 FROM ssh_profiles WHERE profile_id=? AND (address<>? OR port<>? OR username<>?)) THEN json_remove(config_json,'$.systemDetectionToken') ELSE config_json END,'$.icon',?) WHERE id=?")
             .bind(&draft.icon).bind(&id).bind(&draft.address).bind(i64::from(draft.port)).bind(&draft.username)
             .bind(&draft.icon).bind(&id).execute(&mut *tx).await?;
-        sqlx::query("INSERT INTO ssh_profiles(profile_id,address,canonical_host,port,username) VALUES(?,?,?,?,?) ON CONFLICT(profile_id) DO UPDATE SET address=excluded.address,canonical_host=excluded.canonical_host,port=excluded.port,username=excluded.username")
-            .bind(&id).bind(&draft.address).bind(canonical_host(&draft.address)).bind(i64::from(draft.port)).bind(&draft.username).execute(&mut *tx).await?;
+        if draft.kind == "ssh" {
+            sqlx::query("INSERT INTO ssh_profiles(profile_id,address,canonical_host,port,username) VALUES(?,?,?,?,?) ON CONFLICT(profile_id) DO UPDATE SET address=excluded.address,canonical_host=excluded.canonical_host,port=excluded.port,username=excluded.username")
+                .bind(&id).bind(&draft.address).bind(canonical_host(&draft.address)).bind(i64::from(draft.port)).bind(&draft.username).execute(&mut *tx).await?;
+        } else if draft.kind == "telnet" {
+            let config = serde_json::to_string(&TelnetConfig {
+                config_version: 1,
+                address: draft.address.clone(),
+                port: draft.port,
+            })?;
+            sqlx::query("UPDATE connection_profiles SET config_json=json_set(config_json,'$.telnetConfig',json(?)) WHERE id=?")
+                .bind(config).bind(&id).execute(&mut *tx).await?;
+        } else {
+            let serial_config = serde_json::to_string(&draft.serial_config)?;
+            sqlx::query("UPDATE connection_profiles SET config_json=json_set(config_json,'$.serialConfig',json(?)) WHERE id=?")
+                .bind(serial_config).bind(&id).execute(&mut *tx).await?;
+        }
         for (index, step) in draft.auth_plan.iter().enumerate() {
             let (method, public_reference) = match step {
                 AuthStep::Password { credential_id } => ("password", credential_id.as_deref()),
@@ -263,6 +375,8 @@ impl SqliteStore {
                 .await?;
         let metadata: serde_json::Value = serde_json::from_str(&config_json)?;
         let saved = HostProfile {
+            kind: draft.kind,
+            serial_config: draft.serial_config,
             icon: draft.icon,
             system_detection_attempted: metadata["systemDetectionAttempted"]
                 .as_bool()
@@ -306,6 +420,8 @@ impl SqliteStore {
     pub async fn duplicate_host(&self, id: &str) -> Result<HostProfile> {
         let host = self.get_host(id).await?;
         self.save_host(HostDraft {
+            kind: host.kind,
+            serial_config: host.serial_config,
             icon: host.icon,
             id: None,
             revision: None,

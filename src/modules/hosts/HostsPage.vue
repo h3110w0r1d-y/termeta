@@ -1,14 +1,11 @@
 <script setup lang="ts">
-import HostSystemBadge from "./HostSystemBadge.vue";
+import ScrollFade from "../../components/ui/ScrollFade.vue";
+import HostProfileIcon from "./HostProfileIcon.vue";
+import ConnectionTypeDropdown from "./ConnectionTypeDropdown.vue";
+import { hostEndpoint, hostKindLabel } from "./presentation";
 import AssetIcon from "../../components/ui/AssetIcon.vue";
 import { NIcon } from "naive-ui";
-import {
-  GridOutline,
-  ListOutline,
-  HardwareChipOutline,
-  Star,
-  StarOutline,
-} from "@vicons/ionicons5";
+import { GridOutline, ListOutline, Star, StarOutline } from "@vicons/ionicons5";
 import { closeContextMenuOnOutside } from "../../components/ui/contextMenu";
 import { confirmAction } from "../../components/ui/confirmation";
 import { computed, nextTick, ref, watch, reactive } from "vue";
@@ -37,8 +34,10 @@ import {
 import { validateForm } from "../../services/forms/rules";
 import AppDialog from "../../components/ui/AppDialog.vue";
 import { errorMessage } from "../../services/desktop/client";
-import type { HostProfile } from "../../services/desktop/types";
+import type { HostKind, HostProfile } from "../../services/desktop/types";
 import HostGroupTree from "./HostGroupTree.vue";
+import GroupConnectDialog from "./GroupConnectDialog.vue";
+import type { TerminalOpenMode } from "../workspace/store";
 import HostSearch from "./HostSearch.vue";
 import { useSettings } from "../settings/store";
 import { descendantIds, groupChoices, groupPath } from "./groups";
@@ -46,16 +45,70 @@ import { useHosts } from "./store";
 const props = defineProps<{ active: boolean }>();
 const emit = defineEmits<{
   connect: [HostProfile];
+  connectMany: [HostProfile[], TerminalOpenMode];
   edit: [HostProfile | undefined, boolean?, (string | null)?];
   settings: [];
   local: [];
-  serial: [];
+  create: [HostKind, string | null];
+  quick: [HostKind];
 }>();
 const store = useHosts();
 const settings = useSettings();
 const search = ref<InstanceType<typeof HostSearch>>();
 const groupTree = ref<InstanceType<typeof HostGroupTree>>();
 const group = ref("all");
+const batchOpen = ref(false);
+const batchGroup = ref({ name: "", hostIds: [] as string[] });
+const batchHosts = computed(() => {
+  const byId = new Map(store.hosts.map((host) => [host.id, host]));
+  return batchGroup.value.hostIds.flatMap((id) => {
+    const host = byId.get(id);
+    return host ? [host] : [];
+  });
+});
+function connectGroup(id: string) {
+  if (!props.active || store.managementBusy || batchGroup.value.hostIds.length)
+    return;
+  const selected = store.groups.find((item) => item.id === id);
+  if (!selected && id !== "all" && id !== "ungrouped") return;
+  // 批量范围始终包含后代，不受右侧浏览范围和侧栏主机显示偏好影响。
+  const ids = selected ? descendantIds(store.groups, id) : new Set<string>();
+  const profiles = store.hosts
+    .filter(
+      (host) =>
+        id === "all" ||
+        (id === "ungrouped"
+          ? !host.groupId
+          : !!host.groupId && ids.has(host.groupId)),
+    )
+    .sort(
+      (a, b) =>
+        Number(b.favorite) - Number(a.favorite) || a.name.localeCompare(b.name),
+    );
+  if (profiles.length === 1) emit("connect", profiles[0]!);
+  else if (profiles.length > 1) {
+    menu.value.show = false;
+    groupTree.value?.cancelDrag();
+    batchGroup.value = {
+      name:
+        id === "all"
+          ? "全部主机"
+          : groupPath(store.groups, selected?.id ?? null),
+      hostIds: profiles.map((host) => host.id),
+    };
+    batchOpen.value = true;
+  }
+}
+function connectMany(profiles: HostProfile[], mode: TerminalOpenMode) {
+  if (!props.active) return;
+  // 确认期间删除的主机不再连接，也不追加确认范围之外的新主机。
+  const byId = new Map(store.hosts.map((host) => [host.id, host]));
+  const current = profiles.flatMap((host) => {
+    const saved = byId.get(host.id);
+    return saved ? [saved] : [];
+  });
+  if (current.length) emit("connectMany", current, mode);
+}
 const includeChildren = computed(
   () => settings.value.hostsView.includeChildren,
 );
@@ -114,8 +167,8 @@ async function setIncludeChildren(value: boolean) {
     savingIncludeChildren.value = false;
   }
 }
-function createHost() {
-  emit("edit", undefined, false, selectedGroup.value?.id ?? null);
+function createHost(kind: HostKind = "ssh") {
+  emit("create", kind, selectedGroup.value?.id ?? null);
 }
 const menu = ref({ show: false, hostId: "", x: 0, y: 0 });
 const menuOptions = computed(() => [
@@ -248,24 +301,22 @@ watch(group, () => {
       @connect="emit('connect', $event)"
     />
     <NSpace class="host-actions" justify="start">
-      <NButton
-        type="primary"
-        :disabled="store.managementBusy"
-        @click="createHost"
-      >
-        新建主机
-      </NButton>
+      <ConnectionTypeDropdown
+        label="新建主机"
+        primary
+        :disabled="store.managementBusy || !active"
+        @select="createHost"
+      />
+      <ConnectionTypeDropdown
+        label="快速连接"
+        :disabled="!active"
+        @select="emit('quick', $event)"
+      />
       <NButton @click="emit('local')">
         <template #icon>
           <AssetIcon name="local-terminal" :size="18" />
         </template>
         本地终端
-      </NButton>
-      <NButton @click="emit('serial')">
-        <template #icon>
-          <NIcon :size="18" aria-hidden="true"><HardwareChipOutline /></NIcon>
-        </template>
-        串口
       </NButton>
     </NSpace>
     <NAlert
@@ -284,8 +335,17 @@ watch(group, () => {
         :active="active"
         @error="error = $event"
         @connect="emit('connect', $event)"
+        @connect-group="connectGroup"
         @edit-host="emit('edit', $event)"
         @host-menu="openMenu"
+      />
+      <GroupConnectDialog
+        v-model:open="batchOpen"
+        :active="active"
+        :group-name="batchGroup.name"
+        :hosts="batchHosts"
+        @connect="connectMany"
+        @after-leave="batchGroup = { name: '', hostIds: [] }"
       />
       <section class="host-content" aria-label="分组主机">
         <div class="host-scope">
@@ -317,145 +377,146 @@ watch(group, () => {
             </NRadioButton>
           </NRadioGroup>
         </div>
-        <NScrollbar class="host-list-scroll">
-          <NEmpty
-            v-if="!visible.length"
-            class="hosts-empty"
-            description="此分组暂无主机，可新建或从其他分组拖入。"
-          >
-            <template #extra>
-              <NSpace justify="center">
-                <NButton :disabled="store.managementBusy" @click="createHost">
-                  在此新建主机
-                </NButton>
-              </NSpace>
-            </template>
-          </NEmpty>
-          <div v-else-if="displayMode === 'card'" class="host-grid">
-            <NCard
-              v-for="host in visible"
-              :key="host.id"
-              size="small"
-              hoverable
-              tabindex="0"
-              :aria-label="
-                host.name + '，按回车连接，右键或 Shift+F10 打开操作菜单'
-              "
-              @pointerdown="groupTree?.startHostDrag($event, host)"
-              @dragstart.prevent
-              @dblclick="emit('connect', host)"
-              @keydown.enter.self.prevent="emit('connect', host)"
-              @keydown.self="cardKey($event, host)"
-              @contextmenu="openMenu($event, host)"
+        <ScrollFade class="host-list-scroll" background="var(--bg)" :size="20">
+          <NScrollbar>
+            <NEmpty
+              v-if="!visible.length"
+              class="hosts-empty"
+              description="此分组暂无主机，可新建或从其他分组拖入。"
             >
-              <template #header>
-                <div class="host-card-title">
-                  <HostSystemBadge :icon="host.icon" />
-                  <NEllipsis class="host-card-name">{{ host.name }}</NEllipsis>
-                  <NTag class="host-protocol" type="info" size="small">
-                    SSH
-                  </NTag>
-                </div>
-              </template>
-              <template #header-extra>
-                <NButton
-                  :disabled="store.managementBusy"
-                  quaternary
-                  circle
-                  :type="host.favorite ? 'warning' : 'default'"
-                  :aria-label="host.favorite ? '取消收藏' : '收藏'"
-                  @dblclick.stop
-                  @click.stop="favorite(host)"
-                >
-                  <NIcon :size="18" aria-hidden="true">
-                    <Star v-if="host.favorite" />
-                    <StarOutline v-else />
-                  </NIcon>
-                </NButton>
-              </template>
-              <NSpace vertical>
-                <NText depth="3">
-                  {{ groupPath(store.groups, host.groupId) }}
-                </NText>
-                <NEllipsis class="selectable-text">
-                  {{ host.username }}@{{
-                    host.address.includes(":")
-                      ? "[" + host.address + "]"
-                      : host.address
-                  }}:{{ host.port }}
-                </NEllipsis>
-                <NSpace v-if="host.tags.length" size="small">
-                  <NTag v-for="tag in host.tags" :key="tag" size="small">
-                    {{ tag }}
-                  </NTag>
+              <template #extra>
+                <NSpace justify="center">
+                  <NButton
+                    :disabled="store.managementBusy"
+                    @click="createHost()"
+                  >
+                    在此新建主机
+                  </NButton>
                 </NSpace>
-              </NSpace>
-            </NCard>
-          </div>
-          <NList v-else hoverable bordered size="small" class="host-list">
-            <NListItem
-              v-for="host in visible"
-              :key="host.id"
-              tabindex="0"
-              :aria-label="
-                host.name + '，按回车连接，右键或 Shift+F10 打开操作菜单'
-              "
-              @pointerdown="groupTree?.startHostDrag($event, host)"
-              @dragstart.prevent
-              @dblclick="emit('connect', host)"
-              @keydown.enter.self.prevent="emit('connect', host)"
-              @keydown.self="cardKey($event, host)"
-              @contextmenu="openMenu($event, host)"
-            >
-              <template #prefix><HostSystemBadge :icon="host.icon" /></template>
-              <div class="host-list-details">
-                <div class="host-card-title">
-                  <NEllipsis class="host-card-name">{{ host.name }}</NEllipsis>
-                  <NTag class="host-protocol" type="info" size="small">
-                    SSH
-                  </NTag>
-                </div>
-                <NEllipsis class="selectable-text">
-                  {{ host.username }}@{{
-                    host.address.includes(":")
-                      ? "[" + host.address + "]"
-                      : host.address
-                  }}:{{ host.port }}
-                </NEllipsis>
-                <NEllipsis>
+              </template>
+            </NEmpty>
+            <div v-else-if="displayMode === 'card'" class="host-grid">
+              <NCard
+                v-for="host in visible"
+                :key="host.id"
+                size="small"
+                hoverable
+                tabindex="0"
+                :aria-label="
+                  host.name + '，按回车连接，右键或 Shift+F10 打开操作菜单'
+                "
+                @pointerdown="groupTree?.startHostDrag($event, host)"
+                @dragstart.prevent
+                @dblclick="emit('connect', host)"
+                @keydown.enter.self.prevent="emit('connect', host)"
+                @keydown.self="cardKey($event, host)"
+                @contextmenu="openMenu($event, host)"
+              >
+                <template #header>
+                  <div class="host-card-title">
+                    <HostProfileIcon :host="host" />
+                    <NEllipsis class="host-card-name">
+                      {{ host.name }}
+                    </NEllipsis>
+                    <NTag class="host-protocol" type="info" size="small">
+                      {{ hostKindLabel(host) }}
+                    </NTag>
+                  </div>
+                </template>
+                <template #header-extra>
+                  <NButton
+                    :disabled="store.managementBusy"
+                    quaternary
+                    circle
+                    :type="host.favorite ? 'warning' : 'default'"
+                    :aria-label="host.favorite ? '取消收藏' : '收藏'"
+                    @dblclick.stop
+                    @click.stop="favorite(host)"
+                  >
+                    <NIcon :size="18" aria-hidden="true">
+                      <Star v-if="host.favorite" />
+                      <StarOutline v-else />
+                    </NIcon>
+                  </NButton>
+                </template>
+                <NSpace vertical>
                   <NText depth="3">
                     {{ groupPath(store.groups, host.groupId) }}
                   </NText>
-                </NEllipsis>
-                <NSpace
-                  v-if="host.tags.length"
-                  size="small"
-                  class="host-list-tags"
-                >
-                  <NTag v-for="tag in host.tags" :key="tag" size="small">
-                    {{ tag }}
-                  </NTag>
+                  <NEllipsis class="selectable-text">
+                    {{ hostEndpoint(host) }}
+                  </NEllipsis>
+                  <NSpace v-if="host.tags.length" size="small">
+                    <NTag v-for="tag in host.tags" :key="tag" size="small">
+                      {{ tag }}
+                    </NTag>
+                  </NSpace>
                 </NSpace>
-              </div>
-              <template #suffix>
-                <NButton
-                  :disabled="store.managementBusy"
-                  quaternary
-                  circle
-                  :type="host.favorite ? 'warning' : 'default'"
-                  :aria-label="host.favorite ? '取消收藏' : '收藏'"
-                  @dblclick.stop
-                  @click.stop="favorite(host)"
-                >
-                  <NIcon :size="18" aria-hidden="true">
-                    <Star v-if="host.favorite" />
-                    <StarOutline v-else />
-                  </NIcon>
-                </NButton>
-              </template>
-            </NListItem>
-          </NList>
-        </NScrollbar>
+              </NCard>
+            </div>
+            <NList v-else hoverable bordered size="small" class="host-list">
+              <NListItem
+                v-for="host in visible"
+                :key="host.id"
+                tabindex="0"
+                :aria-label="
+                  host.name + '，按回车连接，右键或 Shift+F10 打开操作菜单'
+                "
+                @pointerdown="groupTree?.startHostDrag($event, host)"
+                @dragstart.prevent
+                @dblclick="emit('connect', host)"
+                @keydown.enter.self.prevent="emit('connect', host)"
+                @keydown.self="cardKey($event, host)"
+                @contextmenu="openMenu($event, host)"
+              >
+                <template #prefix><HostProfileIcon :host="host" /></template>
+                <div class="host-list-details">
+                  <div class="host-card-title">
+                    <NEllipsis class="host-card-name">
+                      {{ host.name }}
+                    </NEllipsis>
+                    <NTag class="host-protocol" type="info" size="small">
+                      {{ hostKindLabel(host) }}
+                    </NTag>
+                  </div>
+                  <NEllipsis class="selectable-text">
+                    {{ hostEndpoint(host) }}
+                  </NEllipsis>
+                  <NEllipsis>
+                    <NText depth="3">
+                      {{ groupPath(store.groups, host.groupId) }}
+                    </NText>
+                  </NEllipsis>
+                  <NSpace
+                    v-if="host.tags.length"
+                    size="small"
+                    class="host-list-tags"
+                  >
+                    <NTag v-for="tag in host.tags" :key="tag" size="small">
+                      {{ tag }}
+                    </NTag>
+                  </NSpace>
+                </div>
+                <template #suffix>
+                  <NButton
+                    :disabled="store.managementBusy"
+                    quaternary
+                    circle
+                    :type="host.favorite ? 'warning' : 'default'"
+                    :aria-label="host.favorite ? '取消收藏' : '收藏'"
+                    @dblclick.stop
+                    @click.stop="favorite(host)"
+                  >
+                    <NIcon :size="18" aria-hidden="true">
+                      <Star v-if="host.favorite" />
+                      <StarOutline v-else />
+                    </NIcon>
+                  </NButton>
+                </template>
+              </NListItem>
+            </NList>
+          </NScrollbar>
+        </ScrollFade>
       </section>
     </div>
     <NDropdown

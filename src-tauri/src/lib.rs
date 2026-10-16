@@ -65,7 +65,8 @@ pub fn run() {
             let file_sessions = SessionManager::new(Arc::new(factory.for_files()));
             let sessions = SessionManager::new(Arc::new(factory))
                 .with_factory(Arc::new(terminal_local::LocalFactory))
-                .with_factory(Arc::new(terminal_serial::SerialFactory));
+                .with_factory(Arc::new(terminal_serial::SerialFactory))
+                .with_factory(Arc::new(terminal_telnet::TelnetFactory));
             app.manage(file_drag::LocalDropRegistry::default());
             app.manage(AppState {
                 settings_gate: tokio::sync::Mutex::new(()),

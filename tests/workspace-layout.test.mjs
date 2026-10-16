@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   edgeAtPoint,
+  balancedLayout,
   layoutGeometry,
   removeTerminal,
   relocateTerminal,
@@ -13,6 +14,54 @@ import {
 const terminal = (terminalId) => ({
   kind: "terminal",
   terminalId,
+});
+
+test("批量布局处理空集与单终端，按顺序保留每个叶子且平均分配面积", () => {
+  assert.equal(balancedLayout([]), undefined);
+  assert.deepEqual(balancedLayout(["only"]), terminal("only"));
+  for (const count of [2, 3, 4, 5, 9, 17]) {
+    const ids = Array.from({ length: count }, (_, index) => `host-${index}`);
+    const before = [...ids];
+    const root = balancedLayout(ids);
+    assert.ok(root);
+    assert.deepEqual(terminalIds(root), ids);
+    assert.deepEqual(ids, before);
+    const { panes, dividers } = layoutGeometry(root);
+    assert.equal(panes.size, count);
+    assert.equal(dividers.length, count - 1);
+    for (const rect of panes.values()) {
+      assert.ok(rect.width > 0 && rect.height > 0);
+      assert.ok(rect.left >= 0 && rect.top >= 0);
+      assert.ok(rect.left + rect.width <= 100 + 1e-10);
+      assert.ok(rect.top + rect.height <= 100 + 1e-10);
+      assert.ok(Math.abs(rect.width * rect.height - 10000 / count) < 1e-8);
+    }
+    // 依次移除后收拢为空树，保证批量工作区沿用已有关闭语义。
+    let remaining = root;
+    for (const id of ids) {
+      remaining = removeTerminal(remaining, id);
+    }
+    assert.equal(remaining, undefined);
+  }
+});
+
+test("批量布局从左右分割开始并交替方向，双终端为等宽左右布局", () => {
+  const pair = balancedLayout(["a", "b"]);
+  assert.equal(pair.axis, "horizontal");
+  assert.equal(pair.ratio, 0.5);
+  const four = balancedLayout(["a", "b", "c", "d"]);
+  assert.equal(four.axis, "horizontal");
+  assert.equal(four.first.axis, "vertical");
+  assert.equal(four.second.axis, "vertical");
+  assert.deepEqual(
+    [...layoutGeometry(four).panes.values()],
+    [
+      { left: 0, top: 0, width: 50, height: 50 },
+      { left: 0, top: 50, width: 50, height: 50 },
+      { left: 50, top: 0, width: 50, height: 50 },
+      { left: 50, top: 50, width: 50, height: 50 },
+    ],
+  );
 });
 
 function nestedLayout() {

@@ -17,6 +17,8 @@ impl Drop for TestDirectory {
 }
 fn draft() -> HostDraft {
     HostDraft {
+        kind: "ssh".into(),
+        serial_config: None,
         icon: "ssh".into(),
         id: None,
         revision: None,
@@ -34,6 +36,8 @@ fn draft() -> HostDraft {
 }
 fn edit(host: HostProfile) -> HostDraft {
     HostDraft {
+        kind: host.kind,
+        serial_config: host.serial_config,
         icon: host.icon,
         id: Some(host.id),
         revision: Some(host.revision),
@@ -48,6 +52,169 @@ fn edit(host: HostProfile) -> HostDraft {
     }
 }
 
+fn serial_draft() -> HostDraft {
+    let mut host = draft();
+    host.kind = "serial".into();
+    host.name = "离线串口配置".into();
+    host.address.clear();
+    host.port = 0;
+    host.username.clear();
+    host.auth_plan.clear();
+    host.serial_config = Some(terminal_core::SerialConfig {
+        path: "/dev/termvexa-not-connected".into(),
+        baud_rate: 115200,
+        charset: "UTF-8".into(),
+        data_bits: 8,
+        stop_bits: 1,
+        flow_control: terminal_core::SerialFlowControl::None,
+        parity: terminal_core::SerialParity::None,
+    });
+    host
+}
+
+#[test]
+fn legacy_host_dto_defaults_to_ssh() {
+    let mut value = serde_json::to_value(draft()).unwrap();
+    value.as_object_mut().unwrap().remove("kind");
+    value.as_object_mut().unwrap().remove("serialConfig");
+    let host: HostDraft = serde_json::from_value(value).unwrap();
+    assert_eq!(host.kind, "ssh");
+    assert!(host.serial_config.is_none());
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn serial_hosts_persist_offline_and_preserve_configuration_across_metadata_edits() {
+    use terminal_core::RemoteSystemStore;
+    let directory = TestDirectory::new();
+    let path = directory.0.join("serial.sqlite3");
+    let store = SqliteStore::open(&path).await.unwrap();
+    let ssh = store.save_host(draft()).await.unwrap();
+    let saved = store.save_host(serial_draft()).await.unwrap();
+    assert_eq!(saved.kind, "serial");
+    assert_eq!(saved.port, 0);
+    assert!(saved.address.is_empty());
+    assert!(saved.auth_plan.is_empty());
+    assert!(!saved.has_password);
+    assert_eq!(store.list_hosts("").await.unwrap().len(), 2);
+    assert_eq!(
+        store
+            .list_hosts("termvexa-not-connected")
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    assert!(store.get_host_connection(&saved.id).await.is_err());
+    let ssh_config = store.get_host_connection(&ssh.id).await.unwrap();
+    assert!(!store.claim(&saved.id, "serial", &ssh_config).await.unwrap());
+    let ssh_rows: i64 = sqlx::query_scalar("SELECT count(*) FROM ssh_profiles WHERE profile_id=?")
+        .bind(&saved.id)
+        .fetch_one(store.pool().unwrap())
+        .await
+        .unwrap();
+    assert_eq!(ssh_rows, 0);
+    sqlx::query("UPDATE connection_profiles SET config_json=json_set(config_json,'$.futureMetadata','kept') WHERE id=?")
+        .bind(&saved.id).execute(store.pool().unwrap()).await.unwrap();
+    let group = store
+        .save_group(GroupDraft {
+            id: None,
+            revision: None,
+            parent_id: None,
+            name: "设备".into(),
+            sort_order: 0,
+        })
+        .await
+        .unwrap();
+    let serial_config = serde_json::to_value(&saved.serial_config).unwrap();
+    let mut changed = edit(saved);
+    changed.favorite = true;
+    changed.group_id = Some(group.id.clone());
+    changed.tags = vec!["开发板".into()];
+    let saved = store.save_host(changed).await.unwrap();
+    assert_eq!(
+        serde_json::to_value(&saved.serial_config).unwrap(),
+        serial_config
+    );
+    let metadata: String =
+        sqlx::query_scalar("SELECT config_json FROM connection_profiles WHERE id=?")
+            .bind(&saved.id)
+            .fetch_one(store.pool().unwrap())
+            .await
+            .unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&metadata).unwrap()["futureMetadata"],
+        "kept"
+    );
+    let duplicate = store.duplicate_host(&saved.id).await.unwrap();
+    assert_eq!(duplicate.kind, "serial");
+    assert_eq!(
+        serde_json::to_value(&duplicate.serial_config).unwrap(),
+        serial_config
+    );
+    assert!(duplicate.favorite);
+    assert_eq!(duplicate.tags, saved.tags);
+    assert_eq!(duplicate.group_id, saved.group_id);
+    store.pool().unwrap().close().await;
+    let store = SqliteStore::open(&path).await.unwrap();
+    let restored = store.get_host(&saved.id).await.unwrap();
+    assert_eq!(
+        serde_json::to_value(&restored.serial_config).unwrap(),
+        serial_config
+    );
+    store
+        .delete_host(&restored.id, restored.revision)
+        .await
+        .unwrap();
+    assert!(store.get_host(&restored.id).await.is_err());
+    assert!(store.get_host(&duplicate.id).await.is_ok());
+    store.pool().unwrap().close().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn host_kinds_reject_mixed_configuration_credentials_and_type_changes() {
+    let directory = TestDirectory::new();
+    let store = SqliteStore::open(directory.0.join("validation.sqlite3"))
+        .await
+        .unwrap();
+    let mut host = serial_draft();
+    host.auth_plan = draft().auth_plan;
+    assert!(store.save_host(host).await.is_err());
+    let mut host = serial_draft();
+    host.address = "example.com".into();
+    assert!(store.save_host(host).await.is_err());
+    let mut host = serial_draft();
+    host.serial_config = None;
+    assert!(store.save_host(host).await.is_err());
+    let mut host = serial_draft();
+    host.serial_config.as_mut().unwrap().baud_rate = 0;
+    assert!(store.save_host(host).await.is_err());
+    assert!(
+        store
+            .save_host_with_password_ref(serial_draft(), Some("forged"))
+            .await
+            .is_err()
+    );
+    let mut host = draft();
+    host.serial_config = serial_draft().serial_config;
+    assert!(store.save_host(host).await.is_err());
+    let mut host = draft();
+    host.kind = "telnet".into();
+    assert!(store.save_host(host).await.is_err());
+    let saved = store.save_host(draft()).await.unwrap();
+    let mut host = serial_draft();
+    host.id = Some(saved.id.clone());
+    host.revision = Some(saved.revision);
+    assert!(store.save_host(host).await.is_err());
+    assert_eq!(store.get_host(&saved.id).await.unwrap().kind, "ssh");
+    let saved = store.save_host(serial_draft()).await.unwrap();
+    let mut host = draft();
+    host.id = Some(saved.id.clone());
+    host.revision = Some(saved.revision);
+    assert!(store.save_host(host).await.is_err());
+    assert_eq!(store.get_host(&saved.id).await.unwrap().kind, "serial");
+    store.pool().unwrap().close().await;
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn initializes_rebuilt_schema_with_password_and_private_key_credentials() {
     let directory = TestDirectory::new();
@@ -59,7 +226,7 @@ async fn initializes_rebuilt_schema_with_password_and_private_key_credentials() 
             .fetch_all(store.pool().unwrap())
             .await
             .unwrap();
-    assert_eq!(versions, vec![1]);
+    assert_eq!(versions, vec![1, 2]);
     let version: i64 = sqlx::query_scalar("PRAGMA user_version")
         .fetch_one(store.pool().unwrap())
         .await
@@ -677,4 +844,176 @@ async fn system_detection_success_persists_and_rejects_non_builtin_icons() {
     let mut changed = edit(host);
     changed.icon = "<svg onload=alert(1)>".into();
     assert!(store.save_host(changed).await.is_err());
+}
+
+fn telnet_draft() -> HostDraft {
+    let mut host = draft();
+    host.kind = "telnet".into();
+    host.name = "Telnet 设备".into();
+    host.port = 23;
+    host.username.clear();
+    host.auth_plan.clear();
+    host.tags = vec!["设备".into()];
+    host
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn telnet_hosts_round_trip_without_ssh_credentials_and_reject_type_changes() {
+    let directory = TestDirectory::new();
+    let path = directory.0.join("telnet.sqlite3");
+    let store = SqliteStore::open(&path).await.unwrap();
+    let saved = store.save_host(telnet_draft()).await.unwrap();
+    assert_eq!(saved.kind, "telnet");
+    assert_eq!(saved.port, 23);
+    assert!(saved.auth_plan.is_empty());
+    assert!(!saved.has_password);
+    assert!(store.get_host_connection(&saved.id).await.is_err());
+    assert_eq!(store.list_hosts("example.com").await.unwrap().len(), 1);
+    let mut changed = edit(saved.clone());
+    changed.address = "2001:db8::1".into();
+    changed.port = 2323;
+    changed.favorite = true;
+    let updated = store.save_host(changed).await.unwrap();
+    let copy = store.duplicate_host(&updated.id).await.unwrap();
+    assert_eq!(copy.address, updated.address);
+    assert_eq!(copy.port, 2323);
+    assert_eq!(copy.tags, updated.tags);
+    assert!(copy.favorite);
+    let mut changed_kind = edit(updated.clone());
+    changed_kind.kind = "ssh".into();
+    changed_kind.username = "user".into();
+    changed_kind.auth_plan = draft().auth_plan;
+    assert!(store.save_host(changed_kind).await.is_err());
+    let mut invalid = telnet_draft();
+    invalid.auth_plan = draft().auth_plan;
+    assert!(store.save_host(invalid).await.is_err());
+    let mut invalid = telnet_draft();
+    invalid.username = "user".into();
+    assert!(store.save_host(invalid).await.is_err());
+    let mut invalid = telnet_draft();
+    invalid.serial_config = serial_draft().serial_config;
+    assert!(store.save_host(invalid).await.is_err());
+    assert!(
+        store
+            .save_host_with_password_ref(telnet_draft(), Some("forged"))
+            .await
+            .is_err()
+    );
+    assert!(store.list_all_credentials().await.unwrap().is_empty());
+    store.pool().unwrap().close().await;
+    let restored = SqliteStore::open(&path).await.unwrap();
+    let host = restored.get_host(&updated.id).await.unwrap();
+    assert_eq!(host.address, "2001:db8::1");
+    assert_eq!(host.port, 2323);
+    assert_eq!(host.revision, updated.revision);
+    restored.pool().unwrap().close().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn schema_two_upgrade_preserves_profiles_children_and_history_references() {
+    let directory = TestDirectory::new();
+    let path = directory.0.join("upgrade.sqlite3");
+    let options = SqliteConnectOptions::new()
+        .filename(&path)
+        .create_if_missing(true)
+        .pragma("key", format!("\"x'{}'\"", hex::encode([42u8; 32])))
+        .pragma("cipher_compatibility", "4")
+        .foreign_keys(true)
+        .disable_statement_logging();
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(options)
+        .await
+        .unwrap();
+    let mut initial = sqlx::migrate!("./migrations");
+    initial.migrations = std::borrow::Cow::Owned(initial.iter().take(1).cloned().collect());
+    initial.run(&pool).await.unwrap();
+    sqlx::query("PRAGMA user_version = 2")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let old = SqliteStore::locked(&path);
+    assert!(old.pool.set(pool).is_ok());
+    let group = old
+        .save_group(GroupDraft {
+            id: None,
+            revision: None,
+            name: "设备".into(),
+            parent_id: None,
+            sort_order: 0,
+        })
+        .await
+        .unwrap();
+    let owner = uuid::Uuid::new_v4().to_string();
+    let secret = old.begin_host_password(&owner, "主机密码").await.unwrap();
+    old.set_credential_secret(&secret, "fixture-secret")
+        .await
+        .unwrap();
+    let mut ssh = draft();
+    ssh.group_id = Some(group.id.clone());
+    ssh.tags = vec!["保留".into()];
+    let ssh = old
+        .save_host_with_password_ref(ssh, Some(&secret))
+        .await
+        .unwrap();
+    let serial = old.save_host(serial_draft()).await.unwrap();
+    let history = old
+        .start_history(Some(&ssh.id), &ssh.name, Some("example.com:22"))
+        .await
+        .unwrap();
+    old.set_setting("fixture", 1, &serde_json::json!({"preserved":true}))
+        .await
+        .unwrap();
+    // 升级前类型约束确实不接受 Telnet。
+    assert!(old.save_host(telnet_draft()).await.is_err());
+    old.pool().unwrap().close().await;
+    let store = SqliteStore::open(&path).await.unwrap();
+    let restored = store.get_host(&ssh.id).await.unwrap();
+    assert_eq!(restored.group_id, Some(group.id));
+    assert_eq!(restored.tags, ssh.tags);
+    assert_eq!(restored.revision, ssh.revision);
+    assert!(restored.has_password);
+    let config = store.get_host_connection(&ssh.id).await.unwrap();
+    assert!(
+        matches!(&config.auth_plan[0], AuthStep::Password { credential_id: Some(id) } if id == &secret)
+    );
+    assert_eq!(store.get_host(&serial.id).await.unwrap().kind, "serial");
+    let entry = store
+        .list_history()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|item| item.id == history)
+        .unwrap();
+    assert_eq!(entry.profile_id, Some(ssh.id));
+    assert_eq!(
+        store.get_setting("fixture").await.unwrap().unwrap().value["preserved"],
+        true
+    );
+    assert!(
+        sqlx::query("PRAGMA foreign_key_check")
+            .fetch_all(store.pool().unwrap())
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    for _ in 0..2 {
+        let mut connection = store.pool().unwrap().acquire().await.unwrap();
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("PRAGMA foreign_keys")
+                .fetch_one(&mut *connection)
+                .await
+                .unwrap(),
+            1
+        );
+    }
+    assert_eq!(
+        store.save_host(telnet_draft()).await.unwrap().kind,
+        "telnet"
+    );
+    store.pool().unwrap().close().await;
+    // 重开不重复迁移或删除关联。
+    let reopened = SqliteStore::open(&path).await.unwrap();
+    assert_eq!(reopened.list_hosts("").await.unwrap().len(), 3);
+    reopened.pool().unwrap().close().await;
 }

@@ -1,0 +1,10 @@
+[package]
+name = "terminal-telnet"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.89"
+
+[dependencies]
+terminal-core = { path = "../terminal-core" }
+async-trait = "=0.1.89"
+tokio = { version = "=1.50.0", features = ["rt", "sync", "time", "macros", "net", "io-util"] }

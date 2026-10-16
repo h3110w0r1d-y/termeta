@@ -317,6 +317,18 @@ impl CredentialVault {
 mod tests {
     use super::*;
     #[test]
+    fn vault_command_futures_are_send() {
+        fn assert_send(_: impl Send) {}
+
+        let vault = CredentialVault::new(std::sync::Arc::new(
+            terminal_storage::SqliteStore::locked("unused-vault-send-check.sqlite3"),
+        ));
+        // 只构造并丢弃 future，不轮询，不打开数据库或访问系统钥匙串。
+        assert_send(vault.status());
+        assert_send(vault.unlock_with_password(Zeroizing::new(String::new()), false));
+    }
+
+    #[test]
     fn password_recovery_rejects_wrong_password_and_tampering() {
         let (header, key) = Header::create("正确的保险库密码-test-123").unwrap();
         header.verify(&key).unwrap();

@@ -5,9 +5,11 @@ mod serial;
 mod session;
 mod stream;
 mod system;
+mod telnet;
 mod types;
 pub use serial::*;
 pub use system::*;
+pub use telnet::*;
 
 pub use bytes::Bytes;
 pub use manager::*;

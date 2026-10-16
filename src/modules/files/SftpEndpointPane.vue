@@ -55,10 +55,12 @@ async function connect() {
     emit("connect", profile.value);
 }
 const options = computed(() =>
-  hosts.hosts.map((host) => ({
-    label: `${host.name} · ${host.username}@${host.address}:${host.port}`,
-    value: host.id,
-  })),
+  hosts.hosts
+    .filter((host) => host.kind === "ssh")
+    .map((host) => ({
+      label: `${host.name} · ${host.username}@${host.address}:${host.port}`,
+      value: host.id,
+    })),
 );
 const directory = ref(".");
 const pathInput = ref(".");

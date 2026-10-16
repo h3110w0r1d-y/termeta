@@ -19,7 +19,7 @@ use std::{
 };
 use thiserror::Error;
 
-const SCHEMA_VERSION: i64 = 2;
+const SCHEMA_VERSION: i64 = 3;
 
 #[derive(Debug, Error)]
 pub enum StorageError {
@@ -138,14 +138,33 @@ impl SqliteStore {
         let version: i64 = sqlx::query_scalar("PRAGMA user_version")
             .fetch_one(pool)
             .await?;
-        if version != 0 && version != SCHEMA_VERSION {
+        if ![0, 2, SCHEMA_VERSION].contains(&version) {
             return Err(StorageError::Validation(
-                "数据库格式不兼容，本版不迁移旧数据库",
+                "数据库格式不兼容，仅支持当前加密格式及 schema 2 升级",
             ));
         }
         private_file(path)?;
-        sqlx::migrate!("./migrations").run(pool).await?;
-        sqlx::query("PRAGMA user_version = 2").execute(pool).await?;
+        // 仅初始化阶段持有的同一连接关闭外键；业务连接池尚未发布。
+        // SQLite 重建父表必须在迁移事务外关闭外键，否则会删除子表/置空历史引用。
+        let mut connection = pool.acquire().await?;
+        sqlx::query("PRAGMA foreign_keys = OFF")
+            .execute(&mut *connection)
+            .await?;
+        // 已取得连接时直接迁移，避免 run 的 Acquire 生命周期约束使解锁 future 无法满足 Send。
+        let migrated = sqlx::migrate!("./migrations")
+            .run_direct(&mut *connection)
+            .await;
+        sqlx::query("PRAGMA foreign_keys = ON")
+            .execute(&mut *connection)
+            .await?;
+        migrated?;
+        let violations = sqlx::query("PRAGMA foreign_key_check")
+            .fetch_all(&mut *connection)
+            .await?;
+        if !violations.is_empty() {
+            return Err(StorageError::Validation("数据库外键完整性校验失败"));
+        }
+        drop(connection);
         sqlx::query("UPDATE session_history SET ended_at=?,end_reason='appInterrupted' WHERE ended_at IS NULL").bind(now()).execute(pool).await?;
         sqlx::query(metadata::PRUNE_HISTORY_SQL)
             .bind(metadata::HISTORY_LIMIT)

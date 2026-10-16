@@ -30,7 +30,7 @@ import type {
   CredentialMetadata,
   HostDraft,
   HostProfile,
-  SshConfig,
+  OpenTarget,
 } from "../../services/desktop/types";
 import { useSettings } from "../settings/store";
 import { builtinSchemes } from "../settings/themes";
@@ -48,20 +48,22 @@ const props = defineProps<{
   open: boolean;
   host?: HostProfile;
   quick?: boolean;
+  kind?: "ssh" | "telnet";
   duplicate?: boolean;
   initialGroupId?: string | null;
 }>();
 const emit = defineEmits<{
   "update:open": [boolean];
-  connect: [SshConfig, string];
+  connect: [OpenTarget, string];
   saved: [];
   "after-leave": [];
 }>();
+const isTelnet = computed(() => (props.host?.kind ?? props.kind) === "telnet");
 const settings = useSettings();
 const hosts = useHosts(),
   busy = ref(false),
   error = ref(""),
-  auth = ref<"password" | "privateKey">("password"),
+  auth = ref<"password" | "privateKey">("privateKey"),
   tagText = ref(""),
   hostScheme = ref(""),
   savedRevision = ref<number | null>(null),
@@ -71,15 +73,17 @@ const hosts = useHosts(),
   secret = ref("");
 const blank = (): HostDraft => ({
   id: null,
+  kind: isTelnet.value ? "telnet" : "ssh",
+  serialConfig: undefined,
   icon: "ssh",
   name: "",
   address: "",
-  port: 22,
+  port: isTelnet.value ? 23 : 22,
   username: "",
   favorite: false,
   tags: [],
   groupId: props.initialGroupId ?? null,
-  authPlan: [{ type: "password" }],
+  authPlan: isTelnet.value ? [] : [{ type: "privateKey", credentialId: "" }],
 });
 const draft = ref<HostDraft>(blank());
 const fieldsLocked = computed(() => busy.value || !!committedHost.value);
@@ -108,14 +112,15 @@ watch(
       );
       auth.value = first?.type === "privateKey" ? "privateKey" : "password";
       credentialId.value = first?.credentialId ?? "";
-      void desktop
-        .listCredentials()
-        .then((items) => {
-          credentials.value = items;
-        })
-        .catch((e) => {
-          error.value = errorMessage(e);
-        });
+      if (!isTelnet.value)
+        void desktop
+          .listCredentials()
+          .then((items) => {
+            credentials.value = items;
+          })
+          .catch((e) => {
+            error.value = errorMessage(e);
+          });
       tagText.value = draft.value.tags.join(", ");
       error.value = "";
       hostScheme.value = props.host
@@ -190,10 +195,13 @@ const rules = computed<FormRules>(() => ({
   "draft.name": props.quick ? [] : requiredText("名称"),
   "draft.address": requiredText("主机地址"),
   "draft.icon": requiredText("图标"),
-  "draft.username": requiredText("用户名"),
+  "draft.username": isTelnet.value ? [] : requiredText("用户名"),
   "draft.port": integerRange("端口", 1, 65535),
-  auth: requiredText("认证方式"),
-  credentialId: auth.value === "privateKey" ? requiredText("私钥凭据") : [],
+  auth: isTelnet.value ? [] : requiredText("认证方式"),
+  credentialId:
+    !isTelnet.value && auth.value === "privateKey"
+      ? requiredText("私钥凭据")
+      : [],
 }));
 async function submit() {
   if (busy.value || (!committedHost.value && !(await validateForm(form.value))))
@@ -201,18 +209,18 @@ async function submit() {
   busy.value = true;
   error.value = "";
   try {
-    if (auth.value === "privateKey" && !credentialId.value)
+    if (!isTelnet.value && auth.value === "privateKey" && !credentialId.value)
       throw new Error("请先在凭据页创建并选择私钥凭据");
     // 主机只保存认证引用；专属密码单独传递，避免进入轻量配置状态。
     const first: AuthStep =
       auth.value === "privateKey"
         ? { type: "privateKey", credentialId: credentialId.value }
         : { type: "password", credentialId: credentialId.value || undefined };
-    const plan: AuthStep[] = [first];
+    const plan: AuthStep[] = isTelnet.value ? [] : [first];
     draft.value = {
       ...draft.value,
       address: draft.value.address.trim(),
-      username: draft.value.username.trim(),
+      username: isTelnet.value ? "" : draft.value.username.trim(),
       tags: tagText.value
         .split(/[,，]/)
         .map((t) => t.trim())
@@ -222,13 +230,26 @@ async function submit() {
     if (props.quick)
       emit(
         "connect",
-        {
-          configVersion: 1,
-          address: draft.value.address,
-          port: draft.value.port,
-          username: draft.value.username,
-          authPlan: plan,
-        },
+        isTelnet.value
+          ? {
+              source: "telnet",
+              config: {
+                configVersion: 1,
+                address: draft.value.address,
+                port: draft.value.port,
+              },
+            }
+          : {
+              source: "ephemeral",
+              kind: "ssh",
+              config: {
+                configVersion: 1,
+                address: draft.value.address,
+                port: draft.value.port,
+                username: draft.value.username,
+                authPlan: plan,
+              },
+            },
         draft.value.name || draft.value.address,
       );
     else {
@@ -238,7 +259,11 @@ async function submit() {
         (await hosts.save(
           draft.value,
           savedRevision.value,
-          auth.value === "password" && !credentialId.value ? secret.value : "",
+          isTelnet.value
+            ? undefined
+            : auth.value === "password" && !credentialId.value
+              ? secret.value
+              : "",
         ));
       committedHost.value = saved;
       savedRevision.value = saved.revision;
@@ -265,8 +290,12 @@ async function submit() {
     :open="open"
     @after-leave="emit('after-leave')"
     :locked="busy"
-    :title="quick ? '快速连接' : host && !duplicate ? '编辑主机' : '新建主机'"
-    description="选择密码或公钥认证；额外验证由服务器在连接时自动提示。"
+    :title="`${quick ? '快速连接' : host && !duplicate ? '编辑主机' : '新建主机'} · ${isTelnet ? 'Telnet' : 'SSH'}`"
+    :description="
+      isTelnet
+        ? 'Telnet 以明文传输，用户名和密码在终端内输入；请仅连接可信网络中的设备。'
+        : '选择密码或公钥认证；额外验证由服务器在连接时自动提示。'
+    "
     @update:open="emit('update:open', $event)"
   >
     <NForm
@@ -288,7 +317,12 @@ async function submit() {
             placeholder="例如：生产环境 · 上海"
           />
         </NFormItemGi>
-        <NFormItemGi v-if="!quick" :span="2" label="图标" path="draft.icon">
+        <NFormItemGi
+          v-if="!quick && !isTelnet"
+          :span="2"
+          label="图标"
+          path="draft.icon"
+        >
           <NSelect
             v-model:value="formModel.draft.icon"
             :options="systemIconOptions"
@@ -320,7 +354,7 @@ async function submit() {
             :max="65535"
           />
         </NFormItemGi>
-        <NFormItemGi label="用户名" path="draft.username">
+        <NFormItemGi v-if="!isTelnet" label="用户名" path="draft.username">
           <AppInput
             id="host-username"
             v-model="formModel.draft.username"
@@ -328,7 +362,7 @@ async function submit() {
             autocomplete="off"
           />
         </NFormItemGi>
-        <NFormItemGi label="认证方式" path="auth">
+        <NFormItemGi v-if="!isTelnet" label="认证方式" path="auth">
           <AppSelect
             id="host-auth"
             v-model="formModel.auth"
@@ -337,6 +371,7 @@ async function submit() {
           />
         </NFormItemGi>
         <NFormItemGi
+          v-if="!isTelnet"
           :span="2"
           :label="auth === 'privateKey' ? '私钥凭据' : '密码凭据'"
           path="credentialId"
@@ -348,7 +383,7 @@ async function submit() {
             :disabled="fieldsLocked"
           />
         </NFormItemGi>
-        <NGi v-if="auth === 'password' && !credentialId" :span="2">
+        <NGi v-if="!isTelnet && auth === 'password' && !credentialId" :span="2">
           <template v-if="!quick">
             <NFormItem label="主机专属密码（可选）">
               <AppInput

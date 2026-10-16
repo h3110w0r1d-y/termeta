@@ -4,11 +4,11 @@
 
 ## 当前基线
 
-Windows、macOS、Linux 桌面客户端，采用 Tauri 2 + Rust + Vue 3 + TypeScript，通用控件为 Naive UI 2.45.3，工作区使用自定义标签。已实现SSH、基础本地终端与Serial文本终端，串口DTR/RTS控制、HEX及隧道/跳板/Agent 为后续范围。
+Windows、macOS、Linux 桌面客户端，采用 Tauri 2 + Rust + Vue 3 + TypeScript，通用控件为 Naive UI 2.45.3，工作区使用自定义标签。已实现SSH、Telnet、基础本地终端与Serial文本终端，串口DTR/RTS控制、HEX及隧道/跳板/Agent 为后续范围。
 
 已落源码包括左侧分组树/主机计数/展开与包含子组持久化、右侧按组浏览/收藏置顶、顶部独立拼音搜索下拉、分组右键管理/两步删除、主机和分组拖拽迁移、凭据管理、SSH/动态认证/主机信任、终端保活与重连、标签排序和嵌套分屏、输入广播、快捷键、12种本地字体和64套终端配色。SFTP 提供单终端浏览/上传下载侧栏、目录合并上传及 macOS 文件/目录承诺拖出；固定双栏支持保存主机的独立 SSH/SFTP 连接与 Web 栏间文件/目录对拷，Windows/Linux 原生拖出未实现。
 
-断线与失败保留原 Tab、terminalId 和 xterm 缓冲，重连只替换后端连接。主机和凭据由Rust写入SQLCipher加密库 `termvexa-encrypted-v2.sqlite3`（schema 2），首次密码经Argon2id派生主密钥；OS keyring只缓存主密钥，失败时密码恢复。配套vault.json须一起保留，不迁移旧库。正文与文件数据不进入 Vue/Pinia。
+断线与失败保留原 Tab、terminalId 和 xterm 缓冲，重连只替换后端连接。主机和凭据由Rust写入SQLCipher加密库 `termvexa-encrypted-v2.sqlite3`（schema 3，原同格式schema 2原位升级），首次密码经Argon2id派生主密钥；OS keyring只缓存主密钥，失败时密码恢复。配套vault.json须一起保留，不迁移早期明文或旧凭据格式库。正文与文件数据不进入 Vue/Pinia。
 
 ## 导航
 
@@ -31,14 +31,17 @@ Windows、macOS、Linux 桌面客户端，采用 Tauri 2 + Rust + Vue 3 + TypeSc
 | 16   | [SFTP 工作区](16-sftp-workspace.md)         | 目录浏览、上传下载、原生拖放与资源边界           |
 | 18   | [终端工作区](18-terminal-workspaces.md)     | 标签排序、四向拖入、嵌套分屏、输入广播与终端保活 |
 | 19 | [Serial终端](19-serial-terminal.md) | 串口枚举、启动参数、字符集与设备生命周期 |
+| 20 | [Telnet终端](20-telnet-terminal.md) | Telnet协商、主机配置、明文边界与schema升级 |
 
 协作与执行规则见 [AGENTS.md](../AGENTS.md)。未经用户明确要求，不构建、启动、执行 Rust 测试或连接真实主机；允许不触发构建的依赖维护与静态检查。静态检查通过不代表运行验收；用户既有 macOS 反馈不外推为当前版本或三平台验收。
+
+本机Telnet手动测试容器配置与连接参数见[测试环境说明](../dev/telnet/README.md)，协议及验证范围见[Telnet设计](20-telnet-terminal.md)。容器就绪不代表应用已验收。
 
 ## 阅读约定
 
 - 产品需求表 `[x]` 仅表示代码已完整实现，不考虑测试；`[ ]` 包含未实现和部分实现，剩余范围就近说明。源码完成与运行验收分开记录。
 - 导航编号沿用文件名前缀，删除文档后保留编号空缺；实现状态和简要验收边界统一维护于产品需求。
-- M0预研，M1 SSH纵向切片，M2 SSH MVP，M3专业SSH/SFTP，M4 Local/Serial，M5分发产品化；P0/P1/P2按所属里程碑理解。
+- M0预研，M1 SSH纵向切片，M2 SSH MVP，M3专业SSH/SFTP，M4 Local/Serial/Telnet，M5分发产品化；P0/P1/P2按所属里程碑理解。
 - host/profile为持久化连接配置，session为一次后端连接生命周期，connection为底层SSH传输，terminalId为跨重连稳定的终端视图标识，pane/tab为布局节点。
-- IPC命令使用snake_case，JSON字段使用camelCase；SSH/Local字节流保留原始字节，Serial文本模式可按字符集转码，详见串口设计。具体接口以同步的Rust/TS类型为准。
+- IPC命令使用snake_case，JSON字段使用camelCase；SSH/Local字节流保留原始字节，Telnet剥离协议协商并按NVT/BINARY处理控制字节，Serial文本模式可按字符集转码，详见串口设计。具体接口以同步的Rust/TS类型为准。
 - 字体资源及许可证见 [字体清单](../public/fonts/README.md)，配色、拼音表及SSH系统图标/只读命令来源见 [静态资源](../resources/README.md)。

@@ -1,6 +1,7 @@
 import { computed, type Ref } from "vue";
 import { useHosts } from "./store";
 import { useSettings } from "../settings/store";
+import { hostAddress } from "./presentation";
 import { groupPath } from "./groups";
 import { matchesText, searchWords, toSearchableName } from "./search";
 
@@ -15,7 +16,7 @@ export function useHostSearch(query: Ref<string>, includeAllWhenEmpty = false) {
       fields: settings.value.hostSearch.fields.flatMap((field) => {
         const values = {
           name: [host.name],
-          address: [host.address],
+          address: [hostAddress(host)],
           username: [host.username],
           tags: host.tags,
           group: [groupPath(store.groups, host.groupId)],

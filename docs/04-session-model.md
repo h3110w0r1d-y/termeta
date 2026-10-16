@@ -141,8 +141,12 @@ M2 内存分屏不改变 actor 或 session 模型：标签组ID、terminalId、�
 
 ## 本地驱动（2026-10-16）
 
-SessionFactory 接收 SessionConfig（Ssh/Local），SessionManager::open 兼容 SshConfig 的 Into 转换；with_factory 注册本地工厂，共享20个活动会话限额与连接额度。Local 使用独立阻塞读写线程、有界4×32KiB读取桥和单块输入桥，InputChunk 保留字节预算许可；输出泵与resize/退出轮询并行，取消丢弃驱动时终止子进程并异步回收。PTY创建放在阻塞任务内，晚到的创建结果同样由RAII清理。Unix 初始进程组强制结束；已脱离组的子进程、Windows完整进程树仍待完善。Shell退出后等待PTY输出排空，再由核心发布Ended并保留前端历史。
+SessionFactory 接收 SessionConfig（Ssh/Telnet/Local/Serial），SessionManager::open 兼容 SshConfig 的 Into 转换；with_factory 注册本地工厂，共享20个活动会话限额与连接额度。Local 使用独立阻塞读写线程、有界4×32KiB读取桥和单块输入桥，InputChunk 保留字节预算许可；输出泵与resize/退出轮询并行，取消丢弃驱动时终止子进程并异步回收。PTY创建放在阻塞任务内，晚到的创建结果同样由RAII清理。Unix 初始进程组强制结束；已脱离组的子进程、Windows完整进程树仍待完善。Shell退出后等待PTY输出排空，再由核心发布Ended并保留前端历史。
 
 ## 串口驱动（2026-10-16）
 
 SessionConfig增加SerialConfig，SerialFactory接入共用会话表；不支持PTY/远端resize/会话内专用控制。独占设备由读写线程持有，应用内登记在最后句柄关闭后释放；future取消同样触发线程取消。读取桥4×8KiB与单块输入桥均有界，输出转码/ACK等待不阻止取消；错误停止设备并排空已读输出，用户取消仍优先。UTF-8字节直接传递，其他编码以状态化解码器跨块转换；Channel偏移针对转换后字节。详细契约和真实设备验证边界见[Serial设计](19-serial-terminal.md)。
+
+## Telnet适配（2026-10-16）
+
+SessionConfig增加Telnet(TelnetConfig)，kind=telnet，能力为resize=true/pty=false/binaryOutput=true/serialControl=false。状态从Connecting直接进入Connected，表示TCP建立；Telnet没有SSH认证挑战，远端登录与密码隐藏由服务端终端交互控制。协议适配器维护IAC/选项/子协商状态，NAWS同意前仅保存最新尺寸。DNS/TCP和单次socket写入各30秒截止，有界队列与独立取消沿用core；正常EOF为Closed、I/O错误为Disconnected，失败/断线均保留原xterm，重连创建新session。详见[Telnet设计](20-telnet-terminal.md)，本轮仅静态检查，未编译或运行。

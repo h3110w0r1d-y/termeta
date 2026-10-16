@@ -1,4 +1,4 @@
-use crate::SerialConfig;
+use crate::{SerialConfig, TelnetConfig};
 use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
 
@@ -264,6 +264,7 @@ pub enum SessionConfig {
     Ssh(SshConfig),
     Local,
     Serial(SerialConfig),
+    Telnet(TelnetConfig),
 }
 impl SessionConfig {
     pub fn validate(&self) -> Result<()> {
@@ -271,6 +272,7 @@ impl SessionConfig {
             Self::Ssh(config) => config.validate(),
             Self::Local => Ok(()),
             Self::Serial(config) => config.validate(),
+            Self::Telnet(config) => config.validate(),
         }
     }
     pub fn kind(&self) -> &'static str {
@@ -278,6 +280,7 @@ impl SessionConfig {
             Self::Ssh(_) => "ssh",
             Self::Local => "local",
             Self::Serial(_) => "serial",
+            Self::Telnet(_) => "telnet",
         }
     }
     pub fn title(&self) -> String {
@@ -285,6 +288,7 @@ impl SessionConfig {
             Self::Ssh(config) => format!("{}@{}", config.username, config.address),
             Self::Local => "本地终端".into(),
             Self::Serial(config) => config.path.clone(),
+            Self::Telnet(config) => config.endpoint(),
         }
     }
 }

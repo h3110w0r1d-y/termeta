@@ -19,7 +19,7 @@ impl RemoteSystemStore for SqliteStore {
                 let value: serde_json::Value = serde_json::from_str(&setting)?;
                 if value["detectSshSystem"] == false { return Ok(false); }
             }
-            let changed = sqlx::query("UPDATE connection_profiles SET config_json=json_set(config_json,'$.systemDetectionAttempted',json('true'),'$.systemDetectionToken',?),revision=revision+1 WHERE id=? AND coalesce(json_extract(config_json,'$.systemDetectionAttempted'),0)=0 AND coalesce(json_extract(config_json,'$.icon'),'ssh')='ssh' AND EXISTS(SELECT 1 FROM ssh_profiles WHERE profile_id=? AND address=? AND port=? AND username=?)")
+            let changed = sqlx::query("UPDATE connection_profiles SET config_json=json_set(config_json,'$.systemDetectionAttempted',json('true'),'$.systemDetectionToken',?),revision=revision+1 WHERE id=? AND kind='ssh' AND coalesce(json_extract(config_json,'$.systemDetectionAttempted'),0)=0 AND coalesce(json_extract(config_json,'$.icon'),'ssh')='ssh' AND EXISTS(SELECT 1 FROM ssh_profiles WHERE profile_id=? AND address=? AND port=? AND username=?)")
                 .bind(token).bind(id).bind(id).bind(&config.address).bind(i64::from(config.port)).bind(&config.username)
                 .execute(&mut *tx).await?;
             tx.commit().await?;
@@ -49,7 +49,7 @@ impl RemoteSystemStore for SqliteStore {
             ));
         }
         let result = async {
-            sqlx::query("UPDATE connection_profiles SET config_json=json_set(config_json,'$.icon',?),revision=revision+1,updated_at=? WHERE id=? AND json_extract(config_json,'$.systemDetectionToken')=? AND coalesce(json_extract(config_json,'$.icon'),'ssh')='ssh' AND EXISTS(SELECT 1 FROM ssh_profiles WHERE profile_id=? AND address=? AND port=? AND username=?)")
+            sqlx::query("UPDATE connection_profiles SET config_json=json_set(config_json,'$.icon',?),revision=revision+1,updated_at=? WHERE id=? AND kind='ssh' AND json_extract(config_json,'$.systemDetectionToken')=? AND coalesce(json_extract(config_json,'$.icon'),'ssh')='ssh' AND EXISTS(SELECT 1 FROM ssh_profiles WHERE profile_id=? AND address=? AND port=? AND username=?)")
                 .bind(icon).bind(now()).bind(id).bind(token).bind(id).bind(&config.address).bind(i64::from(config.port)).bind(&config.username)
                 .execute(self.pool()?).await?;
             Ok::<_, StorageError>(())

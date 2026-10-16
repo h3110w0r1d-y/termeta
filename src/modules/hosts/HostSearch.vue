@@ -13,6 +13,7 @@ import {
 import SearchPreferences from "../settings/SearchPreferences.vue";
 import type { HostProfile } from "../../services/desktop/types";
 import { useHosts } from "./store";
+import { hostEndpoint, hostKindLabel } from "./presentation";
 import { groupPath } from "./groups";
 import { useHostSearch } from "./useHostSearch";
 
@@ -47,9 +48,6 @@ const options = computed<SelectOption[]>(() => {
 function renderLabel(option: SelectOption) {
   const host = store.hosts.find((host) => host.id === option.value);
   if (!host) return String(option.label);
-  const address = host.address.includes(":")
-    ? `[${host.address}]`
-    : host.address;
   return h(NSpace, { vertical: true, size: 0 }, () => [
     h(NEllipsis, null, () => [
       host.favorite
@@ -63,7 +61,7 @@ function renderLabel(option: SelectOption) {
       NText,
       { depth: 3 },
       () =>
-        `${host.username}@${address}:${host.port} · ${groupPath(store.groups, host.groupId)}`,
+        `${hostKindLabel(host)} · ${hostEndpoint(host)} · ${groupPath(store.groups, host.groupId)}`,
     ),
   ]);
 }

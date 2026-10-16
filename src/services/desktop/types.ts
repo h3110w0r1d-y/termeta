@@ -24,8 +24,16 @@ export interface SshConfig {
   username: string;
   authPlan: AuthStep[];
 }
+export interface TelnetConfig {
+  configVersion: 1;
+  address: string;
+  port: number;
+}
+export type HostKind = "ssh" | "serial" | "telnet";
 export interface HostProfile extends Omit<SshConfig, "configVersion"> {
   id: string;
+  kind: HostKind;
+  serialConfig?: SerialConfig | null;
   name: string;
   groupId: string | null;
   favorite: boolean;
@@ -64,13 +72,14 @@ export interface SerialPortInfo {
 export type OpenTarget =
   | { source: "local" }
   | { source: "serial"; config: SerialConfig }
+  | { source: "telnet"; config: TelnetConfig }
   | { source: "saved"; profileId: string }
   | { source: "ephemeral"; kind: "ssh"; config: SshConfig };
 export interface SessionSnapshot {
   protocolVersion: 1;
   requestId: string;
   sessionId: string;
-  kind: "ssh" | "local" | "serial";
+  kind: "ssh" | "local" | "serial" | "telnet";
   capabilities: {
     resize: boolean;
     pty: boolean;

@@ -3,8 +3,8 @@
     "id": "ssh",
     "label": "SSH",
     "file": "ssh.svg",
-    "source": "ssh.react-0335f367.svg",
-    "sha256": "0335f3679da8594a53fd1257ca8cfbce19d3f6e0698fdf9a26eea45609c97b38",
+    "source": "host.react-ecf6b335.svg",
+    "sha256": "ecf6b335462c5da01870daf40fcff292aca7ff28a75a14f30fa022185e739013",
     "colorVariable": "--dark-blue-solid",
     "background": "#004878"
   },

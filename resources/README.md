@@ -14,9 +14,13 @@
 
 按用户指定，从本地 roco-helper-web 项目的 `src/assets/conf/PINYIN_CONF.ts` 复制20903条Unicode码点到拼音候选的配置至 [PINYIN_CONF.ts](../src/assets/conf/PINYIN_CONF.ts)，仅将文件头注释改为中文，配置数据一致。匹配逻辑参考该项目 `src/modules/big-map/petNameSearch.ts`，适配为 [主机搜索工具](../src/modules/hosts/search.ts)，支持原文、全拼、首字母、多音字、部分音节和中英/拼音混合输入；不引入上游业务数据或新依赖。复制日期与原始/本地摘要见[来源记录](pinyin.provenance.json)。
 
+## 界面图标
+
+新建标签、主机、保险箱、凭据、本地终端、主机信任、连接历史和固定 SFTP 标签统一使用 [xicons](https://xicons.org/) 的 `@vicons/ionicons5`，通过 Naive UI `NIcon` 渲染。`AssetIcon.vue` 仅保留语义名称到库组件的静态映射，原先对应的 8 个 Termius 界面 SVG 已移除。主机系统/类型图标继续保留下述原始素材，不随界面图标替换。
+
 ## SSH 系统图标与检测命令
 
-按用户指定，原样复制28个系统/类型SVG到[src/assets/svg/systems](../src/assets/svg/systems)，使用语义文件名。映射参考解包reconnectSaga-871ae692.js，原文件名与SHA-256见[host-system-icons.json](host-system-icons.json)；raspbian与pi复用pi素材，suse使用原suze素材。素材复用仅按本次用户指定范围，不声明这些素材为项目自有或另行开源许可。
+按用户指定，原样复制28个系统/类型SVG到[src/assets/svg/systems](../src/assets/svg/systems)，使用语义文件名。映射参考解包reconnectSaga-871ae692.js，原文件名与SHA-256见[host-system-icons.json](host-system-icons.json)；raspbian与pi复用pi素材，suse使用原suze素材；SSH默认项按用户指定改用`host.react-ecf6b335.svg`，原样保存为`systems/ssh.svg`（保留id=ssh及原背景色）。素材复用仅按本次用户指定范围，不声明这些素材为项目自有或另行开源许可。
 
 [ssh-os-detection.json](ssh-os-detection.json)为重新编写的5份固定只读命令：Shell探测、POSIX、Fish、RouterOS及Windows，参考Termius检测流程，POSIX/Fish优先标准os-release。Rust通过include_str读取、设置页直接导入同份JSON，设置不接受脚本编辑。命令不会作为本地脚本执行。系统类型仅用于图标展示，细节见[SSH设计](../docs/05-ssh-design.md#10-一次性主机系统识别)。
 

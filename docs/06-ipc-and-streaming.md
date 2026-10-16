@@ -11,7 +11,7 @@
 ## 2. DTO 草案
 
 ```ts
-type SessionKind = "ssh" | "local" | "serial";
+type SessionKind = "ssh" | "local" | "serial" | "telnet";
 type SessionState =
   | "created"
   | "connecting"
@@ -48,8 +48,16 @@ interface SessionSnapshot {
 
 type OpenTarget =
   | { source: "local" }
+  | { source: "serial"; config: SerialConfig }
+  | { source: "telnet"; config: TelnetConfig }
   | { source: "saved"; profileId: string }
   | { source: "ephemeral"; kind: "ssh"; config: SshConfigV1 };
+
+interface TelnetConfig {
+  configVersion: 1;
+  address: string;
+  port: number;
+}
 
 interface SshConfigV1 {
   configVersion: 1;
@@ -63,7 +71,7 @@ type AuthStepV1 =
   | { type: "privateKey"; credentialId: string };
 ```
 
-OpenTarget 接受保存/临时 SSH 与 `{source:"local"}`，Local 不接受任意命令、路径、环境或认证字段。available_session_kinds 返回 ssh/local 对应工厂能力，SessionSnapshot.kind 同步支持 local；本地复用现有 open/write/resize/ack/close 与ACL/owner/解锁校验。Serial接受`{source:"serial",config:SerialConfig}`，新增仅main且解锁后可调用的`list_serial_ports`；返回路径及可选描述作为候选，允许手输未枚举端口；打开时校验Unix的/dev字符设备或Windows COM名称，macOS候选按系统IODialinDevice属性筛选tty，打开用户指定节点，不主动切换tty/cu；错误边界见串口设计。available_session_kinds包含serial；resize/pty/serialControl=false，binaryOutput=true。Serial打开时DTR初始false，非硬件流控下尽力解除RTS；硬件流控RTS由驱动管理，无新增IPC或配置字段。Serial文本转码后帧偏移按UTF-8字节统计，具体字段与限额见[串口设计](19-serial-terminal.md)。未传 password ref 时由认证 challenge 获取秘密，open_session 不需要明文密码字段。
+OpenTarget 接受保存SSH/Telnet/串口、临时SSH/Telnet与 `{source:"local"}`，Local 不接受任意命令、路径、环境或认证字段。available_session_kinds 返回 ssh/telnet/local/serial 对应工厂能力，SessionSnapshot.kind 同步支持 local；本地复用现有 open/write/resize/ack/close 与ACL/owner/解锁校验。Serial接受`{source:"serial",config:SerialConfig}`，新增仅main且解锁后可调用的`list_serial_ports`；返回路径及可选描述作为候选，允许手输未枚举端口；打开时校验Unix的/dev字符设备或Windows COM名称，macOS候选按系统IODialinDevice属性筛选tty，打开用户指定节点，不主动切换tty/cu；错误边界见串口设计。available_session_kinds包含serial；resize/pty/serialControl=false，binaryOutput=true。Serial打开时DTR初始false，非硬件流控下尽力解除RTS；硬件流控RTS由驱动管理，无新增IPC或配置字段。Serial文本转码后帧偏移按UTF-8字节统计，具体字段与限额见[串口设计](19-serial-terminal.md)。未传 password ref 时由认证 challenge 获取秘密，open_session 不需要明文密码字段。
 
 前端另有不参与原生授权的稳定视图绑定：`TerminalBinding { terminalId, currentSessionId?, bindingGeneration }`。terminalId 在工作区创建时生成，重连不变；后端 sessionId 每次连接新建。前端 registry 按 terminalId 持有 xterm，session/channel 回调捕获各自的 sessionId 与 bindingGeneration。不能将 sessionId 用作 xterm 宿主的 Vue key，也不能接到 failed/ended 就删除对应终端。
 
@@ -203,7 +211,9 @@ Channel send 错误、窗口已销毁或主动 close 立即取消对应流，释
 
 `respond_auth_challenge` 当前只接受 `savePolicy:"never"`；公共凭据保存为凭据页的显式 `save_credential({kind,label,password?,keyFileRef?,passphrase?}) -> {id}`，无读取秘密给 UI 的命令；交互 OTP 不保存。新增原生 `export_json({name,value})` 保存对话框、历史 `list_history` / `clear_history`。私钥选择可取消返回 null，只返回 keyFileRef/name；该引用用于导入 privateKey 凭据，不用于会话配置。
 
-`save_host.password` 省略/null 表示元数据更新保留已有专属密码，显式 `""` 表示移除，非空表示替换；主机编辑总显式提交字符串。HostDraft 不含秘密，主机公共结果新增 hasPassword 且隐藏专属credentialId。私钥凭据参数只接受 keyFileRef 与可选passphrase，密码凭据只接受password，不接受混合类型；所有secret只作为提交参数，不回传。保存主机后的旧秘密清理失败不回滚已经提交的主机结果，deleting登记留待重试。
+HostDraft/HostProfile新增kind:"ssh"|"telnet"|"serial"（旧DTO缺失默认ssh）与serialConfig?:SerialConfig|null；其他轻量元数据共用。串口配置包含path/baudRate/charset/dataBits/stopBits/flowControl/parity，SSH平坦字段必须空串/port0/authPlan空数组；SSH必须无serialConfig。已有主机禁止变更kind。保存串口不触发设备访问或网络，连接时saved/profileId由Rust解析kind后分发；公共OpenTarget不接收前端的kind/serialConfig提示来覆盖保存配置。终端视图另外持有kind/serialConfig元数据，防止保存串口误显SSH能力，不作为后端授权依据。现有save_host/list_hosts/open_session命令与ACL不变；Telnet已启用，使用独立typed配置和工厂，见末尾Telnet契约。
+
+`save_host.password` 仅用于SSH，Telnet/串口拒绝任何非null密码字段；省略/null 表示元数据更新保留已有专属密码，显式 `""` 表示移除，非空表示替换；SSH主机编辑总显式提交字符串。HostDraft 不含秘密，主机公共结果新增 hasPassword 且隐藏专属credentialId。私钥凭据参数只接受 keyFileRef 与可选passphrase，密码凭据只接受password，不接受混合类型；所有secret只作为提交参数，不回传。保存主机后的旧秘密清理失败不回滚已经提交的主机结果，deleting登记留待重试。
 
 设置通过 `get_settings` / `save_settings({settings, defaults})` 操作版本 1 的 app JSON（settings为局部更新，defaults为首次无记录时使用的完整默认值，二者均受校验）；包含 customSchemes、hostSchemes、keymap 和 tabPosition（top/left，旧记录缺失兼容），尚无独立配色命令族。拒绝未来设置版本和非法动作/颜色。AppManifest、handler、capability 共用中心命令名单并做静态集合检查；后续仍须实际验证 ACL 拒绝路径。
 
@@ -251,7 +261,7 @@ macOS 拖出 names 最多 100 个普通文件或真实目录根，directories �
 
 分组删除契约（2026-10-16）：`delete_host_group(id, revision, deleteHosts?: boolean)` 沿用原命令与 main owner/保险库门禁/ACL，省略或 false 保留直属主机和子组并上移；true 按根组 revision 校验后，在同一数据库事务内从叶到根删除整个子树和主机、将专属凭据登记 deleting，再复用协调器清理。共享凭据不删除，已连接会话保持快照，不新增命令或 schema。前端选择 true 必须另弹最终确认。主机拖拽复用 `save_host` 并省略 password，分组拖拽复用 `save_host_group` 的 parentId/sortOrder/revision；无需新建移动接口。
 
-主机页设置契约：现有AppSettings增加可选旧格式兼容的`hostsView`对象，新保存包含`includeChildren: boolean`与`expandedGroupIds: string[]`；Rust白名单校验字段、UUID去重及10000项/整条256KiB上限。复用get_settings/save_settings，不新增IPC/ACL。前端保护包含子组、展开集合及sftpShowHidden不被设置草稿回退。全局拼音搜索只用已有轻量HostProfile列表，无逐次搜索IPC或网络请求。
+主机页设置契约：现有AppSettings增加可选旧格式兼容的`hostsView`对象，新保存包含`includeChildren: boolean`、`expandedGroupIds: string[]`、`showHosts: boolean`与`displayMode:"card"|"list"`；Rust白名单校验字段、UUID及固定键ungrouped去重及10000项/整条256KiB上限。复用get_settings/save_settings，不新增IPC/ACL。前端保护包含子组、展开集合及sftpShowHidden不被设置草稿回退。全局拼音搜索只用已有轻量HostProfile列表，无逐次搜索IPC或网络请求。
 
 搜索偏好通过既有get_settings/save_settings保存app.hostSearch（pinyin布尔值与fields字段集合），name强制存在，其他字段为address/username/tags/group且去重；缺失兼容旧数据。搜索下拉与设置页即时保存共用设置队列，设置页只提交修改字段，无新增IPC或ACL。
 
@@ -268,3 +278,5 @@ settings窗口仅开放设置和export_json，这些命令使用独立settings_o
 HostDraft.icon为内置字符串标识，缺省ssh；HostProfile新增icon与systemDetectionAttempted:boolean。后端SshConfig.system_profile_id使用serde(skip)，只由open_session的saved分支设置，不接收前端资源归属；Local、ephemeral及独立SFTP均不设置。新增控制事件{type:"hostSystemChanged", profileId:string}，使用既有SessionEvent信封的sessionId/requestId/eventSeq，仅通知重读已提交主机列表；不传输SVG、任意脚本或探测输出。终端注册表保留代次检查，主机列表读取忽略迟到旧请求。
 
 AppSettings新增detectSshSystem:boolean，旧设置缺失默认true；Rust验证仅接受布尔值，拒绝额外脚本字段。复用open_session/list_hosts/save_host/get_settings/save_settings及原ACL/owner，无新增命令或权限。
+
+Telnet新增typed目标`{source:"telnet",config:{configVersion:1,address,port}}`，拒绝未知配置字段（含SSH认证/密码/串口字段），保存目标仍仅传profileId并从数据库权威配置派发。HostDraft/Profile复用address/port，kind=telnet时username为空、authPlan=[]、serialConfig为空；存储到config_json.telnetConfig。无新增命令、权限或协议帧版本；Telnet握手控制字节只在Rust适配器内收发，输出帧/ACK偏移按剥离Telnet协商后的终端正文统计。resize=true表示NAWS同意后通知，pty=false，其他字段见[Telnet设计](20-telnet-terminal.md)。
