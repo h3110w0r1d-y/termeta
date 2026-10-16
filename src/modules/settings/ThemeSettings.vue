@@ -361,3 +361,36 @@ function confirmImport() {
     <p v-if="error" class="error" role="alert">{{ error }}</p>
   </div>
 </template>
+
+<style scoped>
+.theme-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+.scheme-card {
+  width: 100%;
+  height: auto;
+  padding: 8px 12px;
+}
+.swatches {
+  display: inline-flex;
+  gap: 3px;
+}
+.swatches i {
+  width: 14px;
+  height: 6px;
+  display: inline-block;
+}
+.theme-preview {
+  height: 170px;
+  overflow: hidden;
+  margin: 12px 0;
+}
+.color-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+</style>

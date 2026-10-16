@@ -200,7 +200,7 @@ Channel send 错误、窗口已销毁或主动 close 立即取消对应流，释
 
 以 [Rust 命令](../src-tauri/src/commands/mod.rs) 与 [TS 门面](../src/services/desktop/client.ts) 为实际边界。`open_session` 额外接收 `terminalId`，快照包含 terminalId；owner 只取注入窗口身份。`write_session` 返回 `{acceptedSeq}`；`resize_session` 返回接受的 `{cols,rows}`。`save_host({host,expectedRevision,password?})` / `save_host_group({group,expectedRevision})` 使用乐观锁，删除携带 revision。
 
-`respond_auth_challenge` 当前只接受 `savePolicy:"never"`；公共凭据保存为凭据页的显式 `save_credential({kind,label,password?,keyFileRef?,passphrase?}) -> {id}`，无读取秘密给 UI 的命令；交互 OTP 不保存。新增原生 `export_json({name,value})` 保存对话框、历史 `list_history` / `clear_history` 与中断凭据 `recover_credential({id})`。私钥选择可取消返回 null，只返回 keyFileRef/name；该引用用于导入 privateKey 凭据，不用于会话配置。
+`respond_auth_challenge` 当前只接受 `savePolicy:"never"`；公共凭据保存为凭据页的显式 `save_credential({kind,label,password?,keyFileRef?,passphrase?}) -> {id}`，无读取秘密给 UI 的命令；交互 OTP 不保存。新增原生 `export_json({name,value})` 保存对话框、历史 `list_history` / `clear_history`。私钥选择可取消返回 null，只返回 keyFileRef/name；该引用用于导入 privateKey 凭据，不用于会话配置。
 
 `save_host.password` 省略/null 表示元数据更新保留已有专属密码，显式 `""` 表示移除，非空表示替换；主机编辑总显式提交字符串。HostDraft 不含秘密，主机公共结果新增 hasPassword 且隐藏专属credentialId。私钥凭据参数只接受 keyFileRef 与可选passphrase，密码凭据只接受password，不接受混合类型；所有secret只作为提交参数，不回传。保存主机后的旧秘密清理失败不回滚已经提交的主机结果，deleting登记留待重试。
 
@@ -241,3 +241,9 @@ macOS 拖出 names 最多 100 个普通文件或真实目录根，directories �
 传输始终绑定原 sessionId，隐藏不取消；断线/关闭终端取消，重连不重放或关联新会话。尚无持久任务恢复、通用冲突 challenge、独立端点或连接租约。以上仅为源码契约，未完成编译与平台运行验收。
 
 双栏文件工作区增加 `sftp_connect(profileId, requestId, onControl)`，返回 `SessionSnapshot`；连接属于文件专用会话表，不创建终端，复用现有控制事件及主机信任/认证响应。`sftp_copy(request, onProgress)` 的 request 为 sourceSessionId、targetSessionId、sourcePath、targetPath、names、transferId，返回空成功；只接受两个 owner-bound 文件会话，正文不进入IPC。列表和取消复用 `sftp_list` / `sftp_cancel`，关闭复用 `close_session`；认证与关闭根据资源所属会话表路由。所有新增命令同步 AppManifest/ACL/main capability。
+
+## 数据保险库解锁命令（2026-10-16）
+
+`vault_status() -> {mode: "setup"|"locked"|"unlocked", keychainWarning: string|null}` 每进程最多自动尝试一次系统主密钥；`unlock_vault({password: string, setup: boolean})` 在Rust阻塞池派生并校验，成功后返回同一状态DTO。二者均校验main窗口及本地导航，加入AppManifest命令名单与main capability。密码/主密钥不出现在返回值或事件中。其他用例命令先检查保险库已解锁，否则返回VAULT_LOCKED；前端统一经desktop门面。
+
+已移除旧`recover_credential`：secret与ready现在在同一加密数据库写入，未完成公共pending项由用户删除后重建。原有主机/凭据DTO保持不返回秘密。

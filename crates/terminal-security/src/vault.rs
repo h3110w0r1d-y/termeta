@@ -8,10 +8,10 @@ use thiserror::Error;
 use tokio::sync::Mutex;
 use zeroize::Zeroizing;
 
-const SERVICE: &str = "com.h3110w0r1d.termvexa";
-
 #[derive(Debug, Error)]
 pub enum SecurityError {
+    #[error("{0}")]
+    Vault(&'static str),
     #[error("系统凭据库不可用、已锁定或访问被拒绝")]
     Unavailable,
     #[error("凭据元数据更新失败，保留待处理状态")]
@@ -25,14 +25,20 @@ pub enum SecurityError {
 }
 
 pub struct CredentialVault {
-    store: Arc<SqliteStore>,
-    // 系统 API 可阻塞或显示授权框，仅在阻塞工作池执行；串行化避免同项竞态。
+    pub(crate) store: Arc<SqliteStore>,
+    pub(crate) unlocked: std::sync::atomic::AtomicBool,
+    pub(crate) key_backend: Arc<dyn crate::master_key::MasterKeyBackend>,
+    pub(crate) boot: Mutex<crate::master_key::BootState>,
+    // 凭据写入与引用替换串行协调；钥匙串只在主密钥解锁流程使用。
     operations: Mutex<()>,
 }
 impl CredentialVault {
     pub fn new(store: Arc<SqliteStore>) -> Self {
         Self {
             store,
+            unlocked: std::sync::atomic::AtomicBool::new(false),
+            key_backend: Arc::new(crate::master_key::OsMasterKey),
+            boot: Mutex::new(Default::default()),
             operations: Mutex::new(()),
         }
     }
@@ -65,7 +71,7 @@ impl CredentialVault {
         })
         .await
         .map_err(|_| SecurityError::KeyFile)??;
-        // 整体存成单个系统凭据项，口令不能成为可独立引用的凭据。
+        // 整体存成单个加密数据库凭据项，口令不能成为可独立引用的凭据。
         // 按 JSON 最坏转义长度预留空间，避免扩容残留未擦除的私钥副本。
         let capacity = 6 * (text.len() + passphrase.as_ref().map_or(0, |value| value.len())) + 128;
         let mut bytes = Zeroizing::new(Vec::with_capacity(capacity));
@@ -85,16 +91,7 @@ impl CredentialVault {
         Ok(id)
     }
     async fn persist(&self, id: &str, secret: Zeroizing<String>) -> Result<(), SecurityError> {
-        let account = id.to_owned();
-        tokio::task::spawn_blocking(move || {
-            keyring::Entry::new(SERVICE, &account)
-                .map_err(|_| SecurityError::Unavailable)?
-                .set_password(&secret)
-                .map_err(|_| SecurityError::Unavailable)
-        })
-        .await
-        .map_err(|_| SecurityError::Unavailable)??;
-        self.store.credential_ready(id).await?;
+        self.store.set_credential_secret(id, &secret).await?;
         Ok(())
     }
     pub async fn save_host(
@@ -105,7 +102,7 @@ impl CredentialVault {
         let _guard = self.operations.lock().await;
         let Some(password) = password else {
             let saved = self.store.save_host(host).await?;
-            // 主机事务已提交；系统删除失败保留 deleting，不能把成功保存误报为失败。
+            // 主机事务已提交；数据库清理失败保留 deleting，不能把成功保存误报为失败。
             let _ = self.reconcile_locked().await;
             return Ok(saved);
         };
@@ -120,7 +117,7 @@ impl CredentialVault {
         );
         if !direct || password.is_empty() {
             let saved = self.store.save_host_with_password_ref(host, None).await?;
-            // 主机事务已提交；系统删除失败保留 deleting，不能把成功保存误报为失败。
+            // 主机事务已提交；数据库清理失败保留 deleting，不能把成功保存误报为失败。
             let _ = self.reconcile_locked().await;
             return Ok(saved);
         }
@@ -160,18 +157,12 @@ impl CredentialVault {
         if item.status != "ready" || item.kind != "password" {
             return Err(SecurityError::NotReady);
         }
-        let account = id.to_owned();
-        tokio::task::spawn_blocking(move || {
-            let entry =
-                keyring::Entry::new(SERVICE, &account).map_err(|_| SecurityError::Unavailable)?;
-            entry
-                .get_password()
-                .map(Zeroizing::new)
-                .map_err(|_| SecurityError::Unavailable)
-        })
-        .await
-        .map_err(|_| SecurityError::Unavailable)?
+        self.store
+            .credential_secret(id)
+            .await
+            .map_err(SecurityError::from)
     }
+
     pub async fn delete(&self, id: &str) -> Result<(), SecurityError> {
         let _guard = self.operations.lock().await;
         if self
@@ -189,19 +180,10 @@ impl CredentialVault {
         Ok(())
     }
     async fn delete_item(&self, id: &str) -> Result<(), SecurityError> {
-        let account = id.to_owned();
-        tokio::task::spawn_blocking(move || {
-            let entry =
-                keyring::Entry::new(SERVICE, &account).map_err(|_| SecurityError::Unavailable)?;
-            match entry.delete_credential() {
-                Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-                Err(_) => Err(SecurityError::Unavailable),
-            }
-        })
-        .await
-        .map_err(|_| SecurityError::Unavailable)?
+        self.store.erase_credential_secret(id).await?;
+        Ok(())
     }
-    /// 只协调当前数据库已登记的删除任务，不扫描系统凭据库。
+    /// 只协调当前加密数据库已登记的删除任务。
     pub async fn reconcile_deletions(&self) -> Result<(), SecurityError> {
         let _guard = self.operations.lock().await;
         self.reconcile_locked().await
@@ -232,26 +214,6 @@ impl CredentialVault {
             Some(error) => Err(error),
             None => Ok(()),
         }
-    }
-    /// 用户明确确认后，才将先前中断且 OS 项存在的 pending 项恢复为 ready。
-    pub async fn recover_pending(&self, id: &str) -> Result<(), SecurityError> {
-        let _guard = self.operations.lock().await;
-        let item = self.store.get_credential(id).await?;
-        if item.owner_profile_id.is_some() || item.status != "pending" {
-            return Err(SecurityError::NotReady);
-        }
-        let account = id.to_owned();
-        let _secret = tokio::task::spawn_blocking(move || {
-            keyring::Entry::new(SERVICE, &account)
-                .map_err(|_| SecurityError::Unavailable)?
-                .get_password()
-                .map(Zeroizing::new)
-                .map_err(|_| SecurityError::Unavailable)
-        })
-        .await
-        .map_err(|_| SecurityError::Unavailable)??;
-        self.store.credential_ready(id).await?;
-        Ok(())
     }
 }
 fn session_error(_: SecurityError) -> SessionError {
@@ -286,17 +248,11 @@ impl CredentialStore for CredentialVault {
         if item.kind != "privateKey" || item.status != "ready" || item.owner_profile_id.is_some() {
             return Err(session_error(SecurityError::NotReady));
         }
-        let account = id.to_owned();
-        let text = tokio::task::spawn_blocking(move || {
-            keyring::Entry::new(SERVICE, &account)
-                .map_err(|_| SecurityError::Unavailable)?
-                .get_password()
-                .map(Zeroizing::new)
-                .map_err(|_| SecurityError::Unavailable)
-        })
-        .await
-        .map_err(|_| session_error(SecurityError::Unavailable))?
-        .map_err(session_error)?;
+        let text = self
+            .store
+            .credential_secret(id)
+            .await
+            .map_err(|_| session_error(SecurityError::NotReady))?;
         let material: KeyPayload =
             serde_json::from_str(&text).map_err(|_| session_error(SecurityError::KeyFile))?;
         Ok(PrivateKeyMaterial {

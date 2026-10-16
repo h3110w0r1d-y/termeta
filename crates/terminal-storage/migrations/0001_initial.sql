@@ -6,7 +6,7 @@ CREATE TABLE host_groups (
 CREATE TABLE credentials (
  id TEXT PRIMARY KEY NOT NULL, kind TEXT NOT NULL CHECK(kind IN ('password','privateKey')),
  label TEXT NOT NULL, owner_profile_id TEXT,
- store_backend TEXT NOT NULL DEFAULT 'os', store_account TEXT NOT NULL UNIQUE,
+ secret TEXT,
  status TEXT NOT NULL CHECK(status IN ('pending','ready','deleting')),
  created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
  CHECK(owner_profile_id IS NULL OR kind='password')

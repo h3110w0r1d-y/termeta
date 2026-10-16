@@ -48,16 +48,11 @@ pub fn run() {
                 use std::os::unix::fs::PermissionsExt;
                 std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700))?;
             }
-            // 新凭据模型采用独立数据库代际，保留旧库且不尝试兼容迁移。
-            let store = Arc::new(tauri::async_runtime::block_on(SqliteStore::open(
-                path.join("termvexa-credentials-v1.sqlite3"),
-            ))?);
+            // 加密格式独立代际，不读取或迁移开发阶段的旧数据库与逐项系统凭据。
+            let store = Arc::new(SqliteStore::locked(
+                path.join("termvexa-encrypted-v2.sqlite3"),
+            ));
             let vault = Arc::new(CredentialVault::new(store.clone()));
-            let recover_vault = vault.clone();
-            tauri::async_runtime::spawn(async move {
-                // 恢复仅限先前明确请求删除且已登记的项目；失败保留元数据供用户重试。
-                let _ = recover_vault.reconcile_deletions().await;
-            });
             let factory = SshFactory::new(store.clone(), vault.clone());
             let ssh_channels = factory.channels();
             let file_sessions = SessionManager::new(Arc::new(factory.for_files()));
@@ -104,7 +99,18 @@ pub fn run() {
                     last_tick = now;
                 }
             });
-            tauri::WebviewWindowBuilder::from_config(app, &app.config().app.windows[0])?
+            // macOS 保留原生窗口按钮，将 WebView 延伸至标题栏；其余平台由标签栏承载窗口控件。
+            let window =
+                tauri::WebviewWindowBuilder::from_config(app, &app.config().app.windows[0])?;
+            #[cfg(target_os = "macos")]
+            let window = window
+                .title_bar_style(tauri::TitleBarStyle::Overlay)
+                .hidden_title(true)
+                // 下移原生窗口按钮，匹配 54px 标签栏的垂直居中布局。
+                .traffic_light_position(tauri::LogicalPosition::new(16.0, 28.0));
+            #[cfg(not(target_os = "macos"))]
+            let window = window.decorations(false);
+            window
                 .on_navigation(local_navigation)
                 .on_new_window(|_, _| tauri::webview::NewWindowResponse::Deny)
                 .build()?;
@@ -144,6 +150,8 @@ pub fn run() {
             commands::list_sessions,
             commands::get_session,
             commands::session_client_heartbeat,
+            commands::vault_status,
+            commands::unlock_vault,
             commands::list_hosts,
             commands::save_host,
             commands::delete_host,
@@ -162,7 +170,6 @@ pub fn run() {
             commands::export_json,
             commands::list_history,
             commands::clear_history,
-            commands::recover_credential,
         ])
         .run(tauri::generate_context!())
         .expect("Termvexa 初始化失败；请检查应用数据目录与桌面环境");

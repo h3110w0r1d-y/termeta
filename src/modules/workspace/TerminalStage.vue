@@ -202,3 +202,48 @@ onBeforeUnmount(() => {
     />
   </div>
 </template>
+
+<style scoped>
+.terminal-layout {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.terminal-layout.is-dragging-tab {
+  cursor: grabbing;
+}
+.terminal-layout.is-resizing :deep(.terminal-host) {
+  pointer-events: none;
+}
+.terminal-divider {
+  position: absolute;
+  z-index: 5;
+  touch-action: none;
+}
+.terminal-divider.horizontal {
+  width: 6px;
+  transform: translateX(-50%);
+  cursor: col-resize;
+}
+.terminal-divider.vertical {
+  height: 6px;
+  transform: translateY(-50%);
+  cursor: row-resize;
+}
+.terminal-divider:hover,
+.terminal-divider:focus-visible,
+.terminal-divider.resizing {
+  background: var(--accent);
+  outline: none;
+}
+.terminal-drop-preview {
+  position: absolute;
+  z-index: 10;
+  border: 1px solid #18a058;
+  background: #18a05840;
+  pointer-events: none;
+}
+.terminal-layout.is-dragging-tab :deep(.terminal-pane-title) {
+  cursor: grabbing;
+}
+</style>

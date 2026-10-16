@@ -120,26 +120,13 @@ async function save() {
 async function remove(item: CredentialMetadata) {
   if (
     !(await confirmAction(
-      `删除凭据“${item.label}”？此操作会从系统凭据库移除秘密，不能撤销。`,
+      `删除凭据“${item.label}”？此操作会从本地加密保险库移除秘密，不能撤销。`,
     ))
   )
     return;
   busy.value = true;
   try {
     await desktop.deleteCredential(item.id);
-    await load();
-  } catch (e) {
-    const failure = errorMessage(e);
-    await load();
-    error.value = failure;
-  } finally {
-    busy.value = false;
-  }
-}
-async function recover(item: CredentialMetadata) {
-  busy.value = true;
-  try {
-    await desktop.recoverCredential(item.id);
     await load();
   } catch (e) {
     const failure = errorMessage(e);
@@ -161,7 +148,7 @@ async function recover(item: CredentialMetadata) {
         >＋ 新建凭据</AppButton
       >
     </header>
-    <NAlert type="info" title="由系统凭据库保护" class="vault-notice"
+    <NAlert type="info" title="由本地加密保险库保护" class="vault-notice"
       >这里只显示名称和使用情况，不读取或展示已保存的秘密。私钥在创建凭据时导入，解密密码可选。</NAlert
     >
     <AppInput
@@ -211,11 +198,6 @@ async function recover(item: CredentialMetadata) {
         ><template #suffix
           ><div class="button-row">
             <AppButton
-              v-if="item.status === 'pending'"
-              :disabled="busy"
-              @click="recover(item)"
-              >恢复一致性</AppButton
-            ><AppButton
               class="danger"
               :disabled="busy || references(item.id).length > 0"
               :title="
@@ -231,12 +213,12 @@ async function recover(item: CredentialMetadata) {
       >
     </NList>
     <p class="credential-help muted">
-      正在被主机引用的凭据需先解除引用才能删除。系统凭据库不可用时，仍可在连接时输入，不会回退为明文保存。
+      正在被主机引用的凭据需先解除引用才能删除。钥匙串仅保存保险库主密钥；主机配置和凭据统一加密保存在本地数据库。
     </p>
     <AppDialog
       :open="editorOpen"
       title="新建凭据"
-      description="保存到操作系统凭据库，供主机认证时使用。"
+      description="加密保存到本地保险库，供主机认证时使用。"
       :locked="busy"
       @update:open="closeEditor"
     >
@@ -276,7 +258,7 @@ async function recover(item: CredentialMetadata) {
             >
             <span class="muted">{{
               keyName ||
-              "通过系统文件选择器授权读取，保存后由系统凭据库保护私钥。"
+              "通过系统文件选择器授权读取，保存后由本地保险库加密保护私钥。"
             }}</span>
           </div>
           <AppLabel class="span-2"

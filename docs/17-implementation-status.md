@@ -1,6 +1,6 @@
 # 首期实施状态与验证记录
 
-最后更新：2026-10-15。本文描述当前源码与证据，不保留逐次修复日志。总体为 M1/M2 首期主体已落地、M3 SFTP 部分实现；**尚未通过完整集成、运行与发布验收**。
+最后更新：2026-10-16。本文描述当前源码与证据，不保留逐次修复日志。总体为 M1/M2 首期主体已落地、M3 SFTP 部分实现；**尚未通过完整集成、运行与发布验收**。
 
 ## 0. 当前功能总览（2026-10-15）
 
@@ -9,14 +9,18 @@
 | 主机与首页   | [主机](../src/modules/hosts/HostsSidebar.vue)、[应用](../src/App.vue)：分组/收藏/标签/搜索（返回首页默认主机页并自动聚焦）、快速连接、卡片右键操作与名称旁 SSH 标签，首页主机/凭据/设置保活                                     | 页面、表单与重启持久化待验收                                                                                                                   |
 | SSH 与认证   | [SSH](../crates/terminal-ssh/src/lib.rs)：密码/公钥、动态交互认证、PAM 保存密码单次自动响应、空白零输入轮免弹窗、信任与变更阻断、PTY/resize/KeepAlive                                                                           | 密码/加密私钥/OTP/失败矩阵待完成，专门睡眠恢复未实现                                                                                           |
 | 终端生命周期 | [registry](../src/modules/terminal/registry.ts)：稳定 terminalId/xterm、断线/失败保留、同实例手动重连、旧流隔离、消费 ACK                                                                                                       | 历史/全屏/尾输出/压力与三平台待验收                                                                                                            |
-| 标签与分屏   | [WorkspaceTabs](../src/modules/workspace/WorkspaceTabs.vue)、[store](../src/modules/workspace/store.ts)：固定页、横纵标签、排序/嵌套分屏/比例、窗格拖回 Tab/跨组重排、普通标签复制/拆分、双击动作设置；Workspace 标签无右键菜单 | 布局只驻内存，无整组迁移/跨窗口/保存恢复                                                                                                       |
+| 标签与分屏   | [WorkspaceTabs](../src/modules/workspace/WorkspaceTabs.vue)、[store](../src/modules/workspace/store.ts)：固定页、标题栏集成（macOS Overlay 原生按钮下移对齐54px栏中线（待复验）、Windows/Linux 库按钮、左侧模式独立窗口栏）、横向32px/纵向36px标签（横向关闭按钮22px、图标16px）、排序/嵌套分屏/比例、窗格拖回 Tab/跨组重排、普通标签复制/拆分、双击动作设置；Workspace 标签无右键菜单 | 布局只驻内存，无整组迁移/跨窗口/保存恢复                                                                                                       |
 | 工作区广播   | [inputRouter](../src/modules/terminal/inputRouter.ts)、[inputOrigin](../src/modules/terminal/inputOrigin.ts)：键盘/IME/粘贴/远端滚轮，点击与应答隔离                                                                            | 默认关闭、重组关闭，固定 xterm 内部事件适配待实际验证                                                                                          |
-| 凭据与存储   | [storage](../crates/terminal-storage/src/lib.rs)、[security](../crates/terminal-security/src/vault.rs)：公共密码/私钥、主机专属密码、SQLite 元数据+OS keyring                                                                   | schema 1 与独立新库，不迁移旧库；系统服务/容量/失败恢复待验收                                                                                  |
-| 设置与 UI    | [设置](../src/modules/settings/SettingsDialog.vue)：Naive UI 2.45.3、页头/滚动/固定 footer、常规页等宽布局、标签位置单选/外观图标单选、配色页统一默认方案入口与设置保存                                                         | 工作区标签自定义，其余优先库组件；小窗口/IME/焦点待验收                                                                                        |
+| 凭据与存储   | [storage](../crates/terminal-storage/src/lib.rs)、[security](../crates/terminal-security/src/vault.rs)：公共密码/私钥、主机专属密码、SQLCipher schema 2全库加密、Argon2id首次密码、单OS主密钥/密码恢复                                                                   | 独立加密新库，不迁移旧库；原生依赖编译、OS主密钥/中断恢复/三平台待验收                                                                                  |
+| 设置与 UI    | [设置](../src/modules/settings/SettingsDialog.vue)：Naive UI 2.45.3、业务 CSS 归属 Vue scoped 样式（入口仅留基础/共享规则）、页头/滚动/固定 footer、常规页等宽布局、标签位置单选/外观图标单选、配色页统一默认方案入口与设置保存                                                         | 工作区标签自定义，其余优先库组件；小窗口/IME/焦点待验收                                                                                        |
 | 字体与配色   | [字体](../src/modules/settings/fonts.ts)、[主题](../src/modules/terminal/theme.ts)：12 本地家族默认 DejaVu Sans Mono，64 配色默认 Pro，JSON/自定义/多层覆盖/热应用                                                              | 不清历史、粗体不提亮；字宽/选区/许可及来源发布处理待验证                                                                                       |
 | 快捷键       | [快捷键](../src/modules/settings/ShortcutSettings.vue)：分类、多绑定/录制/冲突/JSON、链接修饰键路由                                                                                                                             | 系统后台热键未实现，Local 动作未启用                                                                                                           |
 | SFTP         | [SftpPanel](../src/modules/files/SftpPanel.vue)、[命令](../src-tauri/src/commands/files.rs)、[适配](../crates/terminal-sftp/src/lib.rs)：单终端浏览/上传/下载、覆盖确认、目录合并、原生拖入与 macOS 文件/目录拖出               | 终端侧栏在Workspace禁用；固定双栏保存主机独立连接与对拷已落源码，待编译运行；通用租约/本地浏览/Windows 与 Linux 拖出未实现，原生运行验收未完成 |
 | 安全与发布   | [命令入口](../src-tauri/src/commands/mod.rs)：manifest/ACL、owner、参数/URL 白名单、CSP、原生授权                                                                                                                               | 安全/性能/三平台/签名发布未通过，依赖风险见第4节                                                                                               |
+
+窗口标题栏与组件样式归位改动（2026-10-16）仅完成源码与前端类型/格式/ACL/差异静态检查；未构建或运行。须覆盖三平台拖动、双击最大化、窗口按钮、边缘缩放、macOS 全屏及标签布局切换，不能外推为体验验收通过。
+
+加密保险库（2026-10-16）：已完成首次密码设置、每进程一次OS主密钥读取、密码恢复/缓存失败警告和锁定IPC门禁；依赖features与锁文件、前端类型、Rust/前端格式、ACL及差异静态核对通过。测试源码覆盖错误密钥/篡改/截断拒绝、初始化中断恢复、磁盘无明文与注入钥匙串流程；代理未主动编译、启动、执行测试或操作真实钥匙串，原生集成仍待验收。
 
 ### 验证证据与剩余门槛
 
@@ -34,7 +38,8 @@
 
 - core：每会话 actor、owner/request 幂等、20 活动/4 建立并发、独立取消、输入去重、challenge 与终态摘要。
 - 数据面：24 字节帧头、32 KiB 帧、256 KiB 信用、512 KiB 输出字节预算、64 KiB 输入、解析后累计 ACK/finalOffset。
-- 存储：schema 1，独立 `termvexa-credentials-v1.sqlite3`；旧 `termvexa.sqlite3` 与真实 OS item 不迁移/删除。专属密码非空保存、显式空移除、省略保留；私钥正文和可选解密密码整体导入 OS item，不依赖源文件。
+- 存储：schema 2、独立 `termvexa-encrypted-v2.sqlite3` 与配套vault.json；SQLCipher加密所有业务表，OS只缓存一把Argon2id派生主密钥。旧库与旧OS项不迁移/删除。首次密码、自动解锁、密码恢复及缓存失败警告均已落源码；测试源码未运行。
+
 - 前端：固定首页/SFTP，已打开终端独立保活；OSC 标题展示，关闭提示依据 OSC 133 或标题首个冒号前缀变化；本地状态消息不无条件恢复旧光标。
 - 分屏：纯数据树计算矩形、扁平 keyed 宿主保活；广播只处理用户输入，成员重组关闭，不重放旧代次输入。
 
@@ -64,7 +69,7 @@ core 与文件流的测试源码存在但未运行。Rust格式解析不等于�
 
 ## 4. 依赖与公告核查
 
-固定主依赖包括 russh0.64.1、russh-sftp3.0.1、Tauri2.11.5/build2.6.3、SQLx0.8.6、keyring3.6.3、xterm6.0.0/Fit0.11.0、Naive UI2.45.3；精确版本以 Cargo.lock/pnpm-lock.yaml 为准。macOS 原生拖出采用锁定 objc2/block2/AppKit/Foundation，仅该平台编译。
+固定主依赖包括 russh0.64.1、russh-sftp3.0.1、Tauri2.11.5/build2.6.3、SQLx0.8.6/libsqlite3-sys0.30.1内嵌SQLCipher4.5.7、Argon2 0.6.0、AES-GCM0.11.1、keyring3.6.3、xterm6.0.0/Fit0.11.0、Naive UI2.45.3；精确版本以 Cargo.lock/pnpm-lock.yaml 为准。macOS 原生拖出采用锁定 objc2/block2/AppKit/Foundation，仅该平台编译。
 
 早期 `pnpm audit` 返回0个公告；OSV对当时Rust锁依赖的查询发现以下风险，后来查询有403限制，尚未完成最新复查，**安全发布门槛未通过**：
 

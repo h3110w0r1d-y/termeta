@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import { NIcon, useThemeVars } from "naive-ui";
+import { isMac } from "../../services/commands/registry";
+import WindowControls from "../../components/WindowControls.vue";
 import AppButton from "../../components/ui/AppButton.vue";
 import { stateLabels, useWorkspace, type WorkspaceTabItem } from "./store";
 import { useTabDrag } from "./useTabDrag";
@@ -17,6 +19,7 @@ const emit = defineEmits<{
   doubleClick: [id: string];
   menu: [event: MouseEvent | KeyboardEvent, id: string];
   create: [];
+  windowError: [message: string];
 }>();
 const themeVars = useThemeVars();
 const workspace = useWorkspace();
@@ -102,7 +105,12 @@ watch(
   <nav
     ref="root"
     class="app-tabs"
-    :class="{ 'is-dragging': !!workspace.drag }"
+    :data-tauri-drag-region="position === 'top' ? '' : undefined"
+    :class="{
+      'is-dragging': !!workspace.drag,
+      'tabs-vertical': position === 'left',
+      'titlebar-mac': isMac && position === 'top',
+    }"
     aria-label="工作区标签"
     :style="{
       '--workspace-tab-hover': themeVars.buttonColor2,
@@ -112,7 +120,6 @@ watch(
       '--workspace-tab-radius': themeVars.borderRadius,
     }"
   >
-    <div class="tab-brand" title="Termvexa">›_</div>
     <!-- 单一标签列表维持固定页与会话的统一导航，固定区不参与会话滚动。 -->
     <div
       class="workspace-tablist"
@@ -195,7 +202,7 @@ watch(
             :title="'关闭 ' + tab.title"
             @click="emit('close', tab.id)"
           >
-            <NIcon :size="14" aria-hidden="true">
+            <NIcon :size="position === 'top' ? 16 : 14" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" focusable="false">
                 <path
                   d="m6 6 12 12M18 6 6 18"
@@ -230,12 +237,329 @@ watch(
     >
       {{ dragTitle }}
     </div>
-    <div class="workspace-tabs-spacer" aria-hidden="true" />
-    <span class="connection-count"
+    <div
+      class="workspace-tabs-spacer"
+      :data-tauri-drag-region="position === 'top' ? '' : undefined"
+      aria-hidden="true"
+    />
+    <span
+      :data-tauri-drag-region="position === 'top' ? '' : undefined"
+      class="connection-count"
       ><i class="status-dot" :class="{ connected: connected > 0 }" />{{
         connected
       }}
       个连接</span
     >
+    <WindowControls
+      v-if="position === 'top'"
+      @error="emit('windowError', $event)"
+    />
   </nav>
 </template>
+
+<style scoped>
+.app-tabs {
+  --tab-height: 32px;
+  --tab-padding-block: 4px;
+  --tab-close-size: 22px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  height: 54px;
+  gap: 6px;
+  padding: 0 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+/* 工作区标签使用独立 DOM，固定页与会话共享导航但分开滚动。 */
+.workspace-tablist {
+  display: flex;
+  align-items: center;
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: 0;
+  gap: 6px;
+}
+.fixed-tabs {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
+  padding-right: 8px;
+  border-right: 1px solid var(--border);
+}
+.session-tabs {
+  display: flex;
+  align-items: center;
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: 0;
+  gap: 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.workspace-tab-item {
+  display: flex;
+  flex: 0 0 auto;
+  max-width: 260px;
+  height: var(--tab-height);
+  padding-right: 6px;
+  color: var(--muted);
+  border-radius: var(--workspace-tab-radius);
+}
+.workspace-tab,
+.workspace-tab-close {
+  appearance: none;
+  border: 0;
+  border-radius: var(--workspace-tab-radius);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+.workspace-tab {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 4px;
+  min-width: 0;
+  height: var(--tab-height);
+  padding: var(--tab-padding-block) 12px;
+  line-height: 24px;
+  white-space: nowrap;
+}
+.workspace-tab-item .workspace-tab {
+  flex: 1;
+}
+.workspace-tab-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fixed-tabs > .workspace-tab:hover,
+.workspace-tab-item:hover {
+  background: var(--workspace-tab-hover);
+  color: var(--workspace-tab-text);
+}
+/* 激活态优先于悬停态，颜色跟随 Naive UI 当前主题。 */
+.fixed-tabs > .workspace-tab[aria-selected="true"],
+.workspace-tab-item.selected {
+  background: var(--workspace-tab-active);
+  color: var(--workspace-tab-text);
+}
+.workspace-tab-item .workspace-tab,
+.workspace-tab-item .workspace-tab-close {
+  background: transparent;
+  color: inherit;
+}
+.workspace-tab:focus-visible,
+.workspace-tab-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.workspace-tab-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 0;
+  flex: 0 0 auto;
+  align-self: center;
+  width: var(--tab-close-size);
+  height: var(--tab-close-size);
+  margin: 0;
+}
+
+.workspace-tab-item .workspace-tab-close:hover {
+  background: var(--workspace-tab-close-hover);
+}
+
+.workspace-tab-close .n-icon,
+.workspace-tab-close svg {
+  display: block;
+}
+
+.app-tabs .new-tab {
+  align-self: center;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+}
+.workspace-tabs-spacer {
+  flex: 1 0 0;
+}
+
+.connection-count {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.app-tabs .connection-count {
+  padding: 0 8px;
+}
+.app-tabs.tabs-vertical {
+  --tab-height: 36px;
+  --tab-padding-block: 6px;
+  --tab-close-size: 24px;
+  flex-direction: column;
+  align-items: stretch;
+  width: 180px;
+  height: auto;
+  padding: 12px 8px;
+  gap: 10px;
+  border-bottom: 0;
+  border-right: 1px solid var(--border);
+}
+.tabs-vertical .workspace-tablist,
+.tabs-vertical .fixed-tabs,
+.tabs-vertical .session-tabs {
+  flex-direction: column;
+  align-items: stretch;
+}
+.tabs-vertical .session-tabs {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.tabs-vertical .workspace-tab-item {
+  max-width: none;
+}
+.tabs-vertical .workspace-tab {
+  text-align: left;
+}
+.tabs-vertical .fixed-tabs {
+  width: 100%;
+  height: auto;
+  padding-right: 0;
+  padding-bottom: 8px;
+  border-right: 0;
+  border-bottom: 1px solid var(--border);
+}
+.tabs-vertical .session-tabs {
+  width: 100%;
+  flex: 0 1 auto;
+  min-height: 0;
+}
+.tabs-vertical .connection-count {
+  flex-shrink: 0;
+  padding: 10px 8px 0;
+}
+@media (max-width: 1000px) {
+  .connection-count {
+    display: none;
+  }
+}
+@media (max-width: 900px) {
+  .app-tabs.tabs-vertical {
+    width: 145px;
+  }
+}
+
+/* 拖动使用 Pointer Events，固定页没有排序标记，也不会进入分屏命中。 */
+.workspace-tab-item {
+  position: relative;
+  touch-action: none;
+}
+.workspace-tab-item.dragging {
+  opacity: 0.45;
+}
+.workspace-tab-item.drop-before::before,
+.workspace-tab-item.drop-after::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 3px;
+  bottom: 3px;
+  width: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.workspace-tab-item.drop-before::before {
+  left: 0;
+}
+.workspace-tab-item.drop-after::after {
+  right: 0;
+}
+.tabs-vertical .workspace-tab-item.drop-before::before,
+.tabs-vertical .workspace-tab-item.drop-after::after {
+  left: 3px;
+  right: 3px;
+  width: auto;
+  height: 2px;
+  bottom: auto;
+}
+.tabs-vertical .workspace-tab-item.drop-before::before {
+  top: 0;
+}
+.tabs-vertical .workspace-tab-item.drop-after::after {
+  top: auto;
+  bottom: 0;
+}
+.workspace-drag-label {
+  position: fixed;
+  z-index: 3000;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--workspace-tab-radius);
+  background: var(--surface);
+  color: var(--text);
+  pointer-events: none;
+}
+/* 插入提示固定在会话区末尾；拖动时新建按钮不响应hover或接收点击。 */
+.workspace-tab-end {
+  position: relative;
+  align-self: center;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+}
+.app-tabs.is-dragging .new-tab {
+  pointer-events: none;
+}
+.workspace-tab-end.drop-at-end::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: 3px;
+  bottom: 3px;
+  width: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.tabs-vertical .workspace-tab-end {
+  align-self: flex-start;
+}
+.tabs-vertical .workspace-tab-end.drop-at-end::before {
+  left: 3px;
+  right: 3px;
+  top: -6px;
+  bottom: auto;
+  width: auto;
+  height: 2px;
+}
+
+/* 只有显式标记的空白区域拖动窗口，标签继续处理排序、菜单和双击动作。 */
+.app-tabs.titlebar-mac {
+  padding-left: 88px;
+}
+.app-tabs > .workspace-tabs-spacer {
+  min-width: 32px;
+  align-self: stretch;
+}
+.app-tabs.tabs-vertical {
+  grid-column: 1;
+  grid-row: 2;
+  min-height: 0;
+}
+.tabs-vertical .new-tab {
+  align-self: flex-start;
+  margin: 0;
+}
+</style>

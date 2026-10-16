@@ -111,6 +111,7 @@ dependencies = [
  "blake2",
  "cpufeatures 0.3.1",
  "password-hash",
+ "zeroize",
 ]
 
 [[package]]
@@ -2837,6 +2838,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2e99fb7a497b1e3339bc746195567ed8d3e24945ecd636e3619d20b9de9e9149"
 dependencies = [
  "cc",
+ "openssl-sys",
  "pkg-config",
  "vcpkg",
 ]
@@ -5799,8 +5801,11 @@ dependencies = [
 name = "terminal-security"
 version = "0.1.0"
 dependencies = [
+ "aes-gcm",
+ "argon2",
  "async-trait",
  "keyring",
+ "rand_core 0.6.4",
  "serde",
  "serde_json",
  "terminal-core",
@@ -5838,7 +5843,9 @@ name = "terminal-storage"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "hex",
  "libc",
+ "libsqlite3-sys",
  "serde",
  "serde_json",
  "sha2 0.10.9",

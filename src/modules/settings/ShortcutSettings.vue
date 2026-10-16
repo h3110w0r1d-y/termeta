@@ -168,3 +168,25 @@ async function importKeys(event: Event) {
   </div>
   <p v-if="error" class="error" role="alert">{{ error }}</p>
 </template>
+
+<style scoped>
+.shortcut-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+}
+.shortcut-row .ui-label {
+  flex: 1;
+}
+.shortcut-row .ui-select-trigger {
+  width: 180px;
+}
+.shortcut-row > .n-button:not(.icon-button) {
+  min-width: 170px;
+}
+.recording {
+  outline: 2px solid var(--accent);
+}
+</style>

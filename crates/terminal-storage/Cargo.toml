@@ -14,6 +14,8 @@ tokio = { version = "1.48.0", features = ["sync", "rt"] }
 async-trait = "0.1.89"
 zeroize = "=1.9.1"
 sha2 = "=0.10.9"
+hex = "=0.4.3"
+libsqlite3-sys = { version = "=0.30.1", features = ["bundled-sqlcipher-vendored-openssl"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2.177"

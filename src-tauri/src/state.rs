@@ -23,12 +23,24 @@ pub struct AppState {
         Mutex<std::collections::HashMap<String, std::sync::Weak<tokio::sync::Mutex<()>>>>,
 }
 
-pub fn owner(window: &WebviewWindow) -> Result<String> {
+pub fn window_owner(window: &WebviewWindow) -> Result<String> {
     if window.label() != "main" || !crate::local_navigation(&window.url().map_err(|_| forbidden())?)
     {
         return Err(forbidden());
     }
     Ok(window.label().to_owned())
+}
+pub fn owner(window: &WebviewWindow) -> Result<String> {
+    use tauri::Manager;
+    let id = window_owner(window)?;
+    if !window.state::<AppState>().vault.is_unlocked() {
+        return Err(SessionError::new(
+            "VAULT_LOCKED",
+            "storage",
+            "请先解锁数据保险库",
+        ));
+    }
+    Ok(id)
 }
 fn forbidden() -> SessionError {
     SessionError::new("FORBIDDEN", "ownership", "此窗口无权访问桌面资源")

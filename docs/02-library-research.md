@@ -18,7 +18,7 @@
 
 xterm.write 接收原始 Uint8Array，解析回调用于消费 ACK，不等同 GPU 呈现；不使用 HTTP/WebSocket 或 addon-attach。WebGL 不是可用性前提。认证、PTY/Shell 请求须等服务器接受回复，不能将发送成功等同连接成功。
 
-keyring 当前采用 3.6.3 的平台适配器；[keyring-core](https://docs.rs/keyring-core/latest/keyring_core/) 为后续候选，不混用其 API。系统服务不可用时禁止明文或 mock 回退。秘密尽早进入 Zeroizing；私钥正文与可选解密密码封装在同一系统凭据项，serde/serde_json/uuid 使用根锁定版本，不回传前端。
+keyring 当前采用 3.6.3 的平台适配器；[keyring-core](https://docs.rs/keyring-core/latest/keyring_core/) 为后续候选，不混用其 API。系统服务不可用时禁止明文或 mock 回退。秘密尽早进入 Zeroizing；钥匙串仅保存一把主密钥，私钥正文与可选解密密码封装在同一加密数据库凭据项，serde/serde_json/uuid 使用根锁定版本，不回传前端。
 
 ## 2. SFTP 与原生拖放
 
@@ -61,3 +61,14 @@ Local 使用 [portable-pty](https://docs.rs/portable-pty/latest/portable_pty/) �
 SP-01~05、SP-07~09 未执行；SP-10/11 的首批源码已实现待验收，SP-06 到 M4，系统后台快捷键到 M5。执行规则和证据记录见 [验证计划](11-validation.md)。
 
 发布前须对实际启用依赖重新检查公告、传递 MSRV、许可证 notices 与三平台支持；静态 API/格式检查不能替代这些门槛。
+
+## 加密保险库固定依赖（2026-10-16）
+
+| 依赖 | 版本与用途 | 源码核对与边界 |
+| --- | --- | --- |
+| libsqlite3-sys | 0.30.1，`bundled-sqlcipher-vendored-openssl` | 内嵌SQLCipher4.5.7（BSD），AES-256-CBC/HMAC-SHA512；SQLx0.8.6共享同一sys链接，vendored OpenSSL。核对Cargo features和内嵌版本；三平台C/OpenSSL工具链与完整公告待验收 |
+| argon2 | 0.6.0，`alloc/zeroize`，禁用默认features | MIT OR Apache-2.0，MSRV1.85；v19 Argon2id固定64MiB/3轮/1并行度、32字节输出 |
+| aes-gcm | 0.11.1，`zeroize` | MIT OR Apache-2.0，MSRV1.85；仅保险库密钥校验记录使用AES-256-GCM，不自行替代数据库页加密 |
+| rand_core / hex | 0.6.4（getrandom）/0.4.3 | OS随机盐/nonce；SQLCipher raw-key编码，编码不代替加密 |
+
+来源：[SQLCipher设计](https://www.zetetic.net/sqlcipher/design/)、[libsqlite3-sys固定源码](https://docs.rs/crate/libsqlite3-sys/0.30.1/source/)、[Argon2固定API](https://docs.rs/argon2/0.6.0/argon2/)、[AES-GCM固定API](https://docs.rs/aes-gcm/0.11.1/aes_gcm/)。实际以锁定registry源码核对使用的接口、features、MSRV与许可证；未编译或执行，不据此宣称完成密码学审计或三平台支持验收。

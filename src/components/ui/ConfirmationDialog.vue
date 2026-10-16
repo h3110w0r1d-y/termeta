@@ -34,3 +34,10 @@ import { currentConfirmation, settleConfirmation } from "./confirmation";
     </template></AppDialog
   >
 </template>
+
+<style scoped>
+.confirmation-message {
+  white-space: pre-wrap;
+  line-height: 1.7;
+}
+</style>

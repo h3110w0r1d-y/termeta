@@ -16,7 +16,7 @@ flowchart TB
   Factory -. 后续 .-> Local[terminal-local / portable-pty]
   Factory -. 后续 .-> Serial[terminal-serial / 串口适配]
   App --> Store[terminal-storage / SQLite]
-  App --> Security[terminal-security / OS 凭据]
+  App --> Security[terminal-security / 主密钥与加密保险库]
   SSH --> Ports[core 中定义的 TrustStore / CredentialStore 接口]
   Ports -. 注入实现 .-> Store
   Ports -. 注入实现 .-> Security
@@ -43,7 +43,7 @@ flowchart TB
 
 首期一个主窗口；所有 session 绑定创建窗口。为未来多窗口保留 owner 标识，但不提前实现拖出标签或跨窗口转移。
 
-凭据库分 password/privateKey，主机专属密码与公共凭据通过 owner_profile_id 隔离。安全服务协调 OS 秘密与 SQLite 引用的两阶段保存/清理；core 只定义不含序列化能力的 PrivateKeyMaterial 端口返回值。私钥导入后不依赖源文件，会话配置只含一种主要认证及凭据引用；主机公共 DTO 隐藏专属 ID，Rust 内部组装实际连接配置，临时连接只准用公共凭据。前端密码仅存在短期表单与 IPC 参数，不进入 Pinia 主机对象。
+凭据库分 password/privateKey，主机专属密码与公共凭据通过 owner_profile_id 隔离。安全服务负责Argon2id派生/校验和唯一OS主密钥缓存，storage在解锁后开放SQLCipher加密连接池，凭据secret与引用同处加密数据库；core 只定义不含序列化能力的 PrivateKeyMaterial 端口返回值。私钥导入后不依赖源文件，会话配置只含一种主要认证及凭据引用；主机公共 DTO 隐藏专属 ID，Rust 内部组装实际连接配置，临时连接只准用公共凭据。前端密码仅存在短期表单与 IPC 参数，不进入 Pinia 主机对象。
 
 ## 3. Rust 编译依赖
 
@@ -74,7 +74,7 @@ core 的模型与端口允许使用 serde、bytes、Tokio 通道、async-trait �
 | src/services/desktop                       | 唯一 invoke/Channel 门面             |
 | src/services/commands                      | 命令注册、快捷键与焦点路由           |
 | crates/terminal-core、terminal-ssh         | 通用会话及 SSH 协议                  |
-| crates/terminal-storage、terminal-security | SQLite 与 OS 凭据                    |
+| crates/terminal-storage、terminal-security | SQLCipher 与主密钥缓存                    |
 | crates/terminal-files、terminal-sftp       | 文件 DTO/有界复制与 SFTP provider    |
 | src-tauri/src/commands、ipc、state.rs      | owner 校验、原生交互、流桥与依赖装配 |
 
@@ -125,7 +125,7 @@ CommandRegistry 统一菜单、按钮与按键动作，KeymapService 合并平�
 
 六个领域 crate、Tauri commands/state 与 Vue modules 已创建。当前只注入 SshFactory，不为未实现的 Local/Serial 构建空工厂；仍通过 SessionFactory trait 隔离协议。原生壳只做 DTO/owner/资源桥接，具体握手、认证、PTY 与 socket 取消在 terminal-ssh。SQLite 复合写使用 BEGIN IMMEDIATE，不在应用全局锁内等待数据库。
 
-UI tokens 目前集中 `src/styles.css`，项目交互封装为 `src/components/ui/`；命令注册表在 `src/services/commands/`，只有 `src/services/desktop/` 能调用 invoke。终端注册表和设置/主机/工作区分模块维护；设置面板拆为配色、快捷键、安全子组件。尚无独立 transfers 模块或 Local/Serial crate。实际交付与限制见 [实施状态](17-implementation-status.md)。
+UI tokens、基础与共享规则集中于 `src/App.vue` 的非 scoped 样式；业务布局/尺寸在所属 Vue 的 `<style scoped>`，跨组件动态 DOM 显式使用 `:deep()` 或入口全局适配；字体资源仍在独立资源 CSS。已移除 `src/styles.css` 及入口导入。项目交互封装为 `src/components/ui/`；命令注册表在 `src/services/commands/`，只有 `src/services/desktop/` 能调用 invoke。终端注册表和设置/主机/工作区分模块维护；设置面板拆为配色、快捷键、安全子组件。尚无独立 transfers 模块或 Local/Serial crate。实际交付与限制见 [实施状态](17-implementation-status.md)。
 
 ## 10. 终端工作区布局
 
@@ -144,3 +144,5 @@ M2-14只扩展前端输入路由。WorkspaceTab增加内存broadcast/broadcastRe
 壳持有按sessionId缓存的浏览器、原生文件选择与4任务并发限额，每命令校验owner/session状态；浏览器内每次只允许1个操作，不在全局锁内等待协议/磁盘/对话框。当前独立认证/连接租约与完整TransferManager仍未实现，Shell结束会关闭同一SSH传输，不支持关闭Tab后后台传输。30秒维护周期清理结束会话的浏览器注册并取消残留任务。前端TerminalPane内稳定宿主与SftpPanel并列，首次开启才挂载、随后显隐，既有ResizeObserver负责终端尺寸变化；WorkspaceStore中sftpOpen是仅内存的布局合并约束，不持久化。
 
 拖放分层：`src-tauri/src/file_drag.rs`登记原生拖入短期owner-bound引用并广播无路径事件；`file_drag_macos.rs`封装AppKit文件承诺和拖动生命周期，不承担SSH协议。`commands/file_drag.rs`校验main/session/许可并为原生承诺注入受界下载回调；`commands/files.rs`复用批次扫描、覆盖原生确认及直接上传。`terminal-sftp`仅提供元数据/目录合并/安全新建或确认后截断写入，`terminal-files`仍只承载协议无关DTO与64KiB复制。Vue批次队列仅轻量状态，正文继续留Rust。5个SFTP命令均纳入单份AppManifest名单和ACL，Windows/Linux拖出当前明确不支持，不引入第二套任意路径接口。
+
+加密启动边界（2026-10-16）：App通过VaultGate等待首次设置/密码恢复/钥匙串自动解锁；只有vault_status与unlock_vault可在锁定状态调用。窗口所有权和本地导航校验不变，其他用例命令额外检查保险库已解锁。core不依赖SQLCipher/Argon2或UI。新库schema 2，不兼容旧代际，详见[存储](07-storage.md)。

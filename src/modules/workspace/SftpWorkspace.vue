@@ -361,6 +361,13 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .sftp-workspace {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 34px;
+}
+
+.sftp-workspace {
   display: flex;
   flex-direction: column;
   gap: 12px;

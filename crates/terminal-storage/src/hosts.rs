@@ -6,15 +6,15 @@ use uuid::Uuid;
 impl SqliteStore {
     pub async fn list_hosts(&self, search: &str) -> Result<Vec<HostProfile>> {
         let rows = sqlx::query("SELECT p.*,s.address,s.port,s.username FROM connection_profiles p JOIN ssh_profiles s ON s.profile_id=p.id ORDER BY p.favorite DESC,p.name COLLATE NOCASE")
-            .fetch_all(&self.pool).await?;
+            .fetch_all(self.pool()?).await?;
         let mut profiles = Vec::with_capacity(rows.len());
         let search = search.to_lowercase();
         for row in rows {
             let id: String = row.try_get("id")?;
             let tags = sqlx::query_scalar::<_, String>("SELECT t.name FROM tags t JOIN profile_tags p ON p.tag_id=t.id WHERE p.profile_id=? ORDER BY t.name")
-                .bind(&id).fetch_all(&self.pool).await?;
+                .bind(&id).fetch_all(self.pool()?).await?;
             let auth = sqlx::query("SELECT a.method,a.credential_id,c.owner_profile_id FROM profile_auth_steps a LEFT JOIN credentials c ON c.id=a.credential_id WHERE a.profile_id=? ORDER BY a.sort_order")
-                .bind(&id).fetch_all(&self.pool).await?;
+                .bind(&id).fetch_all(self.pool()?).await?;
             let mut has_password = false;
             let mut auth_plan = Vec::with_capacity(auth.len());
             for step in auth {
@@ -72,7 +72,7 @@ impl SqliteStore {
     }
     /// 连接配置只供后端使用，主机专属引用不得经公共主机 DTO 返回。
     pub async fn get_host_connection(&self, id: &str) -> Result<SshConfig> {
-        let mut tx = self.pool.begin().await?;
+        let mut tx = self.pool()?.begin().await?;
         let row = sqlx::query("SELECT address,port,username FROM ssh_profiles WHERE profile_id=?")
             .bind(id)
             .fetch_optional(&mut *tx)
@@ -157,7 +157,7 @@ impl SqliteStore {
         if password_ref.is_some() && !direct_password {
             return Err(StorageError::Validation("主机专属密码仅适用于直接密码认证"));
         }
-        let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
+        let mut tx = self.pool()?.begin_with("BEGIN IMMEDIATE").await?;
         let scoped_owner = if let Some(reference) = password_ref {
             Some(sqlx::query_scalar::<_, Option<String>>("SELECT owner_profile_id FROM credentials WHERE id=? AND kind='password' AND status='ready'")
                 .bind(reference).fetch_optional(&mut *tx).await?.flatten().ok_or(StorageError::Validation("主机密码引用不可用"))?)
@@ -260,7 +260,7 @@ impl SqliteStore {
         Ok(saved)
     }
     pub async fn delete_host(&self, id: &str, revision: i64) -> Result<()> {
-        let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
+        let mut tx = self.pool()?.begin_with("BEGIN IMMEDIATE").await?;
         sqlx::query(
             "UPDATE credentials SET status='deleting',updated_at=? WHERE owner_profile_id=?",
         )

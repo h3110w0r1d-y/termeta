@@ -18,6 +18,12 @@
 
 库没有独立Label时保留HTML标签关联；语义布局、form/fieldset和普通文本无需组件化。配色JSON的隐藏文件输入只作明确选择桥，不用于读取SSH秘密。
 
+## 样式归属
+
+2026-10-16 将原集中式 `src/styles.css` 拆入对应 Vue 的 `<style scoped>`：WorkspaceTabs 维护标签/排序及横纵布局，TerminalStage 维护分屏容器/分隔条，TerminalPane 维护窗格与 xterm 宿主，窗口按钮、弹窗及各设置页维护自己的布局。标签组件按 position/isMac 在自身根节点表达布局状态，避免依赖父组件的 scoped 选择器。对 xterm 动态节点和跨子组件的调整仅用明确的 `:deep()`。
+
+`App.vue` 的 scoped 样式管理应用外壳/首页/状态栏；非 scoped 样式只保留主题 tokens、基础规则、共享表单/页头/状态点以及同时用于实际终端与预览的 xterm 选区、传送菜单适配。字体资源 CSS 独立保留。已删除 `src/styles.css` 及 main.ts 导入，并清理没有模板引用或始终被覆盖的旧规则。此轮仅静态检查，视觉、横纵布局、小窗口和弹层/xterm 仍待运行复验。
+
 ## 生命周期与焦点
 
 - WorkspaceStore是唯一标签状态，固定首页/SFTP不创建session。TerminalPane按terminalId保活，显隐、排序、分屏和重连不重建或清空xterm。
@@ -28,6 +34,9 @@
 - 无关界面文字默认不可选；输入、可复制正文和xterm保留选择能力，不添加全局选择/鼠标拦截。
 
 ## 安全与认证
+
+VaultGate使用Naive UI的NCard/NForm/NInput/NButton/NSpin/NAlert，先完成首次密码设置或自动/密码解锁再挂载业务页面；输入提交后清空，系统主密钥缓存失败显示警告。本轮仅静态检查，首次/恢复焦点和密码输入体验待运行验收。
+
 
 主机/快速连接提供密码和公钥认证；OTP/PAM/Keyboard-interactive由服务端协商动态触发。凭据仅密码/私钥，私钥可带解密密码；主机专属密码非空自动保存、显式空值改为连接时询问，OTP不保存。认证挑战不能因浮层Escape或焦点变化被意外提交/取消。
 

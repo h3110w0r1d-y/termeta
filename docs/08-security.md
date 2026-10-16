@@ -1,6 +1,6 @@
 # 安全与隐私设计
 
-日期：2026-10-15。M1/M2 安全约束已开始在模块化代码中落实，当前为“实现待验证”；尚无当前版本完整编译、SSH 连接或三平台安全验收，不代表安全门槛已通过。
+日期：2026-10-16。M1/M2 安全约束已开始在模块化代码中落实，当前为“实现待验证”；尚无当前版本完整编译、SSH 连接或三平台安全验收，不代表安全门槛已通过。
 
 ## 1. 威胁模型与边界
 
@@ -10,7 +10,7 @@
 | 恶意远端终端输出      | xterm 字节渲染、无 HTML 注入、禁用敏感 OSC 动作   | 需要持续更新终端解析依赖                                        |
 | 前端 XSS/第三方内容   | 打包本地资源、CSP、最小 IPC、禁止远端导航         | 被攻陷的主窗口仍可能调用其合法权限，不能宣称 ACL 完全隔离主窗口 |
 | 跨窗口资源访问        | 调用者身份、session/challenge/fileRef owner 检查  | 随机 ID 不能替代授权                                            |
-| 设备上其他普通用户    | 系统凭据库、应用数据权限、私钥读取边界            | 同用户恶意进程/root 不属于可完全防御范围                        |
+| 设备上其他普通用户    | SQLCipher加密、主密钥钥匙串、应用数据权限与私钥读取边界            | 同用户恶意进程/root 不属于可完全防御范围                        |
 | 大量输出/长认证提示   | 字节限额、信用流控、队列/滚屏/提示长度上限        | 需同时核验协议库内部缓冲                                        |
 | 日志/备份泄露         | 默认不记内容、秘密脱敏、用户主动导出              | 元数据本身仍可能敏感                                            |
 
@@ -49,9 +49,9 @@ Keyboard-interactive 仅在主机信任通过后，对当前密码配置的单�
 - 公共秘密由用户明确创建；主机编辑直接输入非空密码即授权保存该主机专属项，空值则清除已有专属密码；应用只提供写入/删除/使用引用的业务操作，不提供读取明文给 UI 的接口。
 - 前端密码框不可避免短暂持有输入和 IPC 序列化副本；提交/取消后清空，不写 Pinia、localStorage、错误追踪或持久缓存。不能承诺 JS 字符串可靠擦除。
 - Rust 当前使用 `zeroize::Zeroizing` 包装认证答案、口令、私钥文本等短期秘密，禁止派生 Debug/Serialize 泄露；库调用产生的副本及 OS 内存仍需认识限制，不承诺绝对清零。
-- 私钥导入在 Rust 内限大小读取，在 OS 凭据库与其可选解密密码共同保存；连接时读取材料并解析，短期口令使用后释放；不写临时明文私钥文件。
-- OS 凭据库锁定、服务缺失或用户拒绝时，保存必须明确失败；主机密码可留空并在连接时本次输入；永不自动使用 mock/sample、明文配置或自制弱加密回退。
-- 凭据读写使用受控工作器，禁止阻塞 Tokio worker；同一 credential 操作串行，UI 线程不等待系统弹窗阻塞。
+- 私钥导入在 Rust 内限大小读取，在SQLCipher加密数据库中与其可选解密密码共同保存；连接时读取材料并解析，短期口令使用后释放；不写临时明文私钥文件。
+- OS凭据库只缓存主密钥。自动读取失败时改为保险库密码派生和校验；成功后重存主密钥，缓存失败明确提示并保留本次解锁。错误密码、篡改或损坏不能覆盖数据库；不使用mock或明文回退。
+- Argon2id和OS主密钥读写使用spawn_blocking；主密钥初始化专用门闩与凭据操作锁分开，不在会话全局锁或SQL事务内等待系统弹窗。主密钥派生参数固定64MiB/3轮/1并行度，密码不trim，不记录日志。
 
 ## 6. 终端输出安全
 
@@ -87,9 +87,9 @@ SFTP 的本地授权独立于私钥授权，仅来自原生选择器、系统拖
 
 ## 11. 源码与验证边界
 
-- [`terminal-security/src/vault.rs`](../crates/terminal-security/src/vault.rs)：`keyring=3.6.3` 使用 macOS Keychain、Windows Credential Store、Linux Secret Service；操作在 `spawn_blocking` 内串行执行，不阻塞 Tokio worker。写入先 pending、OS 成功后 ready；删除先检查共享引用再 deleting、删除 OS 项后删元数据。服务锁定/缺失/拒绝不使用 mock、SQLite 密码或自制加密替代。用户确认 pending 恢复；启动仅定向协调本 DB 的 deleting 项。实际系统弹窗、失败状态与重启补偿未验证。
+- [`terminal-security/src/master_key.rs`](../crates/terminal-security/src/master_key.rs) 管理唯一OS主密钥：Argon2id v19派生32字节主密钥，随机盐16字节，AES-256-GCM校验随机nonce12字节/AAD绑定格式身份、KDF和盐。启动每进程最多自动读取一次；密码恢复成功后重写主密钥，缓存失败仅警告。`vault.rs`只在加密DB读写凭据secret，DTO不返回秘密，未解锁拒绝所有业务IPC。
 - [`terminal-security/src/private_key.rs`](../crates/terminal-security/src/private_key.rs)：只接受后端原生选择器登记的私钥引用，读取限 1 MiB/OpenSSH 文本，不向前端返回正文；Unix 拒绝符号链接、非当前 uid 与其他用户有权限的文件，使用 `O_NOFOLLOW` 并核验打开对象的设备/inode。注册时和导入时共用 [`terminal-storage/src/key_files.rs`](../crates/terminal-storage/src/key_files.rs) 的安全读取边界；SQLite 只保存文件字节 SHA-256 摘要，导入引用前比对，内容变更即拒绝并要求重新选择。该摘要不充当 SSH 主机密钥指纹，且不序列化给前端。哈希借用 Zeroizing 字节缓冲，不另建裸私钥副本。Windows 的文件对象竞态/ACL 校验仍需完善；读取中的并发原地写入、重新选择意图与平台行为尚未运行验证，不应声称已消除全部 TOCTOU。
-- [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs)：单实例插件先于数据库初始化，Unix 应用数据目录 0700；[`terminal-storage/src/lib.rs`](../crates/terminal-storage/src/lib.rs) 对 DB/备份设 0600，未来 schema 先只读检查。Windows 数据目录/文件 ACL 使用系统继承，仍需验收；SQLite 不加密，OS 凭据库不保护其中主机名、用户名、私钥路径和历史摘要。
+- [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs) 保持单实例和Unix目录0700；数据库/解锁元数据创建为0600。SQLCipher 4 AES-256-CBC页面加密并以HMAC-SHA512校验，包含WAL；临时存储MEMORY，禁用SQL语句日志，拒绝普通SQLite降级。Windows ACL继承与原生构建仍需验证。
 - [`src-tauri/src/settings.rs`](../src-tauri/src/settings.rs)：应用设置、快捷键、`customSchemes` 与 `hostSchemes` 都在 `settings.key=app` JSON 中，校验版本、长度、颜色字段、注册命令与方案引用，不是独立配色表或主机终端偏好表。没有脚本、任意原生动作或 shell 执行型导入。设置完整替换尚无 revision，后续多视图并发需补齐。详见 [存储实现差异](07-storage.md)。
 - [`terminal-core/src/stream.rs`](../crates/terminal-core/src/stream.rs) 与 [`manager.rs`](../crates/terminal-core/src/manager.rs)：字节/消息双重队列预算、合法帧端点 ACK、独立取消、有限输入重试缓存；[`terminal-ssh/src/driver.rs`](../crates/terminal-ssh/src/driver.rs) 在输出阻塞时保留输入/resize/取消分支。xterm 解析完成后确认、旧 session 隔离与终态 finalOffset 均为实现，内存水位/洪泛/远端窗口公平性仍未测量。
 
@@ -122,3 +122,7 @@ OSC 标题：remoteTitle仅作前端内存中的展示后缀，控制字符/双�
 原生拖入引用 owner 绑定、一次消费、5 分钟有效，最多 16 引用/每批 1000 根路径；无消费者不读取文件。仅当前可见侧栏消费，上传到当前目录，不按行定位。macOS 拖出最多 100 根文件/目录，directories 只是受校验的类型提示，真实类型在 Finder 请求内容时复核；目标 URL 只留 Rust。原生会话期间隔离上传事件，取消阻断迟到兑现，内部落点不返回 Copy。Windows/Linux 拖出未实现，不以网页 DnD 伪造。
 
 隐藏继续任务，侧栏随终端断开/关闭取消，双栏两端独立连接，任一端断开取消对拷。文件工厂不启动Shell/PTY，不向WebView提供SSH handle。对拷只接收两端sessionId/逻辑路径/安全名称，在Rust重新校验类型、源目录预扫描64层/10000项；同名文件确认覆盖、目录合并，取消不回滚。相同已知连接标识下用真实路径阻止自复制/复制到子树；不同主机别名、远端hardlink及并发路径替换无法由SFTPv3通用接口证明对象身份，不保证原子覆盖。无通用连接租约、持久任务或重启清理。原生线程/兑现生命周期、Finder、三平台拖入、并发替换、取消及依赖公告须继续运行/安全验收；当前静态核查不代表安全门槛通过。
+
+窗口标题栏（2026-10-16）：仅 main 窗口增加 core:window 的 allow-start-dragging、allow-internal-toggle-maximize、allow-minimize、allow-toggle-maximize 权限，使用 Tauri 内置窗口命令；不新增自定义 Rust 命令或放宽远端资源范围。关闭沿用已有 allow-close 与会话/传输确认，组件通过 desktop 门面操作。
+
+加密保险库威胁边界：静态文件丢失不直接暴露主机与凭据，但不防御已解锁进程被注入、内存转储、同用户恶意程序或root。SQLx连接选项及SQLCipher内部必须持有可用密钥，Zeroizing只尽早清理受控临时值，不能承诺库内部和JS副本完全清零。校验元数据不含密码/主密钥，但可供离线猜测，密码强度与Argon2id成本仍重要；GCM认证与SQLCipher页HMAC不提供整库旧快照回放检测。密码及OS主密钥同时丢失不可恢复。旧明文库不会自动加密或清理。

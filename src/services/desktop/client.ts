@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import type { AppSettings } from "../../modules/settings/model";
 import type {
+  VaultStatus,
   DirectoryPage,
   SftpCopyRequest,
   SftpLocalDrop,
@@ -24,6 +25,9 @@ import type {
 
 // 原生交互只通过此门面，组件不能获得通用 invoke 或任意文件读取能力。
 export const desktop = {
+  vaultStatus: () => invoke<VaultStatus>("vault_status"),
+  unlockVault: (password: string, setup: boolean) =>
+    invoke<VaultStatus>("unlock_vault", { password, setup }),
   sftpConnect(
     profileId: string,
     requestId: string,
@@ -122,6 +126,8 @@ export const desktop = {
     >[0],
   ) => getCurrentWindow().onCloseRequested(callback),
   closeWindow: () => getCurrentWindow().close(),
+  minimizeWindow: () => getCurrentWindow().minimize(),
+  toggleMaximizeWindow: () => getCurrentWindow().toggleMaximize(),
   listHosts: () => invoke<HostProfile[]>("list_hosts"),
   saveHost: (
     host: HostDraft,
@@ -150,7 +156,6 @@ export const desktop = {
     invoke<{ id: string }>("save_credential", { ...payload }),
   listHistory: () => invoke<HistoryEntry[]>("list_history"),
   clearHistory: () => invoke<void>("clear_history"),
-  recoverCredential: (id: string) => invoke<void>("recover_credential", { id }),
   listCredentials: () => invoke<CredentialMetadata[]>("list_credentials"),
   deleteCredential: (id: string) => invoke<void>("delete_credential", { id }),
   openUrl: (url: string) => invoke<void>("open_external_url", { url }),

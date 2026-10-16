@@ -168,3 +168,8 @@ export interface SftpCopyRequest {
   names: string[];
   transferId: string;
 }
+
+export interface VaultStatus {
+  mode: "setup" | "locked" | "unlocked";
+  keychainWarning: string | null;
+}

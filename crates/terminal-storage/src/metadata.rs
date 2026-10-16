@@ -7,7 +7,7 @@ use uuid::Uuid;
 impl SqliteStore {
     pub async fn list_known_hosts(&self) -> Result<Vec<TrustedHostKey>> {
         sqlx::query("SELECT * FROM known_hosts ORDER BY canonical_host,port")
-            .fetch_all(&self.pool)
+            .fetch_all(self.pool()?)
             .await?
             .into_iter()
             .map(|r| {
@@ -33,7 +33,7 @@ impl SqliteStore {
             .collect())
     }
     pub async fn trust_key(&self, key: TrustedHostKey) -> Result<()> {
-        let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
+        let mut tx = self.pool()?.begin_with("BEGIN IMMEDIATE").await?;
         let host = canonical_host(&key.canonical_host);
         let existing = sqlx::query(
             "SELECT public_key,key_algorithm FROM known_hosts WHERE canonical_host=? AND port=?",
@@ -60,14 +60,14 @@ impl SqliteStore {
     pub async fn revoke_key(&self, id: &str) -> Result<()> {
         sqlx::query("DELETE FROM known_hosts WHERE id=?")
             .bind(id)
-            .execute(&self.pool)
+            .execute(self.pool()?)
             .await?;
         Ok(())
     }
     pub async fn get_setting(&self, key: &str) -> Result<Option<StoredSetting>> {
         let row = sqlx::query("SELECT value_json,value_version FROM settings WHERE key=?")
             .bind(key)
-            .fetch_optional(&self.pool)
+            .fetch_optional(self.pool()?)
             .await?;
         row.map(|r| {
             Ok(StoredSetting {
@@ -91,7 +91,7 @@ impl SqliteStore {
             return Err(StorageError::Validation("设置数据过大"));
         }
         sqlx::query("INSERT INTO settings(key,value_json,value_version,updated_at) VALUES(?,?,?,?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json,value_version=excluded.value_version,updated_at=excluded.updated_at")
-            .bind(key).bind(encoded).bind(version).bind(now()).execute(&self.pool).await?;
+            .bind(key).bind(encoded).bind(version).bind(now()).execute(self.pool()?).await?;
         Ok(())
     }
     pub async fn register_key_file(&self, path: &str, display_name: &str) -> Result<KeyFile> {
@@ -105,10 +105,10 @@ impl SqliteStore {
         .map_err(|_| StorageError::Validation("私钥校验工作器不可用"))??;
         let id = Uuid::new_v4().to_string();
         sqlx::query("INSERT INTO key_files(id,path,display_name,content_fingerprint,created_at,updated_at) VALUES(?,?,?,?,?,?) ON CONFLICT(path) DO UPDATE SET display_name=excluded.display_name,content_fingerprint=excluded.content_fingerprint,updated_at=excluded.updated_at")
-            .bind(&id).bind(path).bind(display_name).bind(fingerprint).bind(now()).bind(now()).execute(&self.pool).await?;
+            .bind(&id).bind(path).bind(display_name).bind(fingerprint).bind(now()).bind(now()).execute(self.pool()?).await?;
         let row = sqlx::query("SELECT * FROM key_files WHERE path=?")
             .bind(path)
-            .fetch_one(&self.pool)
+            .fetch_one(self.pool()?)
             .await?;
         Ok(KeyFile {
             id: row.try_get("id")?,
@@ -120,7 +120,7 @@ impl SqliteStore {
     pub async fn get_key_file(&self, id: &str) -> Result<KeyFile> {
         let row = sqlx::query("SELECT * FROM key_files WHERE id=?")
             .bind(id)
-            .fetch_optional(&self.pool)
+            .fetch_optional(self.pool()?)
             .await?
             .ok_or(StorageError::NotFound)?;
         Ok(KeyFile {
@@ -137,7 +137,7 @@ impl SqliteStore {
         endpoint: Option<&str>,
     ) -> Result<String> {
         let id = Uuid::new_v4().to_string();
-        sqlx::query("INSERT INTO session_history(id,profile_id,display_name_snapshot,endpoint_snapshot,started_at) VALUES(?,?,?,?,?)").bind(&id).bind(profile_id).bind(name).bind(endpoint).bind(now()).execute(&self.pool).await?;
+        sqlx::query("INSERT INTO session_history(id,profile_id,display_name_snapshot,endpoint_snapshot,started_at) VALUES(?,?,?,?,?)").bind(&id).bind(profile_id).bind(name).bind(endpoint).bind(now()).execute(self.pool()?).await?;
         Ok(id)
     }
     pub async fn end_history(
@@ -146,12 +146,12 @@ impl SqliteStore {
         reason: &str,
         error_code: Option<&str>,
     ) -> Result<()> {
-        sqlx::query("UPDATE session_history SET ended_at=?,end_reason=?,error_code=? WHERE id=? AND ended_at IS NULL").bind(now()).bind(reason).bind(error_code).bind(id).execute(&self.pool).await?;
+        sqlx::query("UPDATE session_history SET ended_at=?,end_reason=?,error_code=? WHERE id=? AND ended_at IS NULL").bind(now()).bind(reason).bind(error_code).bind(id).execute(self.pool()?).await?;
         Ok(())
     }
     pub async fn list_history(&self) -> Result<Vec<HistoryEntry>> {
         sqlx::query("SELECT * FROM session_history ORDER BY started_at DESC LIMIT 1000")
-            .fetch_all(&self.pool)
+            .fetch_all(self.pool()?)
             .await?
             .into_iter()
             .map(|r| {
@@ -170,14 +170,14 @@ impl SqliteStore {
     }
     pub async fn clear_history(&self) -> Result<()> {
         sqlx::query("DELETE FROM session_history")
-            .execute(&self.pool)
+            .execute(self.pool()?)
             .await?;
         Ok(())
     }
     pub async fn prune_history(&self, days: u16) -> Result<()> {
         sqlx::query("DELETE FROM session_history WHERE started_at<?")
             .bind(now() - i64::from(days) * 86_400_000)
-            .execute(&self.pool)
+            .execute(self.pool()?)
             .await?;
         Ok(())
     }

@@ -143,3 +143,23 @@ async function auth(cancel = false) {
     </template></AppDialog
   >
 </template>
+
+<style scoped>
+.fingerprint {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 14px;
+  padding: 16px;
+  background: var(--input);
+  border-radius: 6px;
+}
+.fingerprint dt {
+  color: var(--muted);
+}
+.fingerprint dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-family: monospace;
+  font-size: 12px;
+}
+</style>

@@ -1,5 +1,7 @@
 // 命令注册与构建期 ACL 共用同一份名单，避免权限契约漂移。
 pub const COMMANDS: &[&str] = &[
+    "vault_status",
+    "unlock_vault",
     "sftp_connect",
     "sftp_copy",
     "sftp_drop_upload",
@@ -37,5 +39,4 @@ pub const COMMANDS: &[&str] = &[
     "export_json",
     "list_history",
     "clear_history",
-    "recover_credential",
 ];

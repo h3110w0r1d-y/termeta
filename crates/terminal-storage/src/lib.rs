@@ -9,15 +9,16 @@ mod tests;
 
 pub use key_files::read_key_file;
 pub use model::*;
-use sqlx::SqlitePool;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
+use sqlx::{ConnectOptions, SqlitePool};
 use std::{
-    path::Path,
+    path::{Path, PathBuf},
+    sync::OnceLock,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use thiserror::Error;
 
-const SCHEMA_VERSION: i64 = 1;
+const SCHEMA_VERSION: i64 = 2;
 
 #[derive(Debug, Error)]
 pub enum StorageError {
@@ -29,6 +30,8 @@ pub enum StorageError {
     Json(#[from] serde_json::Error),
     #[error("数据库文件或备份权限操作失败")]
     Io(#[from] std::io::Error),
+    #[error("数据保险库尚未解锁")]
+    Locked,
     #[error("记录不存在")]
     NotFound,
     #[error("记录已被修改，请重新加载最新版本")]
@@ -39,78 +42,120 @@ pub enum StorageError {
 pub type Result<T> = std::result::Result<T, StorageError>;
 
 pub struct SqliteStore {
-    pub(crate) pool: SqlitePool,
+    pool: OnceLock<SqlitePool>,
+    path: PathBuf,
 }
 pub type Repository = SqliteStore;
 
 impl SqliteStore {
-    pub async fn open(path: impl AsRef<Path>) -> Result<Self> {
-        let path = path.as_ref();
-        let existing = path.exists();
-        let mut applied_version = 0;
-        if existing {
-            // 先只读核验未来版本，避免设置 WAL 时修改不受支持的数据库。
-            let probe = SqlitePoolOptions::new()
-                .max_connections(1)
-                .connect_with(SqliteConnectOptions::new().filename(path).read_only(true))
-                .await?;
-            let version: i64 = sqlx::query_scalar("PRAGMA user_version")
-                .fetch_one(&probe)
-                .await?;
-            let migrations: i64 = sqlx::query_scalar(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='_sqlx_migrations'",
-            )
-            .fetch_one(&probe)
-            .await?;
-            let latest = if migrations > 0 {
-                sqlx::query_scalar::<_, Option<i64>>("SELECT MAX(version) FROM _sqlx_migrations")
-                    .fetch_one(&probe)
-                    .await?
-                    .unwrap_or(0)
-            } else {
-                0
-            };
-            probe.close().await;
-            if version > SCHEMA_VERSION || latest > SCHEMA_VERSION {
-                return Err(StorageError::Validation("数据库来自更高版本，拒绝写入"));
-            }
-            applied_version = latest;
+    /// 构造阶段不打开数据库；解锁前任何仓库访问都明确返回 Locked。
+    pub fn locked(path: impl AsRef<Path>) -> Self {
+        Self {
+            pool: OnceLock::new(),
+            path: path.as_ref().to_owned(),
         }
+    }
+    pub fn is_unlocked(&self) -> bool {
+        self.pool.get().is_some()
+    }
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+    pub(crate) fn pool(&self) -> Result<&SqlitePool> {
+        self.pool.get().ok_or(StorageError::Locked)
+    }
+    /// 调用方持有初始化专用锁；验证密钥与完整性后才发布可供业务访问的连接池。
+    pub async fn unlock(&self, key: &[u8; 32]) -> Result<()> {
+        if self.is_unlocked() {
+            return Ok(());
+        }
+        if !self.path.exists() {
+            let mut options = std::fs::OpenOptions::new();
+            options.write(true).create_new(true);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                options.mode(0o600);
+            }
+            options.open(&self.path)?;
+        }
+        let encoded = zeroize::Zeroizing::new(hex::encode(key));
         let options = SqliteConnectOptions::new()
-            .filename(path)
+            .filename(&self.path)
             .create_if_missing(true)
+            // SQLx 保证 key 是第一条 PRAGMA；禁用语句日志，避免密钥出现在诊断中。
+            .pragma("key", format!("\"x'{}'\"", encoded.as_str()))
+            .pragma("cipher_compatibility", "4")
+            .pragma("cipher_memory_security", "ON")
+            .pragma("temp_store", "MEMORY")
+            .pragma("secure_delete", "ON")
             .journal_mode(SqliteJournalMode::Wal)
             .synchronous(SqliteSynchronous::Full)
             .foreign_keys(true)
-            .busy_timeout(Duration::from_secs(3));
+            .busy_timeout(Duration::from_secs(3))
+            .disable_statement_logging();
         let pool = SqlitePoolOptions::new()
             .max_connections(2)
             .connect_with(options)
             .await?;
-        private_file(path)?;
+        let result = Self::prepare(&pool, &self.path).await;
+        if let Err(error) = result {
+            pool.close().await;
+            return Err(error);
+        }
+        self.pool.set(pool).map_err(|_| StorageError::Conflict)?;
+        Ok(())
+    }
+    async fn prepare(pool: &SqlitePool, path: &Path) -> Result<()> {
+        let cipher: Option<String> = sqlx::query_scalar("PRAGMA cipher_version")
+            .fetch_optional(pool)
+            .await?;
+        if cipher
+            .as_deref()
+            .is_none_or(|value| !value.starts_with("4."))
+        {
+            return Err(StorageError::Validation(
+                "缺少 SQLCipher 4 加密支持，拒绝打开数据库",
+            ));
+        }
+        // 先读取加密页，错误密钥或损坏不得进入迁移及写入流程。
+        sqlx::query("SELECT count(*) FROM sqlite_master")
+            .execute(pool)
+            .await?;
+        let integrity: Vec<String> = sqlx::query_scalar("PRAGMA cipher_integrity_check")
+            .fetch_all(pool)
+            .await?;
+        if !integrity.is_empty() {
+            return Err(StorageError::Validation("加密数据库完整性校验失败"));
+        }
+        let check: String = sqlx::query_scalar("PRAGMA quick_check")
+            .fetch_one(pool)
+            .await?;
+        if check != "ok" {
+            return Err(StorageError::Validation("数据库完整性校验失败"));
+        }
         let version: i64 = sqlx::query_scalar("PRAGMA user_version")
-            .fetch_one(&pool)
+            .fetch_one(pool)
             .await?;
-        if version > SCHEMA_VERSION {
-            return Err(StorageError::Validation("数据库来自更高版本，拒绝写入"));
+        if version != 0 && version != SCHEMA_VERSION {
+            return Err(StorageError::Validation(
+                "数据库格式不兼容，本版不迁移旧数据库",
+            ));
         }
-        if existing && applied_version < SCHEMA_VERSION {
-            // VACUUM INTO 读取一致性快照，包含 WAL，不直接复制活跃数据库文件。
-            let backup = path.with_extension(format!("backup-{}.sqlite3", now()));
-            sqlx::query("VACUUM INTO ?")
-                .bind(backup.to_string_lossy().as_ref())
-                .execute(&pool)
-                .await?;
-            private_file(&backup)?;
-            prune_backups(path)?;
-        }
-        sqlx::migrate!("./migrations").run(&pool).await?;
-        sqlx::query(&format!("PRAGMA user_version = {SCHEMA_VERSION}"))
-            .execute(&pool)
+        private_file(path)?;
+        sqlx::migrate!("./migrations").run(pool).await?;
+        sqlx::query("PRAGMA user_version = 2").execute(pool).await?;
+        sqlx::query("UPDATE session_history SET ended_at=?,end_reason='appInterrupted' WHERE ended_at IS NULL").bind(now()).execute(pool).await?;
+        sqlx::query("DELETE FROM session_history WHERE started_at<?")
+            .bind(now() - 90 * 86_400_000_i64)
+            .execute(pool)
             .await?;
-        sqlx::query("UPDATE session_history SET ended_at=?,end_reason='appInterrupted' WHERE ended_at IS NULL").bind(now()).execute(&pool).await?;
-        let store = Self { pool };
-        store.prune_history(90).await?;
+        Ok(())
+    }
+    #[cfg(test)]
+    async fn open(path: impl AsRef<Path>) -> Result<Self> {
+        let store = Self::locked(path);
+        store.unlock(&[42; 32]).await?;
         Ok(store)
     }
 }
@@ -140,33 +185,6 @@ fn private_file(path: &Path) -> Result<()> {
         std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
     }
     let _ = path;
-    Ok(())
-}
-fn prune_backups(path: &Path) -> Result<()> {
-    let parent = path.parent().unwrap_or_else(|| Path::new("."));
-    let prefix = format!(
-        "{}.backup-",
-        path.file_stem().unwrap_or_default().to_string_lossy()
-    );
-    let mut files = Vec::new();
-    for entry in std::fs::read_dir(parent)? {
-        let entry = entry?;
-        let name = entry.file_name().to_string_lossy().into_owned();
-        let Some(stamp) = name
-            .strip_prefix(&prefix)
-            .and_then(|s| s.strip_suffix(".sqlite3"))
-        else {
-            continue;
-        };
-        if stamp.parse::<i64>().is_ok() && entry.file_type()?.is_file() {
-            files.push(entry.path());
-        }
-    }
-    files.sort();
-    let excess = files.len().saturating_sub(5);
-    for backup in files.into_iter().take(excess) {
-        std::fs::remove_file(backup)?;
-    }
     Ok(())
 }
 pub(crate) fn validate_name(name: &str) -> Result<()> {

@@ -147,3 +147,116 @@ function menuKey(event: KeyboardEvent) {
     </div>
   </div>
 </template>
+
+<style scoped>
+.terminal-pane {
+  position: absolute;
+  inset: 0;
+}
+.terminal-host {
+  height: auto;
+  margin: 14px 8px 10px 14px;
+  overflow: hidden;
+  background: var(--terminal-background);
+}
+/* 只隔离滚动链，滚轮与全屏程序鼠标事件仍交给 xterm 处理。 */
+.terminal-host :deep(.xterm-viewport),
+.terminal-host :deep(.xterm-scrollable-element) {
+  overscroll-behavior: none;
+}
+.terminal-pane {
+  inset: auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--terminal-background);
+}
+.terminal-pane.split-pane {
+  /* 外框只占位，状态线内缩到边框内侧，避开视口裁剪边界的小数像素。 */
+  border: 1px solid transparent;
+  isolation: isolate;
+}
+.terminal-pane.split-pane::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border: 1px var(--pane-frame-style, solid)
+    var(--pane-frame-color, var(--border));
+  pointer-events: none;
+}
+.terminal-pane.focused-pane {
+  --pane-frame-color: var(--pane-focus-color);
+}
+.terminal-pane .terminal-host {
+  flex: 1;
+  min-height: 0;
+}
+.terminal-pane.split-pane .terminal-host {
+  margin: 0 6px 6px;
+}
+.terminal-pane-heading {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  margin: 4px 6px;
+}
+.terminal-pane-title {
+  /* 状态点与文字按容器居中，避免行内基线使圆点偏下。 */
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  padding: 0 4px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-align: left;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.terminal-pane-title-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.terminal-pane-title:focus-visible {
+  outline: 1px solid var(--pane-focus-color);
+}
+.terminal-pane-heading .pane-close,
+.terminal-pane-heading .pane-broadcast {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+}
+
+/* 窗格仅标题可拖动，终端正文仍保留原生xterm选区与鼠标协议。 */
+.terminal-pane-title[data-drag-terminal] {
+  touch-action: none;
+  cursor: grab;
+}
+
+/* 广播与焦点共用内部状态线，不改变终端尺寸，也不拦截选区或拖动。 */
+.terminal-pane.broadcast-pane {
+  --pane-frame-color: var(--pane-focus-color);
+}
+.terminal-pane.broadcast-peer {
+  --pane-frame-style: dashed;
+}
+
+.terminal-pane-body {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.terminal-pane-body > .terminal-host {
+  width: 0;
+  min-width: 0;
+}
+</style>

@@ -8,7 +8,7 @@ Windows、macOS、Linux 桌面客户端，采用 Tauri 2 + Rust + Vue 3 + TypeSc
 
 已落源码包括主机与凭据管理、SSH/动态认证/主机信任、终端保活与重连、标签排序和嵌套分屏、输入广播、快捷键、12种本地字体和64套终端配色。SFTP 提供单终端浏览/上传下载侧栏、目录合并上传及 macOS 文件/目录承诺拖出；固定双栏支持保存主机的独立 SSH/SFTP 连接与 Web 栏间文件/目录对拷，Windows/Linux 原生拖出未实现。
 
-断线与失败保留原 Tab、terminalId 和 xterm 缓冲，重连只替换后端连接。秘密由 Rust 与 OS keyring 管理；凭据库使用独立 `termvexa-credentials-v1.sqlite3`，不迁移或改动旧库。正文与文件数据不进入 Vue/Pinia。
+断线与失败保留原 Tab、terminalId 和 xterm 缓冲，重连只替换后端连接。主机和凭据由Rust写入SQLCipher加密库 `termvexa-encrypted-v2.sqlite3`（schema 2），首次密码经Argon2id派生主密钥；OS keyring只缓存主密钥，失败时密码恢复。配套vault.json须一起保留，不迁移旧库。正文与文件数据不进入 Vue/Pinia。
 
 ## 导航
 

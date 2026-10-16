@@ -5,7 +5,7 @@ use uuid::Uuid;
 impl SqliteStore {
     pub async fn list_groups(&self) -> Result<Vec<HostGroup>> {
         sqlx::query("SELECT * FROM host_groups ORDER BY sort_order,name COLLATE NOCASE")
-            .fetch_all(&self.pool)
+            .fetch_all(self.pool()?)
             .await?
             .into_iter()
             .map(|r| {
@@ -25,7 +25,7 @@ impl SqliteStore {
             .id
             .clone()
             .unwrap_or_else(|| Uuid::new_v4().to_string());
-        let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
+        let mut tx = self.pool()?.begin_with("BEGIN IMMEDIATE").await?;
         let mut ancestor = draft.parent_id.clone();
         let mut visited = std::collections::HashSet::new();
         while let Some(parent) = ancestor {
@@ -56,7 +56,7 @@ impl SqliteStore {
             .ok_or(StorageError::NotFound)
     }
     pub async fn delete_group(&self, id: &str, revision: i64) -> Result<()> {
-        let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
+        let mut tx = self.pool()?.begin_with("BEGIN IMMEDIATE").await?;
         let parent = sqlx::query_scalar::<_, Option<String>>(
             "SELECT parent_id FROM host_groups WHERE id=? AND revision=?",
         )

@@ -33,3 +33,15 @@ import { pendingPaste, resolvePaste } from "./paste";
     ></AppDialog
   >
 </template>
+
+<style scoped>
+.paste-preview {
+  background: var(--input);
+  max-height: 40dvh;
+  overflow: auto;
+  padding: 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 12px/1.6 monospace;
+}
+</style>

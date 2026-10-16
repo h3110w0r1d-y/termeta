@@ -28,11 +28,11 @@ driver 由单任务拥有，会话输入有界保序、关闭信号独立，输�
 
 ## ADR-007：安全凭据和主机信任分离
 
-秘密存 OS keyring，SQLite 只存元数据/引用，无明文回退或通用取秘密 IPC。主机公钥独立持久化，首次明确确认，变更阻断；凭据存储不能替代身份校验。具体凭据模型见 ADR-022，平台后端见 ADR-017。
+2026-10-16由ADR-031替代旧逐项OS存储：SQLCipher加密全部业务表，OS keyring只缓存一个主密钥，无明文回退或通用取秘密IPC。主机公钥独立持久化，首次明确确认，变更阻断；凭据存储不能替代身份校验。具体凭据模型见 ADR-022，平台后端见 ADR-017。
 
 ## ADR-008：SQLite + SQLx，通用 profile + 协议扩展表
 
-Rust repository 管理结构化主机/信任/设置，不允许前端 SQL，不提前创建未来表。当前为独立 schema 1 基线；不兼容旧库的路径隔离见 ADR-022。未来迁移、WAL 备份和跨 keyring 补偿必须保持数据保护。
+Rust repository 管理结构化主机/信任/设置，不允许前端 SQL，不提前创建未来表。当前为独立加密schema 2基线（ADR-031）；不兼容旧库的路径隔离见 ADR-022。未来迁移、WAL备份及配套解锁元数据须保持数据保护。
 
 ## ADR-009：重连新建后端连接，复用原终端与历史
 
@@ -64,7 +64,7 @@ Local 首选 portable-pty 候选；Serial 候选 serialport/tokio-serial。阻�
 
 ## ADR-017：首期实际依赖与凭据适配
 
-采用 keyring 3.6.3 显式平台后端：macOS apple-native、Windows windows-native、Linux sync-secret-service/crypto-rust。CredentialStore 隔离实现，OS 调用使用专用阻塞工作器，不在全局锁等待；服务缺失显式失败，不 mock 或明文降级。
+采用 keyring 3.6.3 显式平台后端：macOS apple-native、Windows windows-native、Linux sync-secret-service/crypto-rust。CredentialStore 隔离实现，OS 调用使用专用阻塞工作器，不在全局锁等待；服务缺失进入保险库密码恢复（ADR-031），不mock或明文降级。
 
 依赖固定 release/锁文件并复核源码 API、features、许可证/MSRV；当前 RSA/GLib 和停止维护公告未关闭，详见 [公告记录](17-implementation-status.md#4-依赖与公告核查)。依赖解析或编译成功不能替代安全审阅。
 
@@ -82,11 +82,11 @@ Naive UI 固定 2.45.3。通用控件和主题直接采用库能力，薄封装�
 
 ## ADR-022：公共凭据与主机专属密码（2026-10-15）
 
-公共凭据为密码/私钥，私钥正文和可选解密密码同存 OS item，导入后不依赖原文件。主机引用公共项或使用专属密码：非空保存、显式空移除后连接询问、省略保留，无记住开关；复制不复制专属密码，公共 DTO 只返回 hasPassword。
+公共凭据为密码/私钥，私钥正文和可选解密密码同存加密数据库凭据项（ADR-031），导入后不依赖原文件。主机引用公共项或使用专属密码：非空保存、显式空移除后连接询问、省略保留，无记住开关；复制不复制专属密码，公共 DTO 只返回 hasPassword。
 
-owner_profile_id 隔离专属项；pending/ready/deleting、新项先写/事务绑定/旧项后删处理跨存储失败，已提交后清理失败不伪报未保存。OTP 不持久化，不提供返回秘密的接口。
+owner_profile_id 隔离专属项；pending/ready/deleting、新项先写/事务绑定/旧项后删处理引用绑定及孤立项清理，已提交后清理失败不伪报未保存。OTP 不持久化，不提供返回秘密的接口。
 
-当前使用独立 `termvexa-credentials-v1.sqlite3`、schema 1，不迁移/删除旧 `termvexa.sqlite3` 或真实 OS item，不绕过高版本/校验和保护。首次新库为空，较大私钥容量、OS 故障与恢复仍需三平台实测。
+2026-10-16由ADR-031升级为独立加密schema 2，不再逐项存OS秘密；原有owner隔离和先准备/事务绑定/后清理语义保留。新旧库不迁移，旧库与旧OS项不删除。
 
 ## ADR-023：固定内置终端字体（2026-10-15）
 
@@ -125,3 +125,19 @@ files/sftp 分层，sessionId 授权远端，正文只在 Rust 64 KiB 流动。�
 OS 拖入在 Rust 登记 owner-bound 短期一次性引用，前端确认当前侧栏目录后入有界批次，不接受任意本地路径。macOS 用 NSFilePromiseProvider：外部接受并给出 URL 后才读取源和展示任务；Esc/内部松开不留下载记录，也不触发上传。拖出令牌由命令统一持有并显式传入原生层，禁止重叠命令隐式共享；原生 source 仅保活回调所需状态，命令等待写入退出并补齐 WebView 松键后再恢复交互。文件/目录后台串行兑现，递归 64 层/10000 项，不跟随链接，不替换已有本地目录；失败保留已下载内容。
 
 下载仍以本地独占临时项+硬链接无覆盖发布；不支持硬链接时明确失败。Windows/Linux 原生拖出尚未实现，保留下载按钮；所有原生拖放均待运行验收。采用锁定 objc2/block2/AppKit/Foundation API，不以静态宏核对声称 Finder 行为通过。
+
+## ADR-029：标签栏承载窗口标题栏（2026-10-16）
+
+按用户要求消除系统标题栏与顶部标签的重复占高。macOS 使用 Overlay/hidden title 和原生红黄绿按钮，Windows/Linux 关闭 decorations 并使用 Naive UI 窗口按钮；顶部标签保持 54px，左侧标签模式独立保留同高窗口栏。显式 data-tauri-drag-region 只标记空白及装饰区域，避免夺取标签排序/双击/分屏手势。原生窗口方法集中到 desktop 门面，仅 main capability 增加拖动、最小化与最大化所需内置权限，关闭仍走原有确认与释放流程。代价是三平台窗口缩放、全屏及窗口管理器差异必须专项验收；本轮只做静态检查。
+
+## ADR-030：业务样式随 Vue 组件维护（2026-10-16）
+
+按用户要求移除集中式 src/styles.css，将标签栏、窗口控件、窗格、分屏、设置与弹窗布局移入所属 Vue 的 `<style scoped>`，避免全局业务选择器继续扩张。App.vue 的非 scoped 样式仅维护主题、基础与共享规则，以及实际终端/预览共用的 xterm 选区和传送菜单适配；字体资源保持独立。标签组件用自身 position/isMac 状态控制根节点布局类，动态 DOM 和子组件内部匹配显式使用 `:deep()`。清理无模板引用和始终被覆盖的旧规则，保留其余有效声明与媒体条件；作用域变化仍须实际视觉验收。本轮通过类型、格式、CSS 语法、迁移比对和差异静态检查，未构建或运行。
+
+## ADR-031：密码派生单主密钥与SQLCipher全库加密（2026-10-16）
+
+用户要求首次设密码、后续OS主密钥自动解锁、失败时密码恢复，并明确不兼容开发阶段旧格式。采用Argon2id v19（64MiB/3轮/1并行度、16字节随机盐）派生32字节主密钥；OS服务仅一个master-key-v2项。SQLCipher4.5.7以AES-256-CBC/HMAC-SHA512保护数据库全部页面和WAL，避免字段加密遗漏名称/地址/标签/历史；AES-256-GCM只做独立的主密钥认证校验，使用随机12字节nonce并绑定UUID/KDF/盐/完成标记，完成标记更新时重新生成nonce。配套vault.json必须与数据库一起保存。
+
+初始化以元数据原子发布→加密DB初始化/完整性→完成标记排序，中断可密码恢复；完成态缺失文件或损坏不自动重建。每进程最多自动读取一次OS主密钥，密码恢复正确且DB打开成功后才重存，失败密码不覆盖文件；缓存写入失败允许本次解锁并警告。只有解锁状态API可越过保险库门禁，仍校验窗口/导航；core端口不变，前端不获得主密钥/保存秘密。credentials的secret/ready单语句写入，去除跨OS逐项恢复命令。
+
+新库termvexa-encrypted-v2.sqlite3/schema 2，不迁移或清理旧库/旧OS项；不引入明文兼容读取。代价是SQLCipher/OpenSSL原生构建与备份配对、密码遗失恢复责任；本轮只补源码/测试与静态检查，不承诺编译或运行通过。没有密码更换、重设、自动锁定、密钥轮换或整库回滚检测。

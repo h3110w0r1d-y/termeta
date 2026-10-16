@@ -50,7 +50,7 @@ pub async fn delete_host(
         .delete_host(&id, revision)
         .await
         .map_err(storage_error)?;
-    // 数据库删除已提交；系统秘密未能即时删除时保持待清理状态。
+    // 主机删除已提交；孤立秘密保留待清理状态，后续解锁重试回收。
     let _ = state.vault.reconcile_deletions().await;
     Ok(())
 }
@@ -265,15 +265,25 @@ pub async fn clear_history(window: WebviewWindow, state: State<'_, AppState>) ->
     state.store.clear_history().await.map_err(storage_error)
 }
 #[tauri::command]
-pub async fn recover_credential(
+pub async fn vault_status(
     window: WebviewWindow,
     state: State<'_, AppState>,
-    id: String,
-) -> Result<()> {
-    owner(&window)?;
+) -> Result<terminal_security::VaultStatus> {
+    crate::state::window_owner(&window)?;
+    state.vault.status().await.map_err(security_error)
+}
+#[tauri::command]
+pub async fn unlock_vault(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    password: String,
+    setup: bool,
+) -> Result<terminal_security::VaultStatus> {
+    let password = zeroize::Zeroizing::new(password);
+    crate::state::window_owner(&window)?;
     state
         .vault
-        .recover_pending(&id)
+        .unlock_with_password(password, setup)
         .await
         .map_err(security_error)
 }

@@ -243,7 +243,7 @@ async function save() {
                   >多行粘贴前确认</AppCheckbox
                 >
                 <p class="muted span-2">
-                  终端历史仅保留在当前窗口内存中。主机、信任和设置保存在本地；密码和私钥口令仅由系统凭据库管理。
+                  终端历史仅保留在当前窗口内存中。主机、信任、设置和凭据加密保存在本地；系统钥匙串仅缓存保险库主密钥。
                 </p>
               </div>
             </NTabPane>
@@ -286,6 +286,23 @@ async function save() {
 </template>
 
 <style scoped>
+.ui-label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+}
+.settings-body {
+  min-height: 340px;
+  max-height: 58dvh;
+  overflow: auto;
+  padding: 2px;
+}
+.settings-body :deep(h3) {
+  font-size: 13px;
+  margin-top: 20px;
+}
+
 .appearance-option {
   display: inline-flex;
   align-items: center;
