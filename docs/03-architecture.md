@@ -1,6 +1,6 @@
 # 系统架构与模块边界
 
-日期：2026-10-15。当前七个领域 crate 与桌面工作区已落源码（files/sftp首批实现见末尾）；以下同时保留后续目标结构。实现待验证，实际差异见 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)。
+日期：2026-10-15。当前八个领域 crate 与桌面工作区已落源码（files/sftp首批实现见末尾）；以下同时保留后续目标结构。实现待验证，实际差异见 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)。
 
 ## 1. 总体结构
 
@@ -14,7 +14,7 @@ flowchart TB
   Core --> Factory[SessionFactory 注册表]
   Factory --> SSH[terminal-ssh / russh]
   Factory --> Local[terminal-local / portable-pty]
-  Factory -. 后续 .-> Serial[terminal-serial / 串口适配]
+  Factory --> Serial[terminal-serial / serialport / 字符集转换]
   App --> Store[terminal-storage / SQLite]
   App --> Security[terminal-security / 主密钥与加密保险库]
   SSH --> Ports[core 中定义的 TrustStore / CredentialStore 接口]
@@ -56,7 +56,7 @@ src-tauri ──> terminal-core
           └─> terminal-security > terminal-core + terminal-storage
 
 terminal-local ──> terminal-core
-后续 terminal-serial ──> terminal-core
+terminal-serial ──> terminal-core
 src-tauri ──> terminal-files（FileProvider / 受界复制）
              └─> terminal-sftp ──> terminal-files + terminal-ssh
 本地文件适配隔离于 terminal-files 平台模块，不依赖 portable-pty
@@ -77,11 +77,12 @@ core 的模型与端口允许使用 serde、bytes、Tokio 通道、async-trait �
 | src/services/desktop                       | 唯一 invoke/Channel 门面             |
 | src/services/commands                      | 命令注册、快捷键与焦点路由           |
 | crates/terminal-core、terminal-ssh         | 通用会话及 SSH 协议                  |
+| crates/terminal-local、terminal-serial | 本地PTY与串口文本适配、设备独占和字符集转换 |
 | crates/terminal-storage、terminal-security | SQLCipher 与主密钥缓存                    |
 | crates/terminal-files、terminal-sftp       | 文件 DTO/有界复制与 SFTP provider    |
 | src-tauri/src/commands、files、state.rs      | owner 校验、原生交互、流桥与依赖装配 |
 
-根 Cargo workspace 使用 resolver 3、edition 2024，统一 release profile 和 Cargo.lock。Serial、独立 TransferManager 及通用连接租约尚未创建或完成；双栏文件连接已由独立 SessionManager 和 files-only SSH 工厂管理，开发对应功能时再引入实际模块。
+根 Cargo workspace 使用 resolver 3、edition 2024，统一 release profile 和 Cargo.lock。独立 TransferManager 及通用连接租约尚未创建或完成；双栏文件连接已由独立 SessionManager 和 files-only SSH 工厂管理，开发对应功能时再引入实际模块。
 
 ## 5. 前端与终端生命周期
 
@@ -101,10 +102,10 @@ UI 使用 Naive UI 现成组件及 `src/components/ui/` 薄适配，NConfigProvi
 - `SessionFactory`：验证该 kind 的版本化配置，创建 driver；`available_session_kinds` 返回已注册工厂能力。
 - `SessionCapabilities`：如 resize、PTY、binaryOutput、serialControl；通用 UI 根据能力启用，不根据 `kind === ssh` 推断。
 - `SessionControl`：通用 Write/Resize；未来 SerialControl 为受类型约束的专用扩展，不提供 `executeAnything` 或任意 JSON 逃逸口。
-- 输出恒为 bytes；终端/HEX 是两个消费视图。将来单 session 在二者切换要定义缓存与重放范围，不承诺无限历史。
+- 输出恒为 bytes；Serial文本模式在适配器按所选字符集转为UTF-8，帧偏移统计转换后字节，后续HEX需另定义原始字节通道。终端/HEX 是两个消费视图。将来单 session 在二者切换要定义缓存与重放范围，不承诺无限历史。
 - 配置使用版本化 discriminated union，DTO 映射到 core typed enum；不把 ssh 地址/用户名放进所有会话必填字段。
 
-为防过度抽象，会话配置以 SessionConfig::Ssh/Local 区分；SessionManager 在统一会话表内选择已注册工厂，保留共享限额、所有权、取消与输出ACK。Serial 配置后续扩展。
+为防过度抽象，会话配置以 SessionConfig::Ssh/Local/Serial 区分；SessionManager 在统一会话表内选择已注册工厂，保留共享限额、所有权、取消与输出ACK。Serial配置与文本编码边界见[串口设计](19-serial-terminal.md)。
 
 ## 7. SSH connection 与 terminal session
 
@@ -126,9 +127,9 @@ CommandRegistry 统一菜单、按钮与按键动作，KeymapService 合并平�
 
 ## 当前源码边界
 
-七个领域 crate、Tauri commands/state 与 Vue modules 已创建。当前注入 SshFactory 与 terminal-local::LocalFactory；Serial 尚未实现；仍通过 SessionFactory trait 隔离协议。原生壳只做 DTO/owner/资源桥接，具体握手、认证、PTY 与 socket 取消在 terminal-ssh。SQLite 复合写使用 BEGIN IMMEDIATE，不在应用全局锁内等待数据库。
+八个领域 crate、Tauri commands/state 与 Vue modules 已创建。当前注入 SshFactory、terminal-local::LocalFactory 与 terminal-serial::SerialFactory；仍通过 SessionFactory trait 隔离协议。原生壳只做 DTO/owner/资源桥接，具体握手、认证、PTY 与 socket 取消在 terminal-ssh。SQLite 复合写使用 BEGIN IMMEDIATE，不在应用全局锁内等待数据库。
 
-UI tokens、基础与共享规则集中于 `src/App.vue` 的非 scoped 样式；业务布局/尺寸在所属 Vue 的 `<style scoped>`，跨组件动态 DOM 显式使用 `:deep()` 或入口全局适配；字体资源仍在独立资源 CSS。已移除 `src/styles.css` 及入口导入。项目交互封装为 `src/components/ui/`；命令注册表在 `src/services/commands/`，只有 `src/services/desktop/` 能调用 invoke。终端注册表和设置/主机/工作区分模块维护；设置面板拆为配色、快捷键、安全子组件。已有 terminal-local crate，尚无独立 transfers 模块或 Serial crate。实际交付与限制见 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)。
+UI tokens、基础与共享规则集中于 `src/App.vue` 的非 scoped 样式；业务布局/尺寸在所属 Vue 的 `<style scoped>`，跨组件动态 DOM 显式使用 `:deep()` 或入口全局适配；字体资源仍在独立资源 CSS。已移除 `src/styles.css` 及入口导入。项目交互封装为 `src/components/ui/`；命令注册表在 `src/services/commands/`，只有 `src/services/desktop/` 能调用 invoke。终端注册表和设置/主机/工作区分模块维护；设置面板拆为配色、快捷键、安全子组件。已有 terminal-local/terminal-serial crate，尚无独立 transfers 模块。实际交付与限制见 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)。
 
 ## 10. 终端工作区布局
 

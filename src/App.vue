@@ -31,6 +31,7 @@ import WorkspaceTabs from "./modules/workspace/WorkspaceTabs.vue";
 import SftpWorkspace from "./modules/files/SftpWorkspace.vue";
 import NewTabDialog from "./modules/hosts/NewTabDialog.vue";
 import HostEditor from "./modules/hosts/HostEditor.vue";
+import SerialConnectDialog from "./modules/terminal/SerialConnectDialog.vue";
 import TerminalStage from "./modules/workspace/TerminalStage.vue";
 import { useTerminalMenu } from "./modules/workspace/useTerminalMenu";
 import { useTerminalClose } from "./modules/workspace/useTerminalClose";
@@ -43,13 +44,18 @@ import { schemeForTab, terminalRegistry } from "./modules/terminal/registry";
 import { needsCloseConfirmation } from "./modules/terminal/activity";
 import { commands } from "./services/commands/registry";
 import { desktop, errorMessage } from "./services/desktop/client";
-import type { HostProfile, SshConfig } from "./services/desktop/types";
+import type {
+  HostProfile,
+  SerialConfig,
+  SshConfig,
+} from "./services/desktop/types";
 import { useSettingsSync } from "./modules/settings/useSettingsSync";
 const settingsSync = useSettingsSync();
 const hosts = useHosts(),
   settings = useSettings(),
   workspace = useWorkspace();
 const newTabOpen = ref(false);
+const serialOpen = ref(false);
 const editorOpen = ref(false),
   quick = ref(false),
   editing = ref<HostProfile>(),
@@ -97,6 +103,9 @@ function quickConnect() {
 }
 function openLocalTerminal() {
   workspace.add("本地终端", { source: "local" });
+}
+function openSerial(config: SerialConfig) {
+  workspace.add(config.path, { source: "serial", config });
 }
 function connect(host: HostProfile) {
   workspace.add(host.name, { source: "saved", profileId: host.id });
@@ -304,6 +313,7 @@ onBeforeUnmount(() => {
           <VaultLayout
             @connect="connect"
             @local="openLocalTerminal"
+            @serial="serialOpen = true"
             @edit="edit"
           />
           <SftpWorkspace v-show="workspace.activeId === 'sftp'" />
@@ -366,17 +376,26 @@ onBeforeUnmount(() => {
             <footer v-if="workspace.active" class="status-bar">
               <span>
                 {{
-                  workspace.active.target.source === "local" ? "本地" : "SSH"
+                  workspace.active.target.source === "local"
+                    ? "本地"
+                    : workspace.active.target.source === "serial"
+                      ? "串口"
+                      : "SSH"
                 }}
                 · {{ stateLabels[workspace.active.state] }}
               </span>
-              <span>
+              <span v-if="workspace.active.target.source === 'serial'">
+                {{ workspace.active.target.config.baudRate }} baud ·
+                {{ workspace.active.target.config.charset }}
+              </span>
+              <span v-else>
                 {{ workspace.active.size.cols }} ×
                 {{ workspace.active.size.rows }} · UTF-8
               </span>
               <AppButton
                 v-if="
                   workspace.active.target.source !== 'local' &&
+                  workspace.active.target.source !== 'serial' &&
                   workspace.activeGroup?.root.kind === 'terminal'
                 "
                 class="status-sftp-toggle"
@@ -412,6 +431,11 @@ onBeforeUnmount(() => {
           @after-leave="restoreTerminalFocus"
         />
         <ChallengeDialog @after-leave="restoreTerminalFocus" />
+        <SerialConnectDialog
+          v-model:open="serialOpen"
+          @connect="openSerial"
+          @after-leave="restoreTerminalFocus"
+        />
         <PasteDialog />
         <ConfirmationDialog />
       </div>

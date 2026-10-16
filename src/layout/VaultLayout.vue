@@ -23,6 +23,7 @@ const navigationOptions = navigationItems.map((item) => ({
 const emit = defineEmits<{
   connect: [host: HostProfile];
   local: [];
+  serial: [];
   edit: [host?: HostProfile, copy?: boolean, groupId?: string | null];
 }>();
 </script>
@@ -54,6 +55,7 @@ const emit = defineEmits<{
           "
           @connect="emit('connect', $event)"
           @local="emit('local')"
+          @serial="emit('serial')"
           @edit="(host, copy, groupId) => emit('edit', host, copy, groupId)"
         />
       </div>

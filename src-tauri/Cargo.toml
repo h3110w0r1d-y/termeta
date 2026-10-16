@@ -13,6 +13,7 @@ tauri-build = { version = "=2.6.3", features = [] }
 
 [dependencies]
 terminal-local = { path = "../crates/terminal-local" }
+terminal-serial = { path = "../crates/terminal-serial" }
 tauri = { version = "=2.11.5", features = [] }
 tauri-plugin-opener = "=2.5.5"
 tauri-plugin-dialog = "=2.6.0"

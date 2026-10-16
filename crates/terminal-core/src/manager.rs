@@ -429,6 +429,13 @@ impl SessionManager {
     pub fn resize(&self, owner: &str, id: &str, size: TerminalSize) -> Result<TerminalSize> {
         size.validate()?;
         let record = self.owned(owner, id)?;
+        if !record.events.snapshot().capabilities.resize {
+            return Err(SessionError::new(
+                "UNSUPPORTED_OPERATION",
+                "resize",
+                "此会话不支持调整远端尺寸",
+            ));
+        }
         if record.cancel.is_cancelled() || record.events.snapshot().state.terminal() {
             return Err(SessionError::new("NOT_CONNECTED", "resize", "会话已结束"));
         }

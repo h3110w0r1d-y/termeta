@@ -2,7 +2,7 @@
 import HostSystemBadge from "./HostSystemBadge.vue";
 import AssetIcon from "../../components/ui/AssetIcon.vue";
 import { NIcon } from "naive-ui";
-import { Star, StarOutline } from "@vicons/ionicons5";
+import { HardwareChipOutline, Star, StarOutline } from "@vicons/ionicons5";
 import { closeContextMenuOnOutside } from "../../components/ui/contextMenu";
 import { confirmAction } from "../../components/ui/confirmation";
 import { computed, nextTick, ref, watch, reactive } from "vue";
@@ -39,6 +39,7 @@ const emit = defineEmits<{
   edit: [HostProfile | undefined, boolean?, (string | null)?];
   settings: [];
   local: [];
+  serial: [];
 }>();
 const store = useHosts();
 const settings = useSettings();
@@ -229,6 +230,12 @@ watch(group, () => {
           <AssetIcon name="local-terminal" :size="18" />
         </template>
         本地终端
+      </NButton>
+      <NButton @click="emit('serial')">
+        <template #icon>
+          <NIcon :size="18" aria-hidden="true"><HardwareChipOutline /></NIcon>
+        </template>
+        串口
       </NButton>
     </NSpace>
     <NAlert

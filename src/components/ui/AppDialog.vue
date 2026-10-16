@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import { NModal, NScrollbar } from "naive-ui";
-defineProps<{
-  open: boolean;
-  title: string;
-  description?: string;
-  wide?: boolean;
-  locked?: boolean;
-  embedded?: boolean;
-}>();
+withDefaults(
+  defineProps<{
+    open: boolean;
+    title: string;
+    description?: string;
+    wide?: boolean;
+    locked?: boolean;
+    embedded?: boolean;
+    autoFocus?: boolean;
+  }>(),
+  { autoFocus: true },
+);
 const emit = defineEmits<{
   "update:open": [value: boolean];
   "after-leave": [];
@@ -32,7 +36,7 @@ const emit = defineEmits<{
     :closable="!locked"
     :close-on-esc="!locked"
     :mask-closable="false"
-    :auto-focus="true"
+    :auto-focus="autoFocus"
     :trap-focus="true"
     :style="{
       maxHeight: 'calc(100dvh - 40px)',

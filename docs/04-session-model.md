@@ -112,13 +112,13 @@ close 在任意阶段幂等；立即设置取消信号并拒绝新输入，撤�
 
 ## 6. 能力与扩展
 
-| 能力                  | SSH        | Local（计划） | Serial（计划）                 |
+| 能力                  | SSH        | Local（基础） | Serial（文本）                 |
 | --------------------- | ---------- | ------------- | ------------------------------ |
 | raw byte output/input | 是         | 是            | 是                             |
 | resize                | 是         | 是            | 否，返回 UNSUPPORTED_OPERATION |
 | PTY                   | 是         | 是            | 否                             |
 | remote host trust     | 是         | 否            | 否                             |
-| serial control        | 否         | 否            | 是                             |
+| serial control        | 否         | 否            | 待实现；启动参数已支持 |
 | HEX viewer            | 后续可扩展 | 后续可扩展    | 主要场景                       |
 
 不要把 resize 无操作成功当成所有协议都实现了 PTY；调用方根据 capabilities 显示支持情况。
@@ -131,7 +131,7 @@ retryable 只表示用户可以重新尝试连接，不表示允许自动重放 
 
 ## 8. 源码映射与验证
 
-[types](../crates/terminal-core/src/types.rs) 定义状态/配置/事件，[ports](../crates/terminal-core/src/ports.rs) 定义工厂/信任/凭据/消费端，[manager](../crates/terminal-core/src/manager.rs) 管理 owner/幂等/配额与任务，[session](../crates/terminal-core/src/session.rs) 管理 challenge/状态，[stream](../crates/terminal-core/src/stream.rs) 管理字节预算与 ACK。非 SSH 工厂注册仍为后续扩展；不宣称目标抽象全部实例化。fake driver 测试已编写，未执行；取消/信用耗尽/终态跨 Channel 次序仍需授权验收。
+[types](../crates/terminal-core/src/types.rs) 定义状态/配置/事件，[ports](../crates/terminal-core/src/ports.rs) 定义工厂/信任/凭据/消费端，[manager](../crates/terminal-core/src/manager.rs) 管理 owner/幂等/配额与任务，[session](../crates/terminal-core/src/session.rs) 管理 challenge/状态，[stream](../crates/terminal-core/src/stream.rs) 管理字节预算与 ACK。Local/Serial工厂已注册；不宣称目标抽象全部实例化。fake driver 测试已编写，未执行；取消/信用耗尽/终态跨 Channel 次序仍需授权验收。
 
 ## 9. 工作区与会话身份
 
@@ -142,3 +142,7 @@ M2 内存分屏不改变 actor 或 session 模型：标签组ID、terminalId、�
 ## 本地驱动（2026-10-16）
 
 SessionFactory 接收 SessionConfig（Ssh/Local），SessionManager::open 兼容 SshConfig 的 Into 转换；with_factory 注册本地工厂，共享20个活动会话限额与连接额度。Local 使用独立阻塞读写线程、有界4×32KiB读取桥和单块输入桥，InputChunk 保留字节预算许可；输出泵与resize/退出轮询并行，取消丢弃驱动时终止子进程并异步回收。PTY创建放在阻塞任务内，晚到的创建结果同样由RAII清理。Unix 初始进程组强制结束；已脱离组的子进程、Windows完整进程树仍待完善。Shell退出后等待PTY输出排空，再由核心发布Ended并保留前端历史。
+
+## 串口驱动（2026-10-16）
+
+SessionConfig增加SerialConfig，SerialFactory接入共用会话表；不支持PTY/远端resize/会话内专用控制。独占设备由读写线程持有，应用内登记在最后句柄关闭后释放；future取消同样触发线程取消。读取桥4×8KiB与单块输入桥均有界，输出转码/ACK等待不阻止取消；错误停止设备并排空已读输出，用户取消仍优先。UTF-8字节直接传递，其他编码以状态化解码器跨块转换；Channel偏移针对转换后字节。详细契约和真实设备验证边界见[Serial设计](19-serial-terminal.md)。

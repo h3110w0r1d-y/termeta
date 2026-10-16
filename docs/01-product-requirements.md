@@ -86,7 +86,7 @@ Termvexa 面向需要频繁连接服务器的开发、运维和设备工程师�
 | [ ] | PRO-03  | M3      | ProxyJump、Agent、SSH config/known_hosts 导入          | 连接路线/认证扩展；不执行导入的 ProxyCommand         |
 | [ ] | PRO-04  | M3      | Snippets、终端日志、布局保存/恢复（内存分屏提前至 M2） | 显式执行、日志策略、独立布局模型                     |
 | [ ] | EXT-01  | M4      | Local Terminal：Shell、cwd、env、PTY、退出/清理        | `SessionFactory`、能力发现；本地进程与信号适配       |
-| [ ] | EXT-02  | M4      | Serial：枚举、串口参数、连接、DTR/RTS                  | 原始字节 + 协议专用控制；设备独占                    |
+| [ ] | EXT-02  | M4      | Serial：枚举、串口参数、连接、DTR/RTS                  | 枚举/参数/独占文本连接已实现；DTR/RTS控制未实现                    |
 | [ ] | EXT-03  | M4      | HEX、时间戳、文本/HEX 发送、换行、Local Echo           | 显示模式独立于 session kind；不把二进制强制转 UTF-8  |
 | [ ] | PROD-01 | M5      | 安装包、签名、公证、更新、诊断导出                     | 平台发布流程与本地隐私控制                           |
 | [ ] | FUT-01  | 长期/P2 | 加密 Vault、同步、批量执行、远程编辑、团队             | 另立需求和威胁模型，不挤入通用终端接口               |
@@ -132,6 +132,7 @@ M1/M2 主体源码已落地、M3 SFTP 部分实现，尚未通过完整集成、
 | 主机与保险箱   | [主机](../src/modules/hosts/HostsPage.vue)、[保险箱布局](../src/layout/VaultLayout.vue)、[应用](../src/App.vue)：左侧分组树/子树主机计数及展开/包含子组偏好持久化、右侧按组浏览/收藏置顶、顶部全局搜索下拉（拼音开关/搜索字段即时持久化，名称固定）、右键增改删/二次确认、主机与分组拖拽迁移、收藏/标签/搜索（返回保险箱默认主机页并自动聚焦）、新建标签页弹窗内快速连接入口、卡片右键操作与名称旁 SSH 标签，保险箱主机/凭据/设置保活                                     | 分组树/拖拽/两步删除、搜索/拼音/偏好重启恢复及Naive UI表单rules/必填标记待验收                                                                                                                   |
 | SSH 与认证   | [SSH](../crates/terminal-ssh/src/lib.rs)：密码/公钥、动态交互认证、PAM 保存密码单次自动响应、空白零输入轮免弹窗、信任与变更阻断、PTY/resize/KeepAlive                                                                           | 密码/加密私钥/OTP/失败矩阵待完成，专门睡眠恢复未实现                                                                                           |
 | 终端生命周期 | [registry](../src/modules/terminal/registry.ts)：稳定 terminalId/xterm、断线/失败保留、同实例手动重连、旧流隔离、消费 ACK                                                                                                       | 历史/全屏/尾输出/压力与三平台待验收                                                                                                            |
+| Serial文本终端 | [适配器](../crates/terminal-serial/src/lib.rs)、[配置窗](../src/modules/terminal/SerialConnectDialog.vue)：设备枚举/刷新、波特率和高级参数、独占、双向字符集转换、错误与原缓冲重开 | macOS指定ESP32-C3的115200输出/关闭、15项Rust测试与xterm无界面缓冲对比通过；桌面与其他平台待验收，手动DTR/RTS、DSR/DTR流控及HEX未实现 |
 | 标签与分屏   | [WorkspaceTabs](../src/modules/workspace/WorkspaceTabs.vue)、[store](../src/modules/workspace/store.ts)：固定页、标题栏集成（macOS Overlay 原生按钮下移对齐54px栏中线（待复验）、Windows/Linux 库按钮、左侧模式独立窗口栏）、横向32px/纵向36px标签（横向关闭按钮22px、图标16px）、排序/嵌套分屏/比例、窗格拖回 Tab/跨组重排、普通标签复制/拆分、双击动作设置；Workspace 标签无右键菜单 | 布局只驻内存，无整组迁移/跨窗口/保存恢复                                                                                                       |
 | 工作区广播   | [inputRouter](../src/modules/terminal/inputRouter.ts)、[inputOrigin](../src/modules/terminal/inputOrigin.ts)：键盘/IME/粘贴/远端滚轮，点击与应答隔离                                                                            | 默认关闭、重组关闭，固定 xterm 内部事件适配待实际验证                                                                                          |
 | 凭据与存储   | [storage](../crates/terminal-storage/src/lib.rs)、[security](../crates/terminal-security/src/vault.rs)：公共密码/私钥、主机专属密码、SQLCipher schema 2全库加密、Argon2id首次密码、单OS主密钥/密码恢复                                                                   | 独立加密新库，不迁移旧库；原生依赖编译、OS主密钥/中断恢复/三平台待验收                                                                                  |
@@ -147,7 +148,7 @@ M1/M2 主体源码已落地、M3 SFTP 部分实现，尚未通过完整集成、
 
 ### 8.2 已有反馈与剩余门槛
 
-用户有 macOS 编译、终端使用、截图与报错反馈；代理没有构建、启动、执行 Rust 测试或连接真实 SSH/串口。反馈后的源码修复仅做静态核对，不能据此宣称当前版本编译或运行通过。长按回车空白由用户确认属于远端 zsh 行为。
+用户有 macOS 编译、终端使用、截图与报错反馈；代理此前仅做静态核对。本轮用户明确授权串口调试，代理定向编译terminal-core/terminal-serial、现执行15项Rust测试通过，并在指定ESP32-C3上验证115200启动输出/关闭；没有构建或启动桌面应用、连接真实SSH，不能据此宣称整个当前版本或三平台验收通过。长按回车空白由用户确认属于远端 zsh 行为。
 
 ### 8.3 下一步优先级
 
@@ -157,7 +158,7 @@ M1/M2 主体源码已落地、M3 SFTP 部分实现，尚未通过完整集成、
 
 ### 8.4 核心交付与资源边界
 
-核心为七个领域 crate 与 Tauri 壳，前端只持有轻量业务状态。终端正文留在 xterm/有界管线，文件正文只在 Rust 传输；不进入 Pinia/数据库/日志/浏览器持久存储。
+核心为八个领域 crate 与 Tauri 壳，前端只持有轻量业务状态。终端正文留在 xterm/有界管线，文件正文只在 Rust 传输；不进入 Pinia/数据库/日志/浏览器持久存储。
 
 - core：每会话 actor、owner/request 幂等、20 活动/4 建立并发、独立取消、输入去重、challenge 与终态摘要。
 - 数据面：24 字节帧头、32 KiB 帧、256 KiB 信用、512 KiB 输出字节预算、64 KiB 输入、解析后累计 ACK/finalOffset。
@@ -165,7 +166,7 @@ M1/M2 主体源码已落地、M3 SFTP 部分实现，尚未通过完整集成、
 - 前端：固定保险箱/SFTP，已打开终端独立保活；OSC 标题展示，关闭提示依据 OSC 133 或标题首个冒号前缀变化；本地状态消息不无条件恢复旧光标。
 - 分屏：纯数据树计算矩形、扁平 keyed 宿主保活；广播只处理用户输入，成员重组关闭，不重放旧代次输入。
 
-Serial、隧道/跳板/Agent、布局持久化与系统后台热键尚未实现。
+基础Serial文本终端已落源码；DTR/RTS控制、DSR/DTR流控、HEX、隧道/跳板/Agent、布局持久化与系统后台热键尚未实现。
 
 ### 8.5 SFTP 当前边界
 
@@ -208,7 +209,7 @@ core 与文件流的测试源码存在但未运行。Rust格式解析不等于�
 
 经用户明确授权后仍需完成固定库组合、SSH/认证/信任、keyring/重启/故障恢复、无ACK与洪泛关闭、KeepAlive、全屏/IME/焦点、分屏/广播、原生拖放及三平台矩阵。专门睡眠恢复未实现；全屏快照仅有界可读文本，不承诺完整交互画面恢复。
 
-连接历史仅保留最近20次（SSH与Local合计），新增时事务裁剪、解锁时清理旧超量记录，同毫秒按插入顺序倒序；正文不落盘，配置保存不承诺无条件安全擦除。只有对应P0和矩阵具备实际证据后才能标记“已验证”；本文不授权任何编译、启动、网络连接、打包或发布。
+连接历史仅保留最近20次（SSH、Local与Serial合计），新增时事务裁剪、解锁时清理旧超量记录，同毫秒按插入顺序倒序；正文不落盘，配置保存不承诺无条件安全擦除。只有对应P0和矩阵具备实际证据后才能标记“已验证”；本文不授权任何编译、启动、网络连接、打包或发布。
 
 验收范围按现有需求与模块设计维护，不另设独立验证文档：
 
@@ -242,3 +243,7 @@ EXT-01 保留 `[ ]`：基础终端已由 `crates/terminal-local` 实现，支持
 源码已实现HOST-05，尚未编译运行验收。入口为terminal-ssh/os_detection.rs与SshFactory，持久化端口RemoteSystemStore由terminal-storage实现，主机卡片和编辑器共用HostSystemIcon，卡片另由HostSystemBadge/NAvatar提供40px系统色圆角底与24px白色图标。默认启用detectSshSystem，只有保存的SSH终端在正常打开后识别；优先服务端标识，否则独立exec探测Shell及系统，不影响终端输入输出。命令拒绝、非零退出、超时、超限或取消视为未识别，仍保留一次性标记。非默认图标视为手动选择，不自动探测或覆盖。复制为新主机保留图标但不复制尝试标记；地址修改不重置原主机标记。仅识别图标类别，不承诺系统版本、架构、容器/宿主区分或任意网络设备兼容。
 
 静态检查覆盖TS类型、Vue/TS/Rust格式、结构依赖、清单/锁文件、28个SVG摘要与主动内容、前后端图标白名单和共用脚本资源、内存SQL模型谓词。Rust测试源码覆盖解析、一次性并发/重启/失败、开关、手动覆盖、目标修改/删除与非法图标，未执行。后续须授权验收Linux发行版、macOS/BSD、Fish、Windows/RouterOS、禁止exec/单session服务器、取消/超限、重启恢复、手动图标与只读设置及三平台视觉。
+
+## Serial 基础源码（2026-10-16）
+
+EXT-02保持`[ ]`：枚举/刷新、串口启动配置、波特率与高级参数、独占连接、双向字符集转换、有界I/O与保留原缓冲重开已由[串口适配器](../crates/terminal-serial/src/lib.rs)、[配置弹窗](../src/modules/terminal/SerialConnectDialog.vue)实现。串口及波特率均可选择、手输、修改与复制，不依赖设备枚举成功；macOS后端按IOKit拨入角色仅返回tty候选，严格打开用户指定节点；错误明细见串口设计。默认9600、UTF-8、8数据位、1停止位、None流控、No校验；入口紧随新建主机和本地终端。手动DTR/RTS、DSR/DTR流控尚未实现；HEX/Local Echo仍属EXT-03。无SFTP/远端resize，禁用复制同端口连接，现有窗格可参与布局。Serial与SSH/Local共用最近20次历史，仅摘要入库，不新增schema。打开时明确DTR=false，非硬件流控下尽力解除RTS，避免本次ESP32-C3控制线状态导致空白；硬件流控RTS保留驱动管理。串口输出含UTF-8均流式解码，非法序列显示�，跨块字符和ANSI等控制字节保留。用户授权的115200实机接收/关闭已验证，解码修复后两个crate共15项测试及xterm无界面缓冲对比通过，本次未重新连接设备，未构建或启动桌面应用。契约、具体实测边界及其他平台待验收项见[Serial设计](19-serial-terminal.md)。

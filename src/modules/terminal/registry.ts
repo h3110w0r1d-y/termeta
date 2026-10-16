@@ -56,6 +56,7 @@ interface Entry {
   connecting: boolean;
   disposed: boolean;
   lastSize: string;
+  canResize: boolean;
   inputOrigin?: ReturnType<typeof observeTerminalInput>;
   fontRequest?: string;
 }
@@ -158,6 +159,7 @@ function event(
         tab.error = errorMessage(error);
       });
   } else if (value.type === "stateChanged") {
+    entry.canResize = value.snapshot.capabilities.resize;
     const wasConnected = tab.state === "connected";
     update(tab, value.snapshot);
     if (!wasConnected && tab.state === "connected") {
@@ -385,7 +387,12 @@ function fit(entry: Entry, tab: TerminalTab) {
   };
   tab.size = size;
   const key = `${size.cols}:${size.rows}`;
-  if (entry.lastSize !== key && tab.sessionId && tab.state === "connected") {
+  if (
+    entry.canResize &&
+    entry.lastSize !== key &&
+    tab.sessionId &&
+    tab.state === "connected"
+  ) {
     entry.lastSize = key;
     void desktop.resize(tab.sessionId, size).catch((error) => {
       entry.lastSize = "";
@@ -447,6 +454,7 @@ export const terminalRegistry = {
       connecting: false,
       disposed: false,
       lastSize: "",
+      canResize: false,
     };
     entries.set(tab.terminalId, entry);
     // xterm 统一解析 OSC 0/2；标题仅驻内存展示，不作为真实命令或主机身份。
@@ -536,9 +544,13 @@ export const terminalRegistry = {
           ? old
             ? "重新打开本地终端，保留终端历史"
             : "启动本地终端"
-          : old
-            ? "重新连接，保留终端历史"
-            : "开始 SSH 连接",
+          : tab.target.source === "serial"
+            ? old
+              ? "重新打开串口，保留终端历史"
+              : "打开串口"
+            : old
+              ? "重新连接，保留终端历史"
+              : "开始 SSH 连接",
       );
       const stream: Stream = {
         generation: (old?.generation ?? 0) + 1,
@@ -571,6 +583,7 @@ export const terminalRegistry = {
         return;
       }
       stream.sessionId = snapshot.sessionId;
+      entry.canResize = snapshot.capabilities.resize;
       update(tab, snapshot);
       await acknowledge(entry, stream);
     } catch (error) {

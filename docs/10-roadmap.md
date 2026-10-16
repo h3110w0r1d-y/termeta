@@ -19,7 +19,7 @@ Workspace 调整尺寸分隔条的3px主体与中点凸起的两个三角形手�
 | M2 SSH 工作台       | 主机/凭据/设置、终端保活、工作区分屏/广播、字体/配色/快捷键已实现           | 三平台集成、安全、持久化、IME/全屏/压力验收；专门睡眠恢复处理未实现      |
 | M3 SFTP             | 单终端浏览、上传/下载、目录合并上传、原生拖入与 macOS 文件/目录拖出已落源码 | 固定双栏独立连接及对拷已落源码，待编译运行；本地浏览和通用连接租约未实现 |
 | M3 其余             | 设计阶段                                                                    | 隧道、跳板/Agent、日志与布局恢复                                         |
-| M4 Local/Serial     | Local 基础源码已实现、Serial 未开始                                                                      | 工厂、平台实现和真实设备验证                                             |
+| M4 Local/Serial     | Local与Serial文本终端基础源码已实现                                                                      | 工厂、平台实现和真实设备验证                                             |
 | M5 发布             | 未开始                                                                      | 依赖风险处置、三平台签名/安装/更新与恢复演练                             |
 
 源码完成状态统一由需求表的 `[x]`/`[ ]` 维护，仅按实现判断，部分实现保留未勾选；路线保留里程碑依赖和运行门槛。具体功能及源码入口见 [当前总览](01-product-requirements.md#8-当前实现与限制)。源码实施与运行通过分别记录；用户已有 macOS 终端反馈不能外推到当前版本完整验收。
@@ -96,7 +96,7 @@ Local 工厂与预留的 Cmd+L 动作已接入。本地文件浏览不依赖 Loc
 
 基础 Local 已实现：terminal-local（portable-pty 0.9.0）、按 SessionConfig 路由的共用会话管理器、系统 Shell/主目录/继承环境、PTY 输入输出/resize/退出、终态保留与重开、复制与分屏。主机页移除 Header，搜索框置顶，其下左对齐“新建主机”“本地终端”。沿用 open_session ACL、解锁和 owner 校验，无新命令。
 
-M4 仍部分实现：自定义 Shell/cwd/env 配置、脱离原进程组的子进程及 Windows 完整进程树清理、Serial/HEX 尚未完成。本轮仅类型、格式和差异静态检查；按仓库约束未执行 Rust 编译、项目启动、真实 PTY/三平台验收。后续应验证交互 Shell、Unicode/全屏程序、resize、大量输出背压、输出阻塞时关闭、退出尾部输出、重开保留历史、窗口关闭和子进程清理。
+M4 仍部分实现：自定义 Shell/cwd/env 配置、脱离原进程组的子进程及 Windows 完整进程树清理、Serial后续控制与HEX 尚未完成。本轮仅类型、格式和差异静态检查；按仓库约束未执行 Rust 编译、项目启动、真实 PTY/三平台验收。后续应验证交互 Shell、Unicode/全屏程序、resize、大量输出背压、输出阻塞时关闭、退出尾部输出、重开保留历史、窗口关闭和子进程清理。
 
 2026-10-16：Workspace 与本地终端统一隐藏状态栏 SFTP 开关；单 SSH 终端保留拖动中和未连接时的禁用条件。仅调整入口展示，侧栏/分屏保护不变。本轮静态检查，不构建或运行。
 
@@ -159,3 +159,27 @@ M2 HOST-05源码完成：默认开关、每保存SSH主机一次性claim、服�
 2026-10-16：顶部未激活固定/会话标签增加主题文字色4%的透明底色，保留文字/图标不透明度及原悬停/激活主题色，左侧标签不变。无依赖、IPC或存储变化。Vue格式、类型、差异仅静态检查，未构建或启动；明暗主题视觉待运行复验。
 
 2026-10-16：会话标签顶部隐藏滚动条，useTabScroll按动画帧合并纵向滚轮为横向位移，保留触控板原生横向手势；侧边模式保留纵向滚动及原滚动条。CSS mask在顶部左右/侧边上下存在隐藏内容时渐隐露出标签栏背景，到达对应边缘移除；沿用实际滚动DOM及拖动自动滚动。依赖现有Vue与浏览器API，无新增库、IPC或存储变化。类型、Vue/TS格式、结构及差异静态检查通过；未构建、启动或运行测试。鼠标/触控板流畅度、惯性、四端渐隐、窗口缩放/标题变化与拖动联动仍待三平台运行验收。
+
+## 2026-10-16：Serial 基础支持
+
+M4串口文本终端已落源码：主机页第三个串口按钮、启动配置弹窗、系统枚举/刷新、9600及UTF-8/8/1/None/No默认参数、常用波特率与自填、高级字符集/数据位/停止位/流控/校验、串口独占、有限超时读写、有界队列、双向字符集转换、设备错误与原缓冲重开。依赖独立terminal-serial（serialport 4.10.1、encoding_rs 0.8.42）及既有core会话/owner/Channel/ACK，不修改schema；list_serial_ports同步AppManifest/main ACL。Serial不发送resize、不显示SFTP，不允许复制同端口连接；详情见[串口设计](19-serial-terminal.md)。
+
+用户编译反馈：E0425已通过在types.rs显式导入SerialConfig修复；terminal-serial四处平台属性改为#[cfg(unix)]/#[cfg(windows)]，确保端口键与设备打开分支按平台互斥，修复由错误属性连带导致的builder重复移动及key/port遮蔽警告。全仓Rust源码搜索未发现其他同类裸平台属性。修复仅做Rust格式、条件分支、相关引用与差异静态核对，未重新编译或执行测试，不将此前静态检查视为Rust编译通过。
+
+本轮静态检查：vue-tsc --noEmit、结构、Vue/TS/Rust格式、Cargo锁文件/metadata、命令ACL集合、参数及字符集白名单、文档链接与差异。OSV按固定serialport/encoding_rs版本查询未返回公告，不替代全依赖审计。新增跨块转码、编码不可表示、截断尾部、配置与owner/resize回归源码未执行；未编译、构建、启动或连接串口。EXT-02仍部分完成：DTR/RTS控制、DSR/DTR流控未实现；HEX/Local Echo仍属EXT-03。三平台真实设备、权限/占用、全部参数组合、插拔/重开、流控阻塞、无ACK时关闭和窗口回收待验收。
+
+2026-10-16：串口高级设置的数据位、停止位、流控与校验改为Naive UI NRadioGroup/NRadioButton按钮组，字符集保留NSelect，沿用同一响应式表单字段与默认值。无依赖、IPC或Rust变更；仅前端类型、结构、Vue格式及差异静态检查，未构建、启动或连接串口，键盘选择与视觉待运行验收。
+
+2026-10-16：AppDialog增加autoFocus可选属性（默认true），串口配置窗显式设为false，避免打开时聚焦表单并展开下拉菜单；沿用焦点陷阱和退场后的终端焦点恢复。无新依赖或IPC/Rust变更。前端类型、结构、Vue格式与差异仅静态检查，未构建或启动；首次/重复打开、手动下拉及键盘操作待运行验收。
+
+2026-10-16：串口刷新按钮移至串口选择框右侧，使用Naive UI NButton/NIcon与Ionicons RefreshOutline，仅显示图标，保留提示、无障碍名称和加载/禁用状态；footer仅保留取消与连接。无新依赖、IPC或Rust变更。前端类型、结构、Vue格式与差异静态检查；未构建、启动或连接串口，布局及交互待运行验收。
+
+
+2026-10-16：串口/波特率统一为NAutoComplete可编辑输入，可选择、手输、修改和复制；端口候选描述仅渲染、不写入值。空列表/枚举失败仍允许提交手输端口，后端改为Unix /dev字符设备或Windows COM名称校验；macOS后端按系统IODialinDevice属性仅保留tty候选，严格打开用户所填节点，不主动切换tty/cu。核对serialport 4.10.1源码，移除默认独占打开后的重复set_exclusive，错误提示保留受限驱动原因。本次用户反馈的通用报错尚不足以确认实机根因。依赖既有serialport/core/NAutoComplete，macOS为系统角色枚举直接声明锁文件已有core-foundation 0.10.1/io-kit-sys 0.4.1，无新增IPC或schema变更。仅前端类型/结构/Vue格式、Rust格式及差异静态检查；新增路径归一与非法路径回归源码未执行，未构建、启动或连接串口。三平台手输与复制、空列表/枚举失败、非法/链接路径、IOKit拨入候选、tty/cu手输节点保持与原设备复测待运行验收。
+
+2026-10-16：macOS后端新增IOKit角色筛选适配，仅返回IODialinDevice声明的tty候选；serialport 4.10.1没有对应筛选选项，适配层精确匹配系统属性并保留库元数据，不写死/dev/cu路径过滤。移除主动tty/cu切换，手输任何通过既有设备校验的节点均按原节点打开。macOS直接依赖锁文件已有core-foundation/io-kit-sys包，无新IPC、schema或前端变更。实际仅Rust格式、Cargo metadata/锁文件、源码路径策略与差异静态核对；未编译、启动或连接串口，系统角色枚举与原设备打开仍待实机验收。
+
+2026-10-16（用户授权实机调试）：定位ESP32-C3在115200已Connected但空白为打开时未明确控制线初始状态；库默认preserve DTR、RTS未初始化。现通过dtr_on_open(false)设置DTR，None/Software流控尽力RTS=false，Hardware流控RTS留给驱动，不增加额外复位脉冲、设备特例、应用数据写入或节点切换。新增显式参数serial_monitor接收诊断入口，复用真实工厂/会话/输出帧/ACK，16KiB预览上限。无依赖、IPC或schema变更。原驱动两次观察0字节；修复后用户指定tty设备两次各收到2965字节含ESP-ROM与ESP-IDF启动日志，正常关闭；两个crate定向编译成功，cargo test --locked --offline -p terminal-serial -p terminal-core --lib共12项通过，Rust格式及差异静态检查通过。未构建或启动桌面应用，未连接SSH；桌面显示、其他设备/参数、硬件流控与Windows/Linux仍待验收，不改变M4未完整验收或手动DTR/RTS未实现的状态。
+
+
+2026-10-16：串口文本输出统一流式解码（含UTF-8），非法序列以�显示，修复xterm跳过原始非法UTF-8导致二进制尾部缺失的问题；保留跨块多字节、终端控制字节与UTF-8输入原样传递。依赖既有encoding_rs，无新增接口/依赖/schema。用户授权的串口定向调试范围内，cargo test --locked --offline -p terminal-serial -p terminal-core --lib现15项通过；xterm 6.0.0无界面Terminal缓冲对比由GP@KS恢复为GP�@�K�S�，验证控制序列不显示为正文；Rust格式与差异静态检查通过。本次未重新连接设备，未构建或启动桌面应用，WebView实际显示及三平台仍待验收。

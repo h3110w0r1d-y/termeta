@@ -10,6 +10,7 @@ pub const COMMANDS: &[&str] = &[
     "sftp_transfer",
     "sftp_cancel",
     "available_session_kinds",
+    "list_serial_ports",
     "open_session",
     "write_session",
     "resize_session",

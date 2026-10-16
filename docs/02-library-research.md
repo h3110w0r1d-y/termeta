@@ -40,7 +40,7 @@ Windows/Linux 拖出尚未实现。候选 [drag 2.1.1](https://docs.rs/drag/2.1.
 
 ## 4. 后续协议候选
 
-Local 使用 [portable-pty](https://docs.rs/portable-pty/latest/portable_pty/) 候选，须处理阻塞 I/O、ConPTY、子进程树和退出唤醒。Serial 评估 [serialport](https://github.com/serialport/serialport-rs) 与 [tokio-serial](https://docs.rs/tokio-serial/latest/tokio_serial/struct.SerialStream.html)，注意 Linux libudev、设备别名和硬件驱动；serialport 为 MPL-2.0。尚未创建实现或冻结 release，开发时重新核对版本/API/MSRV/许可/公告。
+Local已固定portable-pty 0.9.0；Serial文本驱动已固定serialport 4.10.1与encoding_rs 0.8.42，见本页末尾的release核对记录。手动信号控制与HEX仍未实现。
 
 ## 5. 未关闭验证
 
@@ -88,3 +88,10 @@ SP-01~05、SP-07~09 未执行；SP-10/11 的首批源码已实现待验收，SP-
 静态阅读用户指定Termius解包service-process.js的getOsFromSoftwareVersion/getOS/parseOS与独立exec调用链，以及reconnectSaga-871ae692.js的系统类型到SVG映射。实现采用相同的版本线索/Shell分支/独立exec思路，重新编写受界解析；不复制其OpenSSH版本门槛、宽泛win/red子串匹配或将readlink参数拼入命令。Linux优先标准os-release文件，保留传统release回退。原样SVG来源、重命名和SHA-256见resources/host-system-icons.json。
 
 核对锁定russh 0.64.1发布源码：Handler::kex_done、Session::remote_sshid、Handle::channel_open_session、Channel::exec及Success/ExitStatus/Close消息。SSH新增直接依赖已在锁文件中的serde_json 1.0.154（MIT OR Apache-2.0，沿用默认std功能），复用同份JSON脚本；没有新增第三方库种类或变更russh版本/features/MSRV，不改变既有公告风险。Cargo只执行metadata --no-deps --locked和fmt，不编译。真实exec互通、通道取消和协议公平性仍须运行验收。
+
+## Serial 固定依赖（2026-10-16）
+
+- [serialport 4.10.1](https://docs.rs/serialport/4.10.1/serialport/)：MPL-2.0、声明MSRV1.59；default-features=false，不启用libudev，Linux使用sysfs枚举。核对实际发布包available_ports、SerialPortBuilder的baud/data/stop/parity/flow/timeout、open_native、try_clone和Unix独占；核对4.10.1源码确认open_native默认exclusive=true，Unix NoDevice用于EBUSY或flock锁冲突，Windows NoDevice也包括不存在/拒绝访问，界面保留驱动描述辅助诊断；macOS枚举同时读IOCalloutDevice/IODialinDevice，无角色筛选参数；后端以IOKit IODialinDevice属性匹配库候选，避免路径前缀过滤，Windows为系统设备枚举。Unix独占通过TIOCEXCL/flock，WindowsCreateFile零共享；读写超时与拔插的驱动行为仍需实机验证。macOS直接声明已锁定传递依赖core-foundation 0.10.1（MIT/Apache-2.0、MSRV 1.65）及io-kit-sys 0.4.1（MIT/Apache-2.0、edition 2021、未声明MSRV）用于角色枚举，core-foundation声明的MSRV低于仓库Rust 1.89基线，io-kit-sys未声明MSRV、实际兼容性待编译验收，后者build.rs只声明IOKit链接。已核对IOServiceGetMatchingServices的字典所有权、IOObjectRelease与CF属性Create规则；没有引入新版本或修改依赖源码，未编译/链接验证。2026-10-16按这两个固定版本查询OSV未返回公告，不替代全依赖审计。该库只提供None/Software/Hardware三种流控，未将DSR/DTR伪装为可用选项。
+- [encoding_rs 0.8.42](https://docs.rs/encoding_rs/0.8.42/encoding_rs/)：声明MSRV1.88，沿用默认alloc，许可证表达式为(Apache-2.0 OR MIT) AND BSD-3-Clause。核对for_label、new_decoder_without_bom_handling、max_utf8_buffer_length、decode_to_string与encode；保留跨块解码状态，不可表示输入明确失败，不发送库的替换HTML引用。
+
+已执行cargo info与cargo update --workspace，只下载发布包/维护锁文件，未编译。OSV对这两个固定版本的公开查询均未返回漏洞条目；不代表完整传递依赖无公告。工作区Rust1.89版本约束、三平台工具链/系统依赖、许可证发布清单和实际运行仍待验收。实现与边界见[Serial设计](19-serial-terminal.md)。

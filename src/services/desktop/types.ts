@@ -48,15 +48,35 @@ export interface HostGroup {
   sortOrder: number;
   revision: number;
 }
+export interface SerialConfig {
+  path: string;
+  baudRate: number;
+  charset: string;
+  dataBits: 5 | 6 | 7 | 8;
+  stopBits: 1 | 2;
+  flowControl: "none" | "hardware" | "software";
+  parity: "none" | "odd" | "even";
+}
+export interface SerialPortInfo {
+  path: string;
+  description: string | null;
+}
 export type OpenTarget =
   | { source: "local" }
+  | { source: "serial"; config: SerialConfig }
   | { source: "saved"; profileId: string }
   | { source: "ephemeral"; kind: "ssh"; config: SshConfig };
 export interface SessionSnapshot {
   protocolVersion: 1;
   requestId: string;
   sessionId: string;
-  kind: "ssh" | "local";
+  kind: "ssh" | "local" | "serial";
+  capabilities: {
+    resize: boolean;
+    pty: boolean;
+    binaryOutput: boolean;
+    serialControl: boolean;
+  };
   title: string;
   state: SessionState;
   stateRevision: number;

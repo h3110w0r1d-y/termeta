@@ -63,7 +63,7 @@ type AuthStepV1 =
   | { type: "privateKey"; credentialId: string };
 ```
 
-OpenTarget 接受保存/临时 SSH 与 `{source:"local"}`，Local 不接受任意命令、路径、环境或认证字段。available_session_kinds 返回 ssh/local 对应工厂能力，SessionSnapshot.kind 同步支持 local；本地复用现有 open/write/resize/ack/close 与ACL/owner/解锁校验。Serial 尚未开放。未传 password ref 时由认证 challenge 获取秘密，open_session 不需要明文密码字段。
+OpenTarget 接受保存/临时 SSH 与 `{source:"local"}`，Local 不接受任意命令、路径、环境或认证字段。available_session_kinds 返回 ssh/local 对应工厂能力，SessionSnapshot.kind 同步支持 local；本地复用现有 open/write/resize/ack/close 与ACL/owner/解锁校验。Serial接受`{source:"serial",config:SerialConfig}`，新增仅main且解锁后可调用的`list_serial_ports`；返回路径及可选描述作为候选，允许手输未枚举端口；打开时校验Unix的/dev字符设备或Windows COM名称，macOS候选按系统IODialinDevice属性筛选tty，打开用户指定节点，不主动切换tty/cu；错误边界见串口设计。available_session_kinds包含serial；resize/pty/serialControl=false，binaryOutput=true。Serial打开时DTR初始false，非硬件流控下尽力解除RTS；硬件流控RTS由驱动管理，无新增IPC或配置字段。Serial文本转码后帧偏移按UTF-8字节统计，具体字段与限额见[串口设计](19-serial-terminal.md)。未传 password ref 时由认证 challenge 获取秘密，open_session 不需要明文密码字段。
 
 前端另有不参与原生授权的稳定视图绑定：`TerminalBinding { terminalId, currentSessionId?, bindingGeneration }`。terminalId 在工作区创建时生成，重连不变；后端 sessionId 每次连接新建。前端 registry 按 terminalId 持有 xterm，session/channel 回调捕获各自的 sessionId 与 bindingGeneration。不能将 sessionId 用作 xterm 宿主的 Vue key，也不能接到 failed/ended 就删除对应终端。
 
@@ -132,11 +132,11 @@ finalOffset 为 forwarder 停止后冻结的最后一次成功提交 Channel 的
 | 8    | 8    | endOffset     | u64；本帧之后的累计 payload 字节数      |
 | 16   | 4    | payloadLength | u32，1–32768                            |
 | 20   | 4    | reserved      | 0                                       |
-| 24   | N    | payload       | 原始终端字节，不做换行或字符转换        |
+| 24   | N    | payload       | 驱动输出字节，桥接层不做换行或字符转换  |
 
 startOffset = endOffset - payloadLength；必须等于上一帧 endOffset。JS 用 DataView 读 u64（BigInt），传回 JSON ACK 时转十进制字符串，不把 u64 塞入 JS number。frameSeq 耗尽前显式终止并提示，而非回绕后误判；这是长时间极端吞吐场景的边界，后续可升级协议。
 
-先校验版本、长度、连续性和上限，再把 payload Uint8Array 交给 xterm。发现缺帧、重复、不合法偏移进入 PROTOCOL_MISMATCH 并关闭，不在终端流里静默“自愈”。不使用 String::from_utf8_lossy 或跨帧独立 TextDecoder 转换；xterm 自己处理 UTF-8 流。
+先校验版本、长度、连续性和上限，再把 payload Uint8Array 交给 xterm。发现缺帧、重复、不合法偏移进入 PROTOCOL_MISMATCH 并关闭，不在终端流里静默“自愈”。桥接/渲染层不使用 String::from_utf8_lossy 或跨帧独立 TextDecoder 转换；xterm 自己处理 UTF-8 流。Serial文本驱动在进入帧通道前按所选字符集（含UTF-8）流式解码，将非法设备序列替换为U+FFFD并保留终端控制字节；帧/ACK统计该处理后的UTF-8字节数，详见串口设计。
 
 ## 6. 端到端流控
 

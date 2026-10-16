@@ -14,6 +14,7 @@
     "core:window:allow-toggle-maximize",
     "core:window:allow-destroy",
     "allow-available-session-kinds",
+    "allow-list-serial-ports",
     "allow-open-session",
     "allow-write-session",
     "allow-resize-session",

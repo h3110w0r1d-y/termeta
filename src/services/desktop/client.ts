@@ -20,11 +20,13 @@ import type {
   OpenTarget,
   SessionEvent,
   SessionSnapshot,
+  SerialPortInfo,
   TerminalSize,
 } from "./types";
 
 // 原生交互只通过此门面，组件不能获得通用 invoke 或任意文件读取能力。
 export const desktop = {
+  listSerialPorts: () => invoke<SerialPortInfo[]>("list_serial_ports"),
   vaultStatus: () => invoke<VaultStatus>("vault_status"),
   unlockVault: (password: string, setup: boolean) =>
     invoke<VaultStatus>("unlock_vault", { password, setup }),

@@ -1,10 +1,12 @@
 //! 终端领域模型、受界流和会话生命周期，不依赖任何桌面或协议实现。
 mod manager;
 mod ports;
+mod serial;
 mod session;
 mod stream;
 mod system;
 mod types;
+pub use serial::*;
 pub use system::*;
 
 pub use bytes::Bytes;

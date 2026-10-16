@@ -10,7 +10,7 @@ Workspace 调整尺寸分隔条的3px主体与中点凸起的两个三角形手�
 
 ## 1. 项目定位与范围
 
-Termvexa 是基于 Tauri 2 + Rust + Vue 3 + TypeScript 的桌面终端客户端，长期以 Termius 的桌面核心体验为功能参照。当前实现 SSH 与基础 Local Terminal，架构保留 Serial、SFTP、隧道扩展。仅支持 Windows、macOS、Linux；Android、iOS 不在计划内。对标功能与体验，不复制品牌或专有实现；用户明确指定的 8 个界面 SVG 及 SSH 主机系统图标素材按下述例外引用。
+Termvexa 是基于 Tauri 2 + Rust + Vue 3 + TypeScript 的桌面终端客户端，长期以 Termius 的桌面核心体验为功能参照。当前实现 SSH、基础 Local Terminal 与 Serial 文本终端，架构保留隧道等扩展。仅支持 Windows、macOS、Linux；Android、iOS 不在计划内。对标功能与体验，不复制品牌或专有实现；用户明确指定的 8 个界面 SVG 及 SSH 主机系统图标素材按下述例外引用。
 
 ## 2. 重要执行约束
 
@@ -23,6 +23,8 @@ Termvexa 是基于 Tauri 2 + Rust + Vue 3 + TypeScript 的桌面终端客户端�
 
 ## 3. 当前真实状态
 
+基础Serial文本终端源码已落地：主机页在新建主机/本地终端后新增串口入口，启动配置弹窗支持设备枚举，刷新图标按钮位于串口选择框右侧（无可见文字，保留提示与无障碍名称）、波特率（默认9600）及折叠高级设置（UTF-8、8数据位、1停止位、None流控、No校验）；字符集用NSelect，其余四项使用Naive UI NRadioGroup/NRadioButton单选按钮组。串口及波特率均使用NAutoComplete，可选择、手输、修改和复制；枚举为空或失败时仍可提交手输路径。Unix仅接受规范化后/dev下的字符设备，Windows仅接受COM端口；macOS后端以IOKit的IODialinDevice属性筛选tty候选，不按/dev/cu前缀过滤；严格打开用户指定的节点，不主动切换tty/cu，打开失败保留受限长度的驱动原因。串口弹窗通过AppDialog的autoFocus=false关闭打开时自动聚焦，避免下拉菜单自动展开，保留焦点陷阱与手动操作。terminal-serial以serialport独占设备，所有字符集（含UTF-8）输出均流式解码，非法序列显示�，保留跨块字符及终端控制字节，复用会话/Channel/ACK及原缓冲重开；不支持远端resize/SFTP或复制同端口连接。SerialConfig导入与平台cfg修复已随本轮terminal-core/terminal-serial的macOS定向编译通过。用户授权实机调试后，定位ESP32-C3空白为初始控制线未明确设置：打开设DTR=false，非硬件流控下尽力解除RTS，硬件流控RTS由驱动管理，不支持控制引脚不阻断文本连接。两次115200/8N1实机复测均经真实会话/输出帧/ACK收到2965字节含ESP-ROM/ESP-IDF启动日志并正常关闭，两个crate现共15项测试通过；xterm 6.0.0无界面缓冲对比确认原非法字节被跳过、解码后显示�，本次未重新连接设备；未构建或启动桌面应用，其他设备、硬件流控及Windows/Linux仍待验收。手动DTR/RTS控制、DSR/DTR流控和HEX未实现。契约及边界见[Serial设计](docs/19-serial-terminal.md)。
+
 M1/M2 SSH 主体源码已落地，处于体验修复与集成验收阶段，不能标为 MVP 已验收。用户有 macOS 编译和终端反馈，最新源码及三平台完整矩阵仍待验收。
 
 | 模块       | 已有源码                                                                                                                                                                                                  |
@@ -33,9 +35,9 @@ M1/M2 SSH 主体源码已落地，处于体验修复与集成验收阶段，不�
 | 设置与 UI  | Naive UI 2.45.3、xicons Ionicons 5（@vicons/ionicons5 0.13.0，保留 SFTP/主机分组自绘图标）、组件内 scoped 样式、独立设置窗口与自动应用（标签位置单选、外观图标单选、常规选项统一单列宽度，默认配色仅在终端配色页设置）、快捷键、12种本地字体（默认 DejaVu Sans Mono）、64套终端配色（默认 Pro）、JSON 导入导出与热应用 |
 | SFTP       | 单 SSH 终端可调右侧栏、分页及链接浏览、普通文件上传下载、目录拖入合并、文件覆盖确认、macOS文件/目录承诺拖出、独立松键检测与WebView鼠标收尾、进度与取消；仅浏览上传下载                                    |
 
-固定 SFTP 双栏已支持从保存主机建立两条独立 SSH/SFTP 连接、Web 栏间文件/目录对拷；不启动 PTY/Shell，本轮待编译运行验收。Windows/Linux 原生拖出、通用连接租约、完整批量冲突策略、隧道/跳板/Agent、Serial、整体 Workspace 合并、布局持久化和签名发布尚未实现。用户已确认 macOS 拖动取消后首次点击和再次拖动恢复正常；原生拖放完整矩阵仍待验收。双栏对拷经Rust以64 KiB中转，文件覆盖逐项确认、目录只合并，Pointer Events不依赖系统拖动。功能需求表的 `[x]` 仅表示代码已实现，不考虑测试；未实现或部分实现保留 `[ ]` 并说明剩余范围。源码入口及验证边界统一见 [需求与实现状态](docs/01-product-requirements.md#8-当前实现与限制)。
+固定 SFTP 双栏已支持从保存主机建立两条独立 SSH/SFTP 连接、Web 栏间文件/目录对拷；不启动 PTY/Shell，本轮待编译运行验收。Windows/Linux 原生拖出、通用连接租约、完整批量冲突策略、隧道/跳板/Agent、串口DTR/RTS控制与HEX、整体 Workspace 合并、布局持久化和签名发布尚未实现。用户已确认 macOS 拖动取消后首次点击和再次拖动恢复正常；原生拖放完整矩阵仍待验收。双栏对拷经Rust以64 KiB中转，文件覆盖逐项确认、目录只合并，Pointer Events不依赖系统拖动。功能需求表的 `[x]` 仅表示代码已实现，不考虑测试；未实现或部分实现保留 `[ ]` 并说明剩余范围。源码入口及验证边界统一见 [需求与实现状态](docs/01-product-requirements.md#8-当前实现与限制)。
 
-连接历史仅保留最近20次（SSH/Local合计，不按主机去重），新增事务内裁剪、解锁清理已有超量记录，不影响终端滚屏历史；源码待运行验收。
+连接历史仅保留最近20次（SSH/Local/Serial合计，不按主机去重），新增事务内裁剪、解锁清理已有超量记录，不影响终端滚屏历史；源码待运行验收。
 
 当前使用 `termvexa-encrypted-v2.sqlite3`、schema 2，全库由SQLCipher 4以AES-256加密；配套 `termvexa-encrypted-v2.vault.json` 保存随机盐、Argon2id参数和GCM密钥校验。首次启动设置至少12字符密码，Argon2id（64MiB/3轮/1并行度）派生32字节主密钥；OS钥匙串只缓存一个 `master-key-v2` 项。后续每进程自动读取一次，失败时输入密码恢复并重写OS主密钥；缓存写失败允许本次解锁并明确提示。未解锁拒绝业务IPC与数据库操作。新格式不迁移旧库/旧OS凭据，源码与完整性/恢复测试待编译运行验收。主机直接密码非空自动保存、显式空值移除、省略保留；私钥正文与可选解密密码整体存入加密数据库，不依赖原文件，凭据接口不返回秘密。
 
@@ -45,7 +47,7 @@ SSH 主机系统识别源码已接入：默认开启，仅保存的 SSH 终端�
 
 当前源码已按职责提取保险箱布局、终端关闭/菜单、主机分组拖动及侧栏传输队列，目录展示规则由两种 SFTP 视图共享；仅静态验证，交互与三平台仍待验收。
 
-当前已建立 `src/modules/`、`src/services/desktop/`、`src-tauri/src/commands/` 及 core/ssh/local/storage/security/files/sftp 七个 crate。完整目标结构见 [架构文档](docs/03-architecture.md)，后续领域仍是计划。
+当前已建立 `src/modules/`、`src/services/desktop/`、`src-tauri/src/commands/` 及 core/ssh/local/serial/storage/security/files/sftp 八个 crate。完整目标结构见 [架构文档](docs/03-architecture.md)，后续领域仍是计划。
 
 - `src/layout/`：保险箱布局与应用外观监听；App 保留根装配和稳定终端宿主。主机/设置页面为 `HostsPage.vue` / `SettingsPage.vue`；固定双栏 `SftpWorkspace.vue` 属于 files 模块。
 - `src-tauri/src/files/`：壳内 SFTP 浏览器获取、上传与下载服务，commands 仅承担入口校验、授权和编排；`terminal-sftp` 分为 browser/remote_file/copy，公开类型路径不变。
@@ -55,7 +57,7 @@ SSH 主机系统识别源码已接入：默认开启，仅保存的 SSH 终端�
 - `crates/terminal-core/`：不依赖 Tauri/Vue/russh 的会话模型、能力、actor 控制、生命周期和扩展协议。
 - `crates/terminal-ssh/`：russh、主机密钥校验、认证、PTY/Shell、KeepAlive；依赖 core，通过接口使用凭据与信任仓库。
 - `crates/terminal-storage/`、`crates/terminal-security/`：SQLCipher全库加密与主密钥派生/系统钥匙串缓存适配器。security 当前直接依赖 storage 协调凭据事务，core 不依赖二者，壳负责注入。
-- Local 已由 terminal-local/portable-pty 工厂实现；Serial 的工厂与配置扩展点保留。SFTP/隧道通过 SSH 连接服务扩展，不塞进通用终端接口。`terminal-files` 已定义首批文件元数据/provider/受界传输端口，`terminal-sftp` 经 owner-bound `SshChannels` 复用已认证连接；侧栏随终端生命周期，固定双栏另由文件专用 SessionManager 管理两条独立连接。通用连接租约、完整冲突/任务管理和本地浏览仍是 M3 后续；本地浏览不依赖 Local PTY，独立 SFTP 不启动 Shell。
+- Local 已由 terminal-local/portable-pty 工厂实现；Serial 已由 terminal-serial/serialport 工厂实现，字符集转换在适配器内，不支持远端resize、SFTP或复制同端口连接。SFTP/隧道通过 SSH 连接服务扩展，不塞进通用终端接口。`terminal-files` 已定义首批文件元数据/provider/受界传输端口，`terminal-sftp` 经 owner-bound `SshChannels` 复用已认证连接；侧栏随终端生命周期，固定双栏另由文件专用 SessionManager 管理两条独立连接。通用连接租约、完整冲突/任务管理和本地浏览仍是 M3 后续；本地浏览不依赖 Local PTY，独立 SFTP 不启动 Shell。
 
 会话采用**每会话 actor + 有界字节队列 + 独立取消信号**；重连创建新的后端 session ID，但保留同一 Tab、terminalId 与 xterm 实例，在原缓冲中追加输出。断线、连接失败和后端终态均不得自动关闭 Tab、清空或销毁终端；历史继续可滚动、选择、复制和搜索。TerminalRegistry 按 terminalId 持有实例，不能以 sessionId 变化触发重建。输出走二进制 Channel，控制事件走类型化 Channel，使用消费 ACK 实现端到端背压。所有凭据、信任与网络操作由 Rust 管理。
 
@@ -98,6 +100,7 @@ SSH 主机系统识别源码已接入：默认开启，仅保存的 SSH 终端�
 | [15-terminal-themes.md](docs/15-terminal-themes.md)             | 内置/自定义配色、取色编辑、导入导出与热应用           |
 | [16-sftp-workspace.md](docs/16-sftp-workspace.md)               | SFTP 浏览、上传下载、拖放与安全边界                   |
 | [18-terminal-workspaces.md](docs/18-terminal-workspaces.md)     | 标签排序、嵌套分屏、输入广播、焦点与保活边界          |
+| [19-serial-terminal.md](docs/19-serial-terminal.md) | 串口配置、设备独占、字符集、生命周期与验证边界 |
 
 开发前至少阅读本文、目标模块文档及路线。接口冲突应修订文档与实现，不临时增加第二套契约。
 

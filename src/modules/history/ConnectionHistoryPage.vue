@@ -50,7 +50,7 @@ async function clearHistory() {
     <header class="page-heading">
       <div>
         <NH1>连接历史</NH1>
-        <NText depth="3">最近 20 次 SSH 与本地终端连接</NText>
+        <NText depth="3">最近 20 次 SSH、本地终端与串口连接</NText>
       </div>
       <NFlex>
         <AppButton :disabled="loading || busy" @click="load">刷新</AppButton>

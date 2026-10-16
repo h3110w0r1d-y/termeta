@@ -109,6 +109,8 @@ export const useWorkspace = defineStore("workspace", () => {
   const connectionNumbers = new Map<string, number>();
   function connectionKey(target: OpenTarget) {
     if (target.source === "local") return "local";
+    if (target.source === "serial")
+      return JSON.stringify(["serial", target.config.path]);
     return target.source === "saved"
       ? JSON.stringify(["saved", target.profileId])
       : JSON.stringify([
@@ -151,6 +153,7 @@ export const useWorkspace = defineStore("workspace", () => {
     const tab = tabs.value.find((item) => item.terminalId === id);
     return !!(
       tab &&
+      tab.target.source !== "serial" &&
       groupForTerminal(id)?.root.kind === "terminal" &&
       !closingTerminalIds.value.includes(id) &&
       !drag.value &&
@@ -367,7 +370,7 @@ export const useWorkspace = defineStore("workspace", () => {
       closingTerminalIds.value.includes(tab.terminalId)
     )
       return;
-    if (tab.target.source === "local") return;
+    if (tab.target.source === "local" || tab.target.source === "serial") return;
     if (!tab.sftpOpen && tab.state !== "connected") return;
     tab.sftpOpen = !tab.sftpOpen;
   }

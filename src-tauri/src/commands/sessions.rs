@@ -15,10 +15,22 @@ pub enum OpenTarget {
         profile_id: String,
     },
     Local,
+    Serial {
+        config: SerialConfig,
+    },
     Ephemeral {
         kind: String,
         config: SshConfig,
     },
+}
+#[tauri::command]
+pub async fn list_serial_ports(
+    window: WebviewWindow,
+) -> Result<Vec<terminal_serial::SerialPortInfo>> {
+    owner(&window)?;
+    tokio::task::spawn_blocking(terminal_serial::list_ports)
+        .await
+        .map_err(|_| SessionError::new("SERIAL_ENUM_FAILED", "serial", "无法枚举串口"))?
 }
 #[tauri::command]
 pub fn available_session_kinds(
@@ -71,6 +83,10 @@ pub async fn open_session(
     }
     let (config, profile_id, name) = match target {
         OpenTarget::Local => (SessionConfig::Local, None, "本地终端".to_string()),
+        OpenTarget::Serial { config } => {
+            let name = config.path.clone();
+            (SessionConfig::Serial(config), None, name)
+        }
         OpenTarget::Saved { profile_id } => {
             let host = state
                 .store
@@ -129,14 +145,16 @@ pub async fn open_session(
     config.validate()?;
     size.validate()?;
     // 历史记录只存连接摘要；requestId 在同一窗口内同时承担幂等键。
-    let endpoint = if let SessionConfig::Ssh(config) = &config {
-        if config.address.contains(':') {
-            format!("[{}]:{}", config.address, config.port)
-        } else {
-            format!("{}:{}", config.address, config.port)
+    let endpoint = match &config {
+        SessionConfig::Ssh(config) => {
+            if config.address.contains(':') {
+                format!("[{}]:{}", config.address, config.port)
+            } else {
+                format!("{}:{}", config.address, config.port)
+            }
         }
-    } else {
-        "local".into()
+        SessionConfig::Local => "local".into(),
+        SessionConfig::Serial(config) => format!("serial:{}@{}", config.path, config.baud_rate),
     };
     let history_id = state
         .store

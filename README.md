@@ -15,7 +15,7 @@
 - `src-tauri/src/commands`：命令 DTO、窗口所有权、Channel 与用例集成。
 - `src/modules`：主机、终端、工作区、设置；`src/services/desktop` 为唯一 IPC 门面。
 
-开发前阅读 [协作规则](AGENTS.md)、[文档导航](docs/README.md)、[需求与实现状态](docs/01-product-requirements.md#8-当前实现与限制) 和 [路线](docs/10-roadmap.md)。固定 SFTP 双栏已支持独立 SSH/SFTP 连接与栏间对拷；Serial、隧道、布局恢复、本地文件浏览与通用连接租约仍为后续范围。SFTP支持原生拖入当前目录、确认后直接覆盖普通文件和目录合并；macOS文件/目录承诺拖出已落源码，Windows/Linux拖出未实现。
+开发前阅读 [协作规则](AGENTS.md)、[文档导航](docs/README.md)、[需求与实现状态](docs/01-product-requirements.md#8-当前实现与限制) 和 [路线](docs/10-roadmap.md)。固定 SFTP 双栏已支持独立 SSH/SFTP 连接与栏间对拷；基础Serial文本终端已接入启动配置弹窗，详见[串口设计](docs/19-serial-terminal.md)；DTR/RTS控制、HEX、隧道、布局恢复、本地文件浏览与通用连接租约仍为后续范围。SFTP支持原生拖入当前目录、确认后直接覆盖普通文件和目录合并；macOS文件/目录承诺拖出已落源码，Windows/Linux拖出未实现。
 
 ## 静态检查
 

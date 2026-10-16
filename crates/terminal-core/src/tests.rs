@@ -324,6 +324,85 @@ impl SessionFactory for FakeLocalFactory {
     }
 }
 
+struct FakeSerialFactory;
+#[async_trait]
+impl SessionFactory for FakeSerialFactory {
+    fn kind(&self) -> &'static str {
+        "serial"
+    }
+    fn capabilities(&self) -> SessionCapabilities {
+        SessionCapabilities {
+            resize: false,
+            pty: false,
+            binary_output: true,
+            serial_control: false,
+        }
+    }
+    fn validate(&self, config: &SessionConfig) -> Result<()> {
+        config.validate()
+    }
+    async fn run(&self, _: SessionConfig, context: DriverContext) -> Result<SessionEnd> {
+        context.events.state(SessionState::Connected)?;
+        context.cancel.cancelled().await;
+        Err(SessionError::cancelled())
+    }
+}
+
+#[tokio::test]
+async fn serial_uses_owner_boundary_and_rejects_remote_resize() {
+    let manager = SessionManager::new(Arc::new(FakeSerialFactory));
+    let capture = Arc::new(Capture::default());
+    let snapshot = manager
+        .open(
+            "main",
+            id(),
+            id(),
+            SessionConfig::Serial(SerialConfig {
+                path: "COM3".into(),
+                baud_rate: 9600,
+                charset: "UTF-8".into(),
+                data_bits: 8,
+                stop_bits: 1,
+                flow_control: SerialFlowControl::None,
+                parity: SerialParity::None,
+            }),
+            size(),
+            capture.clone(),
+        )
+        .unwrap();
+    capture
+        .wait_for(|| {
+            manager.get("main", &snapshot.session_id).unwrap().state == SessionState::Connected
+        })
+        .await;
+    assert_eq!(snapshot.kind, "serial");
+    assert!(!snapshot.capabilities.resize);
+    assert_eq!(
+        manager
+            .resize("main", &snapshot.session_id, size())
+            .unwrap_err()
+            .code,
+        "UNSUPPORTED_OPERATION"
+    );
+    assert_eq!(
+        manager
+            .resize("other", &snapshot.session_id, size())
+            .unwrap_err()
+            .code,
+        "FORBIDDEN"
+    );
+    manager.close_owner("main");
+    capture
+        .wait_for(|| {
+            manager
+                .get("main", &snapshot.session_id)
+                .unwrap()
+                .state
+                .terminal()
+        })
+        .await;
+}
+
 #[tokio::test]
 async fn local_factory_uses_shared_registry_and_owner_boundary() {
     let ssh = Arc::new(FakeFactory {

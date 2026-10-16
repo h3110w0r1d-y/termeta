@@ -64,7 +64,8 @@ pub fn run() {
             let ssh_channels = factory.channels();
             let file_sessions = SessionManager::new(Arc::new(factory.for_files()));
             let sessions = SessionManager::new(Arc::new(factory))
-                .with_factory(Arc::new(terminal_local::LocalFactory));
+                .with_factory(Arc::new(terminal_local::LocalFactory))
+                .with_factory(Arc::new(terminal_serial::SerialFactory));
             app.manage(file_drag::LocalDropRegistry::default());
             app.manage(AppState {
                 settings_gate: tokio::sync::Mutex::new(()),
@@ -151,6 +152,7 @@ pub fn run() {
             commands::sftp_transfer,
             commands::sftp_cancel,
             commands::available_session_kinds,
+            commands::list_serial_ports,
             commands::open_session,
             commands::write_session,
             commands::resize_session,
