@@ -24,6 +24,7 @@ import type { HostGroup, HostProfile } from "../../services/desktop/types";
 import { descendantIds, groupChoices, groupPath } from "./groups";
 import { useHosts } from "./store";
 import { useSettings } from "../settings/store";
+import { createDragPreview } from "./dragPreview";
 
 const props = defineProps<{ modelValue: string; active: boolean }>();
 const emit = defineEmits<{
@@ -32,6 +33,7 @@ const emit = defineEmits<{
 }>();
 const store = useHosts();
 const panel = ref<HTMLElement>();
+const previewLayer = ref<HTMLElement>();
 const settings = useSettings();
 const expanded = ref<string[]>([...settings.value.hostsView.expandedGroupIds]);
 let pendingExpansionSaves = 0;
@@ -275,6 +277,7 @@ interface DragState {
 const drag = ref<DragState>();
 let hoverTimer: ReturnType<typeof setTimeout> | undefined;
 let capture: HTMLElement | undefined;
+let preview: ReturnType<typeof createDragPreview> | undefined;
 let suppressClick = false;
 let suppressTimer: ReturnType<typeof setTimeout> | undefined;
 function startDrag(
@@ -304,6 +307,7 @@ function startDrag(
     target: null,
   };
   capture = event.currentTarget as HTMLElement;
+  capture.addEventListener("lostpointercapture", lostCapture);
   window.addEventListener("pointermove", pointerMove, { passive: false });
   window.addEventListener("pointerup", pointerUp);
   window.addEventListener("pointercancel", cancelDrag);
@@ -334,7 +338,16 @@ function pointerMove(event: PointerEvent) {
     return;
   if (!current.moved) {
     current.moved = true;
-    capture?.setPointerCapture(event.pointerId);
+    if (capture) {
+      if (previewLayer.value)
+        preview = createDragPreview(
+          capture,
+          current.x,
+          current.y,
+          previewLayer.value,
+        );
+      capture.setPointerCapture(event.pointerId);
+    }
     menu.value.show = false;
     window.addEventListener("click", swallowClick, true);
     suppressClick = true;
@@ -353,6 +366,13 @@ function pointerMove(event: PointerEvent) {
     if (current.target && !["all", "ungrouped"].includes(current.target))
       hoverTimer = setTimeout(() => reveal(current.target), 600);
   }
+  const targetLabel =
+    current.target === "all"
+      ? "顶层"
+      : current.target === "ungrouped"
+        ? "未分组"
+        : store.groups.find((group) => group.id === current.target)?.name;
+  preview?.move(event.clientX, event.clientY, targetLabel ?? null);
   // 指针靠近树边缘时滚动真实容器，折叠的目标悬停展开。
   const scroll = panel.value?.querySelector<HTMLElement>(
     ".n-scrollbar-container",
@@ -373,10 +393,15 @@ function swallowClick(event: MouseEvent) {
 }
 function finishDrag() {
   clearTimeout(hoverTimer);
-  if (capture && drag.value && capture.hasPointerCapture(drag.value.pointer))
-    capture.releasePointerCapture(drag.value.pointer);
+  preview?.dispose();
+  preview = undefined;
+  const source = capture;
+  const pointer = drag.value?.pointer;
   capture = undefined;
   drag.value = undefined;
+  source?.removeEventListener("lostpointercapture", lostCapture);
+  if (source && pointer !== undefined && source.hasPointerCapture(pointer))
+    source.releasePointerCapture(pointer);
   window.removeEventListener("pointermove", pointerMove);
   window.removeEventListener("pointerup", pointerUp);
   window.removeEventListener("pointercancel", cancelDrag);
@@ -388,6 +413,9 @@ function finishDrag() {
     suppressClick = false;
     window.removeEventListener("click", swallowClick, true);
   }, 0);
+}
+function lostCapture(event: PointerEvent) {
+  if (drag.value?.pointer === event.pointerId) cancelDrag();
 }
 function cancelDrag() {
   finishDrag();
@@ -517,6 +545,14 @@ defineExpose({ startHostDrag });
 </script>
 
 <template>
+  <Teleport to="body">
+    <div
+      ref="previewLayer"
+      class="host-drag-preview"
+      aria-hidden="true"
+      inert
+    />
+  </Teleport>
   <aside
     ref="panel"
     class="host-groups"
@@ -560,14 +596,6 @@ defineExpose({ startHostDrag });
         "
       />
     </NScrollbar>
-    <NText depth="3" class="groups-help"
-      >数量包含子分组主机。拖动主机到分组；拖动分组修改层级，移至“全部主机”可回到顶层。</NText
-    >
-    <NText v-if="drag?.moved" class="drag-status" role="status"
-      >正在移动“{{ drag.label }}”：{{
-        drag.target ? "松开移入目标" : "拖到左侧目标，Esc 取消"
-      }}</NText
-    >
     <NDropdown
       :show="menu.show"
       :x="menu.x"
@@ -672,6 +700,30 @@ defineExpose({ startHostDrag });
 </template>
 
 <style scoped>
+.host-drag-preview {
+  display: none;
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 3000;
+  pointer-events: none;
+  user-select: none;
+}
+.host-drag-preview :deep(.host-drag-hint) {
+  margin-top: 8px;
+  padding: 4px 8px;
+  width: max-content;
+  max-width: min(320px, 80vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 12px;
+}
+
 .host-groups {
   display: flex;
   flex-direction: column;
