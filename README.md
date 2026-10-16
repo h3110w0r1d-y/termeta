@@ -1,32 +1,40 @@
 # Termvexa
 
-基于 Tauri 2、Rust、Vue 3 和 TypeScript 的模块化桌面 SSH 客户端，目标平台为 Windows、macOS、Linux。
+基于 Tauri 2、Rust、Vue 3 和 TypeScript 的桌面终端客户端，目标平台为 Windows、macOS、Linux。
 
-首期源码已包含主机/分组管理、SSH 信任与认证、保留历史的多标签终端、基础本地PTY终端、SQLCipher加密保险库与系统主密钥缓存、快捷键、独立终端配色、分屏广播，以及单SSH终端的SFTP浏览/上传/下载。当前为**实现待验证**：用户已有部分macOS终端使用反馈，当前版本尚未完成编译/运行与三平台验收，不能视为可发布版本。
+当前源码提供 SSH、Telnet、基础本地 PTY 与串口文本终端，以及主机/分组/凭据管理、SQLCipher 加密保险库、多标签与分屏广播、显式工作区保存、SFTP 和 SSH 端口转发。**尚未完成当前版本的完整集成、三平台与发布验收**；已有 macOS 使用反馈及局部串口验证不代表整体通过。
 
-## 目录
+| 能力         | 当前范围                                                                                                              |
+| ------------ | --------------------------------------------------------------------------------------------------------------------- |
+| 主机与保险箱 | 保存 SSH/Telnet/串口及工作区，分组、收藏、标签、拼音搜索、批量打开；主机信任与最近20次连接历史                        |
+| 终端         | SSH 密码/公钥/动态 OTP、信任校验；Telnet 终端内明文登录；本地系统 Shell；串口参数与字符集转换；断线保留原缓冲并可重连 |
+| 工作区       | 顶部/左侧标签、排序、嵌套分屏、窗格迁移、比例调整/区域交换、输入广播；保存布局与已保存连接引用，手动打开新会话        |
+| SFTP         | 单 SSH 终端右侧栏、上传下载/覆盖确认/目录合并；固定双远端工作区及栏间对拷；原生拖入和 macOS 文件/目录拖出             |
+| 端口转发     | 本地、远程、动态 SOCKS5；引用保存 SSH 主机，独立连接、手动启停，切页保活                                              |
+| 设置         | 独立窗口、自动保存与跨窗口热应用、应用明暗/主色、快捷键、12种本地字体、64套终端配色与 JSON 导入导出                   |
 
-- `crates/terminal-core`：协议无关的会话模型、actor、取消与受界数据流。
-- `crates/terminal-ssh`：russh 适配、主机密钥、认证、PTY/Shell。
-- `crates/terminal-storage`：SQLCipher、schema、主机/信任/设置/历史。
-- `crates/terminal-security`：Argon2id、保险库解锁与 OS 主密钥缓存。
-- `crates/terminal-local`：系统Shell与本地PTY，复用统一会话/ACK管线；自定义启动配置和完整进程树清理待补齐。
-- `crates/terminal-files` / `terminal-sftp`：文件端口、受界传输与复用SSH连接的SFTP适配。
-- `src-tauri/src/commands`：命令 DTO、窗口所有权、Channel 与用例集成。
-- `src/modules`：主机、终端、工作区、设置；`src/services/desktop` 为唯一 IPC 门面。
+尚未实现的主要范围包括 Windows/Linux 原生拖出、本地文件浏览、通用连接租约与完整传输管理、ProxyJump/Agent、串口手动 DTR/RTS 与 HEX、本地自定义启动配置、打开标签自动恢复及签名发布。详细状态见 [需求与实现状态](docs/01-product-requirements.md#8-当前实现与限制)。
 
-开发前阅读 [协作规则](AGENTS.md)、[文档导航](docs/README.md)、[需求与实现状态](docs/01-product-requirements.md#8-当前实现与限制) 和 [路线](docs/10-roadmap.md)。固定 SFTP 双栏已支持独立 SSH/SFTP 连接与栏间对拷；基础Serial文本终端已接入启动配置弹窗，详见[串口设计](docs/19-serial-terminal.md)；DTR/RTS控制、HEX、隧道、布局恢复、本地文件浏览与通用连接租约仍为后续范围。SFTP支持原生拖入当前目录、确认后直接覆盖普通文件和目录合并；macOS文件/目录承诺拖出已落源码，Windows/Linux拖出未实现。
+## 代码与文档
+
+- `crates/terminal-core`：协议无关模型、actor、取消与有界数据流。
+- `crates/terminal-ssh`、`terminal-telnet`、`terminal-local`、`terminal-serial`：协议/设备适配；SSH crate 同时负责转发。
+- `crates/terminal-storage`、`terminal-security`：SQLCipher、迁移、Argon2id 与 OS 主密钥缓存。
+- `crates/terminal-files`、`terminal-sftp`：文件端口、有界传输与 SFTP。
+- `src-tauri/src`：命令校验、窗口所有权、原生交互与依赖装配。
+- `src/modules`：业务页面与状态；`src/services/desktop` 为唯一 IPC 门面。
+
+开发前阅读 [协作规则](AGENTS.md)、[文档导航](docs/README.md) 和 [开发路线](docs/10-roadmap.md)。数据库为应用数据目录下的 `termvexa-encrypted-v2.sqlite3`，当前 schema 6，可原位升级同加密格式的 schema 2–5。备份须同时保留配套 vault 元数据；不迁移早期旧格式。详见 [存储设计](docs/07-storage.md)。
 
 ## 静态检查
 
 ```sh
 pnpm install --ignore-scripts
-pnpm exec vue-tsc --noEmit
-pnpm exec prettier --check src package.json
+pnpm check:types
+pnpm check:structure
+pnpm check:format:vue
 cargo fmt --all -- --check
 cargo metadata --no-deps --locked --format-version 1
 ```
 
-Rust 工具链下限暂按已选 russh/core 的 1.89 声明，实际依赖组合与平台工具链待验证。根 `Cargo.lock` 和 `pnpm-lock.yaml` 固定解析结果；数据库位于 Tauri 应用数据目录，业务数据与秘密统一存入 SQLCipher 加密数据库，配套 vault.json 须一同备份；系统凭据服务只缓存主密钥，不可用时通过保险库密码恢复，不回退明文。
-
-仓库禁止未经用户明确要求主动构建/运行，包括 cargo check/test/clippy、Vite、Tauri 与真实 SSH 验证。格式化和不生成项目产物的静态检查可以执行。依赖公告检查仍有未关闭条目，见[依赖公告记录](docs/01-product-requirements.md#10-依赖与公告核查)；不应将源码交付或静态通过当作验收或安全审计通过。
+未经用户明确要求，不主动构建、启动或运行项目测试，包括 `cargo check/test/clippy`、Vite、Tauri 和真实设备连接。Rust 工具链声明、依赖及解析结果见各 manifest、`Cargo.lock` 和 `pnpm-lock.yaml`；静态检查不等于编译或运行验收。已知依赖风险见 [公告记录](docs/01-product-requirements.md#10-依赖与公告核查)。

@@ -6,11 +6,11 @@
 
 保险箱导航顺序：主机、端口转发、凭据、主机信任、连接历史。新建规则选择已保存的 SSH 主机，支持命名、搜索、编辑、复制、删除及卡片启停。保存与复制不连接；启动不新建标签页，切页保留连接，监听就绪后卡片使用应用主色高亮，失败与停止移除高亮。应用重启保留配置，不自动启动。
 
-| 模式 | 监听位置 | 目标连接和解析位置 | 例子 |
-| --- | --- | --- | --- |
-| 本地 | 本机 IP/端口 | SSH 服务器 | 本机 127.0.0.1:15432 → 服务器侧 db.internal:5432 |
-| 远程 | SSH 服务器 IP/端口 | 本机 | 服务器 127.0.0.1:8080 → 本机侧 127.0.0.1:3000 |
-| 动态 SOCKS5 | 本机回环 IP/端口 | SSH 服务器 | 127.0.0.1:1080 作为应用 SOCKS5 代理，应用逐连接指定目标 |
+| 模式        | 监听位置           | 目标连接和解析位置 | 例子                                                    |
+| ----------- | ------------------ | ------------------ | ------------------------------------------------------- |
+| 本地        | 本机 IP/端口       | SSH 服务器         | 本机 127.0.0.1:15432 → 服务器侧 db.internal:5432        |
+| 远程        | SSH 服务器 IP/端口 | 本机               | 服务器 127.0.0.1:8080 → 本机侧 127.0.0.1:3000           |
+| 动态 SOCKS5 | 本机回环 IP/端口   | SSH 服务器         | 127.0.0.1:1080 作为应用 SOCKS5 代理，应用逐连接指定目标 |
 
 监听地址要求 IP（IPv6 不带方括号），默认 127.0.0.1，端口为 1–65535，不使用自动分配端口。固定目标接受域名或 IP，端口单填；目标 127.0.0.1 指的是表格中“目标连接位置”所在机器。监听 0.0.0.0 或 :: 可能向其他设备开放，远程转发的实际监听范围受 SSH 服务器 GatewayPorts 配置影响。
 
@@ -32,7 +32,7 @@ SOCKS5 无认证且仅允许回环监听，支持 TCP CONNECT、IPv4、IPv6 和 
 
 - core：ForwardRule/ForwardMode 与 SessionConfig::Forwarding；不依赖 russh、Tauri 或存储。
 - terminal-ssh：for_forwarding 工厂，转发与 SOCKS 协议模块；远程 channel 回调只接受登记监听端点，将 channel 放入有界队列，避免阻塞 SSH 事件循环。
-- storage：port_forwards 表，schema 4，支持同加密格式 schema 2/3 升级；主机外键 ON DELETE SET NULL，保存/删除校验 revision，不复制秘密。
+- storage：port_forwards 表由迁移3引入（阶段 schema 4）；当前 schema 6，同加密格式 schema 2–5 升级，详见[存储](07-storage.md#6-schema-与迁移)；主机外键 ON DELETE SET NULL，保存/删除校验 revision，不复制秘密。
 - 壳：独立 forward_sessions，每个 manager 最多20活动连接/4建立并发；复用 challenge 响应与取消。新增 list_port_forwards、save_port_forward、delete_port_forward、start_port_forward、stop_port_forward 五个命令，注册到 handler、AppManifest::commands 与 main capability，验证 main 本地窗口及保险库解锁，设置窗口无权调用。
 - 前端：desktop 门面、Pinia 轻量状态和 Naive UI 表单/卡片；控制 Channel 状态按 session、代次、revision 更新，活动期间每2秒读取摘要补偿遗漏状态，终态不被迟到启动响应覆盖，所有载荷数据只在 Rust 中转。
 
@@ -44,4 +44,4 @@ SOCKS5 无认证且仅允许回环监听，支持 TCP CONNECT、IPv4、IPv6 和 
 
 静态检查包含前端类型、结构、Vue/TS/Rust格式、命令/ACL对应、迁移 SQL 的内存 SQLite 模型与差异。模型不操作真实用户库，不代表 SQLCipher 迁移已验收。
 
-待授权运行覆盖：三平台绑定/IPv6/端口冲突、真实 SSH 三模式及服务端策略、未知/变更主机密钥、密码/私钥/OTP/取消、远程 DNS、SOCKS 分片及失败码、TCP 半关闭/大流量/并发上限、停止后端口释放/迅速重启、断网/睡眠/窗口关闭、导航高亮与表单，以及 schema 2/3 加密库升级/故障恢复/既有记录保留。暂不支持跳板、Agent、UDP、自动启动或自动重连。
+待授权运行覆盖：三平台绑定/IPv6/端口冲突、真实 SSH 三模式及服务端策略、未知/变更主机密钥、密码/私钥/OTP/取消、远程 DNS、SOCKS 分片及失败码、TCP 半关闭/大流量/并发上限、停止后端口释放/迅速重启、断网/睡眠/窗口关闭、导航高亮与表单，以及 schema 2–5 加密库升级至6/故障恢复/既有记录保留。暂不支持跳板、Agent、UDP、自动启动或自动重连。

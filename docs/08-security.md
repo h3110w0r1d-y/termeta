@@ -4,24 +4,24 @@
 
 ## 1. 威胁模型与边界
 
-| 威胁/输入             | 主要措施                                          | 限制                                                            |
-| --------------------- | ------------------------------------------------- | --------------------------------------------------------------- |
-| 网络中间人/冒充服务器 | SSH 握手证明 + 应用主机公钥 pin/首次核验/变更阻断 | 首次 AllowOnce/TrustAndSave 仍依赖用户核验                      |
-| 恶意远端终端输出      | xterm 字节渲染、无 HTML 注入、禁用敏感 OSC 动作   | 需要持续更新终端解析依赖                                        |
-| 前端 XSS/第三方内容   | 打包本地资源、CSP、最小 IPC、禁止远端导航         | 被攻陷的主窗口仍可能调用其合法权限，不能宣称 ACL 完全隔离主窗口 |
-| 跨窗口资源访问        | 调用者身份、session/challenge/fileRef owner 检查  | 随机 ID 不能替代授权                                            |
-| 设备上其他普通用户    | SQLCipher加密、主密钥钥匙串、应用数据权限与私钥读取边界            | 同用户恶意进程/root 不属于可完全防御范围                        |
-| 大量输出/长认证提示   | 字节限额、信用流控、队列/滚屏/提示长度上限        | 需同时核验协议库内部缓冲                                        |
-| 日志/备份泄露         | 默认不记内容、秘密脱敏、用户主动导出              | 元数据本身仍可能敏感                                            |
+| 威胁/输入             | 主要措施                                                | 限制                                                            |
+| --------------------- | ------------------------------------------------------- | --------------------------------------------------------------- |
+| 网络中间人/冒充服务器 | SSH 握手证明 + 应用主机公钥 pin/首次核验/变更阻断       | 首次 AllowOnce/TrustAndSave 仍依赖用户核验                      |
+| 恶意远端终端输出      | xterm 字节渲染、无 HTML 注入、禁用敏感 OSC 动作         | 需要持续更新终端解析依赖                                        |
+| 前端 XSS/第三方内容   | 打包本地资源、CSP、最小 IPC、禁止远端导航               | 被攻陷的主窗口仍可能调用其合法权限，不能宣称 ACL 完全隔离主窗口 |
+| 跨窗口资源访问        | 调用者身份、session/challenge/fileRef owner 检查        | 随机 ID 不能替代授权                                            |
+| 设备上其他普通用户    | SQLCipher加密、主密钥钥匙串、应用数据权限与私钥读取边界 | 同用户恶意进程/root 不属于可完全防御范围                        |
+| 大量输出/长认证提示   | 字节限额、信用流控、队列/滚屏/提示长度上限              | 需同时核验协议库内部缓冲                                        |
+| 日志/备份泄露         | 默认不记内容、秘密脱敏、用户主动导出                    | 元数据本身仍可能敏感                                            |
 
-不实现自定义 SSH 加密，不把项目描述为经过安全审计的 Vault。未来云同步、Agent forwarding、隧道监听各自需要新威胁分析。
+不实现自定义 SSH 加密，不把项目描述为经过安全审计的 Vault。当前转发监听边界见末节；未来云同步与 Agent forwarding 需要独立威胁分析。
 
 ## 2. Tauri 权限落地要求
 
 模板 greet 与宽泛默认权限已替换：[`build.rs`](../src-tauri/build.rs) 使用 `AppManifest::commands`，命令名单见 [`command_names.rs`](../src-tauri/src/command_names.rs)，主桌面窗口 capability 见 [`default.json`](../src-tauri/capabilities/default.json)。所有数据/终端用例先核验调用窗口，session/challenge 再由 core 核验关联；凭据与私钥引用当前只供 `main` 使用，不提供多窗口共享授权。生成的权限清单、实际拒绝行为仍须在授权构建/运行后验证。
 
 1. 按 [官方 capability 文档](https://v2.tauri.app/security/capabilities/) 把应用命令登记到 `tauri_build::AppManifest::commands`，生成/声明 allow/deny 权限，仅授予主窗口实际需要的命令。应用自定义命令默认可由应用窗口调用，不能只写 capability 后以为自动拒绝。
-2. capabilities 只匹配已知 main 窗口，限定桌面平台，不开放远程 origin 的 IPC；移除无需使用的默认插件权限。
+2. 主业务 capability 只匹配 main，设置使用独立最小 capability，限定桌面平台，不开放远程 origin 的 IPC；移除无需使用的默认插件权限。
 3. 命令接收 Tauri 注入的 WebView/Window 上下文，构造 owner；所有 session/凭据引用/文件授权/challenge 都在服务端验证资源关联。
 4. 不开放 shell plugin 任意执行、前端任意网络 socket、任意 fs 读写、原始 SQL、读取所有凭据等广义命令。
 5. 默认只加载本地打包前端。拦截 WebView 远端导航与新窗口；帮助链接由受控 opener 在外部浏览器打开。
@@ -83,14 +83,14 @@ SFTP 的本地授权独立于私钥授权，仅来自原生选择器、系统拖
 
 快捷键导入只能映射已注册 commandId/合法上下文/白名单按键，拒绝脚本、shell、自动远端输入与任意原生动作；系统后台热键另经 opt-in，不默认抢占 OS。自定义链接手势仍只开 http/https，不能扩大 opener 权限。录制状态不向远端提交输入，也不执行所录动作。
 
-配色导入限制大小、数量、深度与颜色字段，校验 schema/revision，预览后持久化；拒绝 CSS 表达式、外部 URL、脚本、plist 外部实体与压缩包解压路径。颜色允许低对比度由用户决定但提示风险，不把主题文件当作可信代码或系统配置。详见 [14](14-shortcuts.md) 与 [15](15-terminal-themes.md)。
+配色导入限制大小、数量、深度与颜色字段，校验 schema/revision，预览后持久化；拒绝 CSS 表达式、外部 URL、脚本、plist 外部实体与压缩包解压路径。当前未实现对比度辅助，颜色可由用户自定义，不把主题文件当作可信代码或系统配置。详见 [14](14-shortcuts.md) 与 [15](15-terminal-themes.md)。
 
 ## 11. 源码与验证边界
 
 - [`terminal-security/src/master_key.rs`](../crates/terminal-security/src/master_key.rs) 管理唯一OS主密钥：Argon2id v19派生32字节主密钥，随机盐16字节，AES-256-GCM校验随机nonce12字节/AAD绑定格式身份、KDF和盐。启动每进程最多自动读取一次；密码恢复成功后重写主密钥，缓存失败仅警告。`vault.rs`只在加密DB读写凭据secret，DTO不返回秘密，未解锁拒绝所有业务IPC。
 - [`terminal-security/src/private_key.rs`](../crates/terminal-security/src/private_key.rs)：只接受后端原生选择器登记的私钥引用，读取限 1 MiB/OpenSSH 文本，不向前端返回正文；Unix 拒绝符号链接、非当前 uid 与其他用户有权限的文件，使用 `O_NOFOLLOW` 并核验打开对象的设备/inode。注册时和导入时共用 [`terminal-storage/src/key_files.rs`](../crates/terminal-storage/src/key_files.rs) 的安全读取边界；SQLite 只保存文件字节 SHA-256 摘要，导入引用前比对，内容变更即拒绝并要求重新选择。该摘要不充当 SSH 主机密钥指纹，且不序列化给前端。哈希借用 Zeroizing 字节缓冲，不另建裸私钥副本。Windows 的文件对象竞态/ACL 校验仍需完善；读取中的并发原地写入、重新选择意图与平台行为尚未运行验证，不应声称已消除全部 TOCTOU。
 - [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs) 保持单实例和Unix目录0700；数据库/解锁元数据创建为0600。SQLCipher 4 AES-256-CBC页面加密并以HMAC-SHA512校验，包含WAL；临时存储MEMORY，禁用SQL语句日志，拒绝普通SQLite降级。Windows ACL继承与原生构建仍需验证。
-- [`src-tauri/src/settings.rs`](../src-tauri/src/settings.rs)：应用设置、快捷键、`customSchemes` 与 `hostSchemes` 都在 `settings.key=app` JSON 中，校验版本、长度、颜色字段、注册命令与方案引用，不是独立配色表或主机终端偏好表。没有脚本、任意原生动作或 shell 执行型导入。设置完整替换尚无 revision，后续多视图并发需补齐。详见 [存储实现差异](07-storage.md)。
+- [`src-tauri/src/settings.rs`](../src-tauri/src/settings.rs)：应用设置、快捷键、`customSchemes` 与 `hostSchemes` 都在 `settings.key=app` JSON 中，校验版本、长度、颜色字段、注册命令与方案引用，不是独立配色表或主机终端偏好表。没有脚本、任意原生动作或 shell 执行型导入。设置无独立 revision，当前通过专用串行队列读取最新值并合并局部字段，hostsView/hostSearch 逐字段合并；并发/失败恢复仍待运行验收。详见 [存储实现差异](07-storage.md)。
 - [`terminal-core/src/stream.rs`](../crates/terminal-core/src/stream.rs) 与 [`manager.rs`](../crates/terminal-core/src/manager.rs)：字节/消息双重队列预算、合法帧端点 ACK、独立取消、有限输入重试缓存；[`terminal-ssh/src/driver.rs`](../crates/terminal-ssh/src/driver.rs) 在输出阻塞时保留输入/resize/取消分支。xterm 解析完成后确认、旧 session 隔离与终态 finalOffset 均为实现，内存水位/洪泛/远端窗口公平性仍未测量。
 
 验证边界：下载固定 release 源码核对 SQLx、keyring、Tauri、dialog/opener/single-instance 的所用 API/features；Rust 格式检查、存储/安全 Cargo TOML 解析与源码空白检查通过。编译、运行、真实凭据库、SSH、恶意远端输出、CSP/导航拦截、三平台 IME/剪贴板/权限、崩溃与迁移恢复均未执行。传递依赖 MSRV、完整许可证集合与最新安全公告仍待复核；不得把“源码已核对”写成依赖安全审计或发布门槛已通过。
@@ -123,13 +123,13 @@ OSC 标题：remoteTitle仅作前端内存中的展示后缀，控制字符/双�
 
 隐藏继续任务，侧栏随终端断开/关闭取消，双栏两端独立连接，任一端断开取消对拷。文件工厂不启动Shell/PTY，不向WebView提供SSH handle。对拷只接收两端sessionId/逻辑路径/安全名称，在Rust重新校验类型、源目录预扫描64层/10000项；同名文件确认覆盖、目录合并，取消不回滚。相同已知连接标识下用真实路径阻止自复制/复制到子树；不同主机别名、远端hardlink及并发路径替换无法由SFTPv3通用接口证明对象身份，不保证原子覆盖。无通用连接租约、持久任务或重启清理。原生线程/兑现生命周期、Finder、三平台拖入、并发替换、取消及依赖公告须继续运行/安全验收；当前静态核查不代表安全门槛通过。
 
-窗口标题栏（2026-10-16）：仅 main 窗口增加 core:window 的 allow-start-dragging、allow-internal-toggle-maximize、allow-minimize、allow-toggle-maximize 权限，使用 Tauri 内置窗口命令；不新增自定义 Rust 命令或放宽远端资源范围。关闭沿用已有 allow-close 与会话/传输确认，组件通过 desktop 门面操作。
+窗口标题栏：仅 main 窗口增加 core:window 的 allow-start-dragging、allow-internal-toggle-maximize、allow-minimize、allow-toggle-maximize 权限，使用 Tauri 内置窗口命令；不新增自定义 Rust 命令或放宽远端资源范围。关闭沿用已有 allow-close 与会话/传输确认，组件通过 desktop 门面操作。
 
 加密保险库威胁边界：静态文件丢失不直接暴露主机与凭据，但不防御已解锁进程被注入、内存转储、同用户恶意程序或root。SQLx连接选项及SQLCipher内部必须持有可用密钥，Zeroizing只尽早清理受控临时值，不能承诺库内部和JS副本完全清零。校验元数据不含密码/主密钥，但可供离线猜测，密码强度与Argon2id成本仍重要；GCM认证与SQLCipher页HMAC不提供整库旧快照回放检测。密码及OS主密钥同时丢失不可恢复。旧明文库不会自动加密或清理。
 
-主机分组删除（2026-10-16）：前端“一并删除”必须显示范围并独立二次确认；Rust继续校验main窗口/保险库门禁和根组revision，整树删除与专属凭据deleting标记在同一事务。只按owner_profile_id清理被删除主机的专属项，不删除公共凭据，也不主动关闭已建立会话。默认删除仍为保留上移。主机拖拽只提交轻量HostDraft并省略password，不读取秘密；分组父级由Rust再次防环。没有新增通用SQL或批量凭据删除接口；交互和回归测试源码待运行验证。
+主机分组删除：前端“一并删除”必须显示范围并独立二次确认；Rust继续校验main窗口/保险库门禁和根组revision，整树删除与专属凭据deleting标记在同一事务。只按owner_profile_id清理被删除主机的专属项，不删除公共凭据，也不主动关闭已建立会话。默认删除仍为保留上移。主机拖拽只提交轻量HostDraft并省略password，不读取秘密；分组父级由Rust再次防环。没有新增通用SQL或批量凭据删除接口；交互和回归测试源码待运行验证。
 
-## 本地终端边界（2026-10-16）
+## 本地终端边界
 
 本地Shell以当前用户权限运行，只有解锁后的main窗口可通过现有open_session ACL启动；本地目标仅接受source=local，不从前端接收可执行路径、启动命令、环境或cwd，不自动执行终端输出。启动继承桌面应用环境及用户主目录，不将环境或正文写入数据库；历史只记录“本地终端”及local摘要。Unix初始进程组清理不覆盖主动脱离会话的进程，Windows完整进程树清理仍待完善，三平台运行未验收。
 
@@ -143,14 +143,26 @@ OSC 标题：remoteTitle仅作前端内存中的展示后缀，控制字符/双�
 
 系统识别仅在保存SSH终端已完成主机信任、认证和PTY/Shell打开后，由后端固定命令启动。使用独立exec，不写PTY、不重放输入、不请求提权、不source远端文件，远端返回值不得拼接为命令。共用5秒/32KiB限额，失败/取消不破坏主终端。SSH软件标识及系统类别仅作UI信息，不能参与密钥信任、ACL或算法降级。后端写前登记一次性标记，持久化失败时不发探测请求。设置只有布尔开关，拒绝任意脚本字段；主机归属仅由后端saved目标注入。SVG只能来自静态资源白名单，逐实例隔离内部ID；不接收远端SVG/路径/富文本。未执行真实SSH或安全运行验证。
 
-## Serial 设备权限（2026-10-16）
+## Serial 设备权限
 
 list_serial_ports同步加入AppManifest命令名单、generate_handler和main capability，运行时校验main窗口及保险库已解锁；settings窗口不授权。open_session串口目标仍复用owner/幂等/限额校验，Rust拒绝未知参数与字符集，枚举仅作候选，允许用户输入未枚举端口。Unix输入须为/dev下绝对路径，符号链接规范化后的目标仍须在/dev下且为字符设备；serialport在传输用户输入前验证终端ioctl与参数，允许虚拟串口，拒绝普通文件。macOS候选按IOKit声明的IODialinDevice属性筛选，不按节点名前缀过滤；打开仍按用户指定节点及规范化路径独占，不自动切换tty/cu。Windows只接受COM正整数名称及其设备前缀形式并归一。打开时DTR=false，非硬件流控下尽力解除RTS，不增加复位脉冲或设备命令；信号线改变可能触发开发板启动，授权实测边界见串口设计。系统打开仍处理设备拔插竞态、权限与占用；不绕过Linux用户组/设备权限，不改变系统权限或自动安装驱动。正文仅经有界管线流入终端，不持久化；历史只存设备路径与波特率摘要。独占、取消及设备错误边界见[Serial设计](19-serial-terminal.md)，未进行三平台编译/实机验收。
 
-## 2026-10-16：保存串口与SSH能力隔离
+## 保存串口与 SSH 能力隔离
 
-串口主机只保存配置，保存时不枚举或打开设备，不触发DTR/RTS。DTO及存储按kind白名单验证，拒绝串口混入SSH地址/认证或任何password参数，拒绝SSH混入serialConfig及已有记录更改类型。实际saved串口仍经Rust读取加密配置并调用原串口工厂，平台路径/字符设备/权限/独占验证保留；客户端kind仅作能力展示，不参与授权。SFTP选择只列SSH，后端get_host_connection再次验证kind；系统探测SQL限定SSH。临时串口不入主机库，保存配置与终端正文分离，不增加任意设备读写命令、凭据读取或新ACL。Telnet尚无可执行入口。仅静态核对，运行拒绝路径与三平台待验收。
+串口主机只保存配置，保存时不枚举或打开设备，不触发DTR/RTS。DTO及存储按kind白名单验证，拒绝串口混入SSH地址/认证或任何password参数，拒绝SSH混入serialConfig及已有记录更改类型。实际saved串口仍经Rust读取加密配置并调用原串口工厂，平台路径/字符设备/权限/独占验证保留；客户端kind仅作能力展示，不参与授权。SFTP选择只列SSH，后端get_host_connection再次验证kind；系统探测SQL限定SSH。临时串口不入主机库，保存配置与终端正文分离，不增加任意设备读写命令、凭据读取或新ACL。Telnet 已有独立 typed 入口，按下节明文边界隔离。仅静态核对，运行拒绝路径与三平台待验收。
 
-## Telnet明文边界（2026-10-16）
+## Telnet 明文边界
 
-Telnet为用户主动选择的独立协议，通过普通TCP传输；不提供加密、服务器身份校验、TLS/STARTTLS或SSH失败回退。新建/快速连接表单及状态栏明确标记明文；登录在终端内完成，不自动读取、保存或发送SSH凭据，不访问known_hosts或主机系统探测。服务器负责密码输入时的远端回显控制，应用不添加Local Echo。输入仍经受界IPC/owner/解锁检查，网络只在Rust适配器打开，不向WebView开放socket能力。子协商上限4096字节，未知选项拒绝，IAC转义且协议字节不进入终端正文；继承OSC52/外链/标题保护，不记录登录输入或正文。DNS/TCP与写入各30秒截止，所有等待可由取消终止。存储迁移保持SQLCipher与主密钥机制，详见[Telnet设计](20-telnet-terminal.md)及[存储升级](07-storage.md)。本轮仅静态检查，密码回显、恶意协商、资源回收与升级恢复未运行验收。
+Telnet为用户主动选择的独立协议，通过普通TCP传输；不提供加密、服务器身份校验、TLS/STARTTLS或SSH失败回退。新建/快速连接表单及状态栏明确标记明文；登录在终端内完成，不自动读取、保存或发送SSH凭据，不访问known_hosts或主机系统探测。服务器负责密码输入时的远端回显控制，应用不添加Local Echo。输入仍经受界IPC/owner/解锁检查，网络只在Rust适配器打开，不向WebView开放socket能力。子协商上限4096字节，未知选项拒绝，IAC转义且协议字节不进入终端正文；继承OSC52/外链/标题保护，不记录登录输入或正文。DNS/TCP与写入各30秒截止，所有等待可由取消终止。存储迁移保持SQLCipher与主密钥机制，详见[Telnet设计](20-telnet-terminal.md)及[存储升级](07-storage.md)。密码回显、恶意协商、资源回收与升级恢复尚未运行验收。
+
+## 端口转发监听与载荷
+
+转发只允许已解锁 main 窗口引用保存 SSH 主机，由 Rust 重读认证和校验规则；复用信任/密钥变更阻断/OTP，独立连接且不申请 PTY/Shell，不借用终端或增加终端历史。默认监听127.0.0.1；本地/远程可显式选择其他 IP，实际暴露范围受地址与服务器 GatewayPorts 策略控制。
+
+动态 SOCKS5 强制回环、无认证、仅 TCP CONNECT；域名传给 SSH 服务器解析，不接受 UDP/BIND。载荷只在 Rust 有界中转，单规则64流/32远程待接收，超时与独立取消限制资源；停止、窗口关闭及心跳失联清理，不自动启动/重连。监听高亮不证明目标服务可用，三模式真实服务/恶意客户端与资源回收仍待验收。见 [转发设计](21-port-forwarding.md)。
+
+## 工作区存档与迁移完整性
+
+存档仅保存布局/焦点/主机 ID，Rust 在事务中拒绝失效/嵌套引用及额外字段，名称唯一索引与 revision 防止并发静默覆盖；打开仍经各保存主机入口验证。删除主机保留失效引用，不按名称重绑，不保存秘密/输出/认证结果或自动恢复运行状态。
+
+迁移保持 SQLx 校验和及已应用文件字节，索引变更追加新迁移；不删库/密钥或改写迁移记录绕过故障。SQLCipher 与配套元数据完整性、备份和恢复限制见 [存储](07-storage.md)。

@@ -23,7 +23,10 @@ interface TelnetConfig {
   port: number;
 }
 // 快速连接
-const target = { source: "telnet", config: { configVersion: 1, address: "192.0.2.1", port: 23 } };
+const target = {
+  source: "telnet",
+  config: { configVersion: 1, address: "192.0.2.1", port: 23 },
+};
 // 保存主机连接仍仅传 { source: "saved", profileId }
 ```
 
@@ -33,19 +36,19 @@ SessionConfig增加Telnet分支，SessionSnapshot.kind与available_session_kinds
 
 ## 3. 协议行为
 
-| 行为 | 实现边界 |
-| --- | --- |
-| TCP | DNS及建连共用30秒截止，支持独立取消；socket使用TCP_NODELAY |
-| IAC | 跨TCP块保留Data/Command/Option/Sub/SubCommand状态；IAC IAC解码为正文255，发送时转义255 |
-| BINARY (0) | 双向分别协商，成功后对应方向保留控制字节，仍处理IAC |
-| ECHO (1) | 接受服务端WILL ECHO，本地拒绝DO ECHO，不额外回显键入内容 |
-| SGA (3) | 双向支持，逐字节输入；GA等单字节控制命令不进入正文 |
-| TTYPE (24) | 服务端同意后对SEND回复IS xterm-256color |
-| NAWS (31) | 服务端DO后发送最新宽高；16位网络字节序，子协商内容中的255转义；DONT后停止通知 |
-| 其他选项 | WILL返回DONT，DO返回WONT；重复已达成协商不反复确认 |
-| 子协商 | 跨块解析并剥离；最多4096字节，超限/非法IAC序列以TELNET_PROTOCOL_ERROR结束，不无限缓存 |
-| NVT接收 | CR NUL显示为CR，CR LF保留，跨包状态保留；BINARY方向不抑制NUL |
-| NVT发送 | xterm Enter的CR转换为CR LF，LF也转换为CR LF；跨输入块CR LF只发送一次，BINARY方向原样传递 |
+| 行为       | 实现边界                                                                                 |
+| ---------- | ---------------------------------------------------------------------------------------- |
+| TCP        | DNS及建连共用30秒截止，支持独立取消；socket使用TCP_NODELAY                               |
+| IAC        | 跨TCP块保留Data/Command/Option/Sub/SubCommand状态；IAC IAC解码为正文255，发送时转义255   |
+| BINARY (0) | 双向分别协商，成功后对应方向保留控制字节，仍处理IAC                                      |
+| ECHO (1)   | 接受服务端WILL ECHO，本地拒绝DO ECHO，不额外回显键入内容                                 |
+| SGA (3)    | 双向支持，逐字节输入；GA等单字节控制命令不进入正文                                       |
+| TTYPE (24) | 服务端同意后对SEND回复IS xterm-256color                                                  |
+| NAWS (31)  | 服务端DO后发送最新宽高；16位网络字节序，子协商内容中的255转义；DONT后停止通知            |
+| 其他选项   | WILL返回DONT，DO返回WONT；重复已达成协商不反复确认                                       |
+| 子协商     | 跨块解析并剥离；最多4096字节，超限/非法IAC序列以TELNET_PROTOCOL_ERROR结束，不无限缓存    |
+| NVT接收    | CR NUL显示为CR，CR LF保留，跨包状态保留；BINARY方向不抑制NUL                             |
+| NVT发送    | xterm Enter的CR转换为CR LF，LF也转换为CR LF；跨输入块CR LF只发送一次，BINARY方向原样传递 |
 
 初始化请求本地WILL BINARY/SGA/TTYPE/NAWS及远端DO BINARY/ECHO/SGA。每个方向分别维护No/WantYes/Yes，主动请求的确认不再回发正响应，拒绝后可接受服务端后续启用，不引入主动反复开关选项的第二套策略。所有协商响应及用户输入按同一有界队列发送，避免字节交错。
 
@@ -61,15 +64,15 @@ TCP读取块8192字节，socket写队列最多8项，单个输入受core的16384
 
 ## 5. schema 2→3
 
-初始kind约束预留了ssh/local/serial，所以增加串口时无需迁移；telnet不在原约束中。本轮新增`0002_telnet.sql`，不编辑`0001_initial.sql`及其SQLx校验和，user_version从2升级为3。新库依次应用两条迁移；原同加密格式schema 2在解锁后原位升级。SQLCipher 4/AES-256、termvexa-encrypted-v2.sqlite3文件名、vault.json及主密钥机制不变，不迁移更早的明文或旧凭据格式。
+Telnet 由 0002_telnet.sql 在初始父表约束中增加，迁移阶段结果为 schema 3。当前新库应用全部迁移到 schema 6，同加密格式 schema 2–5 解锁后原位升级，不迁移更早格式；数据库文件名、SQLCipher/主密钥/vault 元数据不变。
 
-准备阶段先校验密钥与完整性，在业务池尚未发布时取得专用连接；在迁移事务外关闭foreign_keys，SQLx事务内复制并重建父表/索引、设置版本与登记迁移，再恢复外键并执行foreign_key_check，检查通过才开放业务。避免DROP旧父表触发SSH子表/认证/标签的CASCADE或历史profile引用的SET NULL。SQL执行失败由SQLx事务回滚，解锁失败不发布业务池；后续解锁重新尝试。升级后旧schema 2应用会拒绝该库，恢复旧版本需使用升级前的一致备份，不修改用户现有数据文件作开发验证。
+父表重建在专用初始化连接上进行，迁移事务外关闭外键，SQLx 迁移后恢复并检查 foreign_key_check，通过才发布业务池；保留已应用迁移原始字节与 SQLx 校验。完整版本表、故障与备份边界见 [存储升级](07-storage.md#6-schema-与迁移)。
 
 ## 6. 验证边界
 
 已补回归源码但未编译执行：core地址/端口校验，协议任意分片/重复协商/拒绝/二进制与NVT/终端类型/NAWS转义/子协商限额，TCP本机临时端口夹具的输入/resize/EOF与无ACK取消，壳DTO的SSH字段拒绝，存储往返/混合字段拒绝/类型不可转换，以及加密schema 2升级后的主机、专属密码、分组标签、串口、历史关联和设置保留/重开。
 
-本轮只执行前端类型、结构、格式、Cargo元数据/锁文件、内存SQLite迁移模型、文档链接及差异静态检查；内存SQL核对不等同SQLCipher真实升级。未构建或启动桌面应用，未运行Rust/Node项目测试，未连接真实主机。
+历史交付仅执行类型、结构、格式、清单/锁、内存 SQLite 模型及文档差异静态检查，不等同 SQLCipher 或协议运行验收。
 
 授权后验收应覆盖：
 
@@ -79,8 +82,8 @@ TCP读取块8192字节，socket写队列最多8项，单个输入受core的16384
 4. 大量输出/慢消费者/无ACK/网络写入阻塞时关闭、远端EOF/复位、失败后复制与重连、稳定xterm缓冲与窗口关闭回收。
 5. 保存/编辑/复制/配色失败重试、菜单与新标签页焦点交接、搜索/批量连接/分屏、SFTP隔离及三平台主题视觉。
 
-## 7. 本机Docker手动测试环境（2026-10-16）
+## 7. 本机 Docker 手动测试环境
 
 用户授权在本机部署容器供自行连接，配置及启停命令见[测试环境说明](../dev/telnet/README.md)。使用官方Debian bookworm-slim与发行版GNU inetutils telnetd/inetd及login，服务只映射127.0.0.1:2323；测试用户termvexa，启动后手动设置密码，root锁定，无宿主目录挂载。镜像内带top/vim与UTF-8/ANSI登录横幅，可手动检查登录回显、字符、窗口尺寸、全屏程序、断线与原缓冲重连。该账号为可丢弃的本机测试夹具，不用于真实设备。
 
-容器已部署且健康，127.0.0.1:2323独立socket探针已收到登录提示、未发送账号密码。检查账号状态及root锁定。本轮授权仅部署并核对容器/本机端口就绪；应用连接与视觉测试由用户操作，不构建或启动Termvexa、不执行Rust/Node项目测试，不据此标记Telnet或三平台验收通过。
+历史授权部署中，容器通过健康检查，127.0.0.1:2323 的独立探针收到登录提示，未发送账号密码；该证据不代表服务当前仍运行或应用登录/视觉已验收。执行服务维护和应用测试仍遵循用户授权范围。

@@ -1,32 +1,38 @@
-# 静态用例与验证边界
+# 测试入口与验证边界
 
-Node用例使用内置测试/断言模块，直接导入TypeScript需要Node **22.18+**。遵循仓库约束，只有用户明确授权后才能执行测试；目前未执行这些用例，源码/语法检查不能代表WebView、SSH或桌面集成已通过。
+Node 用例直接导入 TypeScript，要求 Node 22.18+。Rust 测试会编译；遵循 [协作规则](../AGENTS.md)，未经用户明确授权不执行项目测试、构建/启动应用或连接主机/设备。类型/格式/结构静态检查不替代运行验收。
 
-| 文件                          | 覆盖范围                                                                              |
-| ----------------------------- | ------------------------------------------------------------------------------------- |
-| `workspace-layout.test.mjs`   | 四向/嵌套布局、叶子唯一归属、来源收缩、迁移与无效目标、比例限制及原数据不变性         |
-| `terminal-broadcast.test.mjs` | 用户输入/设备应答/鼠标隔离、目标去重、光标模式、粘贴/滚轮递归保护、来源桥接降级与清理 |
+## Node 用例
 
-授权后的执行入口：
+| 文件                                                       | 覆盖范围                                                            |
+| ---------------------------------------------------------- | ------------------------------------------------------------------- |
+| [workspace-layout.test.mjs](workspace-layout.test.mjs)     | 四向/嵌套分屏、迁移/收缩、比例/不变性、批量均分                     |
+| [terminal-broadcast.test.mjs](terminal-broadcast.test.mjs) | 用户输入/设备应答/鼠标隔离、去重、光标模式、粘贴/滚轮递归保护与降级 |
+| [host-search.test.mjs](host-search.test.mjs)               | 全拼/首字母/多音字/混输/多词、字段与地址匹配                        |
+| [file-entries.test.mjs](file-entries.test.mjs)             | 目录/目录链接优先、排序/隐藏、分页不变性与断链展示                  |
+
+以上用例仅有源码/语法静态检查记录，尚未执行。授权后的入口：
 
 ```sh
-node --test tests/workspace-layout.test.mjs tests/terminal-broadcast.test.mjs tests/host-search.test.mjs
+node --test tests/*.test.mjs
 ```
 
-Rust单元测试随对应crate源码保存，执行会编译，同样需要明确授权。实际终端、IME、vim、文件拖放及Finder文件承诺须另行运行验收，见 [运行验收边界](../docs/01-product-requirements.md#11-运行验收边界)。
+## Rust 回归源码
 
-主机分组的Rust回归测试源码位于`crates/terminal-storage/src/tests.rs`：保留上移的直属范围、整树删除的外部主机/共享凭据保护、过期revision及后置失败回滚。均未编译或执行。界面还需覆盖文件夹树计数、左右独立滚动、键盘菜单、主机/分组迁移防环、Esc/失焦/切页/无效落点取消、取消后首次点击、两步删除和持久化。
+| 位置                                          | 范围                                                                                       |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| terminal-core/src/tests.rs                    | 会话 owner、配置/能力、流控/取消等核心行为                                                 |
+| terminal-serial/src                           | 编码/字符边界/非法序列、设备路径与参数                                                     |
+| terminal-telnet/src/protocol.rs、src/tests.rs | IAC/选项/NVT/NAWS/TTYPE/限额，以及本机 TCP 夹具 I/O/EOF/取消                               |
+| terminal-ssh/src                              | 系统识别、转发规则/监听匹配、SOCKS5 分片/远端 DNS/拒绝 UDP 等                              |
+| terminal-storage/src/tests.rs                 | 各类型持久化、凭据/分组事务、revision、工作区/名称唯一、转发失效引用、加密格式/迁移/原摘要 |
+| terminal-security/src                         | 主密钥派生/校验、钥匙串注入/恢复、缓存失败与入口 future 的 Send 断言                       |
+| src-tauri/src/commands、settings.rs           | DTO 字段隔离、设置白名单/旧数据兼容等                                                      |
 
-`host-search.test.mjs`为新增拼音匹配回归源码，覆盖全拼/首字母/部分音节/中文混输、多音字、地址数字与多词；Rust设置校验新增旧数据兼容、有效偏好、非法类型/重复UUID/未知字段用例。均未执行。还需授权后覆盖偏好重启恢复、快速连续展开/收起、失败回退、设置旧草稿与SFTP即时偏好交错保存，以及搜索下拉不改变分组列表、收藏置顶、键盘/IME交互。
+历史串口授权调试中，macOS 的 terminal-core/terminal-serial 定向编译及15项测试通过；指定 ESP32-C3 输出/关闭和 xterm 无界面缓冲对比有局部证据，见 [串口记录](../docs/19-serial-terminal.md#5-已有验证与诊断入口)。这不覆盖后续新增 core/Telnet/存储集成；其他新增 Rust 回归源码尚未编译执行。
 
-搜索配置Rust校验用例还覆盖固定name、字段白名单/去重、布尔类型及未知属性拒绝（仅测试源码，未编译执行）。新增运行验收点：拼音开关和字段选择重启恢复、设置页/下拉互相同步、失效保存提示、下拉复选框键盘操作，以及所有业务表单的必填红星、字段错误与可选项空值。
+## 静态检查与运行验收
 
-`file-entries.test.mjs`覆盖两种SFTP视图共用的目录/目录链接优先、降序、隐藏文件、取消排序的稳定顺序、原始分页不变性与断链展示。本轮仅新增用例源码，未执行；授权后可使用 `node --test tests/file-entries.test.mjs`。结构静态检查使用 `pnpm check:structure`，仅读取源码和清单；类型静态检查使用 `pnpm check:types`，均不触发项目构建或运行。
+pnpm check:types 仅读取/检查前端类型，pnpm check:structure 仅读取源码/清单，pnpm check:format:vue 与 cargo fmt 仅格式检查，均不构建或启动项目。测试存在、格式解析、内存 SQLite 迁移模型不代表编译/SQLCipher 运行通过。
 
-独立设置窗口的待运行验收：菜单/可配置快捷键打开、重复打开聚焦、主窗口退出清理；连续修改常规/字体/配色/快捷键自动应用；主窗口搜索/分组/SFTP偏好与设置窗口并发更新互不覆盖；无效输入及写入失败保留编辑，修正/重试后恢复；设置窗口关闭等待写入，SSH/凭据/文件命令从settings窗口调用必须被拒绝。本轮仅执行类型、结构、格式、命令ACL集合与文档链接静态检查，未运行应用或编译Rust。
-
-保险箱导航待运行验收：主机/凭据/主机信任/连接历史分别进入及独立滚动；从终端返回默认主机并聚焦搜索，终端实例保活；主机信任及历史刷新/空态/错误、撤销与清空取消/确认；设置分类不再显示信任与历史，settings窗口调用对应四个命令应由ACL和owner共同拒绝。仅静态检查，无运行验收。
-
-2026-10-16：workspace-layout增加分组批量布局用例，覆盖空/单项、两项左右、四项四格、奇数/多项面积均分与关闭收拢，仅语法静态检查，未执行。分组批量连接还需运行验收全后代/全部/未分组范围、单台直连、多台确认、取消/切页无会话、独立Tab/Workspace唯一归属、初始首台焦点与广播关闭、认证队列/串口独占/失败保留和旧终端保活。
-
-2026-10-16：Telnet回归源码位于`crates/terminal-telnet/src/protocol.rs`、`src/tests.rs`，覆盖跨包IAC/NVT、重复与禁用协商、未知选项拒绝、NAWS字节转义、TTYPE、BINARY输入、子协商上限，以及本机临时TCP夹具的输入/尺寸/EOF和无ACK时取消；不连接外部主机。core补Telnet地址校验，壳补typed目标/未知SSH字段拒绝，storage补Telnet往返与schema 2加密夹具升级后的父子关联、凭据、历史和设置保留。全部仅补源码，未编译执行；内存SQLite迁移模型核对仅证明SQL结构，不替代SQLCipher运行验证。实际三平台/设备协议与登录回显、升级中断恢复见[Telnet设计](../docs/20-telnet-terminal.md)。
+桌面/IME/焦点/剪贴板、标题栏/独立设置窗口、主机分组/搜索/批量连接、工作区/广播/存档、保险库迁移、SFTP/Finder 原生拖放、转发、实际 Telnet 和串口三平台矩阵，统一见 [运行验收边界](../docs/01-product-requirements.md#11-运行验收边界) 与各模块设计，避免重复维护多份清单。

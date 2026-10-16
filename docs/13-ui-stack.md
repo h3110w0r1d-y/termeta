@@ -1,26 +1,23 @@
-# UI技术选型与桌面适配
+# UI 技术选型与桌面适配
 
-采用固定版本 **Naive UI 2.45.3** 与Vue 3。工作区标签使用自定义WorkspaceTabs，其余有对应能力的交互控件优先使用组件库；项目封装只适配业务值、事件、标签和安全默认值，不重造弹层定位或控件皮肤。当前源码待三平台WebView运行验收。
-
-应用主题色支持在设置常规页通过 NColorPicker 选择不透明六位 HEX，并恢复 Naive UI 默认色；有效修改自动保存并跨窗口热应用。`app.primaryColor` 缺失或空串沿用库的明暗主题默认色，经 Rust 白名单及颜色校验，不修改 schema。主窗口和设置窗口共用 NConfigProvider themeOverrides 派生主色/悬停/按下状态，业务 accent 同步主色；Workspace 拖放预览边框读取 useThemeVars.primaryColor，填充为该色25%透明度，不影响终端配色或终端宿主生命周期。仅完成前端类型、结构、Vue格式与差异静态检查；未构建、启动或执行 Rust 编译/测试，三平台视觉与设置同步待运行验收。
-
-终端配色卡片新增 SchemeThumbnail 轻量DOM缩略图，展示普通文字横条、选区及其文字、绿色文字、光标和常显6px ANSI六色条；72×48px布局按用户提供的Termius解包ThemeItem/useStyles$3o适配为Vue scoped样式，不执行或引入原React代码。内置/自定义/导入方案共用现有Scheme数据，显式selectionForeground优先；外层按钮的选中/悬停沿用Naive UI主题，点击自动保存及独立xterm编辑预览不变。仅类型、格式、结构与差异静态检查，未构建或启动，视觉待运行验收。
+更新：2026-10-16。采用 Naive UI 2.45.3 + Vue 3，工作区标签使用自定义 WorkspaceTabs，其余有对应能力的控件优先组件库。封装只适配业务值、事件、标签和安全默认值，不重造皮肤/弹层定位；三平台 WebView 交互尚待完整验收。
 
 ## 组件与外观
 
-`NConfigProvider`、darkTheme、中文locale和NGlobalStyle管理应用外观，应用主题与终端配色独立。CSS只保留业务布局、尺寸与终端适配，不用全局button/input规则改写库内部DOM；定制优先使用公开props或themeOverrides。
+NConfigProvider、darkTheme、中文 locale 和 NGlobalStyle 管理应用外观。应用明暗/主色与终端配色独立；主色为不透明六位 HEX，缺失/空串沿用库当前主题默认色。useAppAppearance 统一派生主色/悬停/按下与业务 accent，两窗口共享；Workspace 拖放预览读取主题主色。有效设置自动保存并跨窗口应用。
 
-| 场景                        | 当前组件与边界                                                                 |
-| --------------------------- | ------------------------------------------------------------------------------ |
-| 编辑/认证/确认弹窗          | AppDialog薄适配NModal card；content-scrollable正文与footer分离，操作区始终可见 |
-| 按钮、文本/数字输入、复选框 | NButton、NInput、NInputNumber、NCheckbox；保留表单、IME及值类型                |
-| 下拉与菜单                  | NSelect、NMenu、NDropdown；空值与业务“跟随默认”等选项显式映射                  |
-| 配色与折叠                  | NColorPicker、NCollapse；颜色校验与xterm预览由业务负责                         |
-| 页面与设置滚动              | NScrollbar；xterm保留自身滚动及背压                                            |
-| 文件列表与任务              | NDataTable、库复选框/进度/确认控件；本地文件授权仍由原生桥管理                 |
-| 系统文件选择/拖放           | Tauri原生对话框/事件；macOS拖出使用文件承诺，不能用网页DnD代替                 |
+| 场景                        | 组件与职责                                                      |
+| --------------------------- | --------------------------------------------------------------- |
+| 编辑/认证/确认              | AppDialog 薄适配 NModal card，滚动正文与 footer 分离            |
+| 按钮、文本/数字输入、复选框 | NButton、NInput、NInputNumber、NCheckbox，保留表单/IME/值类型   |
+| 选择、菜单、树、列表        | NSelect/NAutoComplete、NMenu/NDropdown、NTree、NList/NDataTable |
+| 配色/折叠/布局              | NColorPicker、NCollapse、NGrid/NFormItemGi/NGi                  |
+| 页面/设置滚动               | NScrollbar；终端保持 xterm 自身滚动/背压                        |
+| 系统文件与窗口              | Tauri 原生选择/事件/窗口命令；macOS 拖出使用原生文件承诺        |
 
-库没有独立Label时保留HTML标签关联；语义布局、form/fieldset和普通文本无需组件化。配色JSON的隐藏文件输入只作明确选择桥，不用于读取SSH秘密。
+CSS 仅保留业务布局、尺寸和终端适配，定制优先公开 props/themeOverrides，不用全局 button/input 规则改写库内部 DOM。普通语义文本、form/fieldset 与 HTML 标签不必封装。
+
+配色卡片使用轻量 DOM SchemeThumbnail 展示文字、选区、光标与 ANSI 色，内置/自定义/导入共享 Scheme 数据；点击自动保存，编辑预览使用独立 xterm，不执行远端命令。详见 [配色](15-terminal-themes.md)。
 
 ## 共用滚动渐隐
 
@@ -36,87 +33,63 @@
 </ScrollFade>
 ```
 
-仅类型、结构、格式与差异等静态检查；未构建或启动，三平台明暗主题、滚动边界/列表与树变化、隐藏恢复和拖动命中待运行验收。
-
 ## 图标来源与替换范围
 
-通用 UI 图标统一使用 xicons 的 Vue 3 包 `@vicons/ionicons5` 0.13.0，通过 NIcon 保持尺寸、颜色与按钮可访问名称。按用户最新要求，保险箱等8个按钮/导航图标已移除Termius SVG，AssetIcon保留语义名称并静态映射到Ionicons；SSH主机系统/类型图标完整保留，不接收运行时外部SVG。装饰图标不参与无障碍名称。
+通用 UI 使用 xicons Vue 3 包 @vicons/ionicons5 0.13.0 与 NIcon；AssetIcon 仅映射语义名称，装饰图标不参与无障碍名称，图标按钮保留名称。
 
-| AssetIcon名称 | Ionicons组件 | 引用位置 |
-| --- | --- | --- |
-| add | AddOutline | 标签栏新建标签 |
-| sftp | FolderOpenOutline | 固定SFTP标签 |
-| hosts | ServerOutline | 保险箱主机导航 |
-| vault | LockClosedOutline | 固定保险箱标签 |
-| credentials | KeyOutline | 凭据导航 |
-| local-terminal | TerminalOutline | 主机页本地终端按钮 |
-| host-trust | ShieldCheckmarkOutline | 主机信任导航 |
-| connection-history | TimeOutline | 连接历史导航 |
+| AssetIcon 名称     | Ionicons 组件          | 位置         |
+| ------------------ | ---------------------- | ------------ |
+| add                | AddOutline             | 新建标签     |
+| sftp               | FolderOpenOutline      | 固定 SFTP    |
+| hosts              | ServerOutline          | 主机导航     |
+| vault              | LockClosedOutline      | 固定保险箱   |
+| credentials        | KeyOutline             | 凭据导航     |
+| local-terminal     | HomeOutline            | 本地终端按钮 |
+| host-trust         | ShieldCheckmarkOutline | 主机信任导航 |
+| connection-history | TimeOutline            | 历史导航     |
+| forwarding         | SwapHorizontalOutline  | 转发导航     |
 
-无新增依赖。SFTP文件类型及主机分组文件夹保留现有自绘图案；系统原生窗口图标、品牌资源和Naive UI/xterm内部图标不在替换范围内。SSH卡片继续使用HostSystemBadge及原28个系统/类型SVG；串口使用HardwareChipOutline。页面favicon沿用带Ionicons MIT声明的TerminalOutline静态SVG。
+SSH 系统/类型 SVG 为指定资源例外；Serial 使用 HardwareChipOutline、Telnet 使用 GlobeOutline、工作区使用 GridOutline。现有 SFTP 文件类型/分组文件夹自绘图案、系统窗口/品牌资源和库内部图标保留。应用 favicon 为带 Ionicons MIT 声明的 TerminalOutline SVG。
 
-主机页新建主机与快速连接、NewTabDialog快速连接共用ConnectionTypeDropdown薄适配NDropdown/NButton，统一placement="bottom-start"从按钮下方起始边对齐，悬浮显示SSH/Telnet/串口，Telnet已启用。显式处理外部点击、Tab、Escape及窗口失焦关闭，页面隐藏时同步关闭；新建标签页搜索在类型菜单展开时让菜单处理方向键与Enter，退场后再打开所选快速连接表单。Telnet与SSH共用HostEditor的Naive UI表单布局，Telnet隐藏SSH认证字段并显示明文说明；不增加另一套表单控件。
-
-仅静态检查通过，三平台图标尺寸、对齐、主题颜色与菜单键盘/IME交互仍待运行验收；不报告构建体积。
+ConnectionTypeDropdown 薄适配 NDropdown/NButton，共用 SSH/Telnet/串口菜单，悬浮显示、bottom-start 对齐，处理外部点击/Tab/Escape/失焦及页面隐藏。NewTabDialog 待退场后再交接所选连接表单，避免焦点陷阱重叠。
 
 ## 样式归属
 
-Vue 模板由现有 Prettier 3.9.10 统一格式化，仓库 `.prettierrc.json` 对 `*.vue` 设置 `htmlWhitespaceSensitivity: "ignore"`，避免为保留行内空白而拆开闭合标签或连接相邻组件；多行正文与闭合标签自然分行，短元素允许单行。`pnpm format:vue` 批量修复，`pnpm check:format:vue` 仅静态校验。精确依赖行内边界空格的内容使用显式文本表达式或局部 `prettier-ignore`，预格式化内容保持原样。此次批量整理不修改脚本逻辑、样式、接口或依赖；行内文本边界的视觉效果仍待运行复验。
+业务 CSS 位于所属 Vue 的 scoped 样式，两个入口共用 src/assets/base.css 的主题 tokens、基础/共享布局、xterm/传送菜单全局适配；字体 CSS 独立。WorkspaceTabs 管标签，TerminalStage 管分屏/分隔条，TerminalPane 管窗格/终端宿主。跨组件动态节点使用明确 :deep() 或入口全局规则，不恢复集中式业务 styles.css。
 
-2026-10-16 将原集中式 `src/styles.css` 拆入对应 Vue 的 `<style scoped>`：WorkspaceTabs 维护标签/排序及横纵布局，TerminalStage 维护分屏容器/分隔条，TerminalPane 维护窗格与 xterm 宿主，窗口按钮、弹窗及各设置页维护自己的布局。标签组件按 position/isMac 在自身根节点表达布局状态，避免依赖父组件的 scoped 选择器。对 xterm 动态节点和跨子组件的调整仅用明确的 `:deep()`。
-
-`App.vue` 的 scoped 样式管理应用外壳/保险箱/状态栏；非 scoped 样式只保留主题 tokens、基础规则、共享表单/页头/状态点以及同时用于实际终端与预览的 xterm 选区、传送菜单适配。字体资源 CSS 独立保留。已删除 `src/styles.css` 及 main.ts 导入，并清理没有模板引用或始终被覆盖的旧规则。此轮仅静态检查，视觉、横纵布局、小窗口和弹层/xterm 仍待运行复验。
+Vue 使用仓库 Prettier，htmlWhitespaceSensitivity=ignore 仅限 *.vue；pnpm format:vue 自动整理，pnpm check:format:vue 静态校验。依赖精确文本空格的节点使用显式文本表达式或有说明的局部 prettier-ignore，预格式化文本保持原样。
 
 ## 生命周期与焦点
 
-- WorkspaceStore是唯一标签状态，固定保险箱/SFTP不创建session。TerminalPane按terminalId保活，显隐、排序、分屏和重连不重建或清空xterm。
-- WorkspaceTabs采用单一tablist、roving tabindex、方向键/Home/End/Enter/空格、Delete关闭及菜单键；固定页与会话滚动区分离。标签主题色和圆角读取useThemeVars，拖动与分屏几何见 [工作区](18-terminal-workspaces.md)。
-- 保险箱主机/凭据各有NScrollbar，独立设置窗口使用NScrollbar且自动应用状态footer独立；主机页v-show挂原生容器，避免滚动组件观察器根元素破坏显隐。凭据/设置共享NH1/NText页头，主机页搜索置顶。
-- 配色网格自然展开，随设置正文滚动；自定义编辑默认折叠，展开后才创建预览。字体下拉固定12项，选项及当前值以对应本地字体显示，资源见 [字体清单](../public/fonts/README.md)。
-- 活动模态、选择/取色浮层优先处理焦点与Escape；关闭动画保留DOM时，AppDialog活动标记已经移除，避免确认后的粘贴被自身动画拦截。
-- 无关界面文字默认不可选；输入、可复制正文和xterm保留选择能力，不添加全局选择/鼠标拦截。
+- WorkspaceStore 为标签状态源，TerminalRegistry 按稳定 terminalId 持有 xterm。排序/显隐/分屏/交换/重连保留实例，固定页不创建终端。
+- WorkspaceTabs 使用 tablist/roving tabindex、方向键/Home/End/Enter/空格、关闭/菜单键；库主题管理颜色和圆角，分屏几何由业务控制。
+- 主机页显隐挂原生 DOM，分组/列表独立 NScrollbar；设置正文滚动、自动应用/重试 footer 固定，配色网格自然展开，编辑默认折叠。
+- AppDialog 转发 after-enter/after-leave，连接/认证退场后恢复当前活动终端焦点；模态和录制优先。弹层标记随实际 open 状态清理，避免隐藏节点拦截快捷键。
+- 搜索使用 NSelect remote/filterable/header 与 focusInput；字段复选框鼠标勾选保留输入光标，空查询隐藏菜单。全局 NewTabDialog 直接列结果并复用搜索配置。
+- 装饰文字不可选；输入、可复制正文及 xterm 保留选择能力，不添加全局鼠标/选区拦截。
 
 ## 安全与认证
 
-VaultGate使用Naive UI的NCard/NForm/NInput/NButton/NSpin/NAlert，先完成首次密码设置或自动/密码解锁再挂载业务页面；输入提交后清空，系统主密钥缓存失败显示警告。本轮仅静态检查，首次/恢复焦点和密码输入体验待运行验收。
+VaultGate 使用库表单完成首次密码或自动/密码解锁，缓存失败保留已解锁并显示警告。业务未解锁不挂载，窗口操作保留。秘密不进入页面长期状态；私钥/文件正文 Rust 读取，不开放任意本地路径读写。库适配不放宽 CSP script-src、导航或 IPC owner。
 
-
-SSH主机/快速连接提供密码和公钥认证；OTP/PAM/Keyboard-interactive由服务端协商动态触发。凭据仅密码/私钥，私钥可带解密密码；主机专属密码非空自动保存、显式空值改为连接时询问，OTP不保存。认证挑战不能因浮层Escape或焦点变化被意外提交/取消。
-
-私钥及文件正文字节在Rust读取；前端不获得任意本地路径读写能力。保留CSP既定style-src范围，不为组件库放宽script-src、导航或IPC所有权检查。SFTP拖放与限制见 [SFTP设计](16-sftp-workspace.md)。
-
-## 依赖与验证
-
-已核对2.45.3包manifest、类型和许可证：Node要求>=20，Vue peer为^3.0.0，MIT。包声明sideEffects:false，未构建因此不报告实际体积或tree-shaking效果。来源：[官网](https://www.naiveui.com/)、[仓库](https://github.com/tusen-ai/naive-ui)、[固定版本元数据](https://registry.npmjs.org/naive-ui/2.45.3)。API以锁定包源码为准。
-
-待验收：三平台高DPI、系统主题、弹层焦点/IME、表单Enter/校验、横纵标签、隐藏终端、文件选择/拖放和颜色往返。类型、格式及静态契约检查不代表桌面交互已通过，见 [运行验收边界](01-product-requirements.md#11-运行验收边界)。
-
-业务表单使用NForm/NFormItem的model/rules/path和validate；由required规则生成红星，提交按钮不因输入未填而提前禁用，提交时显示字段错误。自定义配色与常规设置使用独立表单，禁止嵌套HTML form。主机搜索采用NSelect的remote/filterable与header插槽，顶部字段复选框共用即时搜索设置。
-
-NSelect.focus仅聚焦选择器外壳，主机搜索通过focusInput获取真实光标。搜索字段复选框mousedown阻止默认焦点转移；有效关键词为空时菜单隐藏。AppDialog转发Naive UI after-leave，供连接/认证弹窗完成焦点陷阱退场后恢复终端。搜索和上下文菜单使用display-directive=show，并让data-ui-popup-open随真实显示状态变化，防止过渡期间的旧节点阻断快捷键。
-
-全局NewTabDialog复用AppDialog、NInput、NScrollbar、NList/NButton和SearchPreferences，主机结果直接位于正文，无第二层下拉；共享useHostSearch保证与主页字段/拼音语义一致。AppDialog转发after-enter供真实输入聚焦、after-leave供弹窗串行交接，footer提供快速连接入口。
-
-独立设置窗口使用原生标题栏，Windows/Linux主窗口应用菜单使用NDropdown/NButton；macOS使用Tauri原生应用菜单。公共主题/基础CSS由assets/base.css共享，两个窗口均使用NConfigProvider及相同Naive主题。普通设置和自定义配色编辑经表单校验自动应用，无显式保存按钮；JSON导入/删除仍保留业务确认。
+SSH 主机/快速连接提供密码和公钥，OTP/PAM 由服务端协商；Telnet 隐藏 SSH 认证并显示明文说明，Serial 仅参数配置。设置窗口只允许设置/JSON 导出。详见 [安全设计](08-security.md)。
 
 ## 表单响应式模型与校验时序
 
-沿用 [Naive UI Form 官方示例](https://www.naiveui.com/zh-CN/os-theme/components/form) 的 model/rules/path/v-model 绑定方式：NForm 持有响应式状态，控件直接写入其字段，提交前 validate。已有分散 ref 通过 reactive 保留引用，作为同一个 model 暴露，不复制字段值；重开草稿、密码清理和配色替换仍更新原 ref，表单同步读取最新状态。主机草稿及配色对象使用嵌套路径，并同步规则与字段 path。
+沿用 [Naive UI Form](https://www.naiveui.com/zh-CN/os-theme/components/form) 的 model/rules/path/v-model：NForm 和控件共享同一响应式字段，提交前 validate，必填星号由 required 规则生成。禁止内联对象、对象展开或 computed 快照作为校验 model；已有 ref 可用 reactive 保留字段引用。嵌套对象的规则与 path 同步，不能用 nextTick/盲目清错掩盖旧值。
 
-Naive UI 2.45.3 的 NSelect 更新回调结束后立即触发 change/input；FormItem 此时从 NForm 当前 model 按 path 取值，不会自动等父组件重渲染。临时对象或 computed 对象快照会导致校验取旧值，错误也不会仅因下次渲染更新 model 自动消除。因此禁止将这类快照作为 model；下拉弹层的快捷键标记与表单校验分离，不以焦点或 nextTick 补丁修正数据源。
+NSelect 更新回调后会立即触发校验，FormItem 按当前 model/path 读取；系统文件导入、颜色重置等程序更新后通过公开 FormItem.validate 重验相应字段。普通 input/change/blur 仍保留，快速连接名称、可选秘密和服务器允许空值的回答不强制必填。
 
-本次统一 8 个组件的 9 张表单：主机编辑、凭据编辑、分组编辑、移动主机、保险库、双栏 SFTP 主机选择与路径、侧栏 SFTP 路径、自定义配色。常规设置、认证回答、确认输入已有直接响应式对象或数组绑定，保留原实现。系统私钥文件导入、配色单色重置不经过输入控件事件，成功写入 model 后通过对应 FormItem.validate 重验，保留其他字段错误。
-
-结构静态检查拒绝 NForm 的内联对象和 computed model 常见写法。类型/结构/格式/差异检查通过，未构建、启动或运行测试。待运行复验：空值首次选中及再次切换、错误后改为有效值、清空后再次出现错误、主机/凭据重开和认证切换、无效路径纠正、配色名称与颜色重置、系统私钥导入后错误清除、鼠标和键盘选择、秘密清理。
-
-主机编辑布局使用 NGrid（双列、16px列距、不另加行距）与 NFormItemGi，跨列说明/密码块/收藏/错误由 NGi 承载，移除 host-fields/form-grid 与 field 的自定义 grid。避免原18px行距与 NFormItem 自带反馈区间距叠加；纵向表单间距沿用库默认。禁用状态继续由 NForm 和既有控件属性控制，提交与校验不变。仅静态检查，实际间距和窄窗口视觉待运行复验。
-
-固定SFTP标签及新建标签图标现使用上述Ionicons映射。新建标签页加号取消此前14px的单独缩小，恢复20px，按钮尺寸沿用原值；仅静态检查，视觉待运行复验。
+主机编辑使用 NGrid/NFormItemGi 双列及 NGi 跨列，不叠加自定义 grid 行距。配色与常规表单分离，禁止嵌套 HTML form。结构检查检查常见 model 快照误用，实际选中/清空/纠错、鼠标/键盘和重开仍需运行验收。
 
 ## 用户指定的SSH系统/类型图标例外
 
-本轮按用户明确要求，28个Termius主机系统/类型SVG原样复制至src/assets/svg/systems，清单[host-system-icons.json](../resources/host-system-icons.json)保留原文件名、语义标识和SHA-256。类型包括检测器的发行版/系统以及SSH、Pi、AWS、DigitalOcean手动选项；raspbian/pi共用原pi素材、suse对应原suze素材。系统/类型SVG继续作为明确例外保留，原8个按钮/导航SVG已由Ionicons替换。
+28个指定系统/类型 SVG 位于 src/assets/svg/systems，语义 ID、原文件名、SHA-256 见 [清单](../resources/host-system-icons.json)。SSH 默认项使用 host.react-ecf6b335.svg；不接收运行时外部 SVG。
 
-主机卡片的HostSystemBadge用NAvatar承载40×40px系统色底/12px圆角和24px白色Logo，不增加描边；系统色取解包reconnectSaga-e37b5571.css变量，Debian为#CE0056。HostSystemIcon用NIcon承载，静态白名单raw资源、逐Vue实例重写SVG内部ID和引用，避免多卡片/选择器裁切路径串用；图标为装饰，文字提供可访问名称。不接受动态外部素材。主机编辑用NSelect图文标签，设置用现有NCheckbox/NCollapse/NInput只读文本，保留库样式。静态摘要/主动内容检查通过，三平台视觉待验收。
+HostSystemBadge 以 NAvatar 承载系统色底和白色 Logo，HostSystemIcon 使用静态白名单并逐实例隔离 SVG 内部 ID/引用。卡片/列表/侧栏/选择器共用资源，默认插槽居中并保留库内联缩放。手动非默认图标优先于自动识别；来源/许可仍需发布前核验。详见 [资源说明](../resources/README.md)。
 
-2026-10-16：用户指定SSH默认项改用`host.react-ecf6b335.svg`，原样替换`src/assets/svg/systems/ssh.svg`并更新清单来源与SHA-256；id=ssh和背景/尺寸不变，卡片/列表/侧栏/选择器及未知图标回退共享该素材，其他系统图标保留。仅资源与格式/差异静态检查，未构建或启动，视觉待运行验收。
+## 依赖与验证
+
+固定包要求 Node >=20、Vue peer ^3.0.0，MIT；来源：[官网](https://www.naiveui.com/)、[仓库](https://github.com/tusen-ai/naive-ui)、[固定版本元数据](https://registry.npmjs.org/naive-ui/2.45.3)。API 以锁定包源码为准，不根据 sideEffects 声明推断实际打包体积。
+
+待验收包括三平台高 DPI/主题、表单与弹层/IME、横纵标签、隐藏终端、文件授权/拖放、字体/配色和跨窗口同步。类型、结构、格式和资源摘要仅静态检查；验证状态集中见 [产品需求](01-product-requirements.md#9-已有验证与证据边界)。

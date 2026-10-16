@@ -6,18 +6,18 @@
 
 `Primary` 在macOS对应Command，在Windows/Linux对应Control。注册表位于 `src/services/commands/registry.ts`，设置模型为 `keymap.schemaVersion=1` 和 `bindings`；按钮/菜单与键盘复用动作处理入口。
 
-| 动作              | macOS默认         | Windows/Linux默认        |
-| ----------------- | ----------------- | ------------------------ |
-| 新建标签页        | Cmd+T             | Ctrl+T                   |
-| 新建SSH连接       | Cmd+N             | Ctrl+Shift+N             |
-| 关闭标签          | Cmd+W             | Ctrl+Shift+W             |
-| 下一个/上一个标签 | Cmd+Shift+] / [   | Ctrl+PageDown / PageUp   |
-| 打开设置          | Cmd+,             | Ctrl+,                   |
-| 复制/粘贴         | Cmd+C / V         | Ctrl+Shift+C / V         |
-| 搜索终端          | Cmd+F             | Ctrl+Shift+F             |
-| 打开终端链接      | Cmd+主键单击      | Ctrl+主键单击            |
-| 滚动到底部        | 未绑定            | 未绑定                   |
-| 新建本地终端      | Cmd+L | Ctrl+Shift+L |
+| 动作              | macOS默认       | Windows/Linux默认      |
+| ----------------- | --------------- | ---------------------- |
+| 新建标签页        | Cmd+T           | Ctrl+T                 |
+| 新连接入口        | Cmd+N           | Ctrl+Shift+N           |
+| 关闭标签          | Cmd+W           | Ctrl+Shift+W           |
+| 下一个/上一个标签 | Cmd+Shift+] / [ | Ctrl+PageDown / PageUp |
+| 打开设置          | Cmd+,           | Ctrl+,                 |
+| 复制/粘贴         | Cmd+C / V       | Ctrl+Shift+C / V       |
+| 搜索终端          | Cmd+F           | Ctrl+Shift+F           |
+| 打开终端链接      | Cmd+主键单击    | Ctrl+主键单击          |
+| 滚动到底部        | 未绑定          | 未绑定                 |
+| 新建本地终端      | Cmd+L           | Ctrl+Shift+L           |
 
 “全局”指应用窗口前台的application作用域，终端动作属于terminal作用域。Local工厂已实现，workspace.newLocalTerminal 注册到本地PTY，macOS为Cmd+L，Windows/Linux为Ctrl+Shift+L。SFTP目前使用状态栏开关，没有注册独立SFTP标签或面板快捷键。Windows/Linux默认Ctrl+C仍发送远端中断，Ctrl+L仍交给Shell；用户可显式改变绑定。
 
@@ -41,7 +41,7 @@ xterm在mouseup激活链接，处理程序仅preventDefault，不stopPropagation
 
 主页搜索结果下拉以data-application-shortcuts标记允许应用快捷键；全局路由仅对不含该标记的data-ui-popup-open弹层拦截。搜索框空查询、输入关键词及结果下拉打开时，均允许新建本地终端、新建标签页、切换标签及打开设置等应用动作；其他浮层和模态仍优先。
 
-## macOS 弹窗关闭保护（2026-10-16）
+## macOS 弹窗关闭保护
 
 弹窗存在data-modal-open时，路由在录制/IME等提前返回之前消费Cmd+W（preventDefault/stopPropagation），不关闭弹窗、标签或窗口；保护独立于关闭标签的用户绑定及启用状态，其他应用动作继续被模态拦截，编辑快捷键和Escape保持原行为。没有弹窗时仍按用户绑定关闭当前标签，不回退为关闭应用窗口。
 

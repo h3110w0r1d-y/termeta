@@ -1,6 +1,6 @@
 # IPC 契约与终端数据流
 
-日期：2026-10-15。协议版本 1，首期命令/Channel/ACL 已落源码，尚未运行验证。Rust/TS 实际入口及差异见 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)。
+更新：2026-10-16。协议版本 1，首期命令/Channel/ACL 已落源码，尚未运行验证。Rust/TS 实际入口及差异见 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)。
 
 ## 1. 控制面与数据面
 
@@ -8,10 +8,10 @@
 
 不使用全局终端 output event、不发 base64、不依赖 HTTP/WebSocket、不每个字符调用一次 IPC。两个 Channel 各自保持消息顺序，但不存在跨 Channel 的全局顺序，应用协议必须处理交错。
 
-## 2. DTO 草案
+## 2. DTO 摘要
 
 ```ts
-type SessionKind = "ssh" | "local" | "serial" | "telnet";
+type SessionKind = "ssh" | "local" | "serial" | "telnet" | "forwarding";
 type SessionState =
   | "created"
   | "connecting"
@@ -33,6 +33,7 @@ interface SessionSnapshot {
   protocolVersion: 1;
   requestId: string;
   sessionId: string;
+  terminalId: string;
   kind: SessionKind;
   title: string;
   state: SessionState;
@@ -77,27 +78,27 @@ OpenTarget 接受保存SSH/Telnet/串口、临时SSH/Telnet与 `{source:"local"}
 
 ## 3. 命令清单
 
-以下为目标命令名，M1/M2 按需实现、登记 ACL；不是一次全部暴露。
+下表列出核心命令，文件/转发/存档及设置补充见后文；完整注册名单以 command_names.rs、handler 与 capability 为准。
 
-| 命令                                                         | 主要参数                                                      | 返回/语义                                                   |
-| ------------------------------------------------------------ | ------------------------------------------------------------- | ----------------------------------------------------------- |
-| `available_session_kinds`                                    | 无                                                            | 注册工厂与能力，仅展示可用类型                              |
-| `open_session`                                               | protocolVersion、requestId、target、size、onOutput、onControl | Created 快照；连接异步进行；同 owner/requestId 幂等         |
-| `write_session`                                              | sessionId、inputSeq、bytes                                    | acceptedSeq；只确认后端有序接收，不承诺远端已执行           |
-| `resize_session`                                             | sessionId、size                                               | 最新接受尺寸；合并重复                                      |
-| `ack_session_output`                                         | sessionId、consumedOffset（十进制字符串）                     | void；累计确认解析后的输出                                  |
-| `respond_host_key`                                           | sessionId、challengeId、decision                              | 接受/拒绝响应；decision 为 reject/allowOnce/trustAndSave    |
-| `respond_auth_challenge`                                     | sessionId、challengeId、answers、savePolicy                   | masked 答案只短暂经 IPC；不得记录                           |
-| `cancel_auth_challenge`                                      | sessionId、challengeId                                        | 取消认证并关闭本次连接                                      |
-| `close_session`                                              | sessionId、reason                                             | 受理后的当前快照；资源结束由终态事件确认                    |
-| `list_sessions` / `get_session`                              | 可选 sessionId                                                | 当前 owner 的快照/终态缓存                                  |
-| `session_client_heartbeat`                                   | 无或已拥有 session ID 列表                                    | 窗口级失联检测；不能由前端指定 owner                        |
-| `list_hosts` / `save_host` / `delete_host`                   | 查询/版本化 Host DTO/id                                       | 参数化 repository CRUD；save 使用 revision 乐观锁           |
-| `list_host_groups` / `save_host_group` / `delete_host_group` | 分组 DTO/id/revision，删除可选 deleteHosts                     | 防环；默认保留上移，true 原子删除子树及主机                                    |
-| `list_known_hosts` / `revoke_known_host`                     | endpoint 查询/信任记录 id                                     | 替换策略需二次显式操作，不在连接流程静默覆盖                |
-| `select_private_key_file`                                    | 原生文件选择                                                  | opaque keyFileRef、名称、公钥元数据（可解析时）；不返回私钥 |
-| `list_credentials` / `delete_credential`                     | id                                                            | 仅元数据；无通用 get_secret 命令                            |
-| `get_settings` / `save_settings`                             | 版本化设置 DTO                                                | 校验范围；无原始 SQL                                        |
+| 命令                                                         | 主要参数                                                                  | 返回/语义                                                |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `available_session_kinds`                                    | 无                                                                        | 注册工厂与能力，仅展示可用类型                           |
+| `open_session`                                               | protocolVersion、requestId、terminalId、target、size、onOutput、onControl | Created 快照；连接异步进行；同 owner/requestId 幂等      |
+| `write_session`                                              | sessionId、inputSeq、bytes                                                | acceptedSeq；只确认后端有序接收，不承诺远端已执行        |
+| `resize_session`                                             | sessionId、size                                                           | 最新接受尺寸；合并重复                                   |
+| `ack_session_output`                                         | sessionId、consumedOffset（十进制字符串）                                 | void；累计确认解析后的输出                               |
+| `respond_host_key`                                           | sessionId、challengeId、decision                                          | 接受/拒绝响应；decision 为 reject/allowOnce/trustAndSave |
+| `respond_auth_challenge`                                     | sessionId、challengeId、answers、savePolicy                               | masked 答案只短暂经 IPC；不得记录                        |
+| `cancel_auth_challenge`                                      | sessionId、challengeId                                                    | 取消认证并关闭本次连接                                   |
+| `close_session`                                              | sessionId、reason                                                         | 受理后的当前快照；资源结束由终态事件确认                 |
+| `list_sessions` / `get_session`                              | 可选 sessionId                                                            | 当前 owner 的快照/终态缓存                               |
+| `session_client_heartbeat`                                   | 无                                                                        | 窗口级失联检测；不能由前端指定 owner                     |
+| `list_hosts` / `save_host` / `delete_host`                   | 查询/版本化 Host DTO/id                                                   | 参数化 repository CRUD；save 使用 revision 乐观锁        |
+| `list_host_groups` / `save_host_group` / `delete_host_group` | 分组 DTO/id/revision，删除可选 deleteHosts                                | 防环；默认保留上移，true 原子删除子树及主机              |
+| `list_known_hosts` / `revoke_known_host`                     | endpoint 查询/信任记录 id                                                 | 替换策略需二次显式操作，不在连接流程静默覆盖             |
+| `select_private_key_file`                                    | 原生文件选择                                                              | keyFileRef、name，可取消返回 null；不返回私钥正文        |
+| `list_credentials` / `delete_credential`                     | id                                                                        | 仅元数据；无通用 get_secret 命令                         |
+| `get_settings` / `save_settings`                             | 版本化设置 DTO                                                            | 校验范围；无原始 SQL                                     |
 
 keyFileRef 由后端文件选择流程签发并绑定 owner，作为导入私钥凭据的受控文件引用；普通 invoke 不允许任意路径读取。密钥授权、状态变更与用户操作关联，不能仅相信“这个路径来自文件选择框”的前端声明。
 
@@ -160,22 +161,21 @@ SSH channel + 内部有限缓冲
   → 释放发送信用
 ```
 
-初始调参值，不是测试结果：
+当前代码限额，不是性能测量结果：
 
-| 参数               | 初始值                   | 说明                                                |
-| ------------------ | ------------------------ | --------------------------------------------------- |
-| 单帧 payload       | 4–32 KiB；不足不等待凑满 | 交互尾部约 4 ms 内刷新，实际待测                    |
-| 未 ACK 输出信用    | 256 KiB / session        | 帧发送前预留信用；Tauri send 成功不释放信用         |
-| driver 输出队列    | 512 KiB / session        | 字节信号量 + 消息数双限，不能仅限制消息数量         |
-| 输入队列           | 64 KiB / session         | 超过限额暂停粘贴或报错，不静默丢字节                |
-| 单次 write payload | 最大 16 KiB              | 前端分片，单 writer 串行 invoke                     |
-| ACK 批次           | 累计 64 KiB 或约 16 ms   | 以 write callback 为依据；定时器受后台节流影响      |
-| 已连接会话上限     | 默认 20；并行连接尝试 4  | 终态摘要不占活动配额；用户后续可调                  |
-| 全局应用流缓冲预算 | 32 MiB                   | 包含输出队列/信用/输入配额，独立于 xterm scrollback |
+| 参数               | 初始值                   | 说明                                           |
+| ------------------ | ------------------------ | ---------------------------------------------- |
+| 单帧 payload       | 1–32 KiB                 | 按驱动读取块提交，流桥不等待凑满               |
+| 未 ACK 输出信用    | 256 KiB / session        | 帧发送前预留信用；Tauri send 成功不释放信用    |
+| driver 输出队列    | 512 KiB / session        | 字节信号量 + 消息数双限，不能仅限制消息数量    |
+| 输入队列           | 64 KiB / session         | 超过限额暂停粘贴或报错，不静默丢字节           |
+| 单次 write payload | 最大 16 KiB              | 前端分片，单 writer 串行 invoke                |
+| ACK 批次           | 累计 64 KiB 或约 16 ms   | 以 write callback 为依据；定时器受后台节流影响 |
+| 活动会话上限       | 每 manager 20；并行建立4 | 终态摘要不占活动配额，当前无用户配置入口       |
 
 `sentOffset - consumedOffset <= outputCredit`。累计 ACK 必须单调、<= 已发送最大 offset、落在合法连续消费位置；重复 ACK 可忽略，未来 ACK/跨 session ACK 拒绝。后端用已发送帧端点确认合法边界。前端必须只确认**连续**已经完成解析的字节，不能对未解析帧提前 ACK。
 
-frame header、序列化临时副本、russh 内部窗口/缓冲、WebView 和 xterm scrollback 是额外开销，不能用上表声称整个应用最多 32 MiB。库内部缓冲在 SP-02/05 中测量并配置上限。
+当前没有统一的全局流缓冲字节预算；上述限制逐会话生效，终端/文件/转发 manager 分别计数。frame header、序列化副本、协议库窗口/缓冲、WebView 和 xterm scrollback 均为额外开销，总内存与公平性仍需实测。
 
 没有 ACK 时 forwarder 停止送更多帧，不能无限填充 WebView；满队列后反压至 SSH channel，必要时影响该远端 Shell 的输出速度，这是保护内存的正常行为。协议 KeepAlive 和取消必须有独立运行路径。
 
@@ -183,7 +183,7 @@ frame header、序列化临时副本、russh 内部窗口/缓冲、WebView 和 x
 
 xterm.onData 的字符串用 TextEncoder 编码；onBinary 如启用，按单字节代码单元映射，不能再做 UTF-8 编码。M2 只声明 UTF-8 终端，不承诺任意传统编码自动识别。
 
-前端每个 session 一个 FIFO，inputSeq 从 1 递增，一次只等待一个 write invoke；合并相邻小键入但不改变顺序。后端拒绝跳号，对已接受相同 seq 的重复请求返回原 ACK，对内容不一致的重复请求报协议错误。缓存按有界窗口保留；不得依靠无限输入历史去重。
+前端每个 session 一个 FIFO，inputSeq 从 1 递增，一次只等待一个 write invoke，按块入队且不改变顺序。后端拒绝跳号，对已接受相同 seq 的重复请求返回原 ACK，对内容不一致的重复请求报协议错误。缓存按有界窗口保留；不得依靠无限输入历史去重。
 
 inputSeq 同样使用 u32，不允许回绕；初始只缓存最近 128 条且总计最多 64 KiB 的已接受 payload 用于重复内容核对，超出任一上限淘汰旧条目。落在淘汰区间的旧 seq 直接拒绝，不重新写入。前端正常路径不重试写请求，序号耗尽时明确结束会话；后续需要更长寿命时升级协议。
 
@@ -203,7 +203,7 @@ Channel send 错误、窗口已销毁或主动 close 立即取消对应流，释
 
 快捷键及终端配色存入版本化设置，通过 get_settings 读取完整快照、save_settings 提交局部字段。后端校验动作、颜色、版本及引用；前端 JSON 导入有大小限制，不提供任意文件读写。快捷键只引用 CommandRegistry 已注册 commandId，链接动作走 open_external_url 的 http/https 白名单，不接受任意 opener 参数。
 
-文件服务使用独立命令与进度 Channel，不复用终端 binary frame/ACK。正文只在 Rust 流动。当前单终端 SFTP 契约见第 12 节；独立端点、连接租约、持久任务订阅仍是后续设计。
+文件服务使用独立命令与进度 Channel，不复用终端 binary frame/ACK。正文只在 Rust 流动。当前单终端 SFTP 契约见第 12 节；独立双远端已实现，通用连接租约、本地端点和持久任务订阅仍是后续设计。
 
 ## 11. 数据、设置与控制接口
 
@@ -211,7 +211,7 @@ Channel send 错误、窗口已销毁或主动 close 立即取消对应流，释
 
 `respond_auth_challenge` 当前只接受 `savePolicy:"never"`；公共凭据保存为凭据页的显式 `save_credential({kind,label,password?,keyFileRef?,passphrase?}) -> {id}`，无读取秘密给 UI 的命令；交互 OTP 不保存。新增原生 `export_json({name,value})` 保存对话框、历史 `list_history` / `clear_history`。私钥选择可取消返回 null，只返回 keyFileRef/name；该引用用于导入 privateKey 凭据，不用于会话配置。
 
-HostDraft/HostProfile新增kind:"ssh"|"telnet"|"serial"（旧DTO缺失默认ssh）与serialConfig?:SerialConfig|null；其他轻量元数据共用。串口配置包含path/baudRate/charset/dataBits/stopBits/flowControl/parity，SSH平坦字段必须空串/port0/authPlan空数组；SSH必须无serialConfig。已有主机禁止变更kind。保存串口不触发设备访问或网络，连接时saved/profileId由Rust解析kind后分发；公共OpenTarget不接收前端的kind/serialConfig提示来覆盖保存配置。终端视图另外持有kind/serialConfig元数据，防止保存串口误显SSH能力，不作为后端授权依据。现有save_host/list_hosts/open_session命令与ACL不变；Telnet已启用，使用独立typed配置和工厂，见末尾Telnet契约。
+HostDraft/HostProfile 共享 kind 与 serialConfig?:SerialConfig|null，旧 DTO 缺失 kind 默认 ssh。HostProfile 还包含 kind=workspace 与可选 workspace 存档；该类型不能经 open_session 直接打开，由前端展开连接引用，save_host 仅允许分组/收藏变更。串口配置包含path/baudRate/charset/dataBits/stopBits/flowControl/parity，SSH平坦字段必须空串/port0/authPlan空数组；SSH必须无serialConfig。已有主机禁止变更kind。保存串口不触发设备访问或网络，连接时saved/profileId由Rust解析kind后分发；公共OpenTarget不接收前端的kind/serialConfig提示来覆盖保存配置。终端视图另外持有kind/serialConfig元数据，防止保存串口误显SSH能力，不作为后端授权依据。现有save_host/list_hosts/open_session命令与ACL不变；Telnet已启用，使用独立typed配置和工厂，见末尾Telnet契约。
 
 `save_host.password` 仅用于SSH，Telnet/串口拒绝任何非null密码字段；省略/null 表示元数据更新保留已有专属密码，显式 `""` 表示移除，非空表示替换；SSH主机编辑总显式提交字符串。HostDraft 不含秘密，主机公共结果新增 hasPassword 且隐藏专属credentialId。私钥凭据参数只接受 keyFileRef 与可选passphrase，密码凭据只接受password，不接受混合类型；所有secret只作为提交参数，不回传。保存主机后的旧秘密清理失败不回滚已经提交的主机结果，deleting登记留待重试。
 
@@ -249,17 +249,17 @@ TransferProgress 包含 transferred/total 字节十进制字符串及可选 curr
 
 macOS 拖出 names 最多 100 个普通文件或真实目录根，directories 必须为其子集且仅为类型提示，Rust 在兑现时复核。原生手势启动须左键仍按住，不能排队到手势结束后。Finder 请求内容才发第一条进度并创建下载记录；无内容请求的取消不留任务。内部落点拒绝，原生拖出期间屏蔽上传事件及授权登记。命令在 Copy 会话结束且全部承诺完成后成功返回；取消返回 false，失败返回错误。目录使用独立句柄有界递归，不扰动侧栏分页，不跟随源链接。
 
-传输始终绑定原 sessionId，隐藏不取消；断线/关闭终端取消，重连不重放或关联新会话。尚无持久任务恢复、通用冲突 challenge、独立端点或连接租约。以上仅为源码契约，未完成编译与平台运行验收。
+传输始终绑定原 sessionId，隐藏不取消；断线/关闭终端取消，重连不重放或关联新会话。尚无持久任务恢复、通用冲突 challenge、本地端点或通用连接租约。以上仅为源码契约，未完成编译与平台运行验收。
 
 双栏文件工作区增加 `sftp_connect(profileId, requestId, onControl)`，返回 `SessionSnapshot`；连接属于文件专用会话表，不创建终端，复用现有控制事件及主机信任/认证响应。`sftp_copy(request, onProgress)` 的 request 为 sourceSessionId、targetSessionId、sourcePath、targetPath、names、transferId，返回空成功；只接受两个 owner-bound 文件会话，正文不进入IPC。列表和取消复用 `sftp_list` / `sftp_cancel`，关闭复用 `close_session`；认证与关闭根据资源所属会话表路由。所有新增命令同步 AppManifest/ACL/main capability。
 
-## 数据保险库解锁命令（2026-10-16）
+## 数据保险库解锁命令
 
 `vault_status() -> {mode: "setup"|"locked"|"unlocked", keychainWarning: string|null}` 每进程最多自动尝试一次系统主密钥；`unlock_vault({password: string, setup: boolean})` 在Rust阻塞池派生并校验，成功后返回同一状态DTO。二者均校验main窗口及本地导航，加入AppManifest命令名单与main capability。密码/主密钥不出现在返回值或事件中。其他用例命令先检查保险库已解锁，否则返回VAULT_LOCKED；前端统一经desktop门面。
 
 已移除旧`recover_credential`：secret与ready现在在同一加密数据库写入，未完成公共pending项由用户删除后重建。原有主机/凭据DTO保持不返回秘密。
 
-分组删除契约（2026-10-16）：`delete_host_group(id, revision, deleteHosts?: boolean)` 沿用原命令与 main owner/保险库门禁/ACL，省略或 false 保留直属主机和子组并上移；true 按根组 revision 校验后，在同一数据库事务内从叶到根删除整个子树和主机、将专属凭据登记 deleting，再复用协调器清理。共享凭据不删除，已连接会话保持快照，不新增命令或 schema。前端选择 true 必须另弹最终确认。主机拖拽复用 `save_host` 并省略 password，分组拖拽复用 `save_host_group` 的 parentId/sortOrder/revision；无需新建移动接口。
+分组删除契约：`delete_host_group(id, revision, deleteHosts?: boolean)` 沿用原命令与 main owner/保险库门禁/ACL，省略或 false 保留直属主机和子组并上移；true 按根组 revision 校验后，在同一数据库事务内从叶到根删除整个子树和主机、将专属凭据登记 deleting，再复用协调器清理。共享凭据不删除，已连接会话保持快照，不新增命令或 schema。前端选择 true 必须另弹最终确认。主机拖拽复用 `save_host` 并省略 password，分组拖拽复用 `save_host_group` 的 parentId/sortOrder/revision；无需新建移动接口。
 
 主机页设置契约：现有AppSettings增加可选旧格式兼容的`hostsView`对象，新保存包含`includeChildren: boolean`、`expandedGroupIds: string[]`、`showHosts: boolean`与`displayMode:"card"|"list"`；Rust白名单校验字段、UUID及固定键ungrouped去重及10000项/整条256KiB上限。复用get_settings/save_settings，不新增IPC/ACL。前端保护包含子组、展开集合及sftpShowHidden不被设置草稿回退。全局拼音搜索只用已有轻量HostProfile列表，无逐次搜索IPC或网络请求。
 
@@ -277,6 +277,14 @@ settings窗口仅开放设置和export_json，这些命令使用独立settings_o
 
 HostDraft.icon为内置字符串标识，缺省ssh；HostProfile新增icon与systemDetectionAttempted:boolean。后端SshConfig.system_profile_id使用serde(skip)，只由open_session的saved分支设置，不接收前端资源归属；Local、ephemeral及独立SFTP均不设置。新增控制事件{type:"hostSystemChanged", profileId:string}，使用既有SessionEvent信封的sessionId/requestId/eventSeq，仅通知重读已提交主机列表；不传输SVG、任意脚本或探测输出。终端注册表保留代次检查，主机列表读取忽略迟到旧请求。
 
-AppSettings新增detectSshSystem:boolean，旧设置缺失默认true；Rust验证仅接受布尔值，拒绝额外脚本字段。复用open_session/list_hosts/save_host/get_settings/save_settings及原ACL/owner，无新增命令或权限。
+AppSettings.detectSshSystem:boolean，旧设置缺失默认true；Rust验证仅接受布尔值，拒绝额外脚本字段。复用open_session/list_hosts/save_host/get_settings/save_settings及原ACL/owner，无新增命令或权限。
 
 Telnet新增typed目标`{source:"telnet",config:{configVersion:1,address,port}}`，拒绝未知配置字段（含SSH认证/密码/串口字段），保存目标仍仅传profileId并从数据库权威配置派发。HostDraft/Profile复用address/port，kind=telnet时username为空、authPlan=[]、serialConfig为空；存储到config_json.telnetConfig。无新增命令、权限或协议帧版本；Telnet握手控制字节只在Rust适配器内收发，输出帧/ACK偏移按剥离Telnet协商后的终端正文统计。resize=true表示NAWS同意后通知，pty=false，其他字段见[Telnet设计](20-telnet-terminal.md)。
+
+## 端口转发与工作区存档
+
+转发命令 list_port_forwards 返回 `{profiles,sessions}`；save_port_forward(draft,expectedRevision) 保存规则，delete_port_forward(id,revision) 删除，start_port_forward(id,requestId,onControl) 返回 SessionSnapshot，stop_port_forward(id) 停止对应规则。命令均 main/解锁/owner 校验并纳入 ACL，活动规则禁止编辑/删除。专用 forward_sessions 只发送控制事件，无终端输出或文件载荷，kind=forwarding；规则 ID 用于管理关联，不创建 xterm。详情见 [转发契约](21-port-forwarding.md)。
+
+save_workspace({draft:{name,workspace,expectedRevision}}) 保存布局/引用并返回 HostProfile，新建与同名替换由 Rust 事务决定；替换需匹配 workspace revision。SavedWorkspace 仅 root/focusedIndex，叶子为保存连接 profileId，无秘密、会话或输出；限额/字段/失效引用与权限见 [工作区](18-terminal-workspaces.md#8-显式保存与替换工作区)。
+
+app.primaryColor 为六位 HEX 或空串，缺失/空串沿用库默认色，复用设置局部保存/跨窗口同步，不改变存储或 IPC 协议版本。

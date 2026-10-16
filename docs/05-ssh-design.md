@@ -1,6 +1,6 @@
 # SSH 连接、安全信任与认证
 
-日期：2026-10-16。首期直连 SSH2 已按 russh 0.64.1 源码实现；本轮仅静态检查，用户反馈的密码/公钥 + OTP 互通修复仍待复验。依赖公告与待验收项见 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)。
+日期：2026-10-16。首期直连 SSH2 已按 russh 0.64.1 源码实现；完整密码/公钥 + OTP 互通矩阵仍待运行验收。依赖公告与待验收项见 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)。
 
 ## 1. 连接配置
 
@@ -59,13 +59,13 @@ Challenge 绑定 session、owner、key digest 和 endpoint；超时、取消、�
 
 信任范围为应用内显式规范化后的 host + port，不自动按解析后的 IP 合并别名。规范化域名大小写、IPv6 表示，明确存储输入名与规范名；不自动推导通配符信任。
 
-每个 endpoint 可保存多把经用户显式核验的完整公钥。匹配必须比较完整公钥类型和内容，不只比较 UI 指纹字符串；“发现一个新 algorithm 所以查不到同算法记录”不能当成新主机绕过现有 pin。endpoint 已存在信任但服务端本次 key 不属于集合，一律 HOST_KEY_CHANGED。
+匹配比较 endpoint 已保存的完整公钥类型和内容，不只比较 UI 指纹字符串。已有信任记录时，服务端提供不同公钥一律 HOST_KEY_CHANGED；换用新 algorithm 也不能绕过现有 pin。当前保存入口不允许为已信任 endpoint 追加不同公钥，须先显式撤销旧记录再重新连接核验。
 
 首期不实现主机证书 CA、`@cert-authority`、hashed known_hosts、自动轮换证明，也不自动读取/覆盖 `~/.ssh/known_hosts`。后续通过专用导入设计扩展，遇不支持项明确提示。
 
 ### 密钥变更
 
-连接阶段直接阻断，展示历史与当前指纹。普通弹窗无“自动接受变更”快捷路径；用户须先通过带影响说明的信任管理界面撤销/替换，重新连接并核验。所有重连都重新检查，不能复用上次 AllowOnce。
+连接阶段直接阻断，展示历史与当前指纹。普通弹窗无“自动接受变更”快捷路径；用户须先通过带影响说明的信任管理界面撤销旧记录，再重新连接并核验。所有重连都重新检查，不能复用上次 AllowOnce。
 
 ## 4. 认证策略
 
@@ -133,7 +133,7 @@ ProxyJump 后续通过明确 hop 列表，为每一跳独立校验密钥与认�
 
 ## 10. 一次性主机系统识别
 
-仅保存SSH终端生效，开关detectSshSystem缺失时默认true；Local、临时SSH、files-only及未来Telnet不启动检测。PTY/Shell建立后与driver并发运行，RemoteSystemStore先按主机ID、目标快照和默认图标事务claim，持久化systemDetectionAttempted与session令牌。无标记且图标为ssh才允许claim；失败、超时、断开或进程中断均不撤销标记，后续连接永不自动重试。修改连接目标不重置标记；复制新主机保留icon但独立计算新主机的尝试状态。
+仅保存SSH终端生效，开关detectSshSystem缺失时默认true；Local、临时SSH、files-only及 Telnet不启动检测。PTY/Shell建立后与driver并发运行，RemoteSystemStore先按主机ID、目标快照和默认图标事务claim，持久化systemDetectionAttempted与session令牌。无标记且图标为ssh才允许claim；失败、超时、断开或进程中断均不撤销标记，后续连接永不自动重试。修改连接目标不重置标记；复制新主机保留icon但独立计算新主机的尝试状态。
 
 kex_done采集受界SSH服务端标识，仅作展示线索。完整平台词或明确软件标识可直接归类；其余通过同一transport的独立exec channel执行echo $SHELL，再选择POSIX/Fish/RouterOS脚本，必要时尝试固定Windows版本查询。没有Termius版本对OpenSSH版本的执行限制，不承诺设备都支持exec。普通脚本优先/etc/os-release、/usr/lib/os-release，再回退release文件；仅Rust按文本解析ID、NAME、DISTRIB_ID、ID_LIKE等，不source，不拼接远端返回值为命令。
 

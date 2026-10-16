@@ -2,8 +2,6 @@
 
 内存标签布局、分屏和输入广播已落源码，当前版本尚未完成运行与桌面验收。支持显式保存布局与连接引用，不改变SSH与凭据契约；不自动恢复打开的标签。
 
-Workspace 调整尺寸分隔条的3px主体与中点凸起的两个三角形手柄均仅在鼠标悬停时显示（左右布局为左右三角，上下布局为上下三角）；中点按钮内两个11px三角形按交换方向紧凑错位排列（左右交换竖向排列、上下交换横向排列，随朝向同步旋转排列，当前竖向间距增加2px、左右间距缩小1px），手形指针；通过NButton themeOverrides维持普通/悬停/按下/聚焦状态不透明背景，并显式位于分隔线之上；点击交换该分隔节点两侧完整子树，分割比例保持不变，区域尺寸不变、终端适配新区域，不重建终端或改变广播成员。按钮禁止获取焦点（focusable=false、tabindex=-1并阻止指针/鼠标按下默认聚焦），不通过focus-within保留显示；按钮阻止拖动及键盘事件冒泡；整条保留6px拖动命中区，原指针捕获与键盘调整能力保留。颜色读取 Naive UI 主题变量，悬停时显示主题主色，非悬停时隐藏主体与手柄。仅类型、Vue格式、结构与差异静态检查，未构建或启动，实际命中与三平台视觉待运行验收。
-
 ## 1. 交互规则
 
 - 顶部固定页与会话标签未激活且未悬停时，使用当前主题文字色4%的透明背景遮罩；文字/图标不降低透明度，悬停和激活继续使用库主题状态色。左侧标签沿用原样式。仅静态检查，明暗主题视觉待运行复验。
@@ -18,13 +16,14 @@ Workspace 调整尺寸分隔条的3px主体与中点凸起的两个三角形手�
 - 在目标子终端中按归一化坐标选取最近的上/下/左/右边缘，由 Naive UI 当前 primaryColor 派生的25%透明遮罩覆盖该子终端对应一半。松手后原目标标签成为或继续作为 `Workspace`，来源标签消失，来源终端获得焦点。
 - 窗格标题可拖回动态标签栏，按插入标记成为独立Tab；拖至最后一个Tab后方整片标签栏区域（含新建按钮、空白、间隙与连接数）放到末尾，最后一个Tab后半区与后方整区统一在新建按钮前显示唯一末尾插入线；拖动期间新建按钮不响应hover。也可拖到同一Workspace的其他窗格重分割，拖到自身无操作。跨组移动时，在目标动态标签悬停600ms切换，再拖入目标窗格四向分割；直接松在标签上仍是创建独立Tab。取消或无效释放时恢复拖动开始的活动标签，不修改布局。
 - 每次只分割命中的叶子，初始比例各50%，可以嵌套。分隔线可拖动，比例限制10%–90%；指针调整还按子树尺寸尽量保留80px。极小窗口或深层嵌套不能保证每个终端始终达到80px。
+- 分隔条与中点交换手柄仅悬停显示。点击手柄交换两侧完整子树，比例/区域尺寸/终端和广播成员保持；按钮不获取焦点并隔离拖动事件。
 - 分隔线可键盘聚焦，方向键每次调整5%，Home/End调整到10%/90%。Escape、失焦、指针取消/丢失捕获时清理拖动状态和遮罩；Escape结束分隔线拖动，已调整比例保留。
 - 点击子终端使其成为活动终端；搜索、重连、配色以聚焦终端为目标。Workspace 标签鼠标或键盘右键菜单仅提供“保存工作区”；子终端标题菜单保留，明确显示目标名称。
 - 普通终端标签菜单增加“复制标签页”和“拆分会话”：复制原连接目标与配色，分别新建独立标签或在原终端右侧建立等宽 Workspace；独立认证、不复制历史或输入。原始名称单独保存，重复编号不累加到名称中；SFTP 侧栏开启时禁用拆分，关闭处理中禁止复制/拆分。
 - 全局设置 `tabDoubleClickAction` 可选无动作（默认）/关闭标签页/复制标签页/拆分会话，保存至现有 app 设置 JSON。仅标签主体响应，关闭按钮不触发；普通终端支持全部动作，Workspace 仅支持关闭，固定页不响应。关闭复用原有执行状态/传输确认。
 - 标签关闭/关闭标签快捷键关闭该组全部终端，仅成员可能正在执行命令时统一确认一次；子终端关闭按钮只关闭自身。关闭后折叠空分支，剩一个终端时普通工作区恢复该终端标题，已保存工作区保留名称与保存入口，组ID保持稳定。关闭期间禁止相关终端再次合并，失败终端保留并显示错误。
 
-侧栏主机分组批量连接可选择独立Tab或新Workspace，范围包含后代，空组无操作、单台直接打开普通终端、多台先确认。确认弹窗完全退场后，WorkspaceStore.addSavedHosts为每个唯一配置ID创建独立saved目标；两种模式均聚焦首台。Workspace模式在同一次同步操作中将本批新标签收拢到首个新标签组，balancedLayout按数量均分面积并交替左右/上下分割（两台左右等宽、四台四格）；现有终端组与terminalId保持原样。每个终端独立挂载并认证，失败/断开保留原宿主；广播初始关闭。SSH/串口均可创建新会话，串口独占与禁用活动连接复制仍适用；不通过duplicateSession复制活动串口，也不改变既有SFTP互斥。布局仅内存，不新增IPC或保存字段。
+侧栏主机分组批量连接可选择独立Tab或新Workspace，范围包含后代，空组无操作、单台直接打开普通终端、多台先确认。确认弹窗完全退场后，WorkspaceStore.addSavedHosts为每个唯一配置ID创建独立saved目标；两种模式均聚焦首台。Workspace模式在同一次同步操作中将本批新标签收拢到首个新标签组，balancedLayout按数量均分面积并交替左右/上下分割（两台左右等宽、四台四格）；现有终端组与terminalId保持原样。每个终端独立挂载并认证，失败/断开保留原宿主；广播初始关闭。SSH/Telnet/串口均可创建新会话，串口独占与禁用活动连接复制仍适用；不通过duplicateSession复制活动串口，也不改变既有SFTP互斥。布局仅内存，不新增IPC或保存字段。
 
 ## 2. 状态与生命周期不变量
 
@@ -51,17 +50,17 @@ type LayoutNode =
 
 ## 3. 模块入口
 
-| 文件                                                            | 职责                                                |
-| --------------------------------------------------------------- | --------------------------------------------------- |
-| [layout.ts](../src/modules/workspace/layout.ts)                 | 纯数据树操作、叶子收缩、矩形/分隔线计算、方向命中、批量均分布局   |
-| [store.ts](../src/modules/workspace/store.ts)                   | 标签组、保存主机批量创建、终端归属、排序/合并、焦点与关闭锁           |
-| [useTabDrag.ts](../src/modules/workspace/useTabDrag.ts)         | Pointer Events、拖动阈值、命中、自动滚动与清理      |
-| [ScrollFade.vue](../src/components/ui/ScrollFade.vue) | 共用横纵边缘测量、背景渐隐、内容/尺寸变化与清理 |
-| [useTabScroll.ts](../src/modules/workspace/useTabScroll.ts)     | 顶部滚轮映射、按帧位移合并与清理（渐隐由ScrollFade负责） |
-| [WorkspaceTabs.vue](../src/modules/workspace/WorkspaceTabs.vue) | 横纵导航、插入标记与拖动浮层                        |
-| [TerminalStage.vue](../src/modules/workspace/TerminalStage.vue) | 扁平宿主、主题色预览与可调整分隔线                    |
-| [TerminalPane.vue](../src/modules/terminal/TerminalPane.vue)    | 窗格焦点、标题/菜单/关闭、自身配色                  |
-| [App.vue](../src/App.vue)                                       | 组/窗格关闭协调、命令路由与删除来源标签后的焦点恢复 |
+| 文件                                                            | 职责                                                            |
+| --------------------------------------------------------------- | --------------------------------------------------------------- |
+| [layout.ts](../src/modules/workspace/layout.ts)                 | 纯数据树操作、叶子收缩、矩形/分隔线计算、方向命中、批量均分布局 |
+| [store.ts](../src/modules/workspace/store.ts)                   | 标签组、保存主机批量创建、终端归属、排序/合并、焦点与关闭锁     |
+| [useTabDrag.ts](../src/modules/workspace/useTabDrag.ts)         | Pointer Events、拖动阈值、命中、自动滚动与清理                  |
+| [ScrollFade.vue](../src/components/ui/ScrollFade.vue)           | 共用横纵边缘测量、背景渐隐、内容/尺寸变化与清理                 |
+| [useTabScroll.ts](../src/modules/workspace/useTabScroll.ts)     | 顶部滚轮映射、按帧位移合并与清理（渐隐由ScrollFade负责）        |
+| [WorkspaceTabs.vue](../src/modules/workspace/WorkspaceTabs.vue) | 横纵导航、插入标记与拖动浮层                                    |
+| [TerminalStage.vue](../src/modules/workspace/TerminalStage.vue) | 扁平宿主、主题色预览与可调整分隔线                              |
+| [TerminalPane.vue](../src/modules/terminal/TerminalPane.vue)    | 窗格焦点、标题/菜单/关闭、自身配色                              |
+| [App.vue](../src/App.vue)                                       | 组/窗格关闭协调、命令路由与删除来源标签后的焦点恢复             |
 
 采用 Pointer Events，不依赖 HTML5 外部拖放，不修改 Tauri 原生文件拖放配置，不接受外部序列化会话数据。菜单与关闭确认继续使用 Naive UI；标签、终端宿主和分屏几何属于业务布局。
 
@@ -107,10 +106,6 @@ activity.ts 维护当前远端标题、本次连接首次标题的冒号前缀�
 
 单终端底部SFTP开关在Workspace与本地终端内隐藏。TerminalTab.sftpOpen为仅内存状态；canSplit对来源terminalId和目标组成员同时检查，只要开启侧栏就拒绝分屏，因此不能拖成新Workspace、拖入其他Workspace，也不接受其他窗格拖入形成Workspace。标签栏排序仍允许，隐藏侧栏后恢复合并。合并不销毁终端，已隐藏的文件浏览器与任务仍绑定原session。外部文件通过原生拖放上传到当前目录；macOS支持普通文件和目录的文件承诺拖出，接收后才显示传输；Windows/Linux原生拖出未实现。文件拖放不触发标签分屏；具体文件能力与待验收边界见 [SFTP设计](16-sftp-workspace.md)。
 
-2026-10-16：分组批量连接仅完成前端类型、结构、Vue/TS格式、用例语法、文档链接与差异静态检查；扩展workspace-layout用例覆盖空/单项、两项左右、四项四格、奇数/多项面积相等、叶子顺序唯一与关闭收拢，未执行。待运行验收分组及后代范围、空/单/多项、取消/切页、独立标签与混合SSH/串口工作区、认证队列/超时/失败保留、关闭/拖动/缩放及三平台小窗口；未构建、启动或连接主机/设备。
-
-2026-10-16：Tab渐隐提取为ScrollFade，并与主机列表/分组树复用；标签区继续传原生session-tabs节点，底色var(--surface)，useTabScroll只负责滚轮转换。固定标签/新建按钮不在包装范围，实际滚动DOM、拖动命中和terminalId宿主不变。仅类型、结构、Vue/TS格式、文档链接及差异静态检查，未构建或启动；横纵切换、标题/字体/尺寸变化、渐隐边界及三平台拖动滚动待验收。
-
 ## 8. 显式保存与替换工作区
 
 主机页保存项新增 `kind=workspace`，与 SSH/Telnet/串口共用卡片、列表、分组、收藏、拖动与搜索；图标使用 Ionicons GridOutline。新建/快速连接菜单仍只允许三种连接类型，不能在主机编辑器中创建、编辑或复制工作区。Workspace Tab 的鼠标右键和 Shift+F10/菜单键提供“保存工作区…”，窗格菜单继续只操作对应终端。
@@ -123,6 +118,6 @@ activity.ts 维护当前远端标题、本次连接首次标题的冒号前缀�
 
 重新打开为每个叶子生成新的 terminalId 与分隔节点 ID，保留树形、分割方向/比例和焦点，组显示保存名称，广播默认关闭。不复用现有会话、缓冲或已打开工作区，不自动重连任何退出前的标签。批量连接中的存档各自恢复为独立工作区；普通连接仍按确认的独立Tab/均分Workspace模式打开，不嵌套存档。已保存工作区关闭到一个窗格仍保留名称和保存入口。
 
-存储 schema 5 与升级、唯一索引见[存储契约](07-storage.md#8-工作区存档与统一名称)。新增 save_workspace 同时纳入 AppManifest、main capability 及 owner/保险库解锁校验，设置窗口无该权限。前端门面、快照/恢复与弹窗入口分别为 client.ts、workspace/store.ts 和 SaveWorkspaceDialog.vue；Rust 存储位于 terminal-storage/src/workspaces.rs。
+存储 schema 6 的升级与唯一索引见[存储契约](07-storage.md#8-工作区存档与统一名称)。新增 save_workspace 同时纳入 AppManifest、main capability 及 owner/保险库解锁校验，设置窗口无该权限。前端门面、快照/恢复与弹窗入口分别为 client.ts、workspace/store.ts 和 SaveWorkspaceDialog.vue；Rust 存储位于 terminal-storage/src/workspaces.rs。
 
-本轮仅静态检查：类型、结构、Vue/TS/Rust格式、权限注册、差异及内存 SQLite 迁移模型（空/单/多项、长名称、旧重名、候选名称碰撞、SSH认证/标签/历史/转发引用保留）。Rust 回归源码覆盖跨类型同名、并发创建、替换与过期 revision、ID/分组/收藏保留、失效/嵌套引用、禁止编辑/手动创建、DTO字段和布局限额，但未编译或执行。未构建、启动应用或连接设备；SQLCipher真实升级、三平台菜单/焦点/保存/替换/重启重新打开和会话认证待运行验收。
+存档相关 Rust 回归源码覆盖名称/并发/revision、ID/分组/收藏保留、失效/嵌套引用和布局限额，未编译执行；历史内存 SQLite 模型仅核对迁移结构。SQLCipher 真实升级及三平台保存/替换/重启手动打开/认证仍待验收。
