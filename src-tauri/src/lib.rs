@@ -1,5 +1,7 @@
 mod commands;
 mod file_drag;
+#[cfg(target_os = "macos")]
+mod macos_menu;
 mod settings;
 mod state;
 
@@ -41,6 +43,8 @@ pub fn run() {
         )
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            macos_menu::configure(app)?;
             let path = app.path().app_data_dir()?;
             std::fs::create_dir_all(&path)?;
             #[cfg(unix)]

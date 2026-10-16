@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { closeContextMenuOnOutside } from "../../components/ui/contextMenu";
 import { computed, h, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import {
   NButton,
@@ -606,7 +607,7 @@ defineExpose({ startHostDrag });
       :menu-props="() => ({ 'data-ui-popup-open': menu.show ? '' : undefined })"
       display-directive="show"
       @select="selectMenu"
-      @clickoutside="menu.show = false"
+      @clickoutside="closeContextMenuOnOutside($event, menu)"
       @update:show="menu.show = $event"
     />
     <AppDialog

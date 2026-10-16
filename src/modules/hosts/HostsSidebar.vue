@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { closeContextMenuOnOutside } from "../../components/ui/contextMenu";
 import { confirmAction } from "../../components/ui/confirmation";
 import { computed, nextTick, ref, watch } from "vue";
 import {
@@ -331,7 +332,7 @@ watch(group, () => {
       trigger="manual"
       placement="bottom-start"
       @select="selectMenu"
-      @clickoutside="menu.show = false"
+      @clickoutside="closeContextMenuOnOutside($event, menu)"
       @update:show="menu.show = $event"
     />
     <AppDialog

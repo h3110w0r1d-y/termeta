@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { closeContextMenuOnOutside } from "./components/ui/contextMenu";
 import {
   NConfigProvider,
   NGlobalStyle,
@@ -454,7 +455,7 @@ onBeforeUnmount(() => {
           trigger="manual"
           placement="bottom-start"
           @select="selectTabAction"
-          @clickoutside="tabMenu.show = false"
+          @clickoutside="closeContextMenuOnOutside($event, tabMenu)"
           @update:show="tabMenu.show = $event"
         />
         <main class="workspace">

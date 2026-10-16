@@ -187,13 +187,29 @@ export class CommandRegistry {
     return true;
   }
   route(event: KeyboardEvent, bindings: Binding[], terminal: boolean) {
+    // 弹窗不执行关闭标签动作，也必须消费系统Cmd+W，防止回落到关闭整个窗口。
+    // 放在录制/IME等提前返回之前，且独立于用户是否改绑或禁用关闭标签动作。
+    const modalOpen = !!document.querySelector("[data-modal-open]");
+    if (
+      modalOpen &&
+      isMac &&
+      event.metaKey &&
+      !event.ctrlKey &&
+      !event.altKey &&
+      !event.shiftKey &&
+      (event.key.toLowerCase() === "w" || event.code === "KeyW")
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      return true;
+    }
     if (
       (event.target instanceof Element &&
         event.target.closest("[data-shortcut-recorder]")) ||
       event.defaultPrevented ||
       event.isComposing ||
       event.getModifierState("AltGraph") ||
-      document.querySelector("[data-modal-open]")
+      modalOpen
     )
       return false;
     // 页面输入框不改变应用动作的作用域；模态、录制和其他弹层仍优先。

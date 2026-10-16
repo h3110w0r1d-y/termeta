@@ -145,3 +145,7 @@ fontFamily 保存规范家族名称；Rust 仅接受上述12项。读取旧自�
 连接或认证弹窗退场完成后，通过AppDialog的after-leave恢复当前活动终端焦点；不因连接完成抢走其他活动页或新弹窗的焦点。主机/终端上下文菜单及搜索菜单保活渲染，仅在实际显示时带data-ui-popup-open，避免退出动画留下标记阻断终端聚焦与快捷键。
 
 全局“新建标签页”弹窗由标签栏＋、Cmd/Ctrl+T及原Cmd+N/Ctrl+Shift+N新连接动作打开，打开后真实聚焦搜索输入。复用主页useHostSearch（拼音开关、名称固定/字段选择、多词匹配、收藏置顶），结果直接显示在弹窗正文；空查询列出保存主机，最多100条，超出提示缩小范围。↑/↓定位、Enter或点击主机连接，IME组合期间不处理导航/提交。复选框即时保存且鼠标勾选保留输入光标。主页移除快速连接按钮，入口放入新建标签页弹窗footer；先等弹窗after-leave，再创建保存主机终端或显示既有快速连接表单，避免焦点陷阱重叠。取消不创建Tab。
+
+手动右键菜单统一由 `src/components/ui/contextMenu.ts` 处理外部关闭：Naive UI 的 clickoutside 实际基于 mousedown/mouseup，保活菜单会收到打开菜单那次右键松开；忽略右键及 macOS Control+单击，保留其他外部点击关闭。分组行/树空白、主机卡片、普通终端标签与窗格菜单共用此规则，继续由 contextmenu 更新目标与坐标，选择和Escape沿用库行为。不改依赖、不加延迟或全局事件拦截。
+
+macOS原生Window菜单的Close Window保留显式菜单操作，但不带Cmd+W；该组合交给应用标签路由，模态弹窗打开时显式消费并保持当前界面。原生窗口按钮与菜单关闭仍走现有会话/传输确认。实现见 `src-tauri/src/macos_menu.rs` 和 `src/services/commands/registry.ts`，待桌面运行复验。

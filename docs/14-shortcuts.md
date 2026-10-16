@@ -40,3 +40,9 @@ xterm在mouseup激活链接，处理程序仅preventDefault，不stopPropagation
 `workspace.newTab`默认Primary+T，标签栏＋共用此命令打开全局新建标签页弹窗。原`workspace.newConnection`及Cmd+N/Ctrl+Shift+N同样打开该弹窗；快速连接通过弹窗中的按钮进入。读取旧设置或导入旧keymap时补充newTab默认绑定，已有该动作（包括禁用）不改写，按键冲突时新绑定禁用，绑定已达100条不追加；恢复默认可获取完整默认动作集。Rust设置白名单同步允许workspace.newTab，无新增IPC。
 
 主页搜索结果下拉以data-application-shortcuts标记允许应用快捷键；全局路由仅对不含该标记的data-ui-popup-open弹层拦截。搜索框空查询、输入关键词及结果下拉打开时，均允许新建本地终端、新建标签页、切换标签及打开设置等应用动作；其他浮层和模态仍优先。
+
+## macOS 弹窗关闭保护（2026-10-16）
+
+弹窗存在data-modal-open时，路由在录制/IME等提前返回之前消费Cmd+W（preventDefault/stopPropagation），不关闭弹窗、标签或窗口；保护独立于关闭标签的用户绑定及启用状态，其他应用动作继续被模态拦截，编辑快捷键和Escape保持原行为。没有弹窗时仍按用户绑定关闭当前标签，不回退为关闭应用窗口。
+
+Tauri 2.11.5会默认创建macOS菜单，其中预设Close Window自带Cmd+W，可绕过DOM处理。src-tauri/src/macos_menu.rs沿用默认菜单，只重建Window子菜单，以无accelerator的普通Close Window项替代预设关闭项，保留最小化/最大化、其他默认菜单和原生编辑快捷键。显式菜单关闭仍调用window.close并经过现有CloseRequested确认；不增加前后端模态状态同步或新IPC。此调整需要重新编译桌面壳，单独前端热更新不能移除原生快捷键。尚未编译运行验证。
