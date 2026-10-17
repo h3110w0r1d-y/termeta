@@ -114,3 +114,7 @@ zstd-safe锁7.3.0、zstd-sys锁2.1.2+zstd.1.5.7均为BSD-3-Clause、声明Rust1.
 SQLite快照沿用锁定libsqlite3-sys0.30.1的bundled-sqlcipher绑定及内嵌源码；已静态核对sqlite3_serialize/deserialize、authorizer/progress和DBCONFIG常量。当前build配置未设置SQLITE_OMIT_DESERIALIZE，不另引入普通SQLite库；仍需运行核验SQLCipher内存快照行为。密码学复用既有argon2/aes-gcm/zeroize，固定参数与数据限额见[数据备份](22-data-backup.md)。
 
 依赖解析/下载未执行构建脚本，未进行项目编译或网络联调。最新公开安全公告的在线查询未完整取得，新增依赖尚未完成RustSec/传递依赖全面审计，不能记为无漏洞或发布风险已关闭。
+
+## 10. 系统终端集成候选
+
+2026-10-17 的三平台公开接口、Tauri 固定版本源码核对及来源见[系统终端调研](23-terminal-system-integration-research.md)。single-instance 2.4.2 可复用 argv/cwd 转交但当前装配只聚焦窗口；portable-pty 0.9.0 创建本地进程，不提供 Windows 默认控制台接管。macOS 关联需区分已弃用 LaunchServices setter 与 macOS 12+ NSWorkspace；Linux xdg-terminal-exec 仍为提议规范。deep-link、Windows COM/console host/proxy、包身份和菜单适配均为候选，未新增依赖或锁文件；实施前核对固定 release 的 API/features、MSRV、许可、公告与目标系统，不能直接以在线 latest 文档替代。

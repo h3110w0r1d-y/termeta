@@ -132,6 +132,8 @@ M2 内存分屏不改变 actor 或 session 模型：标签组ID、terminalId、�
 
 SessionFactory 接收 SessionConfig（含 Ssh/Telnet/Local/Serial 与专用 Forwarding），SessionManager::open 兼容 SshConfig 的 Into 转换；with_factory 注册本地工厂，共享20个活动会话限额与连接额度。Local 使用独立阻塞读写线程、有界4×32KiB读取桥和单块输入桥，InputChunk 保留字节预算许可；输出泵与resize/退出轮询并行，取消丢弃驱动时终止子进程并异步回收。PTY创建放在阻塞任务内，晚到的创建结果同样由RAII清理。Unix 初始进程组强制结束；已脱离组的子进程、Windows完整进程树仍待完善。Shell退出后等待PTY输出排空，再由核心发布Ended并保留前端历史。
 
+后续 LocalConfig 的 cwd/argv 扩展及 Windows inbound 生命周期计划见[系统终端集成方案](24-terminal-system-integration-plan.md)，均未实现；inbound 接纳已有 client，不能通过重执行命令模拟。启动偏好不改变当前 SessionConfig/门禁或工作区存档范围。
+
 ## 串口驱动
 
 SessionConfig增加SerialConfig，SerialFactory接入共用会话表；不支持PTY/远端resize/会话内专用控制。独占设备由读写线程持有，应用内登记在最后句柄关闭后释放；future取消同样触发线程取消。读取桥4×8KiB与单块输入桥均有界，输出转码/ACK等待不阻止取消；错误停止设备并排空已读输出，用户取消仍优先。所有输出字符集（含 UTF-8）均流式解码，非法序列显示替换字符；UTF-8 输入原样传递，其他输入字符集跨块转换；Channel偏移针对转换后字节。详细契约和真实设备验证边界见[Serial设计](19-serial-terminal.md)。

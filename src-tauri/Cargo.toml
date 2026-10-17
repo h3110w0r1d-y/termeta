@@ -4,6 +4,10 @@ version = "0.1.0"
 description = "Modular desktop SSH client"
 edition = "2024"
 
+[[bin]]
+name = "Termeta"
+path = "src/main.rs"
+
 [lib]
 name = "termeta_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]

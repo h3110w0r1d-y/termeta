@@ -111,3 +111,7 @@ Naive UI 提供通用控件，业务 CSS 属于对应 Vue scoped 样式；两个
 CommandRegistry 统一按钮/菜单/快捷键。KeymapService/TerminalThemeService 是设计职责名，不表示存在同名类：配色优先级在 terminal/registry.ts，转换在 settings/themes.ts，选区薄适配在 terminal/theme.ts；应用主题由 layout/useAppAppearance 管理。
 
 scripts/check-structure.mjs 仅读取源码/清单，检查边界和常见表单误用；不是编译或运行测试。错误统一映射为阶段/代码，日志不得输出密码、私钥、认证答案、终端/文件正文。权限边界见 [安全设计](08-security.md)。
+
+## 9. 系统终端集成设计边界（待实现）
+
+外部 argv、目录服务、文件/URL 事件计划由 Tauri 壳的统一启动层规范化并有界暂存，解锁和终端宿主就绪后经 desktop 门面领取，再复用 WorkspaceStore/TerminalRegistry/open_session；不能只发一次易丢失的 WebView 事件。普通启动偏好只消费一次，显式外部请求优先。平台关联/注册留在壳，不进入 core；Windows inbound 委派与 Local 创建进程分为不同适配能力，原生句柄留在 Rust。当前没有这些队列/平台适配，现有门禁与接口不变，详见[实现方案](24-terminal-system-integration-plan.md)。

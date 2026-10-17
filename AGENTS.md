@@ -60,6 +60,7 @@ Termeta 是 Tauri 2 + Rust + Vue 3 + TypeScript 桌面终端客户端，目标�
 | [SSH](docs/05-ssh-design.md)、[SFTP](docs/16-sftp-workspace.md)、[工作区](docs/18-terminal-workspaces.md)      | 功能契约及资源边界                           |
 | [Serial](docs/19-serial-terminal.md)、[Telnet](docs/20-telnet-terminal.md)、[转发](docs/21-port-forwarding.md) | 协议/设备与连接工具                          |
 | [备份同步](docs/22-data-backup.md) | 白名单 SQLite 快照、加密包、云端 provider 与非覆盖导入 |
+| [系统终端调研](docs/23-terminal-system-integration-research.md)、[实现方案](docs/24-terminal-system-integration-plan.md) | 三平台默认终端接口、启动本地标签与平台集成计划（待实现） |
 | [有效决策](docs/12-decisions.md)、[依赖预研](docs/02-library-research.md)                                      | 理由、变更条件与版本来源                     |
 
 ## 6. 修改后的文档同步义务

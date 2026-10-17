@@ -93,7 +93,11 @@ Termeta 面向需要频繁连接服务器的开发、运维和设备工程师。
 | [ ]  | EXT-02  | M4      | Serial：枚举、串口参数、连接、DTR/RTS                         | 枚举/参数/独占文本连接及配置保存已实现；手动DTR/RTS控制未实现                                     |
 | [ ]  | EXT-03  | M4      | HEX、时间戳、文本/HEX 发送、换行、Local Echo                  | 显示模式独立于 session kind；不把二进制强制转 UTF-8                                               |
 | [x]  | EXT-04  | M4      | Telnet文本终端、主机保存/快速连接、终端内登录、协商与尺寸通知 | BINARY/ECHO/SGA/TTYPE/NAWS、有界I/O及原缓冲重连；UTF-8、远端回显，无TLS/自动登录/SFTP；待运行验收 |
+| [ ] | EXT-05 | M4/P1 | 启动进入保险箱或自动新建一个本地 TAB | 仅有调研/方案；保持解锁门禁，明确外部请求优先，热应用/再次激活不重复创建 |
+| [ ] | EXT-06 | M4/P1 | 本地 CLI/cwd 与冷暖启动请求转交，后续结构化 argv 执行 | 仅有方案；统一 Local 配置、内存队列、幂等和失败保留，不经 Shell 拼接参数 |
 | [ ]  | PROD-01 | M5      | 安装包、签名、公证、更新、诊断导出                            | 平台发布流程与本地隐私控制                                                                        |
+| [ ] | PROD-02 | M5/P1 | 三平台终端身份、目录菜单及各自支持的默认关联/启动器 | 调研完成，功能未实现；macOS Services/关联、Linux desktop/默认启动器、Windows Explorer 分别验收 |
+| [ ] | PROD-03 | M5/P2 预研 | Windows 系统默认终端委派 | 独立 POC 门槛；双包扩展、COM、console host/inbound、锁定/提权/回退未解决，不能以现有 ConPTY 宣称支持 |
 | [ ]  | FUT-01  | 长期/P2 | 自动双向云同步、批量执行、远程编辑、团队                              | 另立需求和威胁模型，不挤入通用终端接口                                                            |
 
 M3 的 SFTP 必需需求细项：
@@ -138,7 +142,7 @@ M2 的 P0 需求全部落实且通过授权后的验证矩阵，至少完成三�
 | 保险箱           | [VaultLayout](../src/layout/VaultLayout.vue)：主机、端口转发、凭据、主机信任、连接历史                                                                                                                                                                                          | 固定 Tab；设置另用独立窗口；返回保险箱默认主机并聚焦搜索                                            |
 | SSH 与识别       | [SSH](../crates/terminal-ssh/src/lib.rs)：信任/变更阻断、密码/公钥/动态 OTP、PTY/resize/KeepAlive、Shell/exec 启动；保存的交互 Shell 主机一次性独立 exec 系统识别                                                                                                                                             | 无 ProxyJump/Agent/config 导入；无专门睡眠恢复；探测失败也不重试，非默认手动图标优先                |
 | Telnet           | [适配器](../crates/terminal-telnet/src/lib.rs)：TCP、IAC/BINARY/ECHO/SGA/TTYPE/NAWS、保存/临时连接、复制/分屏/重连                                                                                                                                                              | UTF-8、远端回显、终端内明文登录，无 SSH 凭据/信任、TLS/自动登录/SFTP                                |
-| Local            | [适配器](../crates/terminal-local/src/lib.rs)：系统 Shell、主目录、继承环境、PTY/resize/退出码、重开/复制/分屏，Local 快捷键已启用                                                                                                                                              | 自定义 Shell/cwd/env 与完整跨平台进程树回收未实现，无 SFTP                                          |
+| Local            | [适配器](../crates/terminal-local/src/lib.rs)：系统 Shell、主目录、继承环境、PTY/resize/退出码、重开/复制/分屏，Local 快捷键已启用                                                                                                                                              | 自定义 Shell/cwd/env 与完整跨平台进程树回收未实现；自动启动 TAB、CLI/系统默认集成仅有[方案](24-terminal-system-integration-plan.md)，无 SFTP |
 | Serial           | [适配器](../crates/terminal-serial/src/lib.rs)、[配置窗](../src/modules/terminal/SerialConnectDialog.vue)：枚举/手输、保存配置、参数/字符集、独占文本 I/O、原缓冲重开                                                                                                           | 无远端 resize/SFTP/复制活动连接；手动 DTR/RTS、DSR/DTR 流控与 HEX 未实现                            |
 | 终端生命周期     | [registry](../src/modules/terminal/registry.ts)：稳定 terminalId/xterm、消费 ACK、失败/断线保留、同实例重连、旧流隔离                                                                                                                                                           | 正文只在缓冲内，不跨重启保存；全屏快照仅有界可读文本                                                |
 | 标签与分屏       | [WorkspaceTabs](../src/modules/workspace/WorkspaceTabs.vue)、[store](../src/modules/workspace/store.ts)：顶部/左侧、排序、嵌套分屏、窗格迁移、比例调整/交换、菜单与双击动作                                                                                                     | 无整体 Workspace 合并或跨窗口拖动；串口不能通过复制/自动拆分新开同端口连接                          |
@@ -196,7 +200,7 @@ Telnet 本机测试容器曾部署并通过登录提示就绪探针，未据此�
 | SSH 与生命周期      | 密钥拒绝/保存/变更、密码/加密私钥/OTP/PAM、多轮/空白轮、取消/超时、PTY/resize/KeepAlive、连续重连与历史/尾输出、洪泛/无 ACK 关闭、系统识别一次性与失败隔离、exec 启动/拒绝/快速退出/信号/手动重新运行、监控程序缩放与按键 |
 | 保险库与存储        | 首次密码/初始化中断、每进程一次 OS 读取、密码恢复/缓存失败、改密新旧密码/并发/逐文件切换中断/恢复重入/磁盘满/清理失败、错误密钥/损坏拒绝、DB/WAL/临时文件加密/权限、schema 2–5 升到6、SQLx 校验及迁移失败恢复、统一名称/并发替换 |
 | 备份与同步          | Gist/WebDAV 真实服务与跨设备往返、压缩/内存峰值、错密码/篡改/超限、ID/名称/工作区与凭据关联、信任冲突、事务失败回滚、首次初始化中断/配置保存、预览过期/重复确认、无覆盖发布/超时结果不明、窗口 ACL |
-| 桌面与设置          | 三平台标题栏/全屏/IME/焦点/剪贴板；主机树/两步删除/拖拽/搜索/偏好恢复；独立设置关闭/重开/并发/失败恢复；应用主色/字体/配色/JSON/快捷键                                |
+| 桌面与设置          | 三平台标题栏/全屏/IME/焦点/剪贴板；macOS 开发及安装包的 Dock/应用菜单/关于窗口名称一致性（源码统一为 Termeta）；主机树/两步删除/拖拽/搜索/偏好恢复；独立设置关闭/重开/并发/失败恢复；应用主色/字体/配色/JSON/快捷键                                |
 | 工作区              | 标签横纵/滚动/拖动、嵌套分屏/迁移/比例/交换不重建终端、广播输入来源隔离、批量认证/失败保留、保存/替换/失效引用/重启后手动打开、Shell与监控命令混合布局/广播隔离                                         |
 | SFTP                | 分页/链接/隐藏、覆盖与目录合并、独立双栏无 PTY/Shell、对拷、资源上限/取消/断线/磁盘满、真实文件管理器拖入及 macOS 文件/目录拖出/取消                                  |
 | 端口转发            | 三模式/远端 DNS、监听范围/冲突/IPv6、认证/信任/取消、半关闭/并发/大流量、停止释放、断网/睡眠/窗口与心跳清理、规则持久化/删除主机                                      |

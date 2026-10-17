@@ -317,3 +317,7 @@ BackupListEntry 为 `{id,size?,metadata,error?}`；无法读取/解密的 metada
 预览令牌绑定调用窗口及 initializing 模式，有效期5分钟，每窗口最多保留一份明文快照；来源业务 ID、关联及元数据计数在 Rust 校验。确认后的导入在独立任务中完成，窗口或应答接收端消失不取消事务；完成摘要短期保留供同一令牌幂等重试。来源 ID 重新映射、名称冲突另存，信任冲突跳过并返回 warnings；不覆盖本机设置或现有会话。首次初始化若本机库已创建但导入失败，返回明确错误，前端重读 vault_status 后进入本机库再重试。
 
 `backup-restored` 与 `backup-config-changed` 只作无正文失效通知，不携带密码、数据库或云凭据。schema 6、已应用迁移、AppSettings DTO 和终端协议版本保持不变。没有本地文件备份/恢复命令、自动同步或取消 IPC；云端/内存限额及 provider 扩展边界见[备份与同步](22-data-backup.md)。本节为源码契约，尚未编译或运行验收。
+
+## 系统启动请求契约规划（待实现）
+
+`startupPage`、LocalConfig 及 claim/complete/discard 启动队列命令仅为[实现方案](24-terminal-system-integration-plan.md)中的拟定契约，不属于当前 IPC 命令/类型。落地时同轮更新 Rust/TS、desktop 门面、COMMANDS/AppManifest 与窗口权限；main 解锁后才能领取并创建会话，settings 不获得会话权限。系统启动通知只唤醒前端，载荷保留于有界 Rust 队列；Windows handoff 的原生句柄不能通过普通前端 DTO 传递。

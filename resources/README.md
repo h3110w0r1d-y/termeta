@@ -1,5 +1,20 @@
 # 静态资源来源
 
+## 桌面应用品牌图标
+
+`src-tauri/icons/` 使用用户确认的 Termeta 渐变标志母图，由仓库锁定的 Tauri CLI 2.12.3 执行 `pnpm tauri icon` 生成。通用母图用于 Windows ICO、桌面 PNG 和 Windows Store PNG；macOS 专用母图仅用于 `icon.icns`。两种母图中的标志宽度均为底板的 72%，保留透视终端符号及视觉重心调整。
+
+母图与可编辑 SVG 保存在用户指定的外部工作目录。重新生成时分别执行以下命令，再将通用输出根目录的 PNG、ICO 与 macOS 输出的 ICNS 合并到 `src-tauri/icons/`；移动平台输出不纳入项目。
+
+```sh
+pnpm tauri icon "$ICON_STANDARD_SOURCE" --output "$ICON_STANDARD_OUTPUT"
+pnpm tauri icon "$ICON_MACOS_SOURCE" --output "$ICON_MACOS_OUTPUT"
+```
+
+macOS 母图的底板尺寸与留白参照 [Apple 官方 macOS Sketch 资源](https://developer.apple.com/design/resources/)中的 `No App Icon` 示例：1024 画布的底板为 824×824，四边各留 100 像素，阴影可进入留白。Tauri CLI 不自动补充此留白，不能用通用输出的 ICNS 覆盖专用版本。图标文件尺寸、透明通道及配置路径已静态核对；三平台安装与系统展示效果仍待运行验收。
+
+## 终端配色
+
 `terminal-palettes.json` 包含从用户提供的 Termius 解包目录静态提取的64套终端配色，保留原名称与全部终端色值。前后端使用同一 JSON：前端映射为 Scheme，Rust 仅从中读取内置 ID 名单，避免维护两份白名单。默认方案为 Pro。
 
 来源文件为 `ui-process/assets/reconnectSaga-871ae692.js`，另外三个进程包中的同一数组已做逐字节一致性核对。只截取21,621字节数组进行 TypeScript AST 数据解析，不运行解包程序，也不输出整行压缩 JS。来源文件与数组 SHA-256 见 [提取记录](terminal-palettes.provenance.json)。

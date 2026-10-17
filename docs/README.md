@@ -32,6 +32,8 @@ Windows/macOS/Linux 桌面客户端，Tauri 2 + Rust + Vue 3 + TypeScript，通�
 | 20   | [Telnet终端](20-telnet-terminal.md)       | Telnet协商、主机配置、明文边界与schema升级       |
 | 21   | [端口转发](21-port-forwarding.md)         | 本地/远程/SOCKS5、SSH引用、生命周期与监听边界    |
 | 22   | [备份与同步](22-data-backup.md)           | Gist/WebDAV、加密快照、非覆盖合并与首次云端初始化 |
+| 23   | [系统终端集成调研](23-terminal-system-integration-research.md) | Windows/macOS/Linux 默认终端、目录菜单与公开接口边界 |
+| 24   | [系统终端集成方案](24-terminal-system-integration-plan.md) | 启动本地 TAB、CLI/cwd、启动队列、平台适配与验收计划（待实现） |
 
 协作与执行规则见 [AGENTS.md](../AGENTS.md)。未经用户明确要求，不构建、启动、执行 Rust 测试或连接真实主机；允许不触发构建的依赖维护与静态检查。静态检查通过不代表运行验收；用户既有 macOS 反馈不外推为当前版本或三平台验收。
 

@@ -133,6 +133,8 @@ OSC 标题：remoteTitle仅作前端内存中的展示后缀，控制字符/双�
 
 本地Shell以当前用户权限运行，只有解锁后的main窗口可通过现有open_session ACL启动；本地目标仅接受source=local，不从前端接收可执行路径、启动命令、环境或cwd，不自动执行终端输出。启动继承桌面应用环境及用户主目录，不将环境或正文写入数据库；历史只记录“本地终端”及local摘要。Unix初始进程组清理不覆盖主动脱离会话的进程，Windows完整进程树清理仍待完善，三平台运行未验收。
 
+系统终端集成的[后续方案](24-terminal-system-integration-plan.md)保留上述当前门禁；CLI/URI/目录服务均是需校验的外部输入，来源标签不是鉴权。未来 cwd/argv 经结构化进程 API，不向已有终端注入文本；公开 URI 不允许任意命令/env/脚本执行。Windows 委派需独立处理锁定与完整性级别，不能直接放宽通用 owner。这些能力当前均未实现。
+
 ## 设置窗口授权
 
 独立settings窗口仅加载本地应用资源并禁止新窗口导航，只有已解锁时才允许创建。settings-desktop capability按命令开放设置读写、保险库改密、用户触发JSON导出和云备份；这些命令使用settings_owner核验main/settings标签、本地URL和保险库状态。会话、主机及凭据管理等通用owner仍仅允许main，禁止通过放宽window_owner获取终端/文件权限。设置通知由Rust在提交后发送，正文不含凭据。窗口授权拒绝路径与三平台运行验证尚未执行。
