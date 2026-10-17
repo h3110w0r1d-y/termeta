@@ -13,6 +13,7 @@ import {
   keyLabel,
   parseKeymap,
   conflict,
+  isMac,
 } from "../../services/commands/registry";
 import { downloadJson } from "./themes";
 import { parseJson } from "../../services/data/json";
@@ -175,6 +176,13 @@ async function importKeys(event: Event) {
     </p>
     <p class="muted">
       {{ t("将 Ctrl+C 等组合键设为快捷键后，它们将不再发送到远端。") }}
+    </p>
+    <p v-if="isMac" class="muted">
+      {{
+        t(
+          "Cmd+, 固定打开系统菜单中的设置，此组合不受此处绑定影响；可为打开设置录制其他组合键。",
+        )
+      }}
     </p>
     <div class="button-row">
       <AppButton @click="draft.keymap.bindings = defaults()">

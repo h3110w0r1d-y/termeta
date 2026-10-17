@@ -10,6 +10,8 @@ export default {
   终端快捷键: "Terminal shortcuts",
   "将 Ctrl+C 等组合键设为快捷键后，它们将不再发送到远端。":
     "Keys such as Ctrl+C will no longer be sent to the remote host if assigned to an application shortcut.",
+  "Cmd+, 固定打开系统菜单中的设置，此组合不受此处绑定影响；可为打开设置录制其他组合键。":
+    "Cmd+, always opens Settings from the system menu, regardless of these bindings. You can record another shortcut for opening Settings.",
   全部恢复默认: "Reset all",
   导出配置: "Export settings",
   导入配置: "Import settings",

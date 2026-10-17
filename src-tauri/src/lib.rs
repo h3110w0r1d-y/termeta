@@ -143,6 +143,9 @@ pub fn run() {
                     state.file_sessions.close_owner(window.label());
                     state.forward_sessions.close_owner(window.label());
                     if window.label() == "main" {
+                        #[cfg(target_os = "macos")]
+                        let _ =
+                            window.run_on_main_thread(macos_menu::remove_settings_shortcut_monitor);
                         if let Some(settings) = window.app_handle().get_webview_window("settings") {
                             let _ = settings.destroy();
                         }

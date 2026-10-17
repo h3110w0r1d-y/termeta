@@ -27,7 +27,7 @@ export const commandDefinitions = [
     "application",
     isMac ? "Primary+Shift+[" : "Primary+PageUp",
   ],
-  ["settings.open", "打开设置", "application", "Primary+,"],
+  ["settings.open", "打开设置", "application", isMac ? "" : "Primary+,"],
   [
     "terminal.copy",
     "复制选区",
@@ -200,6 +200,17 @@ export class CommandRegistry {
     return true;
   }
   route(event: KeyboardEvent, bindings: Binding[], terminal: boolean) {
+    // macOS 的固定 Cmd+, 仅由原生菜单处理；已有保存绑定也不参与前端路由。
+    // 原生事件监视器在 WebKit 前消费该组合；此处仅防止残余事件重复执行动作。
+    if (
+      isMac &&
+      event.metaKey &&
+      !event.ctrlKey &&
+      !event.altKey &&
+      !event.shiftKey &&
+      event.key === ","
+    )
+      return false;
     // 弹窗不执行关闭标签动作，也必须消费系统Cmd+W，防止回落到关闭整个窗口。
     // 放在录制/IME等提前返回之前，且独立于用户是否改绑或禁用关闭标签动作。
     const modalOpen = !!document.querySelector("[data-modal-open]");

@@ -28,6 +28,8 @@ russh-sftp 的 RawSftpSession 提供增量目录与文件流 API，避免高层 
 
 macOS 原生文件/目录承诺使用 [objc2 0.6.5](https://docs.rs/objc2/0.6.5/objc2/)、[block2 0.6.2](https://docs.rs/block2/0.6.2/block2/)、[objc2-app-kit 0.3.2](https://docs.rs/objc2-app-kit/0.3.2/objc2_app_kit/struct.NSFilePromiseProvider.html)、objc2-foundation 0.3.2，限 macOS target、按需 features。声明 MSRV 1.71；objc2/foundation/block2 为 MIT，AppKit 为 Zlib OR Apache-2.0 OR MIT。主线程创建拖动会话，NSOperationQueue 后台兑现文件，复用有界 Rust 下载。原生拖入 [Tauri 事件](https://v2.tauri.app/reference/javascript/api/namespacewebview/) 的平台坐标在壳内统一为逻辑坐标，不在前端重复除 DPR。双向拖放生命周期与 Finder 行为待运行验证。
 
+macOS 固定 Cmd+, 复用上述锁定版本的 AppKit NSEvent 应用内监视器、block2 RcBlock 与 NSMenu::performKeyEquivalent；新增启用 NSMenu feature，不新增 crate 或修改版本，Cargo.lock 无依赖变化。已按 0.3.2 源码核对回调签名（有效事件指针或空指针）、返回的 retained 监视器令牌及 removeMonitor 清理契约，令牌在主线程持有并在主窗口销毁时移除。该 API 仅监听本应用事件，不使用全局监视器；编译兼容、输入法与输入框焦点下的事件顺序仍待运行验证。
+
 Windows/Linux 拖出尚未实现。候选 [drag 2.1.1](https://docs.rs/drag/2.1.1/drag/) / [tauri-plugin-drag 2.1.1](https://crates.io/crates/tauri-plugin-drag/2.1.1) 为 MIT OR Apache-2.0、edition 2021，未声明 MSRV；当前未引入。Windows OLE CF_HDROP 与 Linux GTK URI 需要已存在本地文件，不能直接承诺 SFTP 内容。后续若采用缓存，须限制授权/配额/TTL，准备后由用户重新发起拖动；GTK URI 编码及 X11/Wayland 须单独验证。
 
 ## 3. 字体、主题与输入

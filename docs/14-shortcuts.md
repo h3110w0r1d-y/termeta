@@ -12,7 +12,7 @@
 | 新连接入口        | Cmd+N           | Ctrl+Shift+N           |
 | 关闭标签          | Cmd+W           | Ctrl+Shift+W           |
 | 下一个/上一个标签 | Cmd+Shift+] / [ | Ctrl+PageDown / PageUp |
-| 打开设置          | Cmd+,           | Ctrl+,                 |
+| 打开设置          | Cmd+,（原生菜单） | Ctrl+,                 |
 | 复制/粘贴         | Cmd+C / V       | Ctrl+Shift+C / V       |
 | 搜索终端          | Cmd+F           | Ctrl+Shift+F           |
 | 打开终端链接      | Cmd+主键单击    | Ctrl+主键单击          |
@@ -51,6 +51,8 @@ xterm在mouseup激活链接，处理程序仅preventDefault，不stopPropagation
 
 Tauri 2.11.5会默认创建macOS菜单，其中预设Close Window自带Cmd+W，可绕过DOM处理。src-tauri/src/macos_menu.rs沿用默认菜单，只重建Window子菜单，以无accelerator的普通Close Window项替代预设关闭项，保留最小化/最大化、其他默认菜单和原生编辑快捷键。显式菜单关闭仍调用window.close并经过现有CloseRequested确认；不增加前后端模态状态同步或新IPC。此调整需要重新编译桌面壳，单独前端热更新不能移除原生快捷键。尚未编译运行验证。
 
-独立设置窗口：settings.open保留可配置默认Primary+,，主窗口处理后调用open_settings_window；macOS原生“设置”菜单另提供固定Cmd+,并由系统显示⌘,，菜单标题不带省略号。该组合由原生菜单优先处理，不随应用内绑定的修改或禁用移除；自定义其他组合仍走应用内路由。菜单事件复用settings_window::open，保持解锁检查与单实例聚焦。设置窗口不注册终端/工作区命令，Cmd/Ctrl+W仅等待设置写入后关闭当前窗口，模态框/快捷键录制优先。原生Close Window菜单按当前聚焦窗口执行，各窗口自行处理CloseRequested。
+独立设置窗口：macOS 的固定 Cmd+, 仅由原生“设置”菜单处理并显示 ⌘,，菜单标题不带省略号。AppKit 应用内 KeyDown 监视器在事件进入 WebKit 前匹配精确 Command+,，调用现有主菜单 performKeyEquivalent；菜单处理成功后返回空事件，防止逗号进入输入框及同一按键重复触发。其他组合、后台应用或没有活动窗口时原样放行，不注册系统后台热键或申请辅助功能权限。监视器仅在主线程安装/持有，主窗口销毁时移除。前端 settings.open 默认未绑定；路由对残余 Cmd+, 直接放行，不执行已有同组合绑定，也不调用 preventDefault/stopPropagation。已有配置保留原样，无需重置；快捷键页说明该组合固定由系统菜单处理，用户仍可为 settings.open 录制其他组合，由主窗口调用 open_settings_window。Windows/Linux 保留前端默认 Ctrl+,。菜单事件复用 settings_window::open，保持解锁检查与单实例聚焦；原生组合不受前端模态/录制/弹层路由约束。设置窗口不注册终端/工作区命令，Cmd/Ctrl+W 仅等待设置写入后关闭当前窗口，模态框/快捷键录制优先。原生 Close Window 菜单按当前聚焦窗口执行，各窗口自行处理 CloseRequested。
+
+用户反馈仅依赖菜单 accelerator、前端直接放行时，输入框激活的 Cmd+, 无效，而前端处理的 Cmd+N/Cmd+T 正常。因此 DOM 放行不能作为原生菜单收到事件的依据；本地监视器的编译和运行验证尚未执行，需要重新编译桌面壳后验证，前端热更新不足以启用。验收分别覆盖普通输入框、主机搜索（空查询/结果下拉）、终端及设置窗口，首次创建/已有窗口聚焦、中英输入法、锁定保险库、额外修饰键及一次按键只执行一次。排查时对照监视器是否匹配、performKeyEquivalent 返回值、菜单回调，以及捕获/冒泡阶段 keydown 的 key/code/metaKey/defaultPrevented/isComposing 和 beforeinput 的 inputType；不记录输入正文或其他按键。原生菜单事件不携带可取消的 DOM 输入事件，不能在打开设置后补调 preventDefault 修复已发生的输入。
 
 标准终端粘贴快捷键（macOS Cmd+V、Windows/Linux Ctrl+Shift+V）匹配已启用的 terminal.paste 后放行系统默认行为，不调用 navigator.clipboard.readText()。系统 paste 事件由终端宿主捕获，继续执行 64 KiB 限制、多行确认、括号粘贴及广播代次校验；自定义粘贴绑定仍使用显式剪贴板读取，可能受 WebView 授权限制。待运行验证直接粘贴、多行确认/取消、仅输入一次、改绑/禁用与广播。
