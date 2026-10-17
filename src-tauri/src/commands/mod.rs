@@ -1,4 +1,6 @@
+mod backup;
 mod forwarding;
+pub use backup::*;
 mod settings;
 pub use forwarding::*;
 pub use settings::*;

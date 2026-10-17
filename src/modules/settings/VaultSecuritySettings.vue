@@ -114,7 +114,7 @@ onBeforeUnmount(clear);
     <AppDialog
       v-model:open="open"
       title="修改保险库密码"
-      description="请牢记新密码。已有备份仍使用修改前的密码。"
+      description="请牢记新密码。已有数据库文件副本仍使用创建时的保险库密码；云端备份使用独立备份密码，不随本次修改变化。"
       :locked="busy"
       @after-leave="clear"
     >

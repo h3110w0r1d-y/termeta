@@ -260,3 +260,48 @@ export interface PasswordChangeResult {
   keychainWarning: string | null;
   cleanupWarning: string | null;
 }
+
+export type BackupProvider = "gist" | "webdav";
+export interface BackupConfigDraft {
+  provider: BackupProvider;
+  endpoint: string;
+  username: string;
+  secret?: string;
+  backupPassword?: string;
+  deviceName: string;
+}
+export interface BackupConfigView extends Omit<
+  BackupConfigDraft,
+  "secret" | "backupPassword"
+> {
+  hasSecret: boolean;
+  hasBackupPassword: boolean;
+}
+export interface BackupCounts {
+  hosts: number;
+  groups: number;
+  credentials: number;
+  forwards: number;
+  knownHosts: number;
+}
+export interface BackupImportSummary {
+  counts: BackupCounts;
+  warnings: string[];
+}
+export interface BackupMetadata {
+  backupId: string;
+  createdAt: number;
+  deviceName: string;
+  appVersion: string;
+  counts: BackupCounts;
+}
+export interface BackupListEntry {
+  id: string;
+  metadata: BackupMetadata | null;
+  error?: string | null;
+  size?: number | null;
+}
+export interface BackupRestorePreview {
+  token: string;
+  metadata: BackupMetadata;
+}

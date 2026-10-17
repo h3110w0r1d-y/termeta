@@ -3,6 +3,11 @@ import { listen } from "@tauri-apps/api/event";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import type { AppSettings, SettingsPatch } from "../../modules/settings/model";
 import type {
+  BackupConfigDraft,
+  BackupConfigView,
+  BackupImportSummary,
+  BackupListEntry,
+  BackupRestorePreview,
   VaultStatus,
   PasswordChangeResult,
   ForwardDraft,
@@ -30,6 +35,40 @@ import type {
 
 // 原生交互只通过此门面，组件不能获得通用 invoke 或任意文件读取能力。
 export const desktop = {
+  getBackupConfig: () => invoke<BackupConfigView | null>("get_backup_config"),
+  saveBackupConfig: (config: BackupConfigDraft) =>
+    invoke<BackupConfigView>("save_backup_config", { config }),
+  listCloudBackups: (
+    config?: BackupConfigDraft,
+    initializing = false,
+    offset = 0,
+    limit = 10,
+  ) =>
+    invoke<BackupListEntry[]>("list_cloud_backups", {
+      config,
+      initializing,
+      offset,
+      limit,
+    }),
+  testBackupConfig: (config: BackupConfigDraft, initializing = false) =>
+    invoke<void>("test_backup_config", { config, initializing }),
+  createCloudBackup: (deviceName?: string) =>
+    invoke<BackupListEntry>("create_cloud_backup", { deviceName }),
+  prepareCloudRestore: (
+    backupId: string,
+    config?: BackupConfigDraft,
+    initializing = false,
+  ) =>
+    invoke<BackupRestorePreview>("prepare_cloud_restore", {
+      config,
+      backupId,
+      initializing,
+    }),
+  applyCloudRestore: (token: string) =>
+    invoke<BackupImportSummary>("apply_cloud_restore", { token }),
+  initializeFromCloudBackup: (token: string, password: string) =>
+    invoke<VaultStatus>("initialize_from_cloud_backup", { token, password }),
+  onBackupRestored: (handler: () => void) => listen("backup-restored", handler),
   saveWorkspace: (draft: WorkspaceDraft) =>
     invoke<HostProfile>("save_workspace", { draft }),
   listPortForwards: () =>

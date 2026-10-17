@@ -26,21 +26,21 @@ Termeta 是 Tauri 2 + Rust + Vue 3 + TypeScript 桌面终端客户端，目标�
 | 终端         | SSH 密码/公钥/动态 OTP、主机信任、PTY/resize/KeepAlive、Shell/命令启动；Telnet 明文终端登录；本地系统 Shell；串口参数/字符集/独占。失败/断线保留视图和历史，手动重连 |
 | 工作区       | 顶部/左侧标签、嵌套分屏、窗格迁移、比例调整/区域交换、输入广播。显式保存布局与已保存 SSH/Telnet/串口引用，重新打开创建新会话，不自动恢复标签         |
 | 文件与转发   | 单 SSH 终端 SFTP 侧栏、双远端对拷、原生拖入及 macOS 文件/目录承诺拖出；独立三模式端口转发。通用租约、本地浏览、Windows/Linux 拖出待实现              |
-| 设置与存储   | 独立设置窗口、有效修改自动保存/跨窗口热应用、应用明暗与主色、快捷键、12字体/64配色。SQLCipher 加密格式2、schema 6，同格式 schema 2–5 原位升级；设置安全页可校验旧密码并重新加密改密        |
+| 设置与存储   | 独立设置窗口、有效修改自动保存/跨窗口热应用、应用明暗与主色、快捷键、12字体/64配色。SQLCipher 加密格式2、schema 6，同格式 schema 2–5 原位升级；设置安全页可校验旧密码并重新加密改密；Gist/WebDAV 手动加密备份、非覆盖合并及首次云端初始化        |
 
 数据库及配套 vault 元数据须配对保留，OS 只缓存一个 `master-key-v2` 主密钥；密码恢复不回退明文。旧格式不迁移。已应用迁移不可变；迁移4保持原始字节，名称索引调整由迁移5完成，恢复说明见 [存储设计](docs/07-storage.md#9-已应用迁移校验和不一致的恢复)。
 
 已有 macOS 用户反馈；历史授权调试中 terminal-core/terminal-serial 定向编译和15项测试通过，指定 ESP32-C3 的115200输出/关闭已验证。该证据不覆盖桌面应用、后续持久化集成或其他平台。其他新增 Rust 回归源码不能视为已执行。Telnet 手动测试服务配置见 [dev/telnet](dev/telnet/README.md)，既有部署/就绪证据不代表服务当前仍运行，也不授权构建或启动应用。
 
-主要待实现范围：专门睡眠恢复、本地自定义 Shell/cwd/env 与完整进程树清理、串口手动 DTR/RTS/DSR-DTR/HEX、ProxyJump/Agent、完整传输管理、Snippets/会话日志、打开标签自动恢复、备份恢复入口与签名发布。
+主要待实现范围：专门睡眠恢复、本地自定义 Shell/cwd/env 与完整进程树清理、串口手动 DTR/RTS/DSR-DTR/HEX、ProxyJump/Agent、完整传输管理、Snippets/会话日志、打开标签自动恢复、自动备份/双向同步、本地备份文件入口与签名发布。
 
 ## 4. 架构约定
 
 - `src/layout/` 负责保险箱装配与外观监听；App 保留根布局与稳定终端宿主。设置由独立 SettingsWindow 装配，公共基础样式位于 `src/assets/base.css`。
-- `src/modules/` 按 hosts、credentials、history、forwarding、terminal、workspace、settings、files 分责；Vue/Pinia 只保存轻量状态，不保存终端输出、文件正文或转发载荷。
+- `src/modules/` 按 hosts、credentials、history、forwarding、terminal、workspace、settings、files、backup 分责；Vue/Pinia 只保存轻量状态，不保存终端输出、文件正文、数据库备份正文或转发载荷。
 - `src/services/desktop/` 是唯一 Tauri IPC 门面；组件不能直接 invoke。CommandRegistry 统一按钮/菜单/快捷键；KeymapService/TerminalThemeService 是设计职责名，不假定存在同名类。
 - `src-tauri/src/commands/` 负责 DTO、窗口/资源所有权、Channel 和编排；`files/` 负责浏览器及上传下载服务；协议核心留在 crate。
-- 九个领域 crate 为 core、ssh、telnet、local、serial、storage、security、files、sftp。core 不依赖 Tauri/Vue/russh；具体适配器依赖 core。security 当前直接依赖 storage 协调保险库与凭据事务。
+- 九个领域 crate 为 core、ssh、telnet、local、serial、storage、security、files、sftp。core 不依赖 Tauri/Vue/russh；具体适配器依赖 core。security 当前直接依赖 storage 协调保险库、凭据事务和备份压缩/加密；云端 provider 位于壳的 backup 模块，新增存储厂商通过 provider 边界扩展。
 - 每会话 actor + 有界字节队列 + 独立取消信号；输出二进制 Channel，控制类型化 Channel，消费 ACK 实现端到端背压。所有凭据、信任、网络与设备操作由 Rust 管理。
 - terminalId 跨重连稳定，sessionId 每次连接更新；TerminalRegistry 按 terminalId 持有 xterm。断线/失败/终态不得自动关闭 Tab、清空或销毁实例，只有用户关闭视图才 dispose。
 - WorkspaceStore 分离终端 tabs 与标签 groups；activeId 指组，active 指聚焦终端。布局树计算矩形，TerminalStage 扁平 keyed 宿主保证排序、交换、分屏与迁移不重建终端。
@@ -59,6 +59,7 @@ Termeta 是 Tauri 2 + Rust + Vue 3 + TypeScript 桌面终端客户端，目标�
 | [快捷键](docs/14-shortcuts.md)、[配色](docs/15-terminal-themes.md)                                             | 输入路由、热应用与资源                       |
 | [SSH](docs/05-ssh-design.md)、[SFTP](docs/16-sftp-workspace.md)、[工作区](docs/18-terminal-workspaces.md)      | 功能契约及资源边界                           |
 | [Serial](docs/19-serial-terminal.md)、[Telnet](docs/20-telnet-terminal.md)、[转发](docs/21-port-forwarding.md) | 协议/设备与连接工具                          |
+| [备份同步](docs/22-data-backup.md) | 白名单 SQLite 快照、加密包、云端 provider 与非覆盖导入 |
 | [有效决策](docs/12-decisions.md)、[依赖预研](docs/02-library-research.md)                                      | 理由、变更条件与版本来源                     |
 
 ## 6. 修改后的文档同步义务
@@ -89,7 +90,7 @@ Termeta 是 Tauri 2 + Rust + Vue 3 + TypeScript 桌面终端客户端，目标�
 - NForm model/rules/path 与控件共享响应式字段，提交前 validate，必填星号由库生成；快速连接名称、可选密码和服务器允许的空回答不强制必填。弹窗操作放 AppDialog `#footer`，与滚动正文分离。
 - 主机页保活显隐挂原生 DOM，不能直接给观察器为根的滚动组件施加 v-show。分组树/主机列表独立滚动；即时偏好串行局部保存，设置旧草稿不能覆盖。搜索不改变分组范围，分组批量打开包含后代。
 - 分组迁移前后端防环；删除默认保留直属主机/子组并上移，连同内容删除须独立二次确认。Rust 单事务保护范围和 revision，共享凭据与现有会话快照保留。
-- 固定保险箱/SFTP 不可关闭、不创建终端；切页与标签位置变化不卸载 xterm。设置独立单实例窗口，settings capability 只开放设置、专用保险库改密/JSON 导出，通用会话 owner 仍仅接受 main。
+- 固定保险箱/SFTP 不可关闭、不创建终端；切页与标签位置变化不卸载 xterm。设置独立单实例窗口，settings capability 只开放设置、专用保险库改密/JSON 导出和备份同步命令，通用会话 owner 仍仅接受 main。
 - 分隔条与交换手柄仅悬停显示；交换完整子树、保留比例和终端，不改变广播成员。交换按钮不获取焦点、不触发拖动，分隔条键盘调整保留。
 - 广播仅内存、默认关闭；成员重组关闭，排序/比例调整/区域交换不关闭。inputOrigin.ts 集中适配固定 xterm 6 用户输入标记及最终鼠标动作编码，能力缺失禁止开启广播。远端滚轮仅广播源端最终输入，不派发合成 wheel 或让目标重新累积；当前组未聚焦窗格也可作为滚轮来源，键盘/粘贴仍受焦点约束。排除命令模式窗格、点击、拖动、设备应答及认证；各目标独立编码/代次检查，不重放。
 - 主机/分组/终端右键菜单共用外部关闭过滤，忽略右键及 macOS Control+单击的打开手势；弹层标记随实际显示状态更新。连接/认证弹窗 after-leave 后恢复当前活动终端焦点。模态、录制与弹层优先处理快捷键，弹窗内 Cmd+W 不关闭标签或主窗口。
@@ -98,4 +99,5 @@ Termeta 是 Tauri 2 + Rust + Vue 3 + TypeScript 桌面终端客户端，目标�
 - 文件正文仅 Rust 流动；上传普通文件确认覆盖、目录合并，不承诺回滚；下载无覆盖发布。原生拖入只消费 owner-bound 一次性 dropId，不接受前端任意本地路径；macOS 原生承诺请求兑现后才显示任务，取消清理手势与迟到请求。限额及细节见 [SFTP](docs/16-sftp-workspace.md)。
 - SSH 主要认证为密码或公钥；Keyboard-interactive/OTP 按服务器协商，OTP 不保存。保存的交互 Shell 模式 SSH 终端的一次性系统识别使用固定只读命令与独立 exec，不写 PTY/广播。
 - 端口转发默认回环监听，SOCKS5 只允许回环且仅 TCP CONNECT；独立取消与窗口/心跳清理，不持久化运行状态或自动启动。
+- 云备份仅包含主机/分组/标签/工作区、凭据、转发规则和主机信任的白名单快照；应用设置、历史与云端凭据留在本机；备份密码随Token加密保存在本机settings.backup，读回仅返回存在标记，操作直接使用。快照先压缩，再与时间/设备名一起认证加密；上传创建独立版本，下载预览后仅新增合并，不覆盖本机。首次云端初始化仅允许全新保险库，业务导入与本机云配置同事务；锁定的现有库不得使用初始化入口。
 - 应用主色与终端配色独立；终端热应用不清历史、不重连。字体仅限内置12家族；资源来源与许可见 public/fonts 和 resources。

@@ -4,9 +4,9 @@
 
 ## 当前基线
 
-Windows/macOS/Linux 桌面客户端，Tauri 2 + Rust + Vue 3 + TypeScript，通用 UI 为 Naive UI 2.45.3。源码覆盖 SSH/Telnet/基础 Local 与 Serial、主机/分组/凭据、稳定终端、分屏广播、显式工作区保存、独立设置、SFTP 和三模式端口转发。
+Windows/macOS/Linux 桌面客户端，Tauri 2 + Rust + Vue 3 + TypeScript，通用 UI 为 Naive UI 2.45.3。源码覆盖 SSH/Telnet/基础 Local 与 Serial、主机/分组/凭据、稳定终端、分屏广播、显式工作区保存、独立设置、SFTP、三模式端口转发及 Gist/WebDAV 手动加密备份与非覆盖同步。
 
-断线保留 terminalId/xterm/历史，重连替换后端连接；工作区存档只保存布局和连接引用，打开创建新会话，不自动恢复标签。SQLCipher 加密格式2、schema 6，同格式 schema 2–5 升级，OS 仅缓存主密钥，数据库与 vault 元数据配对备份。限制与完整功能表统一维护于产品需求，不在导航重复展开。
+断线保留 terminalId/xterm/历史，重连替换后端连接；工作区存档只保存布局和连接引用，打开创建新会话，不自动恢复标签。SQLCipher 加密格式2、schema 6，同格式 schema 2–5 升级，OS 仅缓存主密钥，直接保存数据库文件时须与 vault 元数据配对。云备份使用独立密码封装白名单 SQLite 快照，排除本机设置；支持首次初始化云拉取并保存本机云端配置。限制与完整功能表统一维护于产品需求，不在导航重复展开。
 
 ## 导航
 
@@ -31,7 +31,7 @@ Windows/macOS/Linux 桌面客户端，Tauri 2 + Rust + Vue 3 + TypeScript，通�
 | 19   | [Serial终端](19-serial-terminal.md)       | 串口枚举、启动参数、字符集与设备生命周期         |
 | 20   | [Telnet终端](20-telnet-terminal.md)       | Telnet协商、主机配置、明文边界与schema升级       |
 | 21   | [端口转发](21-port-forwarding.md)         | 本地/远程/SOCKS5、SSH引用、生命周期与监听边界    |
-| 22   | [数据备份方案](22-data-backup.md)         | 待实施的 Gist/WebDAV 加密快照、本地备份与恢复设计 |
+| 22   | [备份与同步](22-data-backup.md)           | Gist/WebDAV、加密快照、非覆盖合并与首次云端初始化 |
 
 协作与执行规则见 [AGENTS.md](../AGENTS.md)。未经用户明确要求，不构建、启动、执行 Rust 测试或连接真实主机；允许不触发构建的依赖维护与静态检查。静态检查通过不代表运行验收；用户既有 macOS 反馈不外推为当前版本或三平台验收。
 

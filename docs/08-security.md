@@ -14,7 +14,7 @@
 | 大量输出/长认证提示   | 字节限额、信用流控、队列/滚屏/提示长度上限              | 需同时核验协议库内部缓冲                                        |
 | 日志/备份泄露         | 默认不记内容、秘密脱敏、用户主动导出                    | 元数据本身仍可能敏感                                            |
 
-不实现自定义 SSH 加密，不把项目描述为经过安全审计的 Vault。当前转发监听边界见末节；未来云同步与 Agent forwarding 需要独立威胁分析。
+不实现自定义 SSH 加密，不把项目描述为经过安全审计的 Vault。当前转发监听边界见末节；云备份边界见末节，后续自动同步与 Agent forwarding 仍需独立威胁分析。
 
 ## 2. Tauri 权限落地要求
 
@@ -87,7 +87,7 @@ SFTP 的本地授权独立于私钥授权，仅来自原生选择器、系统拖
 
 ## 11. 源码与验证边界
 
-- [`terminal-security/src/master_key.rs`](../crates/terminal-security/src/master_key.rs) 管理唯一OS主密钥：Argon2id v19派生32字节主密钥，随机盐16字节，AES-256-GCM校验随机nonce12字节/AAD绑定格式身份、KDF和盐。启动每进程最多自动读取一次；密码恢复成功后重写主密钥，缓存失败仅警告。`vault.rs`只在加密DB读写凭据secret，DTO不返回秘密，未解锁拒绝所有业务IPC。
+- [`terminal-security/src/master_key.rs`](../crates/terminal-security/src/master_key.rs) 管理唯一OS主密钥：Argon2id v19派生32字节主密钥，随机盐16字节，AES-256-GCM校验随机nonce12字节/AAD绑定格式身份、KDF和盐。启动每进程最多自动读取一次；密码恢复成功后重写主密钥，缓存失败仅警告。`vault.rs`只在加密DB读写凭据secret，DTO不返回秘密，未解锁拒绝普通业务IPC；仅全新 setup 的 main 可使用专用云端初始化读取/提交入口，不能访问既有锁定保险库。
 - [`terminal-security/src/private_key.rs`](../crates/terminal-security/src/private_key.rs)：只接受后端原生选择器登记的私钥引用，读取限 1 MiB/OpenSSH 文本，不向前端返回正文；Unix 拒绝符号链接、非当前 uid 与其他用户有权限的文件，使用 `O_NOFOLLOW` 并核验打开对象的设备/inode。注册时和导入时共用 [`terminal-storage/src/key_files.rs`](../crates/terminal-storage/src/key_files.rs) 的安全读取边界；SQLite 只保存文件字节 SHA-256 摘要，导入引用前比对，内容变更即拒绝并要求重新选择。该摘要不充当 SSH 主机密钥指纹，且不序列化给前端。哈希借用 Zeroizing 字节缓冲，不另建裸私钥副本。Windows 的文件对象竞态/ACL 校验仍需完善；读取中的并发原地写入、重新选择意图与平台行为尚未运行验证，不应声称已消除全部 TOCTOU。
 - [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs) 保持单实例和Unix目录0700；数据库/解锁元数据创建为0600。SQLCipher 4 AES-256-CBC页面加密并以HMAC-SHA512校验，包含WAL；临时存储MEMORY，禁用SQL语句日志，拒绝普通SQLite降级。Windows ACL继承与原生构建仍需验证。
 - [`src-tauri/src/settings.rs`](../src-tauri/src/settings.rs)：应用设置、快捷键、`customSchemes` 与 `hostSchemes` 都在 `settings.key=app` JSON 中，校验版本、长度、颜色字段、注册命令与方案引用，不是独立配色表或主机终端偏好表。没有脚本、任意原生动作或 shell 执行型导入。设置无独立 revision，当前通过专用串行队列读取最新值并合并局部字段，hostsView/hostSearch 逐字段合并；并发/失败恢复仍待运行验收。详见 [存储实现差异](07-storage.md)。
@@ -135,9 +135,9 @@ OSC 标题：remoteTitle仅作前端内存中的展示后缀，控制字符/双�
 
 ## 设置窗口授权
 
-独立settings窗口仅加载本地应用资源并禁止新窗口导航，只有已解锁时才允许创建。settings-desktop capability按命令开放设置读写、保险库改密和用户触发JSON导出；这些命令使用settings_owner核验main/settings标签、本地URL和保险库状态。会话、主机及凭据管理等通用owner仍仅允许main，禁止通过放宽window_owner获取终端/文件权限。设置通知由Rust在提交后发送，正文不含凭据。窗口授权拒绝路径与三平台运行验证尚未执行。
+独立settings窗口仅加载本地应用资源并禁止新窗口导航，只有已解锁时才允许创建。settings-desktop capability按命令开放设置读写、保险库改密、用户触发JSON导出和云备份；这些命令使用settings_owner核验main/settings标签、本地URL和保险库状态。会话、主机及凭据管理等通用owner仍仅允许main，禁止通过放宽window_owner获取终端/文件权限。设置通知由Rust在提交后发送，正文不含凭据。窗口授权拒绝路径与三平台运行验证尚未执行。
 
-保险库改密通过专用 change_vault_password 命令，仅接受已解锁的 main/settings 本地窗口；不扩大通用 owner。即使 OS 已自动解锁也重新验证旧密码，Rust 使用新的盐和 nonce，前端只在表单/提交期间持有密码，不保存到 Pinia、设置或日志。结果仅返回钥匙串/副本清理警告，不返回密码或密钥。独立后端任务完成改密，不因设置窗口关闭取消切换；UI 忙碌时阻止关闭设置窗口。切换/恢复只读写同目录的固定文件，细节及旧副本/备份仍受旧密码保护的限制见[改密存储契约](07-storage.md#修改密码与中断恢复)。Touch ID 未接入，钥匙串仍沿用当前平台适配器。
+保险库改密通过专用 change_vault_password 命令，仅接受已解锁的 main/settings 本地窗口；不扩大通用 owner。即使 OS 已自动解锁也重新验证旧密码，Rust 使用新的盐和 nonce，前端只在表单/提交期间持有密码，不保存到 Pinia、设置或日志。结果仅返回钥匙串/副本清理警告，不返回密码或密钥。独立后端任务完成改密，不因设置窗口关闭取消切换；UI 忙碌时阻止关闭设置窗口。切换/恢复只读写同目录的固定文件，细节及旧数据库物理副本仍受旧保险库密码保护的限制见[改密存储契约](07-storage.md#修改密码与中断恢复)。Touch ID 未接入，钥匙串仍沿用当前平台适配器。
 
 主机信任及连接历史已移至主窗口保险箱，对应list_known_hosts/revoke_known_host/list_history/clear_history改用owner，只允许main且要求已解锁；settings capability不再授予这些命令。撤销信任和清空历史继续先由UI确认，主机/凭据及活动会话不会因页面迁移改变。
 
@@ -168,3 +168,13 @@ Telnet为用户主动选择的独立协议，通过普通TCP传输；不提供�
 存档仅保存布局/焦点/主机 ID，Rust 在事务中拒绝失效/嵌套引用及额外字段，名称唯一索引与 revision 防止并发静默覆盖；打开仍经各保存主机入口验证。删除主机保留失效引用，不按名称重绑，不保存秘密/输出/认证结果或自动恢复运行状态。
 
 迁移保持 SQLx 校验和及已应用文件字节，索引变更追加新迁移；不删库/密钥或改写迁移记录绕过故障。SQLCipher 与配套元数据完整性、备份和恢复限制见 [存储](07-storage.md)。
+
+## 云备份与首次恢复边界
+
+手动 Gist/WebDAV 使用表白名单重建内存 SQLite，不直接压缩活动 SQLCipher 密文或在临时磁盘落明文；设置/历史/密钥路径登记/云认证不导出。数据库先Zstd压缩，再与备份时间、设备、应用版本及数量一起AES-256-GCM加密，整体Base64。独立密码使用固定Argon2id v19 64MiB/3/1，每包随机盐/nonce，头部绑定AAD。备份密码按用户配置加密保存在本机SQLCipher settings.backup，OS仍只缓存原有唯一主密钥；该设置不进入云包。包与解压、SQLite结构/执行预算及所有业务关联都有限额；认证通过不替代业务校验。详见[包格式与恢复](22-data-backup.md)。
+
+云认证与备份密码只经专用配置命令写入本机SQLCipher settings.backup，返回仅hasSecret/hasBackupPassword标记；目标地址/用户名变化必须重新输入秘密，不能沿用旧凭据向新主机发送。HTTPS、证书验证、禁重定向/自动重试、官方Gist API/raw主机和WebDAV目录路径边界共同保护认证；连接测试只读，Gist新建Secret对象、WebDAV条件PUT拒绝覆盖。云方仍能看到对象大小和平台创建时间，不承诺隐藏网络元数据或使Secret Gist成为访问控制保险箱。
+
+main/settings获得显式云备份权限；初始化提交仅main。未解锁云读取仅允许完全未创建保险库的setup状态，已有锁定保险库拒绝。预览令牌绑定owner/初始化模式、5分钟到期、一次性消费；窗口销毁或配置变更增加owner代次并清除预览，拒绝迟到明文插入。数据库正文不进入前端；短期明文与读取出的密码缓冲尽早Zeroizing，第三方内部复制仍有边界。备份密码不传给Gist/WebDAV适配器；上传/列表/下载从已保存配置读取，首次初始化只在配置草稿输入，导入事务同时保存。旧配置缺失密码时可查看、测试连接并补填，不能执行备份或解密。
+
+恢复只新增合并，不启动连接/转发或改变既有记录。已有端点公钥相同跳过，不同跳过并警告；不覆盖pin或默许所有密钥。首次创建保险库后，业务导入和本次云配置单事务提交；如创建后导入失败保留加密文件和元数据，由用户解锁后重试，不为恢复删除原材料。用户再次手动导入会新增副本，完成令牌摘要仅提供进程内短期应答重试。源码已有加密/结构/关联/信任/路径/XML/令牌回归，均未编译执行；完整云服务、三平台和恶意输入运行验收待完成。

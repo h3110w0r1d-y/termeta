@@ -11,6 +11,7 @@ use terminal_security::CredentialVault;
 use terminal_storage::SqliteStore;
 
 pub struct AppState {
+    pub backup: crate::backup_runtime::BackupRuntime,
     pub settings_gate: tokio::sync::Mutex<()>,
     pub sessions: SessionManager,
     pub file_sessions: SessionManager,

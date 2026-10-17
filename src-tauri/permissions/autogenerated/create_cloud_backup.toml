@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-create-cloud-backup"
+description = "Enables the create_cloud_backup command without any pre-configured scope."
+commands.allow = ["create_cloud_backup"]
+
+[[permission]]
+identifier = "deny-create-cloud-backup"
+description = "Denies the create_cloud_backup command without any pre-configured scope."
+commands.deny = ["create_cloud_backup"]

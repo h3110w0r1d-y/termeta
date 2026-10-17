@@ -244,6 +244,8 @@ pub async fn unlock_vault(
 ) -> Result<terminal_security::VaultStatus> {
     let password = zeroize::Zeroizing::new(password);
     crate::state::window_owner(&window)?;
+    // 普通初始化与云端首次导入互斥，防止两个入口同时创建同一保险库。
+    let _initialization = state.backup.initialization.lock().await;
     state
         .vault
         .unlock_with_password(password, setup)

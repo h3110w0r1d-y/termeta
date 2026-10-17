@@ -1,5 +1,13 @@
 // 命令注册与构建期 ACL 共用同一份名单，避免权限契约漂移。
 pub const COMMANDS: &[&str] = &[
+    "get_backup_config",
+    "save_backup_config",
+    "test_backup_config",
+    "list_cloud_backups",
+    "create_cloud_backup",
+    "prepare_cloud_restore",
+    "apply_cloud_restore",
+    "initialize_from_cloud_backup",
     "list_port_forwards",
     "save_port_forward",
     "delete_port_forward",

@@ -139,7 +139,11 @@ impl SqliteStore {
         Ok(saved)
     }
 }
-fn validate_layout(node: &SavedLayout, depth: usize, references: &mut Vec<String>) -> Result<()> {
+pub(crate) fn validate_layout(
+    node: &SavedLayout,
+    depth: usize,
+    references: &mut Vec<String>,
+) -> Result<()> {
     if depth > 32 || references.len() >= 64 {
         return Err(StorageError::Validation("工作区最多64个窗格、32层分割"));
     }

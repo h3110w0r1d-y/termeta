@@ -26,6 +26,7 @@ import AppDialog from "../../components/ui/AppDialog.vue";
 import ThemeSettings from "./ThemeSettings.vue";
 import ShortcutSettings from "./ShortcutSettings.vue";
 import VaultSecuritySettings from "./VaultSecuritySettings.vue";
+import BackupPanel from "../backup/BackupPanel.vue";
 import { useLiveSettings } from "./useLiveSettings";
 import { terminalFontFamily, terminalFontOptions } from "./fonts";
 // NSelect 同时用此渲染器显示菜单与当前值；字体声明按可见选项自动加载本地资源。
@@ -36,8 +37,9 @@ const renderFontLabel: SelectRenderLabel = (option) => {
 const form = ref<FormInst>();
 const { draft, flush: flushSettings } = useLiveSettings(form);
 const security = ref<InstanceType<typeof VaultSecuritySettings>>();
+const backup = ref<InstanceType<typeof BackupPanel>>();
 async function flush() {
-  if (security.value?.busy) return false;
+  if (security.value?.busy || backup.value?.busy) return false;
   return flushSettings();
 }
 defineExpose({ flush });
@@ -199,6 +201,13 @@ const rules: FormRules = {
             </NTabPane>
             <NTabPane name="security" tab="安全" display-directive="show:lazy">
               <VaultSecuritySettings ref="security" />
+            </NTabPane>
+            <NTabPane
+              name="backup"
+              tab="备份 / 同步"
+              display-directive="show:lazy"
+            >
+              <BackupPanel ref="backup" />
             </NTabPane>
             <NTabPane
               name="themes"

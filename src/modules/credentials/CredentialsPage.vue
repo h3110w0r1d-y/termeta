@@ -27,6 +27,7 @@ import AppDialog from "../../components/ui/AppDialog.vue";
 import { desktop, errorMessage } from "../../services/desktop/client";
 import type { CredentialMetadata } from "../../services/desktop/types";
 import { useHosts } from "../hosts/store";
+import { useBackupRestored } from "../backup/useBackupRestored";
 const hosts = useHosts();
 const items = ref<CredentialMetadata[]>([]),
   error = ref(""),
@@ -63,6 +64,9 @@ async function load() {
   }
 }
 onMounted(load);
+useBackupRestored(load, (cause) => {
+  error.value = errorMessage(cause);
+});
 onUnmounted(() => {
   clearSecrets();
 });

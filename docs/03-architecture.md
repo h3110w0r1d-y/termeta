@@ -11,7 +11,8 @@ flowchart TB
   Shell --> Core[terminal-core / SessionManager / actor]
   Core --> Adapters[SSH / Telnet / Local / Serial 工厂]
   Shell --> Storage[terminal-storage / SQLCipher]
-  Shell --> Security[terminal-security / Argon2id / OS 主密钥]
+  Shell --> Security[terminal-security / Argon2id / OS 主密钥 / 备份加密]
+  Shell --> Backup[backup provider / Gist / WebDAV]
   Security --> Storage
   Shell --> Files[terminal-files / terminal-sftp]
   Files --> SSH[terminal-ssh / 受控 SshChannels]
@@ -29,15 +30,17 @@ flowchart TB
 | src/modules/hosts、credentials、history、forwarding | 保存项/分组/搜索、凭据元数据、信任/历史、转发规则及轻量状态 |
 | src/modules/terminal、workspace                     | xterm 注册表、输入路由、标签组、布局树、广播、工作区存档    |
 | src/modules/settings                                | 独立 SettingsWindow、表单/预览、自动保存与跨窗口同步        |
+| src/modules/backup                                  | 共用 BackupPanel、配置/版本元数据、预览确认和轻量刷新订阅 |
 | src/modules/files                                   | 单终端 SFTP 侧栏、双远端工作区、轻量队列与目录展示          |
 | src/services/desktop                                | 类型化 invoke/Channel，唯一 IPC 门面                        |
 | src/services/commands                               | 命令注册、快捷键、焦点/模态路由                             |
 | src-tauri/src/commands                              | DTO、窗口/资源授权、用例编排和 Channel 桥                   |
+| src-tauri/src/backup、backup_runtime.rs               | 云 provider、HTTPS 传输、配置、owner-bound 预览与操作预算 |
 | src-tauri/src/files                                 | 浏览器获取、上传/下载编排、原生授权目标处理                 |
 | crates/terminal-core                                | 模型、端口、能力、actor、限额、取消、字节队列和 ACK         |
 | crates/terminal-ssh                                 | russh、信任/认证、PTY、SFTP channel 服务、系统识别与转发    |
 | crates/terminal-telnet、local、serial               | TCP 协商、本地 PTY、设备独占与字符集转换                    |
-| crates/terminal-storage、security                   | SQLCipher/迁移、元数据/凭据事务、主密钥派生/缓存与解锁      |
+| crates/terminal-storage、security                   | SQLCipher/迁移、白名单快照/合并事务、凭据、主密钥/备份加密      |
 | crates/terminal-files、sftp                         | 文件 DTO/provider/有界复制，SFTP browser/remote_file/copy   |
 
 根 workspace 使用 resolver 3、edition 2024、共享 release profile 和 Cargo.lock。前端使用 Vue Composition API、严格 TypeScript 与 pnpm。没有独立 transfers 或 terminal-tunnel crate；通用连接租约和完整 TransferManager 仍待实现。
@@ -77,9 +80,17 @@ WorkspaceStore.tabs 保存终端元数据，groups 保存标签顺序/布局/聚
 
 保存项共用 connection_profiles 和轻量分组/收藏元数据，SSH/Telnet/Serial 各自校验参数；workspace 不是可由 open_session 直接打开的协议类型。saved/profileId 始终由 Rust 重读并分派工厂，前端 kind 仅展示能力。
 
-VaultGate 完成首次设置、OS 自动解锁或密码恢复后挂载业务页面。只有 vault_status/unlock_vault 是锁定时可用的业务入口；窗口操作保留。storage 发布已解锁 SQLCipher 池前完成迁移/外键检查；OS 仅缓存主密钥，秘密仅 Rust 加载。当前 schema 6 和升级边界见 [存储](07-storage.md)。密码修改由 security 重新校验并派生密钥，storage 以可替换连接池及数据库生命周期门闩执行加密副本 rekey、文件组合切换与启动恢复；不占用会话表锁，不重建终端。
+VaultGate 完成首次设置、OS 自动解锁或密码恢复后挂载业务页面。现有保险库锁定时仅 vault_status/unlock_vault 可进入业务；全新 setup 状态额外开放 main 的云端测试/列表/预览/初始化入口，不能用它绕过已有库的解锁。窗口操作保留。storage 发布已解锁 SQLCipher 池前完成迁移/外键检查；OS 仅缓存主密钥，秘密仅 Rust 加载。当前 schema 6 和升级边界见 [存储](07-storage.md)。密码修改由 security 重新校验并派生密钥，storage 以可替换连接池及数据库生命周期门闩执行加密副本 rekey、文件组合切换与启动恢复；不占用会话表锁，不重建终端。
 
-设置独立单实例窗口由 settings_window.rs 与 SettingsWindow.vue 装配，入口不挂载 App/终端/工作区心跳。useLiveSettings 校验/自动保存，useSettingsSync 跨窗口同步；Rust 设置专用队列合并最新局部字段。settings_owner 仅向 main/settings 开放设置、保险库改密/JSON 导出，通用 owner 仍仅 main。
+设置独立单实例窗口由 settings_window.rs 与 SettingsWindow.vue 装配，入口不挂载 App/终端/工作区心跳。useLiveSettings 校验/自动保存，useSettingsSync 跨窗口同步；Rust 设置专用队列合并最新局部字段。settings_owner 仅向 main/settings 开放设置、保险库改密/JSON 导出及专用备份同步命令，通用 owner 仍仅 main。
+
+### 备份与非覆盖同步
+
+`terminal-storage/backup` 在一致读事务中导出主机/分组/标签/工作区、凭据、转发和信任的白名单 SQLite 内存快照；不复制设置、历史或云端凭据，也不落盘明文库。`terminal-security/backup` 用 Zstd 压缩快照，再将时间、设备名、计数等元数据与压缩正文一起进行 Argon2id/AES-256-GCM 认证加密，最后 Base64 编码。备份包格式独立于业务 schema，既有 SQLCipher schema 6 与迁移不变。
+
+壳的 `backup::BackupProvider` 只接收不透明加密包并负责测试/列表/上传/下载，当前实现 Gist/WebDAV；增加 OSS 等提供方复用此边界。`backup_runtime` 统一串行操作许可、窗口归属与短期预览令牌。前端 `BackupPanel` 在设置与首次初始化复用，`useCloudBackup` 管理配置、密码输入及元数据，数据库正文始终在 Rust；恢复事件只使轻量列表失效。
+
+上传创建独立版本，下载先验证并预览，再于当前数据库事务中新增合并；来源 ID 重新映射，名称冲突另存，信任冲突跳过并告警，本机设置与当前活动会话保留。首次初始化先创建本机保险库，业务导入与当前云端配置在同一数据库事务提交；若后续导入失败，界面重新读取保险库状态并允许进入后重试。普通云配置单独保存在加密 `settings.backup`，不进入 AppSettings DTO，秘密只写入不回读。无自动同步、本地备份文件入口或取消 IPC，详见[备份与同步](22-data-backup.md)。
 
 ## 7. SSH、SFTP 与转发
 

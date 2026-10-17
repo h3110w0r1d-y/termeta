@@ -1,3 +1,9 @@
+pub mod backup;
+mod backup_sqlite;
+pub use backup::{
+    BackupCounts, BackupImportMode, BackupImportSummary, BackupSettingWrite, MAX_DATABASE_BYTES,
+    inspect_backup_database,
+};
 mod credentials;
 mod password_change;
 pub use password_change::PasswordChangeOutcome;

@@ -1,14 +1,17 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, reactive } from "vue";
+import { computed, onMounted, ref, reactive, watch } from "vue";
 import {
   NAlert,
   NButton,
   NCard,
   NForm,
   type FormInst,
+  type FormItemInst,
   type FormRules,
   NFormItem,
   NInput,
+  NRadioButton,
+  NRadioGroup,
   NSpin,
   NText,
 } from "naive-ui";
@@ -17,6 +20,7 @@ import WindowControls from "./WindowControls.vue";
 import { isMac } from "../services/commands/registry";
 import { desktop, errorMessage } from "../services/desktop/client";
 import type { VaultStatus } from "../services/desktop/types";
+import BackupPanel from "../modules/backup/BackupPanel.vue";
 const props = defineProps<{ initialize: () => Promise<void> }>();
 const status = ref<VaultStatus>();
 const busy = ref(false),
@@ -26,8 +30,18 @@ const busy = ref(false),
 const password = ref(""),
   confirmation = ref("");
 const formModel = reactive({ password, confirmation });
+const setupSource = ref<"local" | "cloud">("local");
+const backupBusy = ref(false);
+const formBusy = computed(() => busy.value || backupBusy.value);
 const setup = computed(() => status.value?.mode === "setup");
 const form = ref<FormInst>();
+const confirmationItem = ref<FormItemInst>();
+watch(password, () => {
+  if (setup.value && confirmation.value)
+    void confirmationItem.value
+      ?.validate({ trigger: "input" })
+      .catch(() => undefined);
+});
 const rules = computed<FormRules>(() => ({
   password: {
     required: true,
@@ -73,7 +87,8 @@ async function inspect() {
   }
 }
 async function submit() {
-  if (busy.value) return;
+  if (formBusy.value) return;
+  if (setup.value && setupSource.value === "cloud") return;
   error.value = "";
   if (!(await validateForm(form.value))) return;
   busy.value = true;
@@ -89,6 +104,31 @@ async function submit() {
     }
   } finally {
     // 前端仅在提交期间持有输入；JavaScript 字符串无法保证原位擦除。
+    password.value = "";
+    confirmation.value = "";
+    busy.value = false;
+  }
+}
+async function initializeFromCloud(token: string) {
+  if (busy.value || !setup.value) return false;
+  if (!(await validateForm(form.value))) return false;
+  busy.value = true;
+  error.value = "";
+  try {
+    await accept(
+      await desktop.initializeFromCloudBackup(token, password.value),
+    );
+    return true;
+  } catch (cause) {
+    error.value = errorMessage(cause);
+    // 导入中断时本机保险库可能已创建，读取状态后提供解锁或重新进入入口。
+    try {
+      status.value = await desktop.vaultStatus();
+    } catch {
+      /* 保留原错误。 */
+    }
+    throw cause;
+  } finally {
     password.value = "";
     confirmation.value = "";
     busy.value = false;
@@ -119,6 +159,7 @@ onMounted(inspect);
       <NCard
         :title="setup ? '设置数据保险库密码' : '解锁数据保险库'"
         class="vault-card"
+        :class="{ 'vault-card-cloud': setup && setupSource === 'cloud' }"
       >
         <NSpin :show="busy">
           <NText tag="p" depth="3">
@@ -129,6 +170,16 @@ onMounted(inspect);
             }}
           </NText>
           <NAlert v-if="warning" type="warning">{{ warning }}</NAlert>
+          <NRadioGroup
+            v-if="setup"
+            v-model:value="setupSource"
+            :disabled="formBusy"
+            aria-label="创建保险库方式"
+            class="setup-source"
+          >
+            <NRadioButton value="local">创建空保险库</NRadioButton>
+            <NRadioButton value="cloud">从云端备份初始化</NRadioButton>
+          </NRadioGroup>
           <NForm
             ref="form"
             :model="formModel"
@@ -144,7 +195,7 @@ onMounted(inspect);
                 v-model:value="formModel.password"
                 type="password"
                 show-password-on="click"
-                :disabled="busy"
+                :disabled="formBusy"
                 :input-props="{
                   autocomplete: setup ? 'new-password' : 'current-password',
                   maxlength: 1024,
@@ -152,23 +203,36 @@ onMounted(inspect);
                 autofocus
               />
             </NFormItem>
-            <NFormItem v-if="setup" label="确认密码" path="confirmation">
+            <NFormItem
+              ref="confirmationItem"
+              v-if="setup"
+              label="确认密码"
+              path="confirmation"
+            >
               <NInput
                 v-model:value="formModel.confirmation"
                 type="password"
-                :disabled="busy"
+                :disabled="formBusy"
                 :input-props="{ autocomplete: 'new-password', maxlength: 1024 }"
               />
             </NFormItem>
             <NButton
+              v-if="!setup || setupSource === 'local'"
               type="primary"
               attr-type="submit"
               :loading="busy"
-              :disabled="busy"
+              :disabled="formBusy"
             >
               {{ setup ? "创建并解锁" : "解锁" }}
             </NButton>
           </NForm>
+          <BackupPanel
+            v-if="setup && setupSource === 'cloud'"
+            initializing
+            :disabled="busy"
+            :initialize="initializeFromCloud"
+            @busy-change="backupBusy = $event"
+          />
           <NAlert v-if="error" type="error" class="vault-error">
             {{ error }}
           </NAlert>
@@ -219,6 +283,12 @@ onMounted(inspect);
 }
 .vault-card {
   width: min(520px, 100%);
+}
+.vault-card-cloud {
+  width: min(760px, 100%);
+}
+.setup-source {
+  margin-bottom: 20px;
 }
 .vault-error {
   margin-top: 16px;

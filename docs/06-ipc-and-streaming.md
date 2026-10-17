@@ -6,7 +6,7 @@
 
 控制面采用 Tauri Commands + `Channel<SessionEvent>`，负责状态、challenge 和终态。数据面采用 `Channel<ArrayBuffer>` 接收 Rust 原始响应；输出 bytes 通过 `tauri::ipc::Response` 等锁定 release 支持的 raw Channel 方式发送。原始 ArrayBuffer 的支持依据见 [Tauri Channel API](https://v2.tauri.app/reference/javascript/api/namespacecore/)，具体实现需 SP-02 验证。
 
-不使用全局终端 output event、不发 base64、不依赖 HTTP/WebSocket、不每个字符调用一次 IPC。两个 Channel 各自保持消息顺序，但不存在跨 Channel 的全局顺序，应用协议必须处理交错。
+终端不使用全局 output event、不发 base64、不依赖 HTTP/WebSocket、不每个字符调用一次 IPC；独立云备份的 HTTPS/Base64 加密包不属于终端数据面。两个 Channel 各自保持消息顺序，但不存在跨 Channel 的全局顺序，应用协议必须处理交错。
 
 SSH 的 startup 缺失默认 Shell，exec 命令按 UTF-8 字节限额及 NUL/空白校验；保存目标仍只提交 profileId，由 Rust 加载最新配置。SessionSnapshot.sshCommand 表示本次实际采用的终端命令模式，随各状态快照返回，供广播隔离、关闭提醒与重新运行文案使用；不返回命令正文。独立 SFTP/转发连接清除启动设置，不执行主机的终端命令。沿用 open/save/write/close 及既有 ACL，无新增自定义命令。
 
@@ -259,7 +259,7 @@ macOS 拖出 names 最多 100 个普通文件或真实目录根，directories �
 
 ## 数据保险库解锁命令
 
-`vault_status() -> {mode: "setup"|"locked"|"unlocked", keychainWarning: string|null, cleanupWarning: string|null}` 每进程最多自动尝试一次系统主密钥；`unlock_vault({password: string, setup: boolean})` 在Rust阻塞池派生并校验，成功后返回同一状态DTO。二者均校验main窗口及本地导航，加入AppManifest命令名单与main capability。密码/主密钥不出现在返回值或事件中。其他用例命令先检查保险库已解锁，否则返回VAULT_LOCKED；前端统一经desktop门面。
+`vault_status() -> {mode: "setup"|"locked"|"unlocked", keychainWarning: string|null, cleanupWarning: string|null}` 每进程最多自动尝试一次系统主密钥；`unlock_vault({password: string, setup: boolean})` 在Rust阻塞池派生并校验，成功后返回同一状态DTO。二者均校验main窗口及本地导航，加入AppManifest命令名单与main capability。密码/主密钥不出现在返回值或事件中。除下文明确授权的全新 setup 云初始化流程，其他用例命令先检查保险库已解锁，否则返回VAULT_LOCKED；前端统一经desktop门面。
 
 `change_vault_password({oldPassword: string, newPassword: string}) -> {keychainWarning: string|null, cleanupWarning: string|null}` 只允许已解锁的 main/settings 本地窗口，经 settings_owner、COMMANDS/AppManifest、handler 及两个 capability 的专用 allow-change-vault-password 授权。确认密码只在前端校验；Rust 独立校验旧密码、新密码长度与不同值，阻塞池派生密钥。独立任务持有改密流程，IPC 接收端消失不取消文件切换。提交后缓存或旧副本清理失败返回成功及相应警告；提交前失败恢复旧文件组合，恢复失败保留记录并拒绝业务。无秘密结果/事件、任意路径或通用 SQL 参数。数据/迁移格式不变，详见[存储契约](07-storage.md#修改密码与中断恢复)。
 
@@ -277,7 +277,7 @@ macOS 拖出 names 最多 100 个普通文件或真实目录根，directories �
 
 `open_settings_window()`仅main可调用且要求已解锁，Rust创建/聚焦settings窗口。`get_settings`返回完整AppSettings；`save_settings`在设置专用异步互斥队列中读取最新快照、合并patch并校验后写库，返回完整快照。hostsView/hostSearch额外按子字段合并，其余字段整体替换；默认值仅在无记录时使用，旧版本拒绝写入，兼容旧字体/配色归一。成功后Rust广播无秘密的`settings-changed`失效通知，两个窗口串行重读；前端不发送设置事件。数据库schema及设置schemaVersion不变。
 
-settings窗口仅开放设置、change_vault_password和export_json，这些命令使用独立settings_owner检查窗口身份、本地来源和解锁状态；list_known_hosts/revoke_known_host/list_history/clear_history随业务页面移入保险箱，改用仅main可用的owner，且从settings capability移除。其余资源owner保持main限制。新增命令纳入COMMANDS/AppManifest、handler和main capability；settings使用独立capability。
+settings窗口仅开放设置、change_vault_password、export_json及下文7个已解锁备份命令，这些命令使用独立settings_owner检查窗口身份、本地来源和解锁状态；list_known_hosts/revoke_known_host/list_history/clear_history随业务页面移入保险箱，改用仅main可用的owner，且从settings capability移除。其余资源owner保持main限制。新增命令纳入COMMANDS/AppManifest、handler和main capability；settings使用独立capability。
 
 ## SSH 系统图标契约
 
@@ -294,3 +294,26 @@ Telnet新增typed目标`{source:"telnet",config:{configVersion:1,address,port}}`
 save_workspace({draft:{name,workspace,expectedRevision}}) 保存布局/引用并返回 HostProfile，新建与同名替换由 Rust 事务决定；替换需匹配 workspace revision。SavedWorkspace 仅 root/focusedIndex，叶子为保存连接 profileId，无秘密、会话或输出；限额/字段/失效引用与权限见 [工作区](18-terminal-workspaces.md#8-显式保存与替换工作区)。
 
 app.primaryColor 为六位 HEX 或空串，缺失/空串沿用库默认色，复用设置局部保存/跨窗口同步，不改变存储或 IPC 协议版本。
+
+## 云端备份与非覆盖同步
+
+8 个命令统一经 desktop 门面，注册于 COMMANDS/AppManifest、handler 及 capability；`permissions/backup.toml` 的 `allow-cloud-backup-settings` 向 main/settings 授权前7项，`allow-initialize-from-cloud-backup` 仅向 main 授权最后一项。常规操作要求 settings_owner 与已解锁；test/list/prepare 在 `initializing=true` 时仅接受本地 main 且保险库必须为全新 setup，已有 locked 库无法使用此分支。
+
+| 命令 | 参数 | 返回 / 语义 |
+| --- | --- | --- |
+| get_backup_config | 无 | BackupConfigView 或 null，不含秘密 |
+| save_backup_config | config: BackupConfigDraft | 脱敏 View；加密 settings.backup 独立于 AppSettings |
+| test_backup_config | config、initializing? | void；测试服务访问，不创建备份 |
+| list_cloud_backups | config?、initializing?、offset?、limit? | BackupListEntry[]；默认10项、最多20项，逐包下载解密元数据 |
+| create_cloud_backup | deviceName? | BackupListEntry；独立上传新版本，不覆盖远端对象 |
+| prepare_cloud_restore | config?、backupId、initializing? | {token, metadata}；下载/认证/解压/校验，尚不写本机业务数据 |
+| apply_cloud_restore | token | {counts, warnings}；明确确认后非覆盖新增合并 |
+| initialize_from_cloud_backup | token、password（本机新密码） | VaultStatus；创建本机保险库，业务数据与云端配置同事务导入 |
+
+BackupConfigDraft 为 `{provider: "gist"|"webdav", endpoint, username, secret?, backupPassword?, deviceName}`；View 不含 secret/backupPassword，仅附加 hasSecret/hasBackupPassword。只有 provider/endpoint/username 与本机已保存目标完全相同时允许省略 secret/backupPassword，变更认证目标须重新输入。密码和 Token 不进入事件、日志或返回值；备份密码独立于本机保险库密码，至少12字符且不超过1024 UTF-8字节，与Token一起加密保存在本机settings.backup版本2；旧版本1可读取并补填密码。上传/列表/下载使用配置内密码，没有独立密码参数；首次setup从config.backupPassword读取并在确认后保存。初始化预览令牌绑定本次填写的云配置，确认时不接受前端另传配置。
+
+BackupListEntry 为 `{id,size?,metadata,error?}`；无法读取/解密的 metadata 为 null，只返回通用错误。metadata 包含 backupId、createdAt（Unix毫秒）、deviceName、appVersion 与 counts；counts 含 hosts/groups/credentials/forwards/knownHosts。它们在云端包内均加密，IPC 只返回使用已配置密码解密的轻量信息；数据库正文不进入 IPC。列表分页与云服务下载不构成自动同步。
+
+预览令牌绑定调用窗口及 initializing 模式，有效期5分钟，每窗口最多保留一份明文快照；来源业务 ID、关联及元数据计数在 Rust 校验。确认后的导入在独立任务中完成，窗口或应答接收端消失不取消事务；完成摘要短期保留供同一令牌幂等重试。来源 ID 重新映射、名称冲突另存，信任冲突跳过并返回 warnings；不覆盖本机设置或现有会话。首次初始化若本机库已创建但导入失败，返回明确错误，前端重读 vault_status 后进入本机库再重试。
+
+`backup-restored` 与 `backup-config-changed` 只作无正文失效通知，不携带密码、数据库或云凭据。schema 6、已应用迁移、AppSettings DTO 和终端协议版本保持不变。没有本地文件备份/恢复命令、自动同步或取消 IPC；云端/内存限额及 provider 扩展边界见[备份与同步](22-data-backup.md)。本节为源码契约，尚未编译或运行验收。

@@ -1,3 +1,5 @@
+mod backup;
+mod backup_runtime;
 mod commands;
 mod file_drag;
 mod files;
@@ -70,6 +72,7 @@ pub fn run() {
                 .with_factory(Arc::new(terminal_telnet::TelnetFactory));
             app.manage(file_drag::LocalDropRegistry::default());
             app.manage(AppState {
+                backup: backup_runtime::BackupRuntime::default(),
                 settings_gate: tokio::sync::Mutex::new(()),
                 sessions,
                 file_sessions,
@@ -89,6 +92,7 @@ pub fn run() {
                 loop {
                     interval.tick().await;
                     let state = handle.state::<AppState>();
+                    state.backup.cleanup();
                     let now = Instant::now();
                     let mut heartbeat = state.heartbeat.lock().unwrap();
                     // 睡眠后的大时间跳跃重新开始失联预算，避免把系统挂起当作前端崩溃。
@@ -134,6 +138,7 @@ pub fn run() {
             file_drag::on_window_event(window, event);
             if matches!(event, tauri::WindowEvent::Destroyed) {
                 if let Some(state) = window.try_state::<AppState>() {
+                    state.backup.clear_owner(window.label());
                     state.sessions.close_owner(window.label());
                     state.file_sessions.close_owner(window.label());
                     state.forward_sessions.close_owner(window.label());
@@ -149,6 +154,14 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            commands::get_backup_config,
+            commands::save_backup_config,
+            commands::test_backup_config,
+            commands::list_cloud_backups,
+            commands::create_cloud_backup,
+            commands::prepare_cloud_restore,
+            commands::apply_cloud_restore,
+            commands::initialize_from_cloud_backup,
             commands::list_port_forwards,
             commands::save_port_forward,
             commands::delete_port_forward,

@@ -15,11 +15,15 @@ import { ref, onMounted } from "vue";
 import { confirmAction } from "../../components/ui/confirmation";
 import { desktop, errorMessage } from "../../services/desktop/client";
 import type { KnownHost } from "../../services/desktop/types";
+import { useBackupRestored } from "../backup/useBackupRestored";
 const error = ref("");
 const known = ref<KnownHost[]>([]);
 const loading = ref(true);
 const busy = ref(false);
 onMounted(load);
+useBackupRestored(load, (cause) => {
+  error.value = errorMessage(cause);
+});
 async function load() {
   loading.value = true;
   error.value = "";

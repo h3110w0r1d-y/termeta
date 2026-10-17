@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-initialize-from-cloud-backup"
+description = "Enables the initialize_from_cloud_backup command without any pre-configured scope."
+commands.allow = ["initialize_from_cloud_backup"]
+
+[[permission]]
+identifier = "deny-initialize-from-cloud-backup"
+description = "Denies the initialize_from_cloud_backup command without any pre-configured scope."
+commands.deny = ["initialize_from_cloud_backup"]

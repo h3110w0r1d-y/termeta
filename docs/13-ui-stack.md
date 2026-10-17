@@ -72,7 +72,13 @@ Vue 使用仓库 Prettier，htmlWhitespaceSensitivity=ignore 仅限 *.vue；pnpm
 
 VaultGate 使用库表单完成首次密码或自动/密码解锁，缓存失败保留已解锁并显示警告。业务未解锁不挂载，窗口操作保留。秘密不进入页面长期状态；私钥/文件正文 Rust 读取，不开放任意本地路径读写。库适配不放宽 CSP script-src、导航或 IPC owner。
 
-SSH 主机/快速连接提供密码和公钥，OTP/PAM 由服务端协商；Telnet 隐藏 SSH 认证并显示明文说明，Serial 仅参数配置。设置窗口只允许设置、专用保险库改密/JSON 导出；改密采用独立共享 model 的 NForm 与 AppDialog footer，不写入设置草稿。详见 [安全设计](08-security.md)。
+SSH 主机/快速连接提供密码和公钥，OTP/PAM 由服务端协商；Telnet 隐藏 SSH 认证并显示明文说明，Serial 仅参数配置。设置窗口只允许设置、专用保险库改密/JSON 导出及备份同步命令；改密采用独立共享 model 的 NForm 与 AppDialog footer，不写入设置草稿。详见 [安全设计](08-security.md)。
+
+## 备份界面与模块复用
+
+`modules/backup/BackupPanel.vue` 复用 Naive UI 的配置表单（含备份密码）、服务与操作选择、版本列表和预览确认框，供独立设置与首次 VaultGate 初始化共同装配；密码与确认字段绑定同一配置表单的共享响应式model，导入确认弹窗独立，避免嵌套 HTML form。`useCloudBackup.ts` 管理操作、分页元数据、脱敏配置与短期预览令牌；`useBackupRestored.ts` 订阅无正文的失效事件。未来新增云提供方复用 desktop 类型化门面及 Rust provider 边界，不在组件中实现网络或加密。
+
+云配置显式保存，上传/列表前也会保存有效配置；不并入 AppSettings 自动保存草稿。秘密只作为用户输入短期持有，已保存秘密仅显示 hasSecret/hasBackupPassword 占位；卸载清空密码输入，成功提交清除相应秘密。备份密码与Token一样在配置时加密保存，后续上传/下载不重复输入；初次或修改密码须确认，旧配置补填后升级为版本2。下载元数据使用配置中的密码解密，按10项分页；正文不进入 WebView/Pinia。导入预览使用 AppDialog 独立 footer，确认前不写入，忙碌时禁用操作并阻止设置关闭；配置或备份密码变化清空旧列表/预览。首次云端初始化仅 setup 状态展示，现有 locked 库保留普通解锁。详见[桌面交互](09-desktop-ux.md#13-手动备份与云端同步)和[备份设计](22-data-backup.md)。
 
 ## 表单响应式模型与校验时序
 

@@ -57,6 +57,7 @@ import type {
   OpenTarget,
 } from "./services/desktop/types";
 import { useSettingsSync } from "./modules/settings/useSettingsSync";
+import { useBackupRestored } from "./modules/backup/useBackupRestored";
 const settingsSync = useSettingsSync();
 const hosts = useHosts(),
   settings = useSettings(),
@@ -78,6 +79,15 @@ watch(settingsSync.error, (message) => {
   if (message) initError.value = message;
 });
 const vaultReady = ref(false);
+useBackupRestored(
+  async () => {
+    if (vaultReady.value)
+      await Promise.all([hosts.load(), portForwards.load()]);
+  },
+  (cause) => {
+    initError.value = errorMessage(cause);
+  },
+);
 async function loadUnlocked() {
   await Promise.all([hosts.load(), portForwards.load(), settingsSync.start()]);
   vaultReady.value = true;

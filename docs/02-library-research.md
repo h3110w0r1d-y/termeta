@@ -96,3 +96,21 @@ SSH 系统识别使用锁定 russh 的远端标识、独立 session channel/exec
 SQLx 0.8.6 的 SQLite 迁移事务由 Migrator 管理，当前已取得连接后使用 run_direct；父表重建的 foreign_keys 切换在专用连接的迁移事务外完成，恢复/检查后才发布池。不是通过 SQL 脚本内 PRAGMA 或 no-transaction 标记绕过事务。完整升级链及回归边界见 [存储](07-storage.md)。
 
 清单/锁解析、下载源码和格式检查不等于编译兼容、漏洞处置或运行验收。完整公告与许可、实际启用依赖、MSRV 和三平台原生工具链须发布前重新核验，已知未关闭风险见 [公告记录](01-product-requirements.md#10-依赖与公告核查)。
+
+## 9. 云备份依赖与格式边界
+
+2026-10-17新增直接依赖并同步Cargo.lock，核对固定发布包源码而非latest页：
+
+| 依赖 | features / MSRV / 许可 | 本项目使用与核对 |
+| --- | --- | --- |
+| reqwest =0.13.5 | default-features=false；rustls,json；Rust1.85；MIT OR Apache-2.0 | HTTPS、redirect none、retry never、连接/读取/总超时、Response::chunk有界读取；TLS使用平台证书验证，不关闭证书检查 |
+| quick-xml =0.42.0 | default-features=false；Rust1.86；MIT | NsReader/ResolveResult/read_resolved_event、命名空间绑定数限制；只解析受限UTF-8 DAV响应，不启用外部实体 |
+| zstd =0.13.3 | default-features=false；Rust1.64；MIT | stream write Encoder level3及read Decoder::window_log_max；先压缩SQLite再整包加密 |
+| base64 =0.22.1 | 默认std；Rust1.48；MIT OR Apache-2.0 | STANDARD包编码，STANDARD_NO_PAD主机指纹验证；同workspace既有版本 |
+| futures-util 0.3.31范围，锁0.3.34 | 当前默认features；MIT OR Apache-2.0 | TryStreamExt逐行消费SQLx快照，不新增不同版本 |
+
+zstd-safe锁7.3.0、zstd-sys锁2.1.2+zstd.1.5.7均为BSD-3-Clause、声明Rust1.64；引入Zstd原生C编译。reqwest rustls路径加入rustls0.23.46、aws-lc-rs1.18.2和aws-lc-sys0.46.0等原生/平台依赖，三平台工具链、许可集合与实际链接待编译核验。直接依赖声明低于项目Rust1.89不代表整个传递集合已兼容。
+
+SQLite快照沿用锁定libsqlite3-sys0.30.1的bundled-sqlcipher绑定及内嵌源码；已静态核对sqlite3_serialize/deserialize、authorizer/progress和DBCONFIG常量。当前build配置未设置SQLITE_OMIT_DESERIALIZE，不另引入普通SQLite库；仍需运行核验SQLCipher内存快照行为。密码学复用既有argon2/aes-gcm/zeroize，固定参数与数据限额见[数据备份](22-data-backup.md)。
+
+依赖解析/下载未执行构建脚本，未进行项目编译或网络联调。最新公开安全公告的在线查询未完整取得，新增依赖尚未完成RustSec/传递依赖全面审计，不能记为无漏洞或发布风险已关闭。
