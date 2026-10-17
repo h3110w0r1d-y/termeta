@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 import { defineStore } from "pinia";
 import { computed, onScopeDispose, reactive, ref, watch } from "vue";
 import { desktop, errorMessage } from "../../services/desktop/client";
@@ -78,7 +79,7 @@ export const usePortForwards = defineStore("port-forwards", () => {
     if (!runtime || (runtime.ended && event.type !== "ended")) return;
     runtime.sessionId = event.sessionId;
     workspace.connectionTitles[event.sessionId] =
-      profiles.value.find((p) => p.id === id)?.name ?? "端口转发";
+      profiles.value.find((p) => p.id === id)?.name ?? t("端口转发");
     if (event.type === "stateChanged") update(id, event.snapshot);
     else if (
       event.type === "hostKeyChallenge" ||

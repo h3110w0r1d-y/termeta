@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from "../../i18n";
 import { Star } from "@vicons/ionicons5";
 import { computed, h, ref, watch, type HTMLAttributes } from "vue";
 import {
@@ -40,7 +41,9 @@ const options = computed<SelectOption[]>(() => {
   if (matches.value.length > 100)
     result.push({
       value: "more",
-      label: `共 ${matches.value.length} 台，仅显示前100台，请缩小搜索范围`,
+      label: t("共 {count} 台，仅显示前100台，请缩小搜索范围", {
+        count: matches.value.length,
+      }),
       disabled: true,
     });
   return result;
@@ -51,7 +54,7 @@ function renderLabel(option: SelectOption) {
   return h(NSpace, { vertical: true, size: 0 }, () => [
     h(NEllipsis, null, () => [
       host.favorite
-        ? h(NIcon, { size: 16, role: "img", "aria-label": "已收藏" }, () =>
+        ? h(NIcon, { size: 16, role: "img", "aria-label": t("已收藏") }, () =>
             h(Star),
           )
         : null,
@@ -101,8 +104,8 @@ defineExpose({ focus: () => input.value?.focusInput() });
       filterable
       remote
       clear-filter-after-select
-      placeholder="搜索全部主机…"
-      aria-label="搜索全部主机"
+      :placeholder="t('搜索全部主机…')"
+      :aria-label="t('搜索全部主机')"
       @search="query = $event"
       @update:show="shown = $event"
       @update:value="select"
@@ -119,7 +122,7 @@ defineExpose({ focus: () => input.value?.focusInput() });
         </div>
       </template>
       <template #empty>
-        {{ query.trim() ? "没有匹配的主机" : "输入关键词搜索全部主机" }}
+        {{ query.trim() ? t("没有匹配的主机") : t("输入关键词搜索全部主机") }}
       </template>
     </NSelect>
   </div>

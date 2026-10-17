@@ -34,7 +34,7 @@ pub fn configure(app: &tauri::App) -> tauri::Result<()> {
     }
     if let Some(tauri::menu::MenuItemKind::Submenu(application)) = menu.items()?.first() {
         application.insert(
-            &MenuItem::with_id(app, "termeta.settings", "设置…", true, None::<&str>)?,
+            &MenuItem::with_id(app, "termeta.settings", "设置", true, Some("Cmd+,"))?,
             1,
         )?;
     }

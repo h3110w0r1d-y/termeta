@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { t } from "../i18n";
 import { NMenu } from "naive-ui";
-import { h } from "vue";
+import { computed, h } from "vue";
 import VaultNavigationIcon from "./VaultNavigationIcon.vue";
 import AppScrollArea from "../components/ui/AppScrollArea.vue";
 import HostsPage from "../modules/hosts/HostsPage.vue";
@@ -15,17 +16,19 @@ import {
 } from "../modules/workspace/store";
 import type { HostKind, HostProfile } from "../services/desktop/types";
 const workspace = useWorkspace();
-const navigationItems: { key: VaultSection; label: string }[] = [
-  { key: "hosts", label: "主机" },
-  { key: "forwarding", label: "端口转发" },
-  { key: "credentials", label: "凭据" },
-  { key: "known-hosts", label: "主机信任" },
-  { key: "history", label: "连接历史" },
-];
-const navigationOptions = navigationItems.map((item) => ({
-  ...item,
-  icon: () => h(VaultNavigationIcon, { section: item.key }),
-}));
+const navigationOptions = computed(() => {
+  const items: { key: VaultSection; label: string }[] = [
+    { key: "hosts", label: t("主机") },
+    { key: "forwarding", label: t("端口转发") },
+    { key: "credentials", label: t("凭据") },
+    { key: "known-hosts", label: t("主机信任") },
+    { key: "history", label: t("历史") },
+  ];
+  return items.map((item) => ({
+    ...item,
+    icon: () => h(VaultNavigationIcon, { section: item.key }),
+  }));
+});
 const emit = defineEmits<{
   connect: [host: HostProfile];
   connectMany: [HostProfile[], TerminalOpenMode];
@@ -42,10 +45,11 @@ const emit = defineEmits<{
     v-show="workspace.activeId === 'home'"
     class="vault-workspace"
     role="tabpanel"
-    aria-label="保险箱"
+    :aria-label="t('保险箱')"
   >
     <aside class="vault-navigation">
       <NMenu
+        :root-indent="18"
         :value="workspace.vaultSection"
         :options="navigationOptions"
         @update:value="workspace.openVault($event)"
@@ -75,28 +79,28 @@ const emit = defineEmits<{
         v-show="workspace.vaultSection === 'forwarding'"
         class="vault-page-scroll"
       >
-        <AppScrollArea label="端口转发内容">
+        <AppScrollArea :label="t('端口转发内容')">
           <PortForwardingPage />
         </AppScrollArea>
       </div>
       <AppScrollArea
         v-if="workspace.vaultSection === 'credentials'"
         class="vault-page-scroll"
-        label="凭据内容"
+        :label="t('凭据内容')"
       >
         <CredentialsPage />
       </AppScrollArea>
       <AppScrollArea
         v-if="workspace.vaultSection === 'known-hosts'"
         class="vault-page-scroll"
-        label="主机信任内容"
+        :label="t('主机信任内容')"
       >
         <KnownHostsPage />
       </AppScrollArea>
       <AppScrollArea
         v-if="workspace.vaultSection === 'history'"
         class="vault-page-scroll"
-        label="连接历史内容"
+        :label="t('连接历史内容')"
       >
         <ConnectionHistoryPage />
       </AppScrollArea>
@@ -112,7 +116,7 @@ const emit = defineEmits<{
 .vault-navigation {
   width: 190px;
   flex-shrink: 0;
-  padding: 12px;
+  padding-top: 3px;
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--border);
@@ -129,20 +133,5 @@ const emit = defineEmits<{
 .vault-page-scroll {
   flex: 1;
   min-height: 0;
-}
-.tabs-left .vault-navigation {
-  width: 160px;
-  padding-left: 8px;
-  padding-right: 8px;
-}
-@media (max-width: 900px) {
-  .vault-navigation {
-    width: 150px;
-    padding-left: 8px;
-    padding-right: 8px;
-  }
-  .tabs-left .vault-navigation {
-    width: 130px;
-  }
 }
 </style>

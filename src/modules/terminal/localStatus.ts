@@ -1,3 +1,4 @@
+import { locale, t } from "../../i18n";
 import type { Terminal } from "@xterm/xterm";
 
 /** 在连接边界追加可信本地消息，不恢复旧光标或清空终端历史。 */
@@ -18,12 +19,12 @@ export function writeLocalStatus(term: Terminal, message: string) {
       );
       bytes += new TextEncoder().encode(line).length;
       if (bytes > 1024 * 1024) {
-        lines.push("[全屏画面快照超过 1 MiB，已截断]");
+        lines.push(t("[全屏画面快照超过 1 MiB，已截断]"));
         break;
       }
       lines.push(line);
     }
-    snapshot = "\r\n[断开前全屏画面快照]\r\n" + lines.join("\r\n") + "\r\n";
+    snapshot = t("\r\n[断开前全屏画面快照]\r\n") + lines.join("\r\n") + "\r\n";
   }
   // v6 Utf8ToUtf32 对 ASCII 非续字节会丢弃残留；必须用 bytes 写 CAN，字符串使用另一解码器。
   // 普通缓冲区不切屏、不恢复光标；全屏末帧有界保留后才退出备用缓冲区。
@@ -34,7 +35,7 @@ export function writeLocalStatus(term: Terminal, message: string) {
       modes +
         leaveAlternate +
         snapshot +
-        `\r\n\x1b[90m[${new Date().toLocaleTimeString()}] ${safe(message)}\x1b[0m\r\n`,
+        `\r\n\x1b[90m[${new Date().toLocaleTimeString(locale.value)}] ${safe(message)}\x1b[0m\r\n`,
     ),
   );
 }

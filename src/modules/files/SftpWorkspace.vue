@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from "../../i18n";
 import {
   computed,
   nextTick,
@@ -269,8 +270,14 @@ function keydown(event: KeyboardEvent) {
 watch(() => workspace.activeId, releaseDrag);
 const detail = computed(() => {
   const value = progress.value;
-  if (!value) return "准备对拷…";
-  return `${value.currentName ?? "正在传输"} · ${value.completedFiles ?? 0}/${value.totalFiles ?? "?"} 个文件 · ${formatFileSize(value.transferred)}${value.total ? ` / ${formatFileSize(value.total)}` : ""}`;
+  if (!value) return t("准备对拷…");
+  return t("{name} · {completed}/{total} 个文件 · {transferred}{size}", {
+    name: value.currentName ?? t("正在传输"),
+    completed: value.completedFiles ?? 0,
+    total: value.totalFiles ?? "?",
+    transferred: formatFileSize(value.transferred),
+    size: value.total ? ` / ${formatFileSize(value.total)}` : "",
+  });
 });
 onMounted(() => {
   window.addEventListener("pointermove", moveDrag, { passive: false });
@@ -303,17 +310,17 @@ onBeforeUnmount(() => {
     aria-labelledby="workspace-tab-sftp"
     class="sftp-workspace"
     role="tabpanel"
-    aria-label="双栏 SFTP 文件工作区"
+    :aria-label="t('双栏 SFTP 文件工作区')"
   >
     <NAlert v-if="error" type="error" closable @close="error = ''">
       {{ error }}
     </NAlert>
     <NAlert v-else-if="message" type="success" closable @close="message = ''">
-      {{ message }}
+      {{ t(message) }}
     </NAlert>
     <NFlex v-if="copying" align="center" :wrap="false">
       <NText class="copy-progress">{{ detail }}</NText>
-      <NButton size="small" @click="cancelCopy">取消对拷</NButton>
+      <NButton size="small" @click="cancelCopy">{{ t("取消对拷") }}</NButton>
     </NFlex>
     <div class="endpoint-grid">
       <div
@@ -351,8 +358,11 @@ onBeforeUnmount(() => {
         :style="{ left: `${drag.x + 14}px`, top: `${drag.y + 14}px` }"
       >
         <NTag :type="drag.target !== undefined ? 'success' : 'default'">
-          复制 {{ drag.count }} 项
-          {{ drag.target !== undefined ? "到对侧当前目录" : " · 拖到另一栏" }}
+          {{
+            drag.target !== undefined
+              ? t("复制 {count} 项到对侧文件夹", { count: drag.count })
+              : t("复制 {count} 项 · 拖到另一栏", { count: drag.count })
+          }}
         </NTag>
       </div>
     </Teleport>

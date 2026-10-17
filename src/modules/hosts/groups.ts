@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 import type { HostGroup } from "../../services/desktop/types";
 
 // 分组关系只处理轻量元数据；遍历保留环保护，避免异常数据阻塞界面。
@@ -26,7 +27,7 @@ export function groupPath(groups: HostGroup[], id: string | null): string {
     names.unshift(group.name);
     id = group.parentId;
   }
-  return names.join(" / ") || "未分组";
+  return names.join(" / ") || t("未分组");
 }
 
 export function groupChoices(

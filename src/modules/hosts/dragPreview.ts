@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 // Pointer Events 不提供原生拖动影像；使用只读DOM快照保留库组件的当前外观。
 export function createDragPreview(
   source: HTMLElement,
@@ -51,7 +52,9 @@ export function createDragPreview(
   return {
     move(x: number, y: number, target: string | null) {
       preview.style.transform = `translate3d(${x - offsetX}px, ${y - offsetY}px, 0)`;
-      hint.textContent = target ? `移到：${target}` : "⊘ 当前位置不可放置";
+      hint.textContent = target
+        ? t("移到：{target}", { target: target })
+        : t("⊘ 当前位置不可放置");
     },
     dispose() {
       preview.replaceChildren();

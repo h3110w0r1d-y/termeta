@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from "../../i18n";
 import { AddOutline, RefreshOutline, CloseOutline } from "@vicons/ionicons5";
 import { NIcon, NTabs, NTab } from "naive-ui";
 import AppCheckbox from "../../components/ui/AppCheckbox.vue";
@@ -33,8 +34,10 @@ const bindings = computed(() =>
     (b) =>
       b.scope === category.value &&
       (
-        (commandDefinitions.find((d) => d[0] === b.commandId)?.[1] ??
-          b.commandId) +
+        t(
+          commandDefinitions.find((d) => d[0] === b.commandId)?.[1] ??
+            b.commandId,
+        ) +
         " " +
         keyLabel(b)
       )
@@ -80,14 +83,18 @@ async function importKeys(event: Event) {
   try {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
-    if (file.size > 1048576) throw new Error("文件过大");
+    if (file.size > 1048576) throw new Error(t("文件过大"));
     const raw = parseJson(await file.text()) as {
       schemaVersion: number;
       bindings: unknown;
     };
-    if (raw.schemaVersion !== 1) throw new Error("快捷键版本不支持");
+    if (raw.schemaVersion !== 1) throw new Error(t("快捷键版本不支持"));
     const result = upgradeBindings(validateBindings(raw.bindings));
-    if (await confirmAction(`导入 ${result.length} 个绑定并替换当前编辑内容？`))
+    if (
+      await confirmAction(
+        t("导入 {count} 个绑定并替换当前编辑内容？", { count: result.length }),
+      )
+    )
       draft.value.keymap = { schemaVersion: 1, bindings: result };
   } catch (e) {
     error.value = errorMessage(e);
@@ -97,23 +104,32 @@ async function importKeys(event: Event) {
 <template>
   <div>
     <div class="button-row">
-      <NTabs v-model:value="category" type="segment" aria-label="快捷键分类">
-        <NTab name="application">全局快捷键</NTab>
-        <NTab name="terminal">终端快捷键</NTab>
+      <NTabs
+        v-model:value="category"
+        type="segment"
+        :aria-label="t('快捷键分类')"
+      >
+        <NTab name="application">{{ t("全局快捷键") }}</NTab>
+        <NTab name="terminal">{{ t("终端快捷键") }}</NTab>
       </NTabs>
-      <AppInput v-model="shortcutSearch" placeholder="搜索动作或按键…" />
+      <AppInput v-model="shortcutSearch" :placeholder="t('搜索动作或按键…')" />
     </div>
     <div v-for="b in bindings" :key="b.id" class="shortcut-row">
       <AppCheckbox v-model="b.enabled">
-        {{ commandDefinitions.find((d) => d[0] === b.commandId)?.[1] }}
+        {{
+          t(
+            commandDefinitions.find((d) => d[0] === b.commandId)?.[1] ??
+              b.commandId,
+          )
+        }}
       </AppCheckbox>
       <template v-if="b.trigger.type === 'pointer'">
         <AppSelect
           v-model="b.trigger.modifiers[0]"
           :options="[
-            { value: 'Primary', label: 'Cmd / Ctrl + 点击' },
-            { value: 'Alt', label: 'Alt + 点击' },
-            { value: 'Shift', label: 'Shift + 点击' },
+            { value: 'Primary', label: t('Cmd / Ctrl + 点击') },
+            { value: 'Alt', label: t('Alt + 点击') },
+            { value: 'Shift', label: t('Shift + 点击') },
           ]"
         />
       </template>
@@ -125,12 +141,14 @@ async function importKeys(event: Event) {
         @keydown="record($event, b)"
       >
         {{
-          recording === b.id ? "按组合键，Esc 取消" : keyLabel(b) || "未绑定"
+          recording === b.id
+            ? t("按组合键，Esc 取消")
+            : keyLabel(b) || t("未绑定")
         }}
       </AppButton>
       <AppButton
         class="icon-button"
-        title="增加同动作绑定"
+        :title="t('增加同动作绑定')"
         @click="
           draft.keymap.bindings.push({
             ...clone(b),
@@ -143,12 +161,16 @@ async function importKeys(event: Event) {
       </AppButton>
       <AppButton
         class="icon-button"
-        title="恢复此动作默认"
+        :title="t('恢复此动作默认')"
         @click="resetBinding(b)"
       >
         <NIcon :size="16" aria-hidden="true"><RefreshOutline /></NIcon>
       </AppButton>
-      <AppButton class="icon-button" title="删除绑定" @click="removeBinding(b)">
+      <AppButton
+        class="icon-button"
+        :title="t('删除绑定')"
+        @click="removeBinding(b)"
+      >
         <NIcon :size="16" aria-hidden="true"><CloseOutline /></NIcon>
       </AppButton>
     </div>
@@ -156,15 +178,14 @@ async function importKeys(event: Event) {
       {{ conflict(draft.keymap.bindings) }}
     </p>
     <p class="muted">
-      Ctrl+C
-      等远端控制键若被配置，将被本地截获。本地终端动作已启用；系统后台热键未启用。
+      {{ t("将 Ctrl+C 等组合键设为快捷键后，它们将不再发送到远端。") }}
     </p>
     <div class="button-row">
       <AppButton @click="draft.keymap.bindings = defaults()">
-        全部恢复默认
+        {{ t("全部恢复默认") }}
       </AppButton>
-      <AppButton @click="exportKeys">导出配置</AppButton>
-      <AppButton @click="keyFile?.click()">导入配置</AppButton>
+      <AppButton @click="exportKeys">{{ t("导出配置") }}</AppButton>
+      <AppButton @click="keyFile?.click()">{{ t("导入配置") }}</AppButton>
       <input
         ref="keyFile"
         hidden

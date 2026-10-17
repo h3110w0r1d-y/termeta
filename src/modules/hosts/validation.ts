@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 import type { FormItemRule } from "naive-ui";
 import type { HostProfile } from "../../services/desktop/types";
 
@@ -13,6 +14,6 @@ export function uniqueHostNameRule(
       !profiles().some(
         (host) => host.id !== exceptId() && host.name === value.trim(),
       ) ||
-      new Error("名称已存在，SSH、Telnet、串口与工作区名称不能重复"),
+      new Error(t("名称已被其他主机或工作区使用")),
   };
 }

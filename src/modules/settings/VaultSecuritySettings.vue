@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from "../../i18n";
 import { onBeforeUnmount, reactive, ref, watch } from "vue";
 import {
   NAlert,
@@ -30,7 +31,7 @@ const rules: FormRules = {
     trigger: ["input", "blur"],
     validator: (_, value: string) =>
       (value.length > 0 && new TextEncoder().encode(value).length <= 1024) ||
-      new Error("请输入旧密码，UTF-8编码不超过1024字节"),
+      new Error(t("请输入旧密码，长度不能超过1024字节")),
   },
   newPassword: {
     required: true,
@@ -40,8 +41,10 @@ const rules: FormRules = {
         [...value].length < 12 ||
         new TextEncoder().encode(value).length > 1024
       )
-        return new Error("新密码至少12个字符，UTF-8编码不超过1024字节");
-      return value !== model.oldPassword || new Error("新密码不能与旧密码相同");
+        return new Error(t("新密码至少12个字符，长度不能超过1024字节"));
+      return (
+        value !== model.oldPassword || new Error(t("新密码不能与旧密码相同"))
+      );
     },
   },
   confirmation: {
@@ -49,7 +52,7 @@ const rules: FormRules = {
     trigger: ["input", "blur"],
     validator: (_, value: string) =>
       (value.length > 0 && value === model.newPassword) ||
-      new Error("两次输入的新密码须一致"),
+      new Error(t("两次输入的新密码须一致")),
   },
 };
 watch(
@@ -104,17 +107,21 @@ onBeforeUnmount(clear);
 
 <template>
   <section class="vault-security">
-    <h3>保险库密码</h3>
-    <p class="muted">修改密码将重新加密本机保存的主机、凭据、设置和历史。</p>
-    <NAlert v-if="success" type="success">保险库密码已修改。</NAlert>
+    <h3>{{ t("保险库密码") }}</h3>
+    <p class="muted">
+      {{ t("修改密码将重新加密本机保存的主机、凭据、设置和历史。") }}
+    </p>
+    <NAlert v-if="success" type="success">{{ t("保险库密码已修改。") }}</NAlert>
     <NAlert v-for="warning in warnings" :key="warning" type="warning">
-      {{ warning }}
+      {{ t(warning) }}
     </NAlert>
-    <NButton :disabled="busy" @click="begin">修改保险库密码</NButton>
+    <NButton :disabled="busy" @click="begin">{{ t("修改保险库密码") }}</NButton>
     <AppDialog
       v-model:open="open"
-      title="修改保险库密码"
-      description="请牢记新密码。已有数据库文件副本仍使用创建时的保险库密码；云端备份使用独立备份密码，不随本次修改变化。"
+      :title="t('修改保险库密码')"
+      :description="
+        t('请牢记新密码。已有本地副本仍需旧密码，云端备份密码保持不变。')
+      "
       :locked="busy"
       @after-leave="clear"
     >
@@ -125,7 +132,7 @@ onBeforeUnmount(clear);
         label-placement="top"
         @submit.prevent="submit"
       >
-        <NFormItem label="旧密码" path="oldPassword">
+        <NFormItem :label="t('旧密码')" path="oldPassword">
           <NInput
             v-model:value="model.oldPassword"
             type="password"
@@ -135,7 +142,7 @@ onBeforeUnmount(clear);
             autofocus
           />
         </NFormItem>
-        <NFormItem label="新密码" path="newPassword">
+        <NFormItem :label="t('新密码')" path="newPassword">
           <NInput
             v-model:value="model.newPassword"
             type="password"
@@ -146,7 +153,7 @@ onBeforeUnmount(clear);
         </NFormItem>
         <NFormItem
           ref="confirmationItem"
-          label="确认新密码"
+          :label="t('确认新密码')"
           path="confirmation"
         >
           <NInput
@@ -157,17 +164,19 @@ onBeforeUnmount(clear);
           />
         </NFormItem>
       </NForm>
-      <NAlert v-if="busy" type="info">正在重新加密，请稍候…</NAlert>
+      <NAlert v-if="busy" type="info">{{ t("正在重新加密，请稍候…") }}</NAlert>
       <NAlert v-if="error" type="error">{{ error }}</NAlert>
       <template #footer>
-        <NButton :disabled="busy" @click="open = false">取消</NButton>
+        <NButton :disabled="busy" @click="open = false">
+          {{ t("取消") }}
+        </NButton>
         <NButton
           type="primary"
           :loading="busy"
           :disabled="busy"
           @click="submit"
         >
-          确认修改
+          {{ t("确认修改") }}
         </NButton>
       </template>
     </AppDialog>

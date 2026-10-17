@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 import type { FormItemRule, FormInst } from "naive-ui";
 export function requiredText(label: string): FormItemRule {
   return {
@@ -5,7 +6,7 @@ export function requiredText(label: string): FormItemRule {
     trigger: ["input", "blur", "change"],
     validator: (_, value: unknown) =>
       (typeof value === "string" && !!value.trim()) ||
-      new Error(`请填写${label}`),
+      new Error(t("请填写{label}", { label: t(label) })),
   };
 }
 export function integerRange(
@@ -22,7 +23,9 @@ export function integerRange(
         Number.isInteger(value) &&
         value >= min &&
         value <= max) ||
-      new Error(`${label}须为 ${min}–${max} 的整数`),
+      new Error(
+        t("{label}须为 {min}–{max} 的整数", { label: t(label), min, max }),
+      ),
   };
 }
 export async function validateForm(form: FormInst | undefined) {

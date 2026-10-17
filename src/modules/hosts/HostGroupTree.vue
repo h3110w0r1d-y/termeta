@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from "../../i18n";
 import ScrollFade from "../../components/ui/ScrollFade.vue";
 import { closeContextMenuOnOutside } from "../../components/ui/contextMenu";
 import { computed, h, nextTick, ref, watch, reactive } from "vue";
@@ -52,7 +53,10 @@ async function setShowHosts(value: boolean) {
   try {
     await settings.setHostsView({ showHosts: value });
   } catch (error) {
-    emit("error", `侧栏主机显示设置保存失败：${errorMessage(error)}`);
+    emit(
+      "error",
+      t("侧栏主机显示设置保存失败：{value1}", { value1: errorMessage(error) }),
+    );
   } finally {
     savingShowHosts.value = false;
   }
@@ -73,7 +77,10 @@ async function setExpanded(ids: string[]) {
   } catch (error) {
     if (generation === expansionGeneration)
       expanded.value = [...settings.value.hostsView.expandedGroupIds];
-    emit("error", `分组展开状态保存失败：${errorMessage(error)}`);
+    emit(
+      "error",
+      t("分组展开状态保存失败：{value1}", { value1: errorMessage(error) }),
+    );
   } finally {
     pendingExpansionSaves--;
   }
@@ -145,10 +152,15 @@ const tree = computed<TreeOption[]>(() => {
         };
       });
   return [
-    { key: "all", label: "全部主机", count: store.hosts.length, isLeaf: true },
+    {
+      key: "all",
+      label: t("全部主机"),
+      count: store.hosts.length,
+      isLeaf: true,
+    },
     {
       key: "ungrouped",
-      label: "未分组",
+      label: t("未分组"),
       count: store.hosts.filter((host) => !host.groupId).length,
       children: hostNodes(null),
       isLeaf: !showHosts.value || !counts.get(null),
@@ -157,7 +169,7 @@ const tree = computed<TreeOption[]>(() => {
   ];
 });
 const parentOptions = computed(() => [
-  { label: "顶层", value: "" },
+  { label: t("顶层"), value: "" },
   ...groupChoices(
     store.groups,
     editing.value ? descendantIds(store.groups, editing.value.id) : undefined,
@@ -167,17 +179,17 @@ const menuOptions = computed(() => {
   const real = store.groups.some((group) => group.id === menu.value.id);
   return [
     {
-      label: real ? "创建子分组" : "创建分组",
+      label: real ? t("创建子分组") : t("创建分组"),
       key: "create",
       disabled: store.managementBusy,
     },
     {
-      label: "编辑分组 / 修改父组",
+      label: t("编辑分组 / 修改父组"),
       key: "edit",
       disabled: !real || store.managementBusy,
     },
     {
-      label: "删除分组…",
+      label: t("删除分组…"),
       key: "delete",
       disabled: !real || store.managementBusy,
     },
@@ -221,9 +233,7 @@ function selectMenu(key: string) {
       hosts: store.hosts.filter((host) => host.groupId && ids.has(host.groupId))
         .length,
       direct: store.hosts.filter((host) => host.groupId === group.id).length,
-      parent: group.parentId
-        ? groupPath(store.groups, group.parentId)
-        : "顶层（主机进入未分组）",
+      parent: group.parentId ? groupPath(store.groups, group.parentId) : "",
     };
     deleteMode.value = "move";
     deleteError.value = "";
@@ -241,7 +251,7 @@ function reveal(id: string | null) {
   void setExpanded([...next]);
 }
 const form = ref<FormInst>();
-const groupRules = { name: requiredText("分组名称") };
+const groupRules = computed(() => ({ name: requiredText(t("分组名称")) }));
 async function saveGroup() {
   if (store.managementBusy || !(await validateForm(form.value))) return;
   store.managementBusy = true;
@@ -278,7 +288,14 @@ async function deleteGroup() {
       await nextTick();
       if (
         !(await confirmAction(
-          `再次确认：永久删除“${target.name}”、${deletePreview.value.groups} 个子分组及其中 ${deletePreview.value.hosts} 台主机？主机专属密码会一并清理，无法撤销；现有会话和共享凭据不受影响。`,
+          t(
+            "再次确认：永久删除“{name}”、{groups} 个子分组及其中 {hosts} 台主机？主机专属密码会一并清理，无法撤销；现有会话和共享凭据不受影响。",
+            {
+              name: target.name,
+              groups: deletePreview.value.groups,
+              hosts: deletePreview.value.hosts,
+            },
+          ),
         ))
       )
         return;
@@ -297,7 +314,9 @@ async function deleteGroup() {
     } catch (error) {
       emit(
         "error",
-        `分组已删除，但列表刷新失败：${errorMessage(error)}。请刷新列表。`,
+        t("分组已删除，但列表刷新失败：{value1}。请刷新列表。", {
+          value1: errorMessage(error),
+        }),
       );
     }
   } catch (error) {
@@ -491,11 +510,11 @@ defineExpose({ startHostDrag, cancelDrag });
   <aside
     ref="panel"
     class="host-groups"
-    aria-label="主机分组"
+    :aria-label="t('主机分组')"
     @contextmenu="panelMenu"
   >
     <div class="groups-heading">
-      <NText strong>分组</NText>
+      <NText strong>{{ t("分组") }}</NText>
       <NButton
         size="small"
         :disabled="store.managementBusy"
@@ -506,16 +525,16 @@ defineExpose({ startHostDrag, cancelDrag });
           )
         "
       >
-        新建分组
+        {{ t("新建分组") }}
       </NButton>
     </div>
     <div class="groups-hosts-toggle">
-      <NText>显示主机</NText>
+      <NText>{{ t("显示主机") }}</NText>
       <NSwitch
         :value="showHosts"
         :disabled="savingShowHosts"
         size="small"
-        aria-label="在侧栏显示主机"
+        :aria-label="t('在侧栏显示主机')"
         @update:value="setShowHosts"
       />
     </div>
@@ -557,7 +576,7 @@ defineExpose({ startHostDrag, cancelDrag });
     />
     <AppDialog
       v-model:open="editor"
-      :title="editing ? '编辑分组' : '创建分组'"
+      :title="editing ? t('编辑分组') : t('创建分组')"
       :locked="store.managementBusy"
     >
       <NForm
@@ -566,7 +585,7 @@ defineExpose({ startHostDrag, cancelDrag });
         :rules="groupRules"
         @submit.prevent="saveGroup"
       >
-        <NFormItem label="分组名称" path="name">
+        <NFormItem :label="t('分组名称')" path="name">
           <NInput
             v-model:value="groupModel.name"
             autofocus
@@ -574,7 +593,7 @@ defineExpose({ startHostDrag, cancelDrag });
             @keydown.enter.prevent="saveGroup"
           />
         </NFormItem>
-        <NFormItem label="父分组">
+        <NFormItem :label="t('父分组')">
           <NSelect
             :value="parent ?? ''"
             :options="parentOptions"
@@ -589,21 +608,21 @@ defineExpose({ startHostDrag, cancelDrag });
       <template #footer>
         <NSpace justify="end">
           <NButton :disabled="store.managementBusy" @click="editor = false">
-            取消
+            {{ t("取消") }}
           </NButton>
           <NButton
             type="primary"
             :loading="store.managementBusy"
             @click="saveGroup"
           >
-            保存
+            {{ t("保存") }}
           </NButton>
         </NSpace>
       </template>
     </AppDialog>
     <AppDialog
       :open="!!deleteTarget"
-      title="删除分组"
+      :title="t('删除分组')"
       :locked="store.managementBusy"
       @update:open="
         (value) => {
@@ -611,18 +630,35 @@ defineExpose({ startHostDrag, cancelDrag });
         }
       "
     >
-      <p>删除“{{ deleteTarget?.name }}”，请选择如何处理其中内容：</p>
+      <p>
+        {{
+          t("删除“{name}”，请选择如何处理其中内容：", {
+            name: deleteTarget?.name ?? "",
+          })
+        }}
+      </p>
       <NRadioGroup v-model:value="deleteMode" name="delete-group-mode">
         <NSpace vertical>
-          <NRadio value="move">保留主机与子分组，移到父级</NRadio>
+          <NRadio value="move">{{ t("保留主机与子分组，移到父级") }}</NRadio>
           <NText depth="3">
-            {{ deletePreview.direct }} 台直属主机和直属子分组移到
-            {{ deletePreview.parent }}，子分组内的内容保持原层级。
+            {{
+              t(
+                "{direct} 台直属主机和直属子分组移到 {parent}，子分组内的内容保持原层级。",
+                {
+                  direct: deletePreview.direct,
+                  parent: deletePreview.parent || t("顶层（主机进入未分组）"),
+                },
+              )
+            }}
           </NText>
-          <NRadio value="delete">一并删除所有子分组和主机</NRadio>
+          <NRadio value="delete">{{ t("一并删除所有子分组和主机") }}</NRadio>
           <NText depth="3">
-            删除 {{ deletePreview.groups }} 个子分组和其中全部
-            {{ deletePreview.hosts }} 台主机，需要再次确认。
+            {{
+              t(
+                "删除 {groups} 个子分组和其中全部 {hosts} 台主机，需要再次确认。",
+                { groups: deletePreview.groups, hosts: deletePreview.hosts },
+              )
+            }}
           </NText>
         </NSpace>
       </NRadioGroup>
@@ -635,14 +671,14 @@ defineExpose({ startHostDrag, cancelDrag });
             :disabled="store.managementBusy"
             @click="deleteTarget = undefined"
           >
-            取消
+            {{ t("取消") }}
           </NButton>
           <NButton
             :type="deleteMode === 'delete' ? 'error' : 'primary'"
             :loading="store.managementBusy"
             @click="deleteGroup"
           >
-            {{ deleteMode === "delete" ? "继续…" : "删除分组并移动内容" }}
+            {{ deleteMode === "delete" ? t("继续…") : t("删除分组并移动内容") }}
           </NButton>
         </NSpace>
       </template>

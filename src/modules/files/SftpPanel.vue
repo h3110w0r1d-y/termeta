@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from "../../i18n";
 import { validateForm } from "../../services/forms/rules";
 import {
   computed,
@@ -87,13 +88,13 @@ const directory = ref(".");
 const pathInput = ref(".");
 const pathModel = reactive({ path: pathInput });
 const pathForm = ref<FormInst>();
-const pathRules = {
+const pathRules = computed(() => ({
   path: {
     required: true,
-    message: "请输入远端路径",
+    message: t("请输入远端路径"),
     trigger: ["input", "blur"],
   },
-};
+}));
 async function navigatePath() {
   if (await validateForm(pathForm.value)) await load(pathInput.value);
 }
@@ -180,7 +181,7 @@ const columns = computed<DataTableColumns<FileEntry>>(() => [
     disabled: (row) => row.name === ".." || busy.value || stale.value,
   },
   {
-    title: "名称",
+    title: t("名称"),
     key: "name",
     minWidth: 150,
     sorter: true,
@@ -192,13 +193,13 @@ const columns = computed<DataTableColumns<FileEntry>>(() => [
       ]),
   },
   {
-    title: "大小",
+    title: t("大小"),
     key: "size",
     width: 100,
     render: (row) => formatFileSize(row.size),
   },
   {
-    title: "权限",
+    title: t("权限"),
     key: "permissions",
     width: 70,
     render: (row) =>
@@ -296,7 +297,10 @@ async function receiveDrop(drop: SftpLocalDrop) {
   try {
     if (
       await confirmAction(
-        `将拖入的文件或目录上传到 ${target}？同名目录合并；已有文件会在覆盖前逐项询问。`,
+        t(
+          "将拖入的文件或目录上传到 {target}？同名目录合并；已有文件会在覆盖前逐项询问。",
+          { target: target },
+        ),
       )
     ) {
       if (sameSession(sessionId))
@@ -453,14 +457,14 @@ onBeforeUnmount(() => {
     :style="{ flexBasis: panelWidth + 'px' }"
     class="sftp-panel"
     :class="{ 'sftp-drop-target': dropTarget !== undefined }"
-    aria-label="此终端的 SFTP 文件浏览器"
+    :aria-label="t('此终端的 SFTP 文件浏览器')"
     @keydown.stop
   >
     <div
       class="sftp-resizer"
       role="separator"
       tabindex="0"
-      aria-label="调整 SFTP 侧栏宽度"
+      :aria-label="t('调整 SFTP 侧栏宽度')"
       aria-orientation="vertical"
       :aria-valuenow="panelWidth"
       @pointerdown="startResize"
@@ -475,13 +479,13 @@ onBeforeUnmount(() => {
       <NButton
         size="tiny"
         @click="tab.sftpOpen = false"
-        :title="visibleTransfer ? '隐藏面板，传输继续' : '隐藏 SFTP 侧栏'"
+        :title="visibleTransfer ? t('隐藏面板，传输继续') : t('隐藏 SFTP 侧栏')"
       >
-        隐藏
+        {{ t("隐藏") }}
       </NButton>
     </NFlex>
     <NAlert v-if="stale" type="warning" :show-icon="false">
-      {{ connected ? "列表已过期，请刷新" : "SSH 未连接，列表已过期" }}
+      {{ connected ? t("列表已过期，请刷新") : t("SSH 未连接，列表已过期") }}
     </NAlert>
     <NAlert
       v-if="error"
@@ -498,7 +502,7 @@ onBeforeUnmount(() => {
       type="info"
       :show-icon="false"
     >
-      松开上传到 {{ dropTarget }}
+      {{ t("松开以上传到 {path}", { path: dropTarget }) }}
     </NAlert>
     <NText v-if="notice" type="success">{{ notice }}</NText>
     <NFlex :wrap="false">
@@ -509,13 +513,13 @@ onBeforeUnmount(() => {
         @submit.prevent="navigatePath"
         class="path-form"
       >
-        <NFormItem label="远端路径" path="path" :show-label="false">
+        <NFormItem :label="t('远端路径')" path="path" :show-label="false">
           <NInput
             v-model:value="pathModel.path"
             size="small"
-            placeholder="远端路径"
+            :placeholder="t('远端路径')"
             :disabled="busy || !connected"
-            aria-label="远端路径"
+            :aria-label="t('远端路径')"
           />
         </NFormItem>
       </NForm>
@@ -524,22 +528,22 @@ onBeforeUnmount(() => {
         :disabled="busy || !connected"
         @click="navigatePath"
       >
-        前往
+        {{ t("前往") }}
       </NButton>
     </NFlex>
     <NFlex>
       <NButton size="tiny" :disabled="busy || !connected" @click="load('.')">
-        主目录
+        {{ t("主目录") }}
       </NButton>
       <NButton
         size="tiny"
         :disabled="busy || stale || atRoot"
         @click="load(directory.replace(/\/$/, '') + '/..')"
       >
-        上级
+        {{ t("上级") }}
       </NButton>
       <NButton size="tiny" :disabled="busy || !connected" @click="load()">
-        刷新
+        {{ t("刷新") }}
       </NButton>
       <NCheckbox
         :checked="hidden"
@@ -547,36 +551,42 @@ onBeforeUnmount(() => {
         size="small"
         @update:checked="updateHidden"
       >
-        显示隐藏文件
+        {{ t("显示隐藏文件") }}
       </NCheckbox>
     </NFlex>
     <NFlex>
       <NButton size="tiny" :disabled="loading || stale" @click="transfer(true)">
-        上传
+        {{ t("上传") }}
       </NButton>
       <NButton
         size="tiny"
         :disabled="busy || stale || selected?.kind !== 'file'"
         @click="transfer(false)"
       >
-        下载
+        {{ t("下载") }}
       </NButton>
     </NFlex>
     <NFlex v-if="visibleTransfer" align="center" justify="space-between">
       <NText>
         {{
           progress
-            ? `已传输 ${formatFileSize(progress.transferred)} / ${progress.total === null ? "?" : formatFileSize(progress.total)}`
-            : "选择文件或准备传输…"
+            ? t("已传输 {transferred} / {total}", {
+                transferred: formatFileSize(progress.transferred),
+                total:
+                  progress.total === null
+                    ? "?"
+                    : formatFileSize(progress.total),
+              })
+            : t("选择文件或准备传输…")
         }}
       </NText>
-      <NButton size="tiny" @click="cancel">取消传输</NButton>
+      <NButton size="tiny" @click="cancel">{{ t("取消传输") }}</NButton>
     </NFlex>
     <NScrollbar
       v-if="visibleTasks.length"
       class="sftp-transfer-queue"
       style="max-height: 120px"
-      aria-label="传输队列"
+      :aria-label="t('传输队列')"
     >
       <NFlex
         v-for="task in visibleTasks"
@@ -588,16 +598,25 @@ onBeforeUnmount(() => {
         <NText
           :type="task.status === 'failed' ? 'error' : undefined"
           class="sftp-task-label"
-          :title="task.message || task.path"
+          :title="
+            task.messageKey ? t(task.messageKey) : task.message || task.path
+          "
         >
-          {{ task.upload ? "上传" : "下载" }} ·
+          {{ task.upload ? t("上传") : t("下载") }} ·
           {{ task.progress?.currentName || task.name || task.path }} ·
           {{
             task.status === "queued"
-              ? "等待中"
+              ? t("等待中")
               : task.status === "running"
-                ? `传输中${task.progress?.totalFiles ? ` ${task.progress.completedFiles || 0}/${task.progress.totalFiles}` : ""}`
-                : task.message
+                ? task.progress?.totalFiles
+                  ? t("传输中 {completed}/{total}", {
+                      completed: task.progress.completedFiles || 0,
+                      total: task.progress.totalFiles,
+                    })
+                  : t("传输中")
+                : task.messageKey
+                  ? t(task.messageKey)
+                  : task.message
           }}
         </NText>
         <NButton
@@ -605,7 +624,7 @@ onBeforeUnmount(() => {
           size="tiny"
           @click="cancelQueued(task)"
         >
-          移除
+          {{ t("移除") }}
         </NButton>
       </NFlex>
     </NScrollbar>
@@ -630,7 +649,11 @@ onBeforeUnmount(() => {
     />
     <NFlex justify="space-between" align="center">
       <NText depth="3">
-        {{ rows.length - 1 }} 项{{ hasMore ? "（尚未全部加载）" : "" }}
+        {{
+          hasMore
+            ? t("{count} 项（尚未全部加载）", { count: rows.length - 1 })
+            : t("{count} 项", { count: rows.length - 1 })
+        }}
       </NText>
       <NButton
         v-if="hasMore"
@@ -638,15 +661,17 @@ onBeforeUnmount(() => {
         :disabled="busy || stale || entries.length >= 10000"
         @click="load(directory, true)"
       >
-        加载更多（100 项）
+        {{ t("加载更多（100 项）") }}
       </NButton>
     </NFlex>
     <NText v-if="entries.length >= 10000 && hasMore" type="warning">
-      已达当前视图条目上限，请按路径进入子目录。
+      {{ t("文件过多，请进入子文件夹继续浏览。") }}
     </NText>
     <NText v-if="selectedEntries.length" depth="3" class="sftp-selection">
-      已选择 {{ selectedEntries.length }} 项{{
-        selected ? `：${selected.name}` : ""
+      {{
+        selected
+          ? t("已选择：{name}", { name: selected.name })
+          : t("已选择 {count} 项", { count: selectedEntries.length })
       }}
     </NText>
   </aside>

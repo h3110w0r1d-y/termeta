@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { t } from "./i18n";
+import { naiveLocale, naiveDateLocale } from "./i18n";
 import { CloseOutline } from "@vicons/ionicons5";
 import { closeContextMenuOnOutside } from "./components/ui/contextMenu";
 import {
@@ -7,8 +9,6 @@ import {
   NGlobalStyle,
   NAlert,
   NDropdown,
-  zhCN,
-  dateZhCN,
 } from "naive-ui";
 import { useAppAppearance } from "./layout/useAppAppearance";
 import VaultLayout from "./layout/VaultLayout.vue";
@@ -264,7 +264,9 @@ onMounted(async () => {
       if (
         (workspace.fileTransferring ||
           workspace.tabs.some((tab) => tab.sftpTransferring)) &&
-        !(await confirmAction("关闭窗口将取消正在进行的 SFTP 传输，确定继续？"))
+        !(await confirmAction(
+          t("关闭窗口将取消正在进行的 SFTP 传输，确定继续？"),
+        ))
       )
         return;
       const running = workspace.tabs.filter(needsCloseConfirmation);
@@ -272,7 +274,15 @@ onMounted(async () => {
         (running.length > 0 || portForwards.hasActive) &&
         settings.value.confirmClose &&
         !(await confirmAction(
-          `${running.length ? `${running.length} 个终端可能正在执行命令。` : ""}${portForwards.hasActive ? "端口转发正在运行。" : ""}关闭窗口将断开全部连接，确定继续？`,
+          [
+            running.length
+              ? t("{count} 个终端可能正在执行命令。", { count: running.length })
+              : "",
+            portForwards.hasActive ? t("端口转发正在运行。") : "",
+            t("关闭窗口将断开全部连接，确定继续？"),
+          ]
+            .filter(Boolean)
+            .join(" "),
         ))
       )
         return;
@@ -308,8 +318,8 @@ onBeforeUnmount(() => {
   <NConfigProvider
     :theme="naiveTheme"
     :theme-overrides="naiveThemeOverrides"
-    :locale="zhCN"
-    :date-locale="dateZhCN"
+    :locale="naiveLocale"
+    :date-locale="naiveDateLocale"
   >
     <NGlobalStyle />
     <VaultGate :initialize="loadUnlocked">
@@ -379,14 +389,14 @@ onBeforeUnmount(() => {
           <section
             v-show="!!workspace.active"
             class="terminal-workspace"
-            aria-label="终端工作区"
+            :aria-label="t('终端工作区')"
           >
             <div v-if="findOpen && workspace.active" class="find-bar">
               <AppInput
                 v-model="query"
                 autofocus
-                aria-label="搜索终端历史"
-                placeholder="搜索终端历史…"
+                :aria-label="t('搜索终端历史')"
+                :placeholder="t('搜索终端历史…')"
                 @keydown.enter.prevent="
                   terminalRegistry.find(
                     workspace.active.terminalId,
@@ -405,18 +415,18 @@ onBeforeUnmount(() => {
                   )
                 "
               >
-                上一个
+                {{ t("上一个") }}
               </AppButton>
               <AppButton
                 @click="
                   terminalRegistry.find(workspace.active.terminalId, query)
                 "
               >
-                下一个
+                {{ t("下一个") }}
               </AppButton>
               <AppButton
                 class="icon-button"
-                aria-label="关闭搜索"
+                :aria-label="t('关闭搜索')"
                 @click="closeFind()"
               >
                 <NIcon :size="16" aria-hidden="true"><CloseOutline /></NIcon>
@@ -435,14 +445,14 @@ onBeforeUnmount(() => {
               <span>
                 {{
                   workspace.active.kind === "local"
-                    ? "本地"
+                    ? t("本地")
                     : workspace.active.kind === "serial"
-                      ? "串口"
+                      ? t("串口")
                       : workspace.active.kind === "telnet"
-                        ? "Telnet · 明文"
+                        ? t("Telnet · 明文")
                         : "SSH"
                 }}
-                · {{ stateLabels[workspace.active.state] }}
+                · {{ t(stateLabels[workspace.active.state]) }}
               </span>
               <span
                 v-if="
@@ -471,7 +481,7 @@ onBeforeUnmount(() => {
                   (!workspace.active.sftpOpen &&
                     workspace.active.state !== 'connected')
                 "
-                title="显示或隐藏此终端的 SFTP 侧栏"
+                :title="t('显示或隐藏此终端的 SFTP 侧栏')"
                 @click="workspace.toggleSftp()"
               >
                 SFTP
@@ -596,11 +606,6 @@ onBeforeUnmount(() => {
 .tabs-left > .workspace {
   grid-column: 2;
   grid-row: 2;
-}
-@media (max-width: 900px) {
-  .tabs-left {
-    grid-template-columns: 145px minmax(0, 1fr);
-  }
 }
 .platform-mac .window-titlebar {
   padding-left: 88px;

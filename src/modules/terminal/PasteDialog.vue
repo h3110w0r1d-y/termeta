@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from "../../i18n";
 import { NFlex } from "naive-ui";
 import AppButton from "../../components/ui/AppButton.vue";
 import AppDialog from "../../components/ui/AppDialog.vue";
@@ -7,28 +8,33 @@ import { pendingPaste, resolvePaste } from "./paste";
 <template>
   <AppDialog
     :open="!!pendingPaste"
-    title="确认多行粘贴"
-    description="换行可能立即执行远端命令。请核对全部内容后继续。"
+    :title="t('确认多行粘贴')"
+    :description="t('换行可能立即执行远端命令。请核对全部内容后继续。')"
     @update:open="(value) => !value && resolvePaste(false)"
   >
     <template v-if="pendingPaste">
       <p>
-        即将粘贴 {{ pendingPaste.lines }} 行
-        <span v-if="pendingPaste.targetCount > 1">
-          ，广播至 {{ pendingPaste.targetCount }} 个终端
-        </span>
-        ；控制字符以原始文本显示。
+        {{
+          pendingPaste.targetCount > 1
+            ? t("将粘贴 {lines} 行到 {count} 个终端", {
+                lines: pendingPaste.lines,
+                count: pendingPaste.targetCount,
+              })
+            : t("将粘贴 {lines} 行到当前终端", { lines: pendingPaste.lines })
+        }}
       </p>
       <pre class="paste-preview">{{ pendingPaste.text }}</pre>
     </template>
     <template #footer>
       <NFlex justify="end">
-        <AppButton @click="resolvePaste(false)">取消</AppButton>
+        <AppButton @click="resolvePaste(false)">{{ t("取消") }}</AppButton>
         <AppButton class="primary" @click="resolvePaste(true)">
           {{
             pendingPaste && pendingPaste.targetCount > 1
-              ? `确认广播到 ${pendingPaste.targetCount} 个终端`
-              : "确认粘贴到当前连接"
+              ? t("确认广播到 {targetCount} 个终端", {
+                  targetCount: pendingPaste.targetCount,
+                })
+              : t("确认粘贴到当前连接")
           }}
         </AppButton>
       </NFlex>

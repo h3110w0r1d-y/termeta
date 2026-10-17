@@ -1,3 +1,5 @@
+import { terminalBaseTitle } from "../terminal/title";
+import { t } from "../../i18n";
 import { computed, nextTick, ref } from "vue";
 import { confirmAction } from "../../components/ui/confirmation";
 import { useSettings } from "../settings/store";
@@ -32,22 +34,24 @@ export function useTerminalMenu(options: {
   );
   const tabMenuOptions = computed(() =>
     tabMenu.value.groupId
-      ? [{ label: "保存工作区…", key: "save-workspace" }]
+      ? [{ label: t("保存工作区…"), key: "save-workspace" }]
       : [
           {
-            label: `终端：${menuTab.value?.title ?? ""}`,
+            label: t("终端：{name}", {
+              name: menuTab.value ? terminalBaseTitle(menuTab.value) : "",
+            }),
             key: "target",
             disabled: true,
           },
           ...(menuIsSingleTerminal.value
             ? [
                 {
-                  label: "复制标签页",
+                  label: t("复制标签页"),
                   key: "duplicate",
                   disabled: !workspace.canDuplicateSession(tabMenu.value.id),
                 },
                 {
-                  label: "拆分会话",
+                  label: t("拆分会话"),
                   key: "split",
                   disabled: !workspace.canDuplicateSession(
                     tabMenu.value.id,
@@ -56,12 +60,12 @@ export function useTerminalMenu(options: {
                 },
               ]
             : []),
-          { label: "搜索历史", key: "find" },
+          { label: t("搜索历史"), key: "find" },
           {
-            label: "终端配色",
+            label: t("终端配色"),
             key: "theme",
             children: [
-              { label: "跟随主机 / 默认配色", key: "scheme:default" },
+              { label: t("跟随主机 / 默认配色"), key: "scheme:default" },
               ...[...builtinThemeOptions, ...settings.value.customSchemes].map(
                 (scheme) => ({
                   label: scheme.name,
@@ -71,9 +75,11 @@ export function useTerminalMenu(options: {
             ],
           },
           isActive(menuTab.value?.state ?? "closed")
-            ? { label: "断开", key: "disconnect" }
+            ? { label: t("断开"), key: "disconnect" }
             : {
-                label: menuTab.value?.sshCommand ? "重新运行" : "重新连接",
+                label: menuTab.value?.sshCommand
+                  ? t("重新运行")
+                  : t("重新连接"),
                 key: "reconnect",
               },
         ],
@@ -124,7 +130,7 @@ export function useTerminalMenu(options: {
     } else if (key === "disconnect") {
       if (
         tab.sftpTransferring &&
-        !(await confirmAction("断开 SSH 将取消当前 SFTP 传输，确定继续？"))
+        !(await confirmAction(t("断开 SSH 将取消当前 SFTP 传输，确定继续？")))
       )
         return;
       perform(() => terminalRegistry.disconnect(tab.terminalId));

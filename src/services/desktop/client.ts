@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { Channel, invoke } from "@tauri-apps/api/core";
@@ -200,6 +201,7 @@ export const desktop = {
     >[0],
   ) => getCurrentWindow().onCloseRequested(callback),
   closeWindow: () => getCurrentWindow().close(),
+  setWindowTitle: (title: string) => getCurrentWindow().setTitle(title),
   minimizeWindow: () => getCurrentWindow().minimize(),
   toggleMaximizeWindow: () => getCurrentWindow().toggleMaximize(),
   listHosts: () => invoke<HostProfile[]>("list_hosts"),
@@ -290,5 +292,5 @@ export function errorMessage(error: unknown): string {
   if (typeof error === "string") return error;
   if (error && typeof error === "object" && "message" in error)
     return String(error.message);
-  return "操作失败，请重试。";
+  return t("操作失败，请重试。");
 }

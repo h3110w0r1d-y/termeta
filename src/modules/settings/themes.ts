@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 import { desktop } from "../../services/desktop/client";
 import { parseJson } from "../../services/data/json";
 import { clone } from "../../services/data/clone";
@@ -73,13 +74,13 @@ export function toXtermTheme(scheme: Scheme): ITheme {
 const colorPattern = /^#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?$/;
 export function parseScheme(text: string): Scheme {
   if (new TextEncoder().encode(text).length > 1024 * 1024)
-    throw new Error("文件不能超过 1 MiB");
+    throw new Error(t("文件不能超过 1 MiB"));
   const value: unknown = parseJson(text);
   if (!value || typeof value !== "object" || Array.isArray(value))
-    throw new Error("请选择单个配色 JSON 对象");
+    throw new Error(t("请选择单个配色 JSON 对象"));
   const raw = value as Record<string, unknown>;
   if (raw.schemaVersion !== undefined && raw.schemaVersion !== 1)
-    throw new Error("不支持的配色版本");
+    throw new Error(t("不支持的配色版本"));
   const base = clone(defaultScheme);
   let colors: unknown = raw.colors;
   if (!colors) {
@@ -119,16 +120,17 @@ export function parseScheme(text: string): Scheme {
     "selectionInactiveBackground",
   ] as const)
     if (typeof c[k] !== "string" || !colorPattern.test(c[k]))
-      throw new Error(`颜色字段 ${k} 不合法`);
-  if (c.background.length !== 7) throw new Error("背景必须为不透明 HEX 颜色");
+      throw new Error(t("颜色字段 {name} 不合法", { name: k }));
+  if (c.background.length !== 7)
+    throw new Error(t("背景必须为不透明 HEX 颜色"));
   if (
     !Array.isArray(c.ansi) ||
     c.ansi.length !== 16 ||
     c.ansi.some((v) => typeof v !== "string" || !/^#[0-9a-fA-F]{6}$/.test(v))
   )
-    throw new Error("ANSI 必须包含 16 个 HEX 颜色");
+    throw new Error(t("ANSI 必须包含 16 个 HEX 颜色"));
   if (c.selectionForeground && !colorPattern.test(c.selectionForeground))
-    throw new Error("选择文字颜色无效");
+    throw new Error(t("选择文字颜色无效"));
   for (const [k, v] of Object.entries(c.indexedOverrides ?? {}))
     if (
       !/^\d+$/.test(k) ||
@@ -137,14 +139,14 @@ export function parseScheme(text: string): Scheme {
       typeof v !== "string" ||
       !colorPattern.test(v)
     )
-      throw new Error("索引色覆盖无效");
+      throw new Error(t("索引色覆盖无效"));
   for (const v of Object.values(c.scrollbar ?? {}))
     if (typeof v !== "string" || !colorPattern.test(v))
-      throw new Error("滚动条颜色无效");
+      throw new Error(t("滚动条颜色无效"));
   return {
     schemaVersion: 1,
     id: crypto.randomUUID(),
-    name: String(raw.name ?? "导入配色").slice(0, 80),
+    name: String(raw.name ?? t("导入配色")).slice(0, 80),
     source: "imported",
     colors: {
       foreground: c.foreground,

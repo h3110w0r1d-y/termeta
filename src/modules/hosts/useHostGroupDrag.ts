@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 import { onBeforeUnmount, ref, type Ref } from "vue";
 import type { HostProfile } from "../../services/desktop/types";
 import { errorMessage } from "../../services/desktop/client";
@@ -119,9 +120,9 @@ export function useHostGroupDrag(options: {
     }
     const targetLabel =
       current.target === "all"
-        ? "顶层"
+        ? t("顶层")
         : current.target === "ungrouped"
-          ? "未分组"
+          ? t("未分组")
           : store.groups.find((group) => group.id === current.target)?.name;
     preview?.move(event.clientX, event.clientY, targetLabel ?? null);
     // 指针靠近树边缘时滚动真实容器，折叠的目标悬停展开。

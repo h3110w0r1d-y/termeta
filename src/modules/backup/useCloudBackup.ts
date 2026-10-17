@@ -1,3 +1,4 @@
+import { t, formatDate } from "../../i18n";
 import {
   computed,
   onBeforeUnmount,
@@ -45,7 +46,7 @@ export function useCloudBackup(
     secret: "",
     backupPassword: "",
     confirmation: "",
-    deviceName: "我的设备",
+    deviceName: t("我的设备"),
   });
   watch(
     () => config.backupPassword,
@@ -90,7 +91,7 @@ export function useCloudBackup(
         (!!value.trim() &&
           new TextEncoder().encode(value.trim()).length <= 256 &&
           !/[\u0000-\u001f\u007f]/.test(value)) ||
-        new Error("设备名称须为1–256字节的可见文本"),
+        new Error(t("请输入设备名称，长度不能超过256字节")),
     },
     endpoint:
       config.provider === "webdav"
@@ -106,10 +107,12 @@ export function useCloudBackup(
                     !url.password &&
                     !url.search &&
                     !url.hash) ||
-                  new Error("请输入 HTTPS 目录地址，不含账户、查询参数或片段")
+                  new Error(
+                    t("请输入 HTTPS 目录地址，不含账户、查询参数或片段"),
+                  )
                 );
               } catch {
-                return new Error("请输入有效的 WebDAV HTTPS 目录地址");
+                return new Error(t("请输入有效的 WebDAV HTTPS 目录地址"));
               }
             },
           }
@@ -123,24 +126,24 @@ export function useCloudBackup(
               (!!value.trim() &&
                 !value.includes(":") &&
                 new TextEncoder().encode(value.trim()).length <= 1024) ||
-              new Error("用户名不能为空、包含冒号或超过1024字节"),
+              new Error(t("用户名不能为空、包含冒号或超过1024字节")),
           }
         : [],
     secret: {
       required: !canReuseSecret.value,
       trigger: ["input", "blur"],
       validator: (_, value: string) =>
-        !!value || canReuseSecret.value || new Error("请输入云端访问凭据"),
+        !!value || canReuseSecret.value || new Error(t("请输入云端访问凭据")),
     },
     backupPassword: {
       required: !canReuseBackupPassword.value,
       trigger: ["input", "blur"],
       validator: (_, value: string) => {
         if (!value)
-          return canReuseBackupPassword.value || new Error("请配置备份密码");
+          return canReuseBackupPassword.value || new Error(t("请配置备份密码"));
         if (new TextEncoder().encode(value).length > 1024)
-          return new Error("密码 UTF-8 编码不能超过1024字节");
-        if ([...value].length < 12) return new Error("备份密码至少12个字符");
+          return new Error(t("密码长度不能超过1024字节"));
+        if ([...value].length < 12) return new Error(t("备份密码至少12个字符"));
         return true;
       },
     },
@@ -150,7 +153,7 @@ export function useCloudBackup(
           trigger: ["input", "blur"],
           validator: (_, value: string) =>
             (value.length > 0 && value === config.backupPassword) ||
-            new Error("两次输入的备份密码须一致"),
+            new Error(t("两次输入的备份密码须一致")),
         }
       : [],
   }));
@@ -223,7 +226,7 @@ export function useCloudBackup(
     try {
       if (!(await validateForm(configForm.value))) return;
       await persist();
-      success.value = "云端配置已加密保存在本机。";
+      success.value = t("云端配置已加密保存在本机。");
     } catch (cause) {
       error.value = errorMessage(cause);
     } finally {
@@ -238,7 +241,7 @@ export function useCloudBackup(
     try {
       if (!(await validateForm(configForm.value))) return;
       await desktop.testBackupConfig(draft(), props.initializing);
-      success.value = "云端连接成功。";
+      success.value = t("云端连接成功。");
     } catch (cause) {
       error.value = errorMessage(cause);
     } finally {
@@ -285,7 +288,7 @@ export function useCloudBackup(
         const entry = await desktop.createCloudBackup(config.deviceName.trim());
         entries.value = [entry];
         listed.value = true;
-        success.value = "已上传新的独立备份，云端已有备份保留。";
+        success.value = t("已上传新的独立备份，云端已有备份保留。");
         config.backupPassword = "";
         config.confirmation = "";
       } else {
@@ -317,10 +320,13 @@ export function useCloudBackup(
     }
   }
   function counts(value: BackupCounts) {
-    return `主机 ${value.hosts} · 分组 ${value.groups} · 凭据 ${value.credentials} · 转发 ${value.forwards} · 主机信任 ${value.knownHosts}`;
+    return t(
+      "主机 {hosts} · 分组 {groups} · 凭据 {credentials} · 转发 {forwards} · 主机信任 {knownHosts}",
+      { ...value },
+    );
   }
   function time(value: number) {
-    return new Date(value).toLocaleString();
+    return formatDate(value);
   }
   async function apply() {
     if (operationBusy.value || !preview.value) return;
@@ -329,14 +335,18 @@ export function useCloudBackup(
     try {
       if (props.initializing) {
         if (!props.initialize)
-          throw new Error("初始化入口不可用，请重新打开软件。");
+          throw new Error(t("初始化入口不可用，请重新打开软件。"));
         if (!(await props.initialize(preview.value.token))) {
-          error.value = "请先完善上方的本机保险库密码与确认密码，再确认导入。";
+          error.value = t(
+            "请先完善上方的本机保险库密码与确认密码，再确认导入。",
+          );
           return;
         }
       } else {
         const result = await desktop.applyCloudRestore(preview.value.token);
-        success.value = `同步完成：${counts(result.counts)}。本机原有数据和设置已保留。`;
+        success.value = t("同步完成：{counts}。本机原有数据和设置已保留。", {
+          counts: counts(result.counts),
+        });
         importWarnings.value = result.warnings;
       }
       previewOpen.value = false;

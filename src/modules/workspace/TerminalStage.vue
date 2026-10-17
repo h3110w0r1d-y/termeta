@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from "../../i18n";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { NButton, NIcon, useThemeVars } from "naive-ui";
 import { CaretBack, CaretForward, CaretUp, CaretDown } from "@vicons/ionicons5";
@@ -187,7 +188,9 @@ onBeforeUnmount(() => {
       role="separator"
       tabindex="0"
       :aria-label="
-        divider.axis === 'horizontal' ? '调整左右终端宽度' : '调整上下终端高度'
+        divider.axis === 'horizontal'
+          ? t('调整左右终端宽度')
+          : t('调整上下终端高度')
       "
       :aria-orientation="
         divider.axis === 'horizontal' ? 'vertical' : 'horizontal'
@@ -218,9 +221,11 @@ onBeforeUnmount(() => {
           textColorFocus: themeVars.primaryColor,
         }"
         :aria-label="
-          divider.axis === 'horizontal' ? '交换左右区域' : '交换上下区域'
+          divider.axis === 'horizontal' ? t('交换左右区域') : t('交换上下区域')
         "
-        :title="divider.axis === 'horizontal' ? '交换左右区域' : '交换上下区域'"
+        :title="
+          divider.axis === 'horizontal' ? t('交换左右区域') : t('交换上下区域')
+        "
         @pointerdown.stop.prevent
         @mousedown.stop.prevent
         @click.stop="workspace.swapSplitRegions(divider.id)"

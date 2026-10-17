@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from "../../i18n";
 import ConnectionTypeDropdown from "./ConnectionTypeDropdown.vue";
 import { hostEndpoint, hostKindLabel } from "./presentation";
 import { NIcon } from "naive-ui";
@@ -96,8 +97,8 @@ function enter(event: KeyboardEvent) {
 <template>
   <AppDialog
     :open="open"
-    title="新建标签页"
-    description="选择已保存的主机，或使用快速连接。"
+    :title="t('新建标签页')"
+    :description="t('选择已保存的主机，或使用快速连接。')"
     @update:open="emit('update:open', $event)"
     @after-enter="focus"
     @after-leave="afterLeave"
@@ -108,8 +109,8 @@ function enter(event: KeyboardEvent) {
         v-model:value="query"
         autofocus
         clearable
-        placeholder="搜索全部主机…"
-        aria-label="搜索新标签页主机"
+        :placeholder="t('搜索全部主机…')"
+        :aria-label="t('搜索新标签页主机')"
         :input-props="{
           maxlength: 256,
           role: 'combobox',
@@ -133,7 +134,7 @@ function enter(event: KeyboardEvent) {
             class="host-results"
             id="new-tab-results"
             role="listbox"
-            aria-label="可连接的主机"
+            :aria-label="t('可连接的主机')"
           >
             <NListItem v-for="(host, index) in visible" :key="host.id">
               <NButton
@@ -154,7 +155,7 @@ function enter(event: KeyboardEvent) {
                       v-if="host.favorite"
                       :size="16"
                       role="img"
-                      aria-label="已收藏"
+                      :aria-label="t('已收藏')"
                     >
                       <Star />
                     </NIcon>
@@ -171,24 +172,30 @@ function enter(event: KeyboardEvent) {
           <NEmpty
             v-else
             :description="
-              query.trim() ? '没有匹配的主机' : '还没有保存主机，可使用快速连接'
+              query.trim()
+                ? t('没有匹配的主机')
+                : t('还没有保存主机，可使用快速连接')
             "
           />
         </div>
       </NScrollbar>
       <NText v-if="results.length > 100" depth="3">
-        共 {{ results.length }} 台，仅显示前100台，请缩小搜索范围。
+        {{
+          t("共 {count} 台，仅显示前100台，请缩小搜索范围。", {
+            count: results.length,
+          })
+        }}
       </NText>
     </NFlex>
     <template #footer>
       <NFlex justify="space-between">
         <ConnectionTypeDropdown
           v-model:show="quickMenuShown"
-          label="快速连接"
+          :label="t('快速连接')"
           :disabled="!open"
           @select="quick"
         />
-        <NButton @click="emit('update:open', false)">取消</NButton>
+        <NButton @click="emit('update:open', false)">{{ t("取消") }}</NButton>
       </NFlex>
     </template>
   </AppDialog>

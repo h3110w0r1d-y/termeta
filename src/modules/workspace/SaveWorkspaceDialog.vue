@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from "../../i18n";
 import { computed, reactive, ref, watch } from "vue";
 import {
   NAlert,
@@ -29,18 +30,18 @@ const snapshot = ref<SavedWorkspace>();
 const existing = computed(() =>
   hosts.hosts.find((h) => h.name === model.name.trim()),
 );
-const rules: FormRules = {
+const rules = computed<FormRules>(() => ({
   name: [
-    requiredText("名称"),
+    requiredText(t("名称")),
     {
       validator: () =>
         !existing.value ||
         existing.value.kind === "workspace" ||
-        new Error("名称已被连接使用，只允许替换同名工作区"),
+        new Error(t("名称已被连接使用，只允许替换同名工作区")),
       trigger: ["input", "blur"],
     },
   ],
-};
+}));
 watch(
   () => props.groupId,
   (id) => {
@@ -83,13 +84,13 @@ async function save() {
 <template>
   <AppDialog
     :open="!!groupId"
-    title="保存工作区"
+    :title="t('保存工作区')"
     :locked="busy"
     @update:open="emit('close')"
     @after-leave="emit('after-leave')"
   >
     <NForm ref="form" :model="model" :rules="rules" @submit.prevent="save">
-      <NFormItem label="名称" path="name">
+      <NFormItem :label="t('名称')" path="name">
         <NInput
           v-model:value="model.name"
           :maxlength="128"
@@ -99,22 +100,24 @@ async function save() {
       </NFormItem>
     </NForm>
     <NText depth="3">
-      保存布局与连接引用。保存后无法编辑，可重新保存替换同名工作区。
+      {{ t("保存当前布局和连接。需要更改时，可再次保存以替换同名工作区。") }}
     </NText>
     <NAlert v-if="existing?.kind === 'workspace'" type="warning">
-      将替换工作区“{{ existing.name }}”的布局与连接引用。
+      {{ t("将替换工作区“{name}”的布局和连接。", { name: existing.name }) }}
     </NAlert>
     <NAlert v-if="error" type="error">{{ error }}</NAlert>
     <template #footer>
       <NSpace justify="end">
-        <NButton :disabled="busy" @click="emit('close')">取消</NButton>
+        <NButton :disabled="busy" @click="emit('close')">
+          {{ t("取消") }}
+        </NButton>
         <NButton
           type="primary"
           :loading="busy"
           :disabled="!snapshot"
           @click="save"
         >
-          {{ existing?.kind === "workspace" ? "替换工作区" : "保存" }}
+          {{ existing?.kind === "workspace" ? t("替换工作区") : t("保存") }}
         </NButton>
       </NSpace>
     </template>

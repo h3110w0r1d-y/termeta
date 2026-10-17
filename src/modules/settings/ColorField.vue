@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from "../../i18n";
 import { NIcon } from "naive-ui";
 import { RefreshOutline } from "@vicons/ionicons5";
 import AppColorPicker from "../../components/ui/AppColorPicker.vue";
@@ -20,7 +21,7 @@ const rule = computed<FormItemRule>(() => ({
     (props.optional && !value) ||
     (typeof value === "string" &&
       /^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(value)) ||
-    new Error("请输入6或8位HEX颜色"),
+    new Error(t("请输入6或8位HEX颜色")),
 }));
 const emit = defineEmits<{ "update:modelValue": [string] }>();
 function resetColor() {
@@ -43,8 +44,8 @@ function resetColor() {
       <AppButton
         class="color-field-reset"
         v-if="reset"
-        title="重置单色"
-        :aria-label="label + '重置单色'"
+        :title="t('重置单色')"
+        :aria-label="t('重置{name}颜色', { name: label })"
         @click="resetColor"
       >
         <NIcon :size="16" aria-hidden="true"><RefreshOutline /></NIcon>

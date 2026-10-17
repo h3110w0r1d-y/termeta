@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from "../../i18n";
 import { watch } from "vue";
 import { NButton, NSpace, NText } from "naive-ui";
 import AppDialog from "../../components/ui/AppDialog.vue";
@@ -50,32 +51,34 @@ function afterLeave() {
 <template>
   <AppDialog
     :open="open"
-    title="批量连接"
+    :title="t('批量连接')"
     @update:open="cancel"
     @after-leave="afterLeave"
   >
     <p>
-      “{{ groupName }}”中共有
-      {{ hosts.length }} 台主机（包含子分组），是否批量连接？
+      {{
+        t("“{groupName}”中共有 {count} 台主机（包含子分组），是否批量连接？", {
+          groupName: groupName,
+          count: hosts.length,
+        })
+      }}
     </p>
-    <NText depth="3">
-      请选择终端的打开方式。工作区将使用分割视图展示这些终端。
-    </NText>
+    <NText depth="3">{{ t("选择在独立标签或分屏工作区中打开。") }}</NText>
     <NText v-if="hosts.some((host) => host.kind === 'workspace')" depth="3">
-      已保存的工作区会各自按原布局打开；所选打开方式仅应用于普通连接。
+      {{ t("已保存的工作区将按原布局打开。") }}
     </NText>
     <template #footer>
       <NSpace justify="end">
-        <NButton @click="cancel">取消</NButton>
+        <NButton @click="cancel">{{ t("取消") }}</NButton>
         <NButton :disabled="!hosts.length" @click="choose('tabs')">
-          在独立标签中打开
+          {{ t("在独立标签中打开") }}
         </NButton>
         <NButton
           type="primary"
           :disabled="!hosts.length"
           @click="choose('workspace')"
         >
-          在工作区中打开
+          {{ t("在工作区中打开") }}
         </NButton>
       </NSpace>
     </template>

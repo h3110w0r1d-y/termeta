@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { t } from "../../i18n";
+import { computed, ref, watch } from "vue";
 import { validateForm } from "../../services/forms/rules";
 import {
   NFlex,
@@ -13,9 +14,9 @@ import AppInput from "./AppInput.vue";
 import AppDialog from "./AppDialog.vue";
 import { currentConfirmation, settleConfirmation } from "./confirmation";
 const form = ref<FormInst>();
-const rules: FormRules = {
-  input: { max: 120, message: "最多120个字符", trigger: ["input", "blur"] },
-};
+const rules = computed<FormRules>(() => ({
+  input: { max: 120, message: t("最多120个字符"), trigger: ["input", "blur"] },
+}));
 watch(currentConfirmation, () => form.value?.restoreValidation());
 async function submit() {
   if (await validateForm(form.value)) settleConfirmation(true);
@@ -24,7 +25,9 @@ async function submit() {
 <template>
   <AppDialog
     :open="!!currentConfirmation"
-    :title="currentConfirmation?.input === undefined ? '确认操作' : '输入信息'"
+    :title="
+      currentConfirmation?.input === undefined ? t('确认操作') : t('输入信息')
+    "
     @update:open="(value) => !value && settleConfirmation(false)"
   >
     <NForm
@@ -38,7 +41,7 @@ async function submit() {
       <p class="confirmation-message">{{ currentConfirmation.message }}</p>
       <NFormItem
         v-if="currentConfirmation.input !== undefined"
-        label="输入信息"
+        :label="t('输入信息')"
         path="input"
       >
         <AppInput
@@ -51,10 +54,10 @@ async function submit() {
     <template #footer>
       <NFlex justify="end">
         <AppButton type="button" @click="settleConfirmation(false)">
-          取消
+          {{ t("取消") }}
         </AppButton>
         <AppButton type="submit" form="confirmation-form" class="primary">
-          确认
+          {{ t("确认") }}
         </AppButton>
       </NFlex>
     </template>

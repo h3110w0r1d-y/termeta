@@ -37,6 +37,7 @@ pub fn validate(settings: &Value) -> Result<()> {
     let allowed = [
         "schemaVersion",
         "appearance",
+        "language",
         "primaryColor",
         "tabPosition",
         "tabDoubleClickAction",
@@ -60,6 +61,10 @@ pub fn validate(settings: &Value) -> Result<()> {
             settings["appearance"].as_str(),
             Some("system" | "dark" | "light")
         )
+        // 旧设置缺失时跟随系统；拒绝不受支持的语言及非字符串值。
+        || object.get("language").is_some_and(|value| {
+            !matches!(value.as_str(), Some("system" | "zh-CN" | "en-US"))
+        })
         // 缺失或空串沿用库默认主题色；自定义值只接受不透明的六位 HEX。
         || object.get("primaryColor").is_some_and(|value| {
             !value.as_str().is_some_and(|text| {

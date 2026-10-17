@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 import { nextTick } from "vue";
 import { applyTerminalTheme } from "./theme";
 import { writeLocalStatus } from "./localStatus";
@@ -91,7 +92,7 @@ function receive(entry: Entry, stream: Stream, raw: ArrayBuffer) {
   if (entry.stream !== stream || entry.disposed) return;
   try {
     if (!(raw instanceof ArrayBuffer) || raw.byteLength < 25)
-      throw new Error("终端输出帧无效");
+      throw new Error(t("无法读取终端输出，请重新连接。"));
     const view = new DataView(raw),
       length = view.getUint32(16, true),
       seq = view.getUint32(4, true),
@@ -108,7 +109,7 @@ function receive(entry: Entry, stream: Stream, raw: ArrayBuffer) {
       offset !== stream.received + BigInt(length) ||
       stream.pending + length > 512 * 1024
     )
-      throw new Error("PROTOCOL_MISMATCH：终端数据流不连续或超出预算");
+      throw new Error(t("终端输出异常，请重新连接。"));
     stream.seq = seq;
     stream.received = offset;
     stream.pending += length;
@@ -182,7 +183,7 @@ function event(
     tab.state = value.finalState;
     tab.error =
       value.error?.message ??
-      (!value.outputComplete ? "连接结束，末尾输出可能不完整" : "");
+      (!value.outputComplete ? t("连接结束，末尾输出可能不完整") : "");
     useWorkspace().dismiss(value.sessionId);
     // 等待最后一帧解析，控制事件与数据 Channel 没有全局先后顺序。
     void drain(entry, stream)
@@ -191,7 +192,17 @@ function event(
           resetTerminalActivity(tab);
           writeLocalStatus(
             entry.term,
-            `${tab.sshCommand && value.reason === "remoteExit" ? "命令已结束，可通过右键菜单重新运行" : value.reason}${value.exitCode !== undefined && value.exitCode !== null ? `（退出码 ${value.exitCode}）` : ""}${value.exitSignal ? `（信号 ${value.exitSignal}）` : ""}`,
+            [
+              tab.sshCommand && value.reason === "remoteExit"
+                ? t("命令已结束，可通过右键菜单重新运行")
+                : t("连接已结束"),
+              value.exitCode !== undefined && value.exitCode !== null
+                ? t("（退出码 {exitCode}）", { exitCode: value.exitCode })
+                : "",
+              value.exitSignal
+                ? t("（信号 {exitSignal}）", { exitSignal: value.exitSignal })
+                : "",
+            ].join(""),
           );
         }
       })
@@ -212,7 +223,8 @@ function drain(entry: Entry, stream: Stream): Promise<void> {
           stream.consumed >= stream.finalOffset)
       ) {
         const timer = setTimeout(
-          () => reject(new Error("终端解析栅栏超时，请稍后重试；历史已保留。")),
+          () =>
+            reject(new Error(t("终端仍在处理输出，请稍后重试。历史已保留。"))),
           Math.max(1, deadline - Date.now()),
         );
         entry.term.write(new Uint8Array([0x18]), () => {
@@ -222,7 +234,7 @@ function drain(entry: Entry, stream: Stream): Promise<void> {
         return;
       }
       if (Date.now() >= deadline) {
-        reject(new Error("旧终端输出尚未排空，请稍后重试；历史已保留。"));
+        reject(new Error(t("终端仍在处理输出，请稍后重试。历史已保留。")));
         return;
       }
       setTimeout(check, 20);
@@ -235,7 +247,7 @@ function input(entry: Entry, tab: TerminalTab, bytes: Uint8Array) {
   if (!stream || stream.ended || tab.state !== "connected" || !stream.sessionId)
     return;
   if (stream.inputBytes + bytes.length > 65536) {
-    tab.error = "输入队列已满，请等待后重试粘贴。";
+    tab.error = t("输入队列已满，请等待后重试粘贴。");
     return;
   }
   stream.inputBytes += bytes.length;
@@ -250,7 +262,7 @@ function input(entry: Entry, tab: TerminalTab, bytes: Uint8Array) {
         )
           return;
         if (stream.inputSeq >= 0xffffffff)
-          throw new Error("输入序号已耗尽，请重连。");
+          throw new Error(t("暂时无法发送输入，请重新连接。"));
         await desktop.write(
           stream.sessionId!,
           ++stream.inputSeq,
@@ -258,7 +270,9 @@ function input(entry: Entry, tab: TerminalTab, bytes: Uint8Array) {
         );
       } catch (error) {
         stream.ended = true;
-        tab.error = `${errorMessage(error)}；未确认输入不会自动重放。`;
+        tab.error = t("{error}；未发送的输入不会自动重试。", {
+          error: errorMessage(error),
+        });
         if (stream.sessionId)
           void desktop.close(stream.sessionId, "inputFailed").catch(() => {});
       } finally {
@@ -334,7 +348,7 @@ function settings(entry: Entry, tab: TerminalTab) {
       .catch(() => {
         if (entry.disposed || entry.fontRequest !== request) return;
         entry.fontRequest = undefined;
-        tab.error = "内置终端字体加载失败，请重新应用设置或重启应用。";
+        tab.error = t("内置终端字体加载失败，请重新应用设置或重启应用。");
       });
   }
   entry.term.options.fontSize = s.fontSize;
@@ -505,7 +519,7 @@ export const terminalRegistry = {
           const deadline = Date.now() + 3000;
           while (!old.ended && Date.now() < deadline)
             await new Promise((r) => setTimeout(r, 20));
-          if (!old.ended) throw new Error("旧会话仍在关闭，请稍后重试。");
+          if (!old.ended) throw new Error(t("旧会话仍在关闭，请稍后重试。"));
         }
         await drain(entry, old);
         if (old.ackTimer) clearTimeout(old.ackTimer);
@@ -516,7 +530,7 @@ export const terminalRegistry = {
         const profileId = tab.target.profileId;
         const profile = useHosts().hosts.find((host) => host.id === profileId);
         if (profile?.kind === "workspace")
-          throw new Error("工作区不能作为单个终端连接");
+          throw new Error(t("工作区不能作为单个终端连接"));
         if (profile) {
           tab.kind = profile.kind;
           tab.serialConfig = profile.serialConfig
@@ -529,17 +543,17 @@ export const terminalRegistry = {
         entry.term,
         tab.kind === "local"
           ? old
-            ? "重新打开本地终端，保留终端历史"
-            : "启动本地终端"
+            ? t("重新打开本地终端，保留终端历史")
+            : t("启动本地终端")
           : tab.kind === "serial"
             ? old
-              ? "重新打开串口，保留终端历史"
-              : "打开串口"
+              ? t("重新打开串口，保留终端历史")
+              : t("打开串口")
             : old
-              ? "重新连接，保留终端历史"
+              ? t("重新连接，保留终端历史")
               : tab.kind === "telnet"
-                ? "开始 Telnet 连接（明文传输）"
-                : "开始 SSH 连接",
+                ? t("开始 Telnet 连接（明文传输）")
+                : t("开始 SSH 连接"),
       );
       const stream: Stream = {
         generation: (old?.generation ?? 0) + 1,
@@ -665,7 +679,7 @@ export const terminalRegistry = {
     )
       return;
     if (new TextEncoder().encode(text).length > 65536) {
-      tab.error = "单次粘贴不能超过 64 KiB。";
+      tab.error = t("单次粘贴不能超过 64 KiB。");
       return;
     }
     const group = workspace.activeGroup!;
@@ -724,8 +738,7 @@ export const terminalRegistry = {
       )
     ) {
       if (workspace.active)
-        workspace.active.error =
-          "当前终端无法区分用户输入与自动应答，不能开启广播。";
+        workspace.active.error = t("当前终端暂不支持输入广播。");
       return;
     }
     workspace.toggleBroadcast();

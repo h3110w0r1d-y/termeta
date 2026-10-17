@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from "../../i18n";
 import {
   NList,
   NListItem,
@@ -39,7 +40,8 @@ async function revoke(id: string) {
   if (busy.value) return;
   busy.value = true;
   try {
-    if (!(await confirmAction("撤销信任？下次连接需要重新核验指纹。"))) return;
+    if (!(await confirmAction(t("撤销信任？下次连接需要重新核验指纹。"))))
+      return;
     await desktop.revokeKnownHost(id);
     await load();
   } catch (e) {
@@ -50,14 +52,16 @@ async function revoke(id: string) {
 }
 </script>
 <template>
-  <section class="home-page" aria-label="主机信任">
+  <section class="home-page" :aria-label="t('主机信任')">
     <header class="page-heading">
       <div>
-        <NH1>主机信任</NH1>
-        <NText depth="3">Known Hosts · 已保存的 SSH 主机密钥与指纹</NText>
+        <NH1>{{ t("主机信任") }}</NH1>
+        <NText depth="3">{{ t("管理已信任的 SSH 主机") }}</NText>
       </div>
       <NFlex>
-        <AppButton :disabled="loading || busy" @click="load">刷新</AppButton>
+        <AppButton :disabled="loading || busy" @click="load">
+          {{ t("刷新") }}
+        </AppButton>
       </NFlex>
     </header>
     <NFlex vertical :size="16">
@@ -65,7 +69,7 @@ async function revoke(id: string) {
       <NSpin :show="loading">
         <NEmpty
           v-if="!loading && !known.length"
-          description="尚未保存主机信任。"
+          :description="t('尚未保存主机信任。')"
         />
         <NList v-else bordered>
           <NListItem v-for="host in known" :key="host.id">
@@ -80,7 +84,7 @@ async function revoke(id: string) {
                 :disabled="loading || busy"
                 @click="revoke(host.id)"
               >
-                撤销信任
+                {{ t("撤销信任") }}
               </AppButton>
             </template>
           </NListItem>

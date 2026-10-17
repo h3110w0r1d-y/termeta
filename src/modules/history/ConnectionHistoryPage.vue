@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t, formatDate } from "../../i18n";
 import {
   NList,
   NListItem,
@@ -35,7 +36,8 @@ async function clearHistory() {
   if (busy.value) return;
   busy.value = true;
   try {
-    if (!(await confirmAction("清空本地连接历史？不会删除主机配置。"))) return;
+    if (!(await confirmAction(t("清空本地连接历史？不会删除主机配置。"))))
+      return;
     await desktop.clearHistory();
     await load();
   } catch (e) {
@@ -46,20 +48,22 @@ async function clearHistory() {
 }
 </script>
 <template>
-  <section class="home-page" aria-label="连接历史">
+  <section class="home-page" :aria-label="t('连接历史')">
     <header class="page-heading">
       <div>
-        <NH1>连接历史</NH1>
-        <NText depth="3">最近 20 次 SSH、本地终端与串口连接</NText>
+        <NH1>{{ t("连接历史") }}</NH1>
+        <NText depth="3">{{ t("最近 20 次连接") }}</NText>
       </div>
       <NFlex>
-        <AppButton :disabled="loading || busy" @click="load">刷新</AppButton>
+        <AppButton :disabled="loading || busy" @click="load">
+          {{ t("刷新") }}
+        </AppButton>
         <AppButton
           class="danger"
           :disabled="loading || busy || !history.length"
           @click="clearHistory"
         >
-          清空历史
+          {{ t("清空历史") }}
         </AppButton>
       </NFlex>
     </header>
@@ -68,7 +72,7 @@ async function clearHistory() {
       <NSpin :show="loading">
         <NEmpty
           v-if="!loading && !history.length"
-          description="尚无连接历史。"
+          :description="t('尚无连接历史。')"
         />
         <NList v-else bordered>
           <NListItem v-for="item in history" :key="item.id">
@@ -77,9 +81,9 @@ async function clearHistory() {
               :description="
                 item.endpoint +
                 ' · ' +
-                new Date(item.startedAt).toLocaleString() +
+                formatDate(item.startedAt) +
                 ' · ' +
-                (item.endReason || '进行中') +
+                (item.endReason || t('进行中')) +
                 ' ' +
                 (item.errorCode || '')
               "

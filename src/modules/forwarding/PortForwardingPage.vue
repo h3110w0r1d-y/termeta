@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from "../../i18n";
 import { computed, ref } from "vue";
 import {
   NAlert,
@@ -31,16 +32,16 @@ const search = ref(""),
   editorOpen = ref(false),
   editing = ref<ForwardProfile>(),
   copy = ref(false);
-const modeLabels = {
-  local: "本地转发",
-  remote: "远程转发",
-  dynamic: "动态 SOCKS5",
-};
+const modeLabels = computed(() => ({
+  local: t("本地转发"),
+  remote: t("远程转发"),
+  dynamic: t("动态 SOCKS5"),
+}));
 const hostName = (profile: ForwardProfile) =>
   hosts.hosts.find((h) => h.id === profile.profileId)?.name;
 const profiles = computed(() =>
   forwards.profiles.filter((profile) =>
-    `${profile.name} ${hostName(profile) ?? ""} ${modeLabels[profile.rule.mode]} ${profile.rule.bindAddress} ${profile.rule.bindPort} ${profile.rule.targetAddress ?? ""} ${profile.rule.targetPort ?? ""}`
+    `${profile.name} ${hostName(profile) ?? ""} ${modeLabels.value[profile.rule.mode]} ${profile.rule.bindAddress} ${profile.rule.bindPort} ${profile.rule.targetAddress ?? ""} ${profile.rule.targetPort ?? ""}`
       .toLocaleLowerCase()
       .includes(search.value.trim().toLocaleLowerCase()),
   ),
@@ -65,7 +66,9 @@ async function refresh() {
 async function remove(profile: ForwardProfile) {
   if (
     !(await confirmAction(
-      `删除端口转发“${profile.name}”？引用的 SSH 主机将保留。`,
+      t("删除端口转发“{name}”？引用的 SSH 主机将保留。", {
+        name: profile.name,
+      }),
     ))
   )
     return;
@@ -82,27 +85,27 @@ function endpoint(address: string, port: number | null) {
 <template>
   <section class="forward-page">
     <NFlex align="center" justify="space-between">
-      <NH1>端口转发</NH1>
+      <NH1>{{ t("端口转发") }}</NH1>
       <NFlex>
-        <NButton :loading="loading" @click="refresh">刷新</NButton>
+        <NButton :loading="loading" @click="refresh">{{ t("刷新") }}</NButton>
         <NButton type="primary" @click="edit()">
           <template #icon><AssetIcon name="add" /></template>
-          新建转发
+          {{ t("新建转发") }}
         </NButton>
       </NFlex>
     </NFlex>
     <NInput
       v-model:value="search"
       clearable
-      placeholder="搜索名称、SSH 主机或转发地址"
-      aria-label="搜索端口转发"
+      :placeholder="t('搜索名称、SSH 主机或转发地址')"
+      :aria-label="t('搜索端口转发')"
     />
     <NAlert v-if="error" type="error" closable @close="error = ''">
       {{ error }}
     </NAlert>
     <NEmpty
       v-if="!profiles.length"
-      :description="search ? '没有匹配的端口转发' : '还没有端口转发'"
+      :description="search ? t('没有匹配的端口转发') : t('还没有端口转发')"
     />
     <NGrid
       v-else
@@ -138,25 +141,34 @@ function endpoint(address: string, port: number | null) {
             >
               {{
                 forwards.runtimes[profile.id]
-                  ? stateLabels[forwards.runtimes[profile.id]!.state]
-                  : "未启动"
+                  ? t(stateLabels[forwards.runtimes[profile.id]!.state])
+                  : t("未启动")
               }}
             </NTag>
           </template>
           <NFlex vertical :size="10">
             <NText depth="3">
               {{ modeLabels[profile.rule.mode] }} ·
-              {{ hostName(profile) ?? "引用的 SSH 主机已删除" }}
+              {{ hostName(profile) ?? t("引用的 SSH 主机已删除") }}
             </NText>
             <NText class="endpoint">
-              {{ profile.rule.mode === "remote" ? "远程" : "本机" }}
+              {{ profile.rule.mode === "remote" ? t("远程") : t("本机") }}
               {{ endpoint(profile.rule.bindAddress, profile.rule.bindPort) }}
             </NText>
             <NText class="endpoint" depth="3">
               {{
                 profile.rule.mode === "dynamic"
-                  ? "SOCKS5 → 由应用指定目标"
-                  : `→ ${profile.rule.mode === "remote" ? "本机侧" : "远程侧"} ${endpoint(profile.rule.targetAddress ?? "", profile.rule.targetPort)}`
+                  ? t("SOCKS5 → 由应用指定目标")
+                  : t("→ {value1} {value2}", {
+                      value1:
+                        profile.rule.mode === "remote"
+                          ? t("本机侧")
+                          : t("远程侧"),
+                      value2: endpoint(
+                        profile.rule.targetAddress ?? "",
+                        profile.rule.targetPort,
+                      ),
+                    })
               }}
             </NText>
             <NAlert
@@ -175,7 +187,7 @@ function endpoint(address: string, port: number | null) {
                 :disabled="forwards.runtimes[profile.id]?.state === 'closing'"
                 @click="forwards.stop(profile.id)"
               >
-                停止
+                {{ t("停止") }}
               </NButton>
               <NButton
                 v-else
@@ -183,7 +195,7 @@ function endpoint(address: string, port: number | null) {
                 :disabled="!hostName(profile)"
                 @click="forwards.start(profile.id)"
               >
-                启动
+                {{ t("启动") }}
               </NButton>
               <NFlex :size="4">
                 <NButton
@@ -192,10 +204,10 @@ function endpoint(address: string, port: number | null) {
                   :disabled="forwards.active(profile.id)"
                   @click="edit(profile)"
                 >
-                  编辑
+                  {{ t("编辑") }}
                 </NButton>
                 <NButton size="small" quaternary @click="edit(profile, true)">
-                  复制
+                  {{ t("复制") }}
                 </NButton>
                 <NButton
                   size="small"
@@ -203,7 +215,7 @@ function endpoint(address: string, port: number | null) {
                   :disabled="forwards.active(profile.id)"
                   @click="remove(profile)"
                 >
-                  删除
+                  {{ t("删除") }}
                 </NButton>
               </NFlex>
             </NFlex>

@@ -1,3 +1,4 @@
+import type { Language } from "../../i18n";
 import type { Binding } from "../../services/commands/types";
 
 export interface Scheme {
@@ -33,6 +34,7 @@ export interface HostSearchSettings {
 }
 export interface AppSettings {
   schemaVersion: 1;
+  language: Language;
   primaryColor: string;
   appearance: "dark" | "light" | "system";
   tabPosition: "top" | "left";

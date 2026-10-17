@@ -1,8 +1,9 @@
+import { t } from "../../i18n";
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { useHosts } from "../hosts/store";
 import { clone } from "../../services/data/clone";
-import { terminalDisplayTitle } from "../terminal/title";
+import { terminalBaseTitle, terminalDisplayTitle } from "../terminal/title";
 import type { TerminalActivity } from "../terminal/activity";
 import { broadcastTargets, type InputKind } from "../terminal/inputRouter";
 import {
@@ -103,8 +104,10 @@ export const useWorkspace = defineStore("workspace", () => {
         id: group.id,
         title: terminalDisplayTitle(
           group.root.kind === "split" || group.savedProfileId
-            ? (group.name ?? "Workspace")
-            : (terminal?.title ?? "终端"),
+            ? (group.name ?? t("工作区"))
+            : terminal
+              ? terminalBaseTitle(terminal)
+              : t("终端"),
           terminal?.remoteTitle,
         ),
         // 标签状态概括全部子终端，避免聚焦已关闭窗格时掩盖其他活动连接。
@@ -231,18 +234,20 @@ export const useWorkspace = defineStore("workspace", () => {
     activeId.value = first.terminalId;
   }
   function validateSavedWorkspace(host: HostProfile) {
-    if (!host.workspace) throw new Error("工作区布局缺失");
+    if (!host.workspace) throw new Error(t("工作区布局缺失"));
     const hosts = useHosts();
     let count = 0;
     const visit = (node: SavedLayout, depth: number) => {
-      if (depth > 32 || count >= 64) throw new Error("工作区布局超出限制");
+      if (depth > 32 || count >= 64) throw new Error(t("工作区布局超出限制"));
       if (node.kind === "connection") {
         const profile = hosts.hosts.find(
           (h) => h.id === node.profileId && h.kind !== "workspace",
         );
         if (!profile)
           throw new Error(
-            `工作区“${host.name}”引用的连接已删除，请重新保存工作区`,
+            t("工作区“{name}”引用的连接已删除，请重新保存工作区", {
+              name: host.name,
+            }),
           );
         count++;
       } else {
@@ -252,7 +257,7 @@ export const useWorkspace = defineStore("workspace", () => {
           node.ratio < 0.1 ||
           node.ratio > 0.9
         )
-          throw new Error("工作区分割配置无效");
+          throw new Error(t("工作区分割配置无效"));
         visit(node.first, depth + 1);
         visit(node.second, depth + 1);
       }
@@ -263,7 +268,7 @@ export const useWorkspace = defineStore("workspace", () => {
       host.workspace.focusedIndex < 0 ||
       host.workspace.focusedIndex >= count
     )
-      throw new Error("工作区焦点无效");
+      throw new Error(t("工作区焦点无效"));
   }
   function openSavedWorkspace(host: HostProfile) {
     validateSavedWorkspace(host);
@@ -272,7 +277,7 @@ export const useWorkspace = defineStore("workspace", () => {
       if (node.kind === "connection") {
         const profile = useHosts().hosts.find((h) => h.id === node.profileId);
         if (!profile || profile.kind === "workspace")
-          throw new Error("工作区连接引用无效");
+          throw new Error(t("工作区连接引用无效"));
         const tab = add(
           profile.name,
           { source: "saved", profileId: profile.id },
@@ -306,7 +311,7 @@ export const useWorkspace = defineStore("workspace", () => {
   function snapshotWorkspace(id: string): SavedWorkspace {
     const group = groups.value.find((g) => g.id === id);
     if (!group || (group.root.kind !== "split" && !group.savedProfileId))
-      throw new Error("只能保存工作区");
+      throw new Error(t("只能保存工作区"));
     const hosts = useHosts();
     const capture = (node: LayoutNode): SavedLayout => {
       if (node.kind === "terminal") {
@@ -319,7 +324,9 @@ export const useWorkspace = defineStore("workspace", () => {
           )
         )
           throw new Error(
-            "工作区只能引用已保存的 SSH、Telnet 或串口连接；请先保存临时连接配置，本地终端暂不支持保存",
+            t(
+              "工作区只能引用已保存的 SSH、Telnet 或串口连接；请先保存临时连接配置，本地终端暂不支持保存",
+            ),
           );
         return { kind: "connection", profileId: target.profileId };
       }

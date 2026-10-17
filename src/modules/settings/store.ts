@@ -1,6 +1,7 @@
 import { clone } from "../../services/data/clone";
 import { defineStore } from "pinia";
-import { ref } from "vue";
+import { normalizeLanguage, setLanguage } from "../../i18n";
+import { ref, watch } from "vue";
 import { desktop } from "../../services/desktop/client";
 import { defaults, upgradeBindings } from "../../services/commands/registry";
 import type {
@@ -14,6 +15,7 @@ import { defaultTerminalFont, normalizeTerminalFont } from "./fonts";
 export function defaultSettings(): AppSettings {
   return {
     schemaVersion: 1,
+    language: "system",
     appearance: "dark",
     primaryColor: "",
     tabPosition: "top",
@@ -43,10 +45,15 @@ export function defaultSettings(): AppSettings {
 }
 export const useSettings = defineStore("settings", () => {
   const value = ref<AppSettings>(defaultSettings());
+  watch(() => value.value.language, setLanguage, {
+    immediate: true,
+    flush: "sync",
+  });
   function normalize(saved: AppSettings): AppSettings {
     return {
       ...defaultSettings(),
       ...saved,
+      language: normalizeLanguage(saved.language),
       // 旧版 hostsView 可能存在但缺少新增偏好，按子字段补齐默认值。
       hostsView: { ...defaultSettings().hostsView, ...saved.hostsView },
       keymap: {

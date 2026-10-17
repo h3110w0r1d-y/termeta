@@ -4,7 +4,7 @@
 
 ## 当前基线
 
-Windows/macOS/Linux 桌面客户端，Tauri 2 + Rust + Vue 3 + TypeScript，通用 UI 为 Naive UI 2.45.3。源码覆盖 SSH/Telnet/基础 Local 与 Serial、主机/分组/凭据、稳定终端、分屏广播、显式工作区保存、独立设置、SFTP、三模式端口转发及 Gist/WebDAV 手动加密备份与非覆盖同步。
+Windows/macOS/Linux 桌面客户端，Tauri 2 + Rust + Vue 3 + TypeScript，通用 UI 为 Naive UI 2.45.3。源码覆盖 SSH/Telnet/基础 Local 与 Serial、主机/分组/凭据、稳定终端、分屏广播、显式工作区保存、独立设置、中英界面与跟随系统、SFTP、三模式端口转发及 Gist/WebDAV 手动加密备份与非覆盖同步。
 
 断线保留 terminalId/xterm/历史，重连替换后端连接；工作区存档只保存布局和连接引用，打开创建新会话，不自动恢复标签。SQLCipher 加密格式2、schema 6，同格式 schema 2–5 升级，OS 仅缓存主密钥，直接保存数据库文件时须与 vault 元数据配对。云备份使用独立密码封装白名单 SQLite 快照，排除本机设置；支持首次初始化云拉取并保存本机云端配置。限制与完整功能表统一维护于产品需求，不在导航重复展开。
 

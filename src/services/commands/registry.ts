@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 import type { Binding, Modifier } from "./types";
 export const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
 export const commandDefinitions = [
@@ -111,7 +112,7 @@ export function keyLabel(binding: Binding) {
     ...binding.trigger.modifiers.map((m) =>
       m === "Primary" ? (isMac ? "Cmd" : "Ctrl") : m,
     ),
-    binding.trigger.type === "key" ? binding.trigger.key : "点击",
+    binding.trigger.type === "key" ? binding.trigger.key : t("点击"),
   ].join("+");
 }
 export function conflict(bindings: Binding[]) {
@@ -122,14 +123,24 @@ export function conflict(bindings: Binding[]) {
       .sort()
       .join("+");
     const key = `${b.scope}/${b.trigger.type}/${mods}/${b.trigger.type === "key" ? b.trigger.key.toLowerCase() : "click"}`;
-    if (seen.has(key)) return `快捷键冲突：${seen.get(key)} 与 ${b.commandId}`;
+    if (seen.has(key))
+      return t("快捷键冲突：{first} 与 {second}", {
+        first: t(
+          commandDefinitions.find((item) => item[0] === seen.get(key))?.[1] ??
+            seen.get(key)!,
+        ),
+        second: t(
+          commandDefinitions.find((item) => item[0] === b.commandId)?.[1] ??
+            b.commandId,
+        ),
+      });
     seen.set(key, b.commandId);
   }
   return "";
 }
 export function validateBindings(value: unknown): Binding[] {
   if (!Array.isArray(value) || value.length > 100)
-    throw new Error("快捷键条目无效");
+    throw new Error(t("快捷键条目无效"));
   const allowed = new Set<string>(commandDefinitions.map((d) => d[0]));
   const modifiers = new Set(["Primary", "Control", "Meta", "Alt", "Shift"]);
   for (const b of value) {
@@ -143,15 +154,15 @@ export function validateBindings(value: unknown): Binding[] {
       !Array.isArray(b.trigger?.modifiers) ||
       b.trigger.modifiers.some((m: unknown) => !modifiers.has(String(m)))
     )
-      throw new Error("快捷键字段不合法");
+      throw new Error(t("快捷键字段不合法"));
     const definition = commandDefinitions.find((d) => d[0] === b.commandId)!;
     if (
       b.scope !== definition[2] ||
       b.context !== (b.scope === "application" ? "workspace" : "terminal")
     )
-      throw new Error("快捷键上下文与动作不匹配");
+      throw new Error(t("快捷键上下文与动作不匹配"));
     if (b.commandId === "terminal.openLink" && b.trigger.type !== "pointer")
-      throw new Error("链接动作需要鼠标绑定");
+      throw new Error(t("链接动作需要鼠标绑定"));
     if (
       b.trigger.type === "key" &&
       !(b.enabled === false && b.trigger.key === "") &&
@@ -161,7 +172,7 @@ export function validateBindings(value: unknown): Binding[] {
           b.trigger.key,
         ))
     )
-      throw new Error("不支持的按键");
+      throw new Error(t("不支持的按键"));
     if (
       b.trigger.type !== "key" &&
       (b.trigger.type !== "pointer" ||
@@ -169,7 +180,7 @@ export function validateBindings(value: unknown): Binding[] {
         b.trigger.event !== "click" ||
         b.commandId !== "terminal.openLink")
     )
-      throw new Error("不支持的触发器");
+      throw new Error(t("不支持的触发器"));
   }
   const issue = conflict(value);
   if (issue) throw new Error(issue);

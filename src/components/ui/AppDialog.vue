@@ -20,7 +20,7 @@ const emit = defineEmits<{
 </script>
 <template>
   <section v-if="embedded" class="embedded-dialog">
-    <NScrollbar class="embedded-dialog-body" :aria-label="`${title}内容`">
+    <NScrollbar class="embedded-dialog-body" :aria-label="title">
       <slot />
     </NScrollbar>
     <footer v-if="$slots.footer" class="embedded-dialog-footer">

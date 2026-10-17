@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from "../../i18n";
 import { GitNetworkOutline, CloseOutline } from "@vicons/ionicons5";
 import { computed, onMounted, ref, watch } from "vue";
 import { NIcon, useThemeVars } from "naive-ui";
@@ -6,7 +7,7 @@ import AppButton from "../../components/ui/AppButton.vue";
 import { useWorkspace, type TerminalTab } from "../workspace/store";
 import { stateLabels } from "../workspace/store";
 import { schemeForTab, terminalRegistry } from "./registry";
-import { terminalDisplayTitle } from "./title";
+import { terminalBaseTitle, terminalDisplayTitle } from "./title";
 import SftpPanel from "../files/SftpPanel.vue";
 const props = defineProps<{
   tab: TerminalTab;
@@ -30,16 +31,20 @@ const participatesInBroadcast = computed(
 );
 const broadcastTitle = computed(() =>
   props.tab.sshCommand
-    ? "命令模式不参与工作区广播"
+    ? t("命令终端不接收广播")
     : props.broadcast
-      ? `关闭广播（${broadcastCount.value} 个已连接终端参与）`
+      ? t("关闭广播（{broadcastCount} 个终端）", {
+          broadcastCount: broadcastCount.value,
+        })
       : broadcastCount.value < 2
-        ? "至少需要两个已连接的非命令模式终端才能广播"
-        : `广播输入到 ${broadcastCount.value} 个已连接终端（命令模式除外）`,
+        ? t("请先连接至少两个交互终端")
+        : t("广播输入到 {broadcastCount} 个终端", {
+            broadcastCount: broadcastCount.value,
+          }),
 );
 const background = computed(() => schemeForTab(props.tab).colors.background);
 const displayTitle = computed(() =>
-  terminalDisplayTitle(props.tab.title, props.tab.remoteTitle),
+  terminalDisplayTitle(terminalBaseTitle(props.tab), props.tab.remoteTitle),
 );
 const host = ref<HTMLElement>();
 const sftpMounted = ref(false);
@@ -94,14 +99,16 @@ function menuKey(event: KeyboardEvent) {
         type="button"
         class="terminal-pane-title"
         :data-drag-terminal="tab.terminalId"
-        :title="displayTitle + ' · ' + stateLabels[tab.state]"
+        :title="displayTitle + ' · ' + t(stateLabels[tab.state])"
         @click="terminalRegistry.focus(tab.terminalId)"
         @contextmenu="emit('menu', $event)"
         @keydown="menuKey"
       >
         <i class="status-dot" :class="tab.state" aria-hidden="true" />
         <span class="terminal-pane-title-text">{{ displayTitle }}</span>
-        <span v-if="tab.sshCommand" class="pane-command-label">命令</span>
+        <span v-if="tab.sshCommand" class="pane-command-label">
+          {{ t("命令") }}
+        </span>
       </button>
       <AppButton
         class="icon-button pane-broadcast"
@@ -118,8 +125,8 @@ function menuKey(event: KeyboardEvent) {
       </AppButton>
       <AppButton
         class="icon-button pane-close"
-        :aria-label="'关闭终端 ' + tab.title"
-        :title="'关闭终端 ' + tab.title"
+        :aria-label="t('关闭终端 {name}', { name: terminalBaseTitle(tab) })"
+        :title="t('关闭终端 {name}', { name: terminalBaseTitle(tab) })"
         @click="emit('close')"
       >
         <NIcon :size="14" aria-hidden="true">

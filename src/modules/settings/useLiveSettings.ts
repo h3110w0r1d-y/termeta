@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 import { ref, watch } from "vue";
 import type { FormInst } from "naive-ui";
 import { clone } from "../../services/data/clone";
@@ -46,7 +47,7 @@ export function useLiveSettings(form: { value: FormInst | undefined }) {
         snapshot.scrollback < 1000 ||
         snapshot.scrollback > 50000
       )
-        throw new Error("字号须为 10–32，滚屏须为 1000–50000");
+        throw new Error(t("字号须为 10–32，滚屏须为 1000–50000"));
       busy.value = true;
       // 只提交本次修改的顶层字段，搜索和分组等即时偏好由各自入口管理。
       const patch: Partial<AppSettings> = {};
@@ -57,7 +58,7 @@ export function useLiveSettings(form: { value: FormInst | undefined }) {
         Object.assign(baseline, { [key]: clone(snapshot[key]) });
       error.value = "";
     } catch (e) {
-      error.value = errorMessage(e) || "设置无效，请检查输入";
+      error.value = errorMessage(e) || t("设置无效，请检查输入");
     } finally {
       busy.value = false;
     }

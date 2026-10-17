@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from "../i18n";
 import { computed, onMounted, ref, reactive, watch } from "vue";
 import {
   NAlert,
@@ -47,13 +48,13 @@ const rules = computed<FormRules>(() => ({
     required: true,
     trigger: ["input", "blur"],
     validator: () => {
-      if (!password.value) return new Error("请输入保险库密码");
+      if (!password.value) return new Error(t("请输入保险库密码"));
       if (
         setup.value &&
         ([...password.value].length < 12 ||
           new TextEncoder().encode(password.value).length > 1024)
       )
-        return new Error("密码至少12个字符，UTF-8编码不超过1024字节");
+        return new Error(t("密码至少12个字符，且长度不超过1024字节"));
       return true;
     },
   },
@@ -62,7 +63,7 @@ const rules = computed<FormRules>(() => ({
     trigger: ["input", "blur"],
     validator: () =>
       (!!confirmation.value && confirmation.value === password.value) ||
-      new Error("两次输入的密码须一致"),
+      new Error(t("两次输入的密码须一致")),
   },
 }));
 async function accept(next: VaultStatus) {
@@ -157,7 +158,7 @@ onMounted(inspect);
     </header>
     <main class="vault-content">
       <NCard
-        :title="setup ? '设置数据保险库密码' : '解锁数据保险库'"
+        :title="setup ? t('设置数据保险库密码') : t('解锁数据保险库')"
         class="vault-card"
         :class="{ 'vault-card-cloud': setup && setupSource === 'cloud' }"
       >
@@ -165,8 +166,10 @@ onMounted(inspect);
           <NText tag="p" depth="3">
             {{
               setup
-                ? "主机配置和凭据将加密保存在本机。请牢记此密码，系统钥匙串不可用时需要用它恢复访问；遗忘密码且丢失钥匙串主密钥将无法恢复数据。"
-                : "正在尝试使用系统钥匙串自动解锁。若无法自动解锁，请输入当前保险库密码。"
+                ? t(
+                    "主机和凭据会加密保存在本机。请牢记密码：如果自动解锁失效且忘记密码，数据将无法恢复。",
+                  )
+                : t("正在尝试自动解锁。如未成功，请输入保险库密码。")
             }}
           </NText>
           <NAlert v-if="warning" type="warning">{{ warning }}</NAlert>
@@ -174,11 +177,13 @@ onMounted(inspect);
             v-if="setup"
             v-model:value="setupSource"
             :disabled="formBusy"
-            aria-label="创建保险库方式"
+            :aria-label="t('创建保险库方式')"
             class="setup-source"
           >
-            <NRadioButton value="local">创建空保险库</NRadioButton>
-            <NRadioButton value="cloud">从云端备份初始化</NRadioButton>
+            <NRadioButton value="local">{{ t("创建空保险库") }}</NRadioButton>
+            <NRadioButton value="cloud">
+              {{ t("从云端备份初始化") }}
+            </NRadioButton>
           </NRadioGroup>
           <NForm
             ref="form"
@@ -189,7 +194,7 @@ onMounted(inspect);
           >
             <NFormItem
               path="password"
-              :label="setup ? '设置密码（至少12个字符）' : '保险库密码'"
+              :label="setup ? t('设置密码（至少12个字符）') : t('保险库密码')"
             >
               <NInput
                 v-model:value="formModel.password"
@@ -206,7 +211,7 @@ onMounted(inspect);
             <NFormItem
               ref="confirmationItem"
               v-if="setup"
-              label="确认密码"
+              :label="t('确认密码')"
               path="confirmation"
             >
               <NInput
@@ -223,7 +228,7 @@ onMounted(inspect);
               :loading="busy"
               :disabled="formBusy"
             >
-              {{ setup ? "创建并解锁" : "解锁" }}
+              {{ setup ? t("创建并解锁") : t("解锁") }}
             </NButton>
           </NForm>
           <BackupPanel
@@ -241,7 +246,7 @@ onMounted(inspect);
             :disabled="busy"
             @click="inspect"
           >
-            重试
+            {{ t("重试") }}
           </NButton>
         </NSpin>
       </NCard>

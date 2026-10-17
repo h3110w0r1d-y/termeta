@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 // 在 JSON.parse 前检查重复键和嵌套深度，防止不同解析器对导入配置作出不同解释。
 export function parseJson(text: string): unknown {
   let at = 0;
@@ -14,10 +15,10 @@ export function parseJson(text: string): unknown {
       if (text[at++] === '"')
         return JSON.parse(text.slice(start, at)) as string;
     }
-    throw new Error("JSON 字符串未结束");
+    throw new Error(t("JSON 字符串未结束"));
   }
   function value(depth: number): void {
-    if (depth > 20) throw new Error("JSON 嵌套超过 20 层");
+    if (depth > 20) throw new Error(t("JSON 嵌套超过 20 层"));
     space();
     const char = text[at];
     if (char === '"') {
@@ -35,15 +36,16 @@ export function parseJson(text: string): unknown {
         return;
       }
       for (;;) {
-        if (++count > 1000) throw new Error("JSON 集合条目过多");
+        if (++count > 1000) throw new Error(t("JSON 集合条目过多"));
         space();
         if (char === "{") {
-          if (text[at] !== '"') throw new Error("JSON 属性名无效");
+          if (text[at] !== '"') throw new Error(t("JSON 属性名无效"));
           const key = string();
-          if (keys.has(key)) throw new Error(`JSON 存在重复属性：${key}`);
+          if (keys.has(key))
+            throw new Error(t("JSON 存在重复属性：{name}", { name: key }));
           keys.add(key);
           space();
-          if (text[at++] !== ":") throw new Error("JSON 缺少冒号");
+          if (text[at++] !== ":") throw new Error(t("JSON 缺少冒号"));
         }
         value(depth + 1);
         space();
@@ -51,16 +53,16 @@ export function parseJson(text: string): unknown {
           at++;
           return;
         }
-        if (text[at++] !== ",") throw new Error("JSON 集合格式错误");
+        if (text[at++] !== ",") throw new Error(t("JSON 集合格式错误"));
       }
     }
     const start = at;
     while (at < text.length && !/[\s,\]}]/.test(text[at]!)) at++;
-    if (start === at) throw new Error("JSON 值无效");
+    if (start === at) throw new Error(t("JSON 值无效"));
     JSON.parse(text.slice(start, at));
   }
   value(0);
   space();
-  if (at !== text.length) throw new Error("JSON 含多余内容");
+  if (at !== text.length) throw new Error(t("JSON 含多余内容"));
   return JSON.parse(text);
 }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from "../../i18n";
 import { NIcon } from "naive-ui";
 import { AddOutline } from "@vicons/ionicons5";
 import {
@@ -7,7 +8,6 @@ import {
   type FormInst,
   type FormItemInst,
   type FormRules,
-  NAlert,
   NEmpty,
   NList,
   NListItem,
@@ -74,13 +74,13 @@ const form = ref<FormInst>();
 const keyFileItem = ref<FormItemInst>();
 const formModel = reactive({ label, kind, secret, keyFileRef, passphrase });
 const rules = computed<FormRules>(() => ({
-  label: requiredText("名称"),
-  kind: requiredText("类型"),
+  label: requiredText(t("名称")),
+  kind: requiredText(t("类型")),
   secret:
     kind.value === "password"
-      ? { required: true, message: "请输入密码", trigger: ["input", "blur"] }
+      ? { required: true, message: t("请输入密码"), trigger: ["input", "blur"] }
       : [],
-  keyFileRef: kind.value === "privateKey" ? requiredText("私钥文件") : [],
+  keyFileRef: kind.value === "privateKey" ? requiredText(t("私钥文件")) : [],
 }));
 function clearSecrets() {
   secret.value = "";
@@ -142,7 +142,9 @@ async function save() {
 async function remove(item: CredentialMetadata) {
   if (
     !(await confirmAction(
-      `删除凭据“${item.label}”？此操作会从本地加密保险库移除秘密，不能撤销。`,
+      t("删除凭据“{label}”？此操作会从本地加密保险库移除秘密，不能撤销。", {
+        label: item.label,
+      }),
     ))
   )
     return;
@@ -163,37 +165,38 @@ async function remove(item: CredentialMetadata) {
   <section class="credentials-page home-page">
     <header class="page-heading">
       <div>
-        <NH1>凭据</NH1>
-        <NText depth="3">集中管理密码和私钥，在多台主机之间安全复用。</NText>
+        <NH1>{{ t("凭据") }}</NH1>
+        <NText depth="3">
+          {{ t("集中管理密码和私钥，在多台主机之间安全复用。") }}
+        </NText>
       </div>
       <AppButton class="primary" :disabled="busy" @click="add">
         <NIcon :size="16" aria-hidden="true"><AddOutline /></NIcon>
-        新建凭据
+        {{ t("新建凭据") }}
       </AppButton>
     </header>
-    <NAlert type="info" title="由本地加密保险库保护" class="vault-notice">
-      这里只显示名称和使用情况，不读取或展示已保存的秘密。私钥在创建凭据时导入，解密密码可选。
-    </NAlert>
     <AppInput
       v-model="query"
       type="search"
-      aria-label="搜索凭据"
-      placeholder="搜索凭据名称…"
+      :aria-label="t('搜索凭据')"
+      :placeholder="t('搜索凭据名称…')"
       class="credential-search"
     />
     <p v-if="error && !editorOpen" class="error" role="alert">{{ error }}</p>
-    <NSpin v-if="loading" size="small" description="正在读取凭据列表…" />
+    <NSpin v-if="loading" size="small" :description="t('正在读取凭据列表…')" />
     <NEmpty
       v-else-if="!visible.length"
       class="credentials-empty"
       :description="
         items.length
-          ? '没有匹配的凭据，尝试其他关键词。'
-          : '还没有保存凭据。创建后可在主机认证设置中使用。'
+          ? t('没有匹配的凭据，尝试其他关键词。')
+          : t('还没有保存凭据。创建后可在主机认证设置中使用。')
       "
     >
       <template #extra>
-        <AppButton v-if="!items.length" @click="add">创建凭据</AppButton>
+        <AppButton v-if="!items.length" @click="add">
+          {{ t("创建凭据") }}
+        </AppButton>
       </template>
     </NEmpty>
     <NList v-else bordered>
@@ -201,16 +204,15 @@ async function remove(item: CredentialMetadata) {
         <NThing
           :title="item.label"
           :description="
-            (item.kind === 'password' ? '密码' : '私钥') +
+            (item.kind === 'password' ? t('密码') : t('私钥')) +
             ' · ' +
             (item.status === 'ready'
-              ? '可用'
+              ? t('可用')
               : item.status === 'pending'
-                ? '等待恢复'
-                : '待完成删除') +
+                ? t('等待恢复')
+                : t('待完成删除')) +
             ' · ' +
-            references(item.id).length +
-            ' 台主机引用'
+            t('{count} 台主机引用', { count: references(item.id).length })
           "
         >
           <span v-if="references(item.id).length">
@@ -228,24 +230,24 @@ async function remove(item: CredentialMetadata) {
               :disabled="busy || references(item.id).length > 0"
               :title="
                 references(item.id).length
-                  ? '请先在主机设置中解除引用'
-                  : '删除凭据'
+                  ? t('请先在主机设置中解除引用')
+                  : t('删除凭据')
               "
               @click="remove(item)"
             >
-              {{ item.status === "deleting" ? "重试删除" : "删除" }}
+              {{ item.status === "deleting" ? t("重试删除") : t("删除") }}
             </AppButton>
           </div>
         </template>
       </NListItem>
     </NList>
     <p class="credential-help muted">
-      正在被主机引用的凭据需先解除引用才能删除。钥匙串仅保存保险库主密钥；主机配置和凭据统一加密保存在本地数据库。
+      {{ t("删除凭据前，请先在主机设置中解除引用。") }}
     </p>
     <AppDialog
       :open="editorOpen"
-      title="新建凭据"
-      description="加密保存到本地保险库，供主机认证时使用。"
+      :title="t('新建凭据')"
+      :description="t('加密保存到本地保险库，供主机认证时使用。')"
       :locked="busy"
       @update:open="closeEditor"
     >
@@ -259,28 +261,28 @@ async function remove(item: CredentialMetadata) {
         class="form-grid"
         @submit.prevent="save"
       >
-        <NFormItem class="span-2" label="名称" path="label">
+        <NFormItem class="span-2" :label="t('名称')" path="label">
           <AppInput
             v-model="formModel.label"
             :disabled="busy"
             maxlength="120"
-            placeholder="例如：生产环境 SSH 密码"
+            :placeholder="t('例如：生产环境 SSH 密码')"
           />
         </NFormItem>
-        <NFormItem class="span-2" label="类型" path="kind">
+        <NFormItem class="span-2" :label="t('类型')" path="kind">
           <AppSelect
             v-model="formModel.kind"
             :disabled="busy"
             :options="[
-              { value: 'password', label: 'SSH 密码' },
-              { value: 'privateKey', label: 'SSH 私钥' },
+              { value: 'password', label: t('SSH 密码') },
+              { value: 'privateKey', label: t('SSH 私钥') },
             ]"
           />
         </NFormItem>
         <NFormItem
           v-if="kind === 'password'"
           class="span-2"
-          label="密码"
+          :label="t('密码')"
           path="secret"
         >
           <AppInput
@@ -294,22 +296,19 @@ async function remove(item: CredentialMetadata) {
           <NFormItem
             ref="keyFileItem"
             class="span-2"
-            label="私钥文件"
+            :label="t('私钥文件')"
             path="keyFileRef"
           >
             <AppButton :disabled="busy" @click="selectKey">
-              选择并导入 OpenSSH 私钥
+              {{ t("选择并导入 OpenSSH 私钥") }}
             </AppButton>
             <span class="muted">
-              {{
-                keyName ||
-                "通过系统文件选择器授权读取，保存后由本地保险库加密保护私钥。"
-              }}
+              {{ keyName || t("选择的私钥将加密保存在保险库中。") }}
             </span>
           </NFormItem>
           <NFormItem
             class="span-2"
-            label="私钥解密密码（可选）"
+            :label="t('私钥解密密码（可选）')"
             path="passphrase"
           >
             <AppInput
@@ -317,7 +316,7 @@ async function remove(item: CredentialMetadata) {
               type="password"
               autocomplete="new-password"
               :disabled="busy"
-              placeholder="留空时如需解密，将在连接时询问"
+              :placeholder="t('留空时如需解密，将在连接时询问')"
             />
           </NFormItem>
         </template>
@@ -326,7 +325,7 @@ async function remove(item: CredentialMetadata) {
       <template #footer>
         <NFlex justify="end">
           <AppButton type="button" :disabled="busy" @click="closeEditor(false)">
-            取消
+            {{ t("取消") }}
           </AppButton>
           <AppButton
             type="submit"
@@ -334,7 +333,7 @@ async function remove(item: CredentialMetadata) {
             class="primary"
             :disabled="busy"
           >
-            {{ busy ? "保存中…" : "保存凭据" }}
+            {{ busy ? t("保存中…") : t("保存凭据") }}
           </AppButton>
         </NFlex>
       </template>
@@ -342,7 +341,6 @@ async function remove(item: CredentialMetadata) {
   </section>
 </template>
 <style scoped>
-.vault-notice,
 .credential-search {
   margin-bottom: 24px;
 }

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { t } from "../../i18n";
+import { terminalBaseTitle } from "../terminal/title";
 import ScrollFade from "../../components/ui/ScrollFade.vue";
 import { CloseOutline } from "@vicons/ionicons5";
 import { computed, nextTick, ref, watch } from "vue";
@@ -45,14 +47,18 @@ const dropAtEnd = computed(() => {
 const dragTitle = computed(() => {
   const source = workspace.drag?.source;
   if (!source) return "";
-  return source.kind === "pane"
-    ? workspace.tabs.find((tab) => tab.terminalId === source.terminalId)?.title
-    : props.tabs.find((tab) => tab.id === source.tabId)?.title;
+  if (source.kind === "pane") {
+    const tab = workspace.tabs.find(
+      (tab) => tab.terminalId === source.terminalId,
+    );
+    return tab ? terminalBaseTitle(tab) : undefined;
+  }
+  return props.tabs.find((tab) => tab.id === source.tabId)?.title;
 });
-const fixedTabs = [
-  { id: "home", title: "保险箱", panel: "page-home" },
+const fixedTabs = computed(() => [
+  { id: "home", title: t("保险箱"), panel: "page-home" },
   { id: "sftp", title: "SFTP", panel: "page-sftp" },
-];
+]);
 function selectedElement() {
   return root.value?.querySelector<HTMLElement>(
     '[role="tab"][aria-selected="true"]',
@@ -79,7 +85,7 @@ async function onKey(event: KeyboardEvent) {
     return;
   }
   const ids = [
-    ...fixedTabs.map((tab) => tab.id),
+    ...fixedTabs.value.map((tab) => tab.id),
     ...props.tabs.map((tab) => tab.id),
   ];
   const index = ids.indexOf(id);
@@ -116,7 +122,7 @@ watch(
       'tabs-vertical': position === 'left',
       'titlebar-mac': isMac && position === 'top',
     }"
-    aria-label="工作区标签"
+    :aria-label="t('工作区标签')"
     :style="{
       '--workspace-tab-hover': themeVars.buttonColor2,
       '--workspace-tab-active': themeVars.buttonColor2Hover,
@@ -129,7 +135,7 @@ watch(
     <div
       class="workspace-tablist"
       role="tablist"
-      aria-label="工作区"
+      :aria-label="t('工作区')"
       :aria-orientation="position === 'left' ? 'vertical' : 'horizontal'"
       @keydown="onKey"
     >
@@ -199,11 +205,14 @@ watch(
               :aria-controls="'workspace-panel-' + tab.id"
               :aria-label="
                 tab.title +
-                (tab.split ? ' · ' + tab.terminalIds.length + ' 个终端' : '') +
+                (tab.split
+                  ? ' · ' +
+                    t('{count} 个终端', { count: tab.terminalIds.length })
+                  : '') +
                 ' · ' +
-                stateLabels[tab.state]
+                t(stateLabels[tab.state])
               "
-              :title="tab.title + ' · ' + stateLabels[tab.state]"
+              :title="tab.title + ' · ' + t(stateLabels[tab.state])"
               @click="activate(tab.id)"
               @dblclick="emit('doubleClick', tab.id)"
             >
@@ -214,8 +223,8 @@ watch(
               type="button"
               class="workspace-tab-close"
               tabindex="-1"
-              :aria-label="'关闭 ' + tab.title"
-              :title="'关闭 ' + tab.title"
+              :aria-label="t('关闭 {name}', { name: tab.title })"
+              :title="t('关闭 {name}', { name: tab.title })"
               @click="emit('close', tab.id)"
             >
               <NIcon :size="position === 'top' ? 16 : 14" aria-hidden="true">
@@ -230,8 +239,8 @@ watch(
     <div class="workspace-tab-end" :class="{ 'drop-at-end': dropAtEnd }">
       <AppButton
         class="icon-button new-tab"
-        aria-label="新建标签页"
-        title="新建标签页 (Cmd/Ctrl+T)"
+        :aria-label="t('新建标签页')"
+        :title="t('新建标签页 (Cmd/Ctrl+T)')"
         @click="emit('create')"
       >
         <AssetIcon name="add" :size="20" />
@@ -258,7 +267,7 @@ watch(
       class="connection-count"
     >
       <i class="status-dot" :class="{ connected: connected > 0 }" />
-      {{ connected }} 个连接
+      {{ t("{count} 个连接", { count: connected }) }}
     </span>
     <WindowControls
       v-if="position === 'top'"
@@ -288,7 +297,7 @@ watch(
   flex: 0 1 auto;
   min-width: 0;
   min-height: 0;
-  gap: 6px;
+  gap: 4px;
 }
 .fixed-tab-icon {
   flex-shrink: 0;
@@ -440,8 +449,8 @@ watch(
   align-items: stretch;
   width: 180px;
   height: auto;
-  padding: 12px 8px;
-  gap: 10px;
+  padding: 8px;
+  gap: 4px;
   border-bottom: 0;
   border-right: 1px solid var(--border);
 }
@@ -466,7 +475,7 @@ watch(
   width: 100%;
   height: auto;
   padding-right: 0;
-  padding-bottom: 8px;
+  padding-bottom: 4px;
   border-right: 0;
   border-bottom: 1px solid var(--border);
 }
@@ -485,12 +494,6 @@ watch(
     display: none;
   }
 }
-@media (max-width: 900px) {
-  .app-tabs.tabs-vertical {
-    width: 145px;
-  }
-}
-
 /* 拖动使用 Pointer Events，固定页没有排序标记，也不会进入分屏命中。 */
 .workspace-tab-item {
   position: relative;

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { h, onBeforeUnmount, onMounted, watch } from "vue";
+import { t } from "../../i18n";
+import { computed, h, onBeforeUnmount, onMounted, watch } from "vue";
 import { NButton, NDropdown, NIcon, type DropdownOption } from "naive-ui";
 import {
   ChevronDownOutline,
@@ -20,15 +21,15 @@ const emit = defineEmits<{ select: [HostKind] }>();
 const shown = defineModel<boolean>("show", { default: false });
 const icon = (component: typeof TerminalOutline) => () =>
   h(NIcon, { size: 18, "aria-hidden": true }, () => h(component));
-const options: DropdownOption[] = [
+const options = computed<DropdownOption[]>(() => [
   { key: "ssh", label: "SSH", icon: icon(TerminalOutline) },
   {
     key: "telnet",
     label: "Telnet",
     icon: icon(GlobeOutline),
   },
-  { key: "serial", label: "串口", icon: icon(HardwareChipOutline) },
-];
+  { key: "serial", label: t("串口"), icon: icon(HardwareChipOutline) },
+]);
 watch(
   () => props.disabled,
   (disabled) => {

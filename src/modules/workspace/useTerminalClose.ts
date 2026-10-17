@@ -1,3 +1,5 @@
+import { terminalBaseTitle } from "../terminal/title";
+import { t } from "../../i18n";
 import { nextTick } from "vue";
 import { confirmAction } from "../../components/ui/confirmation";
 import { errorMessage } from "../../services/desktop/client";
@@ -24,7 +26,7 @@ export function useTerminalClose() {
       if (
         terminals.some((tab) => tab.sftpTransferring) &&
         !(await confirmAction(
-          "此终端有 SFTP 传输正在进行，关闭将取消传输，确定继续？",
+          t("此终端有 SFTP 传输正在进行，关闭将取消传输，确定继续？"),
         ))
       )
         return;
@@ -33,7 +35,15 @@ export function useTerminalClose() {
         running.length > 0 &&
         settings.value.confirmClose &&
         !(await confirmAction(
-          `“${title}”${terminals.length > 1 ? `中有 ${running.length} 个终端` : ""}可能正在执行命令，关闭将断开连接并释放终端历史，确定继续？`,
+          terminals.length > 1
+            ? t(
+                "“{title}”中有 {count} 个终端可能正在执行命令。关闭将断开连接并清除终端历史，是否继续？",
+                { title, count: running.length },
+              )
+            : t(
+                "“{title}”可能正在执行命令。关闭将断开连接并清除终端历史，是否继续？",
+                { title },
+              ),
         ))
       )
         return;
@@ -66,19 +76,23 @@ export function useTerminalClose() {
   }
   function closeTab(id: string) {
     const group = workspace.groups.find((item) => item.id === id);
-    if (group)
+    if (group) {
+      const focused = workspace.tabs.find(
+        (tab) => tab.terminalId === group.focusedTerminalId,
+      );
       return closeTerminals(
         terminalIds(group.root),
-        group.root.kind === "split"
-          ? "Workspace"
-          : (workspace.tabs.find(
-              (tab) => tab.terminalId === group.focusedTerminalId,
-            )?.title ?? "终端"),
+        group.root.kind === "split" || group.savedProfileId
+          ? (group.name ?? t("工作区"))
+          : focused
+            ? terminalBaseTitle(focused)
+            : t("终端"),
       );
+    }
   }
   function closePane(id: string) {
     const terminal = workspace.tabs.find((tab) => tab.terminalId === id);
-    if (terminal) return closeTerminals([id], terminal.title);
+    if (terminal) return closeTerminals([id], terminalBaseTitle(terminal));
   }
   return { closeTab, closePane };
 }

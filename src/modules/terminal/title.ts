@@ -1,3 +1,5 @@
+import { t } from "../../i18n";
+
 /** 远端标题仅作受限展示文本；不修改原始终端字节或保存的连接名称。 */
 export function normalizeRemoteTitle(title: string): string {
   return Array.from(
@@ -17,4 +19,15 @@ export function terminalDisplayTitle(
   remoteTitle?: string,
 ): string {
   return remoteTitle ? `${base} (${remoteTitle})` : base;
+}
+
+/** 仅本地终端的内置名称参与翻译，用户名称和远端标题保持原样。 */
+export function terminalBaseTitle(tab: {
+  title: string;
+  baseTitle: string;
+  target: { source: string };
+}): string {
+  return tab.target.source === "local" && tab.baseTitle === "本地终端"
+    ? tab.title.replace(/^本地终端(?= \(\d+\)$|$)/u, t("本地终端"))
+    : tab.title;
 }

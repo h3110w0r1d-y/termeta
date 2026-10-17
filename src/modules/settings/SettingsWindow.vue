@@ -1,12 +1,7 @@
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, ref } from "vue";
-import {
-  NConfigProvider,
-  NGlobalStyle,
-  NAlert,
-  zhCN,
-  dateZhCN,
-} from "naive-ui";
+import { naiveLocale, naiveDateLocale, t } from "../../i18n";
+import { onMounted, onBeforeUnmount, ref, watch } from "vue";
+import { NConfigProvider, NGlobalStyle, NAlert } from "naive-ui";
 import SettingsPage from "./SettingsPage.vue";
 import ConfirmationDialog from "../../components/ui/ConfirmationDialog.vue";
 import { useAppAppearance } from "../../layout/useAppAppearance";
@@ -16,6 +11,26 @@ const { naiveTheme, naiveThemeOverrides } = useAppAppearance();
 const sync = useSettingsSync();
 const ready = ref(false),
   error = ref("");
+const titleError = ref("");
+let disposed = false;
+let pendingTitle = Promise.resolve();
+// 标题与界面共用语言来源，串行更新避免快速切换时旧标题覆盖新标题。
+watch(
+  () => t("Termeta 设置"),
+  (title) => {
+    document.title = title;
+    pendingTitle = pendingTitle.then(async () => {
+      if (disposed) return;
+      try {
+        await desktop.setWindowTitle(title);
+        titleError.value = "";
+      } catch (cause) {
+        titleError.value = errorMessage(cause);
+      }
+    });
+  },
+  { immediate: true },
+);
 const page = ref<InstanceType<typeof SettingsPage>>();
 let unlisten: (() => void) | undefined;
 let closing = false;
@@ -61,6 +76,7 @@ onMounted(async () => {
   }
 });
 onBeforeUnmount(() => {
+  disposed = true;
   unlisten?.();
   document.removeEventListener("keydown", keydown);
 });
@@ -69,13 +85,13 @@ onBeforeUnmount(() => {
   <NConfigProvider
     :theme="naiveTheme"
     :theme-overrides="naiveThemeOverrides"
-    :locale="zhCN"
-    :date-locale="dateZhCN"
+    :locale="naiveLocale"
+    :date-locale="naiveDateLocale"
   >
     <NGlobalStyle />
     <div class="settings-window">
-      <NAlert v-if="error || sync.error.value" type="error">
-        {{ error || sync.error.value }}
+      <NAlert v-if="error || sync.error.value || titleError" type="error">
+        {{ error || sync.error.value || titleError }}
       </NAlert>
       <SettingsPage v-if="ready" ref="page" />
       <ConfirmationDialog />

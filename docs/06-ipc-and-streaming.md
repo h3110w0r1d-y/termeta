@@ -219,7 +219,7 @@ HostDraft/HostProfile 共享 kind 与 serialConfig?:SerialConfig|null，旧 DTO 
 
 `save_host.password` 仅用于SSH，Telnet/串口拒绝任何非null密码字段；省略/null 表示元数据更新保留已有专属密码，显式 `""` 表示移除，非空表示替换；SSH主机编辑总显式提交字符串。HostDraft 不含秘密，主机公共结果新增 hasPassword 且隐藏专属credentialId。私钥凭据参数只接受 keyFileRef 与可选passphrase，密码凭据只接受password，不接受混合类型；所有secret只作为提交参数，不回传。保存主机后的旧秘密清理失败不回滚已经提交的主机结果，deleting登记留待重试。
 
-设置通过 `get_settings` / `save_settings({settings, defaults})` 操作版本 1 的 app JSON（settings为局部更新，defaults为首次无记录时使用的完整默认值，二者均受校验）；包含 customSchemes、hostSchemes、keymap 和 tabPosition（top/left，旧记录缺失兼容），尚无独立配色命令族。拒绝未来设置版本和非法动作/颜色。AppManifest、handler、capability 共用中心命令名单并做静态集合检查；后续仍须实际验证 ACL 拒绝路径。
+设置通过 `get_settings` / `save_settings({settings, defaults})` 操作版本 1 的 app JSON（settings为局部更新，defaults为首次无记录时使用的完整默认值，二者均受校验）；包含 language（system/zh-CN/en-US，旧记录缺失跟随系统）、customSchemes、hostSchemes、keymap 和 tabPosition（top/left，旧记录缺失兼容），尚无独立配色命令族。拒绝未来设置版本和非法动作/颜色。AppManifest、handler、capability 共用中心命令名单并做静态集合检查；后续仍须实际验证 ACL 拒绝路径。
 
 输出 forwarder 结束后发布 ended，终态 ACK 保留 3 秒排空窗口；会话快照/幂等摘要最多 1024 个、最长 10 分钟。五分钟未消费/窗口失联取消，系统睡眠时间跳跃重置失联预算。前端每 64 KiB 或 16 ms 合并解析后 ACK。各预算是代码初值，不是性能测量结果。
 
@@ -277,7 +277,7 @@ macOS 拖出 names 最多 100 个普通文件或真实目录根，directories �
 
 `open_settings_window()`仅main可调用且要求已解锁，Rust创建/聚焦settings窗口。`get_settings`返回完整AppSettings；`save_settings`在设置专用异步互斥队列中读取最新快照、合并patch并校验后写库，返回完整快照。hostsView/hostSearch额外按子字段合并，其余字段整体替换；默认值仅在无记录时使用，旧版本拒绝写入，兼容旧字体/配色归一。成功后Rust广播无秘密的`settings-changed`失效通知，两个窗口串行重读；前端不发送设置事件。数据库schema及设置schemaVersion不变。
 
-settings窗口仅开放设置、change_vault_password、export_json及下文7个已解锁备份命令，这些命令使用独立settings_owner检查窗口身份、本地来源和解锁状态；list_known_hosts/revoke_known_host/list_history/clear_history随业务页面移入保险箱，改用仅main可用的owner，且从settings capability移除。其余资源owner保持main限制。新增命令纳入COMMANDS/AppManifest、handler和main capability；settings使用独立capability。
+settings窗口仅开放设置、change_vault_password、export_json及下文7个已解锁备份命令，这些命令使用独立settings_owner检查窗口身份、本地来源和解锁状态；list_known_hosts/revoke_known_host/list_history/clear_history随业务页面移入保险箱，改用仅main可用的owner，且从settings capability移除。设置窗口另通过desktop门面调用库的setTitle更新自身标题，settings capability开放core:window:allow-set-title；不新增自定义IPC或任意其他窗口资源入口。其余资源owner保持main限制。新增命令纳入COMMANDS/AppManifest、handler和main capability；settings使用独立capability。
 
 ## SSH 系统图标契约
 

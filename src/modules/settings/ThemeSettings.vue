@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from "../../i18n";
 import {
   NForm,
   NFormItem,
@@ -63,6 +64,18 @@ const schemes = computed(() =>
   ),
 );
 const scrollbarKeys = ["normal", "hover", "active"] as const;
+const colorLabels = computed(() => ({
+  foreground: t("前景文字"),
+  background: t("背景"),
+  cursor: t("光标"),
+  cursorAccent: t("光标文字"),
+  selectionBackground: t("选区背景"),
+  selectionForeground: t("选区文字"),
+  selectionInactiveBackground: t("未聚焦选区"),
+  normal: t("默认"),
+  hover: t("悬停"),
+  active: t("拖动"),
+}));
 const contrast = computed(() => {
   const luminance = (hex: string) => {
     const values = [1, 3, 5]
@@ -132,7 +145,7 @@ function makePreview() {
   term.open(previewHost.value);
   preview.value = term;
   term.write(
-    "Termeta 配色预览 · 中文 / UTF-8 / 🖥\r\n\x1b[1mSSH workspace\x1b[0m  user@server ~\r\n",
+    `Termeta ${t("配色预览")} · 中文 / UTF-8 / 🖥\r\n\x1b[1mSSH workspace\x1b[0m  user@server ~\r\n`,
   );
   for (let i = 0; i < 16; i++) term.write(`\x1b[48;5;${i}m  \x1b[0m`);
   term.write("\r\n");
@@ -153,7 +166,7 @@ function editScheme(s: Scheme) {
   indexed.value = JSON.stringify(s.colors.indexedOverrides ?? {}, null, 2);
   if (s.source === "builtin") {
     editor.value.id = crypto.randomUUID();
-    editor.value.name += " 副本";
+    editor.value.name += t(" 副本");
     editor.value.source = "user";
   }
   void nextTick(() => {
@@ -192,7 +205,7 @@ async function saveScheme() {
     const at = draft.value.customSchemes.findIndex((s) => s.id === checked.id);
     if (at < 0) {
       if (draft.value.customSchemes.length >= 64)
-        throw new Error("自定义方案最多 64 个");
+        throw new Error(t("自定义方案最多 64 个"));
       draft.value.customSchemes.push(checked);
     } else draft.value.customSchemes[at] = checked;
     draft.value.defaultSchemeId = checked.id;
@@ -218,7 +231,9 @@ async function deleteScheme() {
   if (editor.value.source === "builtin") return;
   if (
     !(await confirmAction(
-      `删除自定义方案？主机和终端引用将跟随全局默认；若删除的是全局默认，将改用 ${defaultScheme.name}。`,
+      t("删除此配色？使用它的主机和终端将改用默认配色 {name}。", {
+        name: defaultScheme.name,
+      }),
     ))
   )
     return;
@@ -236,7 +251,7 @@ async function importFile(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0];
   if (!file) return;
   try {
-    if (file.size > 1048576) throw new Error("文件超过 1 MiB");
+    if (file.size > 1048576) throw new Error(t("文件超过 1 MiB"));
     importText.value = await file.text();
     imported.value = parseScheme(importText.value);
     editScheme(imported.value);
@@ -260,9 +275,9 @@ function confirmImport() {
         (s) => s.name === next.name,
       )
     )
-      next.name += "（导入副本）";
+      next.name += t("（导入副本）");
     if (draft.value.customSchemes.length >= 64) {
-      error.value = "自定义方案最多 64 个";
+      error.value = t("自定义方案最多 64 个");
       return;
     }
     draft.value.customSchemes.push(next);
@@ -276,11 +291,11 @@ function confirmImport() {
     <NFlex align="center" :wrap="false">
       <AppInput
         v-model="schemeSearch"
-        placeholder="搜索配色…"
-        aria-label="搜索终端配色"
+        :placeholder="t('搜索配色…')"
+        :aria-label="t('搜索终端配色')"
         style="flex: 1; min-width: 0"
       />
-      <AppButton @click="themeFile?.click()">导入 JSON</AppButton>
+      <AppButton @click="themeFile?.click()">{{ t("导入 JSON") }}</AppButton>
       <input
         ref="themeFile"
         hidden
@@ -309,11 +324,11 @@ function confirmImport() {
         </AppButton>
       </NGridItem>
     </NGrid>
-    <NEmpty v-if="!schemes.length" description="没有匹配的配色方案" />
+    <NEmpty v-if="!schemes.length" :description="t('没有匹配的配色方案')" />
     <NCollapse v-model:expanded-names="expanded">
       <NCollapseItem
         name="customize"
-        title="自定义当前配色"
+        :title="t('自定义当前配色')"
         display-directive="show"
       >
         <NForm
@@ -325,28 +340,31 @@ function confirmImport() {
         >
           <NFlex vertical :size="16">
             <p class="muted">
-              编辑内置方案会自动创建自定义副本，修改实时应用。
+              {{ t("编辑内置方案会自动创建自定义副本，修改实时应用。") }}
             </p>
-            <NFormItem label="方案名称" path="editor.name">
+            <NFormItem :label="t('方案名称')" path="editor.name">
               <AppInput v-model="formModel.editor.name" maxlength="80" />
             </NFormItem>
             <div ref="previewHost" class="theme-preview" />
             <p v-if="contrast < 4.5" class="error">
-              前景 / 背景对比度 {{ contrast.toFixed(2) }}:1，低于
-              4.5:1。修改时保留你的选色。
+              {{
+                t("前景与背景对比度为 {ratio}:1，低于建议的 4.5:1。", {
+                  ratio: contrast.toFixed(2),
+                })
+              }}
             </p>
             <NGrid cols="1 560:2" responsive="self" :x-gap="10" :y-gap="10">
               <NGridItem v-for="key in baseKeys" :key="key">
                 <ColorField
                   v-model="formModel.editor.colors[key]"
-                  :label="key"
+                  :label="colorLabels[key]"
                   :path="`editor.colors.${key}`"
                   :optional="key === 'selectionForeground'"
                   :reset="defaultScheme.colors[key]"
                 />
               </NGridItem>
             </NGrid>
-            <AppCollapsible title="ANSI 16 色（取色 / HEX / RGB）">
+            <AppCollapsible :title="t('ANSI 16 色')">
               <NGrid cols="1 560:2" responsive="self" :x-gap="10" :y-gap="10">
                 <NGridItem v-for="(_, i) in editor.colors.ansi" :key="i">
                   <ColorField
@@ -358,7 +376,7 @@ function confirmImport() {
                 </NGridItem>
               </NGrid>
             </AppCollapsible>
-            <AppCollapsible title="滚动条辅助颜色">
+            <AppCollapsible :title="t('滚动条颜色')">
               <NGrid
                 v-if="formModel.editor.colors.scrollbar"
                 cols="1 560:2"
@@ -369,14 +387,14 @@ function confirmImport() {
                 <NGridItem v-for="key in scrollbarKeys" :key="key">
                   <ColorField
                     v-model="formModel.editor.colors.scrollbar[key]"
-                    :label="key"
+                    :label="colorLabels[key]"
                     :path="`editor.colors.scrollbar.${key}`"
                     optional
                   />
                 </NGridItem>
               </NGrid>
             </AppCollapsible>
-            <NFormItem label="索引色覆盖（16–255，HEX JSON）" path="indexed">
+            <NFormItem :label="t('扩展色（16–255，HEX JSON）')" path="indexed">
               <AppTextarea
                 v-model="formModel.indexed"
                 rows="3"
@@ -384,13 +402,13 @@ function confirmImport() {
               />
             </NFormItem>
             <NFlex>
-              <AppButton @click="exportTheme">导出 JSON</AppButton>
+              <AppButton @click="exportTheme">{{ t("导出 JSON") }}</AppButton>
               <AppButton
                 class="danger"
                 :disabled="!draft.customSchemes.some((s) => s.id === editor.id)"
                 @click="deleteScheme"
               >
-                删除自定义
+                {{ t("删除自定义") }}
               </AppButton>
               <AppButton
                 @click="
@@ -399,10 +417,10 @@ function confirmImport() {
                   )
                 "
               >
-                撤销编辑
+                {{ t("撤销编辑") }}
               </AppButton>
               <AppButton v-if="imported" @click="confirmImport">
-                确认导入副本
+                {{ t("确认导入副本") }}
               </AppButton>
             </NFlex>
           </NFlex>

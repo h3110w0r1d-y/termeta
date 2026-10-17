@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from "../../i18n";
 import { NIcon } from "naive-ui";
 import type { FileEntry } from "../../services/desktop/types";
 defineProps<{
@@ -11,15 +12,15 @@ defineProps<{
     :size="16"
     :aria-label="
       {
-        directory: '文件夹',
-        file: '文件',
+        directory: t('文件夹'),
+        file: t('文件'),
         symlink:
           targetKind === 'directory'
-            ? '文件夹软连接'
+            ? t('文件夹软连接')
             : targetKind === 'file'
-              ? '文件软连接'
-              : '软连接（目标类型未知）',
-        other: '其他文件',
+              ? t('文件软连接')
+              : t('软连接（目标类型未知）'),
+        other: t('其他文件'),
       }[kind]
     "
     role="img"

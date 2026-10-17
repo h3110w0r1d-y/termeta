@@ -71,7 +71,8 @@ Termeta 面向需要频繁连接服务器的开发、运维和设备工程师。
 | [x]  | KEY-01   | M2/P0            | 设置分全局（应用前台跨页面）/终端类别，动作尽量可自定义                                                                                                                                               | 录制/多绑定/禁用/恢复/导入导出/冲突提示；按钮/菜单同命令，详见 14                                                                                             |
 | [x]  | KEY-02   | M2/P0            | 终端修饰键+鼠标绑定，默认 Cmd/Ctrl+点击 URL 打开浏览器                                                                                                                                                | 普通点击不打开；只允许 http/https，离线历史也可用，不重复发送鼠标事件                                                                                         |
 | [x]  | KEY-03   | M2 配置、M4 启用 | 全局 Cmd+L 新建 Local Terminal，其他平台默认 Ctrl+Shift+L                                                                                                                                             | 打开默认系统 Shell；可自定义快捷键，不占用默认远端 Ctrl+L                                                                                                     |
-| [x]  | APP-01   | M2/P0            | 独立设置窗口、有效修改自动保存/跨窗口热应用，应用明暗与六位 HEX 主色/恢复默认                                                                                                                         | 主色与终端配色独立；无效值或写入失败保留输入并可重试                                                                                                          |
+| [x]  | APP-01   | M2/P0            | 独立设置窗口、有效修改自动保存/跨窗口热应用，应用明暗与六位 HEX 主色/恢复默认                                                                                                                         | 主色与终端配色独立；无效值或写入失败保留输入并可重试；macOS 原生“设置”菜单显示固定 Cmd+,，标题无省略号                                                                                                          |
+| [x] | APP-02 | M2/P1 | 应用界面简体中文/English、跟随系统、设置保存与跨窗口热应用 | 覆盖导航、表单、菜单、设置窗口原生标题、终端操作、SFTP 和云备份；用户数据/远端输出不翻译，后端诊断/原生菜单不在首轮覆盖，详见 [UI 多语言](13-ui-stack.md#界面语言与文案) |
 | [x]  | THEME-01 | M2/P0            | 独立终端配色：64 套内置方案、自定义取色/HEX/RGB、ANSI 编辑                                                                                                                                            | 全局/profile/当前终端覆盖；热切换不清空、不重连，与应用主题独立                                                                                               |
 | [x]  | THEME-02 | M2/P0            | 原生 scheme JSON 与 xterm ITheme JSON 导入/导出                                                                                                                                                       | 校验/预览/重名处理、无静默覆盖；其他格式范围见 15                                                                                                             |
 
@@ -124,7 +125,7 @@ M3 的 SFTP 必需需求细项：
 - 性能：限制滚屏、并发会话、流缓冲及输入大小。初始待测目标为启动 ≤2 秒、低延迟网络新增交互开销 p95 ≤20 ms、可见终端 ≥2 MiB/s 持续60秒且高输出10分钟无持续线性内存增长、20会话（5个持续输出）仍可操作、单普通会话进程树 ≤200 MiB/10会话 ≤500 MiB、取消关闭 p95 ≤3秒。所有指标在真实三平台测量前只称“目标”。
 - 隐私：默认无账号、无遥测、无会话内容日志；错误报告不包含凭据或完整终端内容。
 - 可维护性：协议核心不依赖 Tauri；一个统一生命周期和数据通路；业务变化同步文档。
-- 可用性：终端内容支持 UTF-8，UI 首期中文；显示文案集中管理，预留 i18n，不把多语言平台建设设为前置。
+- 可用性：终端内容支持 UTF-8，UI 已接入简体中文/English 与跟随系统，文案集中管理；后端诊断和系统原生菜单仍保留原文，语言与布局需三平台运行验收。
 
 ## 7. MVP 完成定义
 
@@ -150,7 +151,7 @@ M2 的 P0 需求全部落实且通过授权后的验证矩阵，至少完成三�
 | 广播             | [inputRouter](../src/modules/terminal/inputRouter.ts)、[inputOrigin](../src/modules/terminal/inputOrigin.ts)：用户键盘/IME/粘贴/远端滚轮，各目标独立编码/排队                                                                                                                   | 默认关闭，成员重组关闭；排除命令模式窗格及点击/拖动/设备应答/认证，不重放；固定 xterm 内部事件适配需复验          |
 | 凭据与存储       | [storage](../crates/terminal-storage/src/lib.rs)、[vault](../crates/terminal-security/src/vault.rs)：公共密码/私钥、主机专属密码、SQLCipher、Argon2id、OS 主密钥/密码恢复、[密码修改](../crates/terminal-storage/src/password_change.rs)                                                                                                       | 加密格式2、schema 6，同格式 schema 2–5 升级；不迁移早期库；设置安全页可改密；无自动备份/自动锁定入口；改密与故障恢复待运行验收         |
 | 云备份与同步     | [BackupPanel](../src/modules/backup/BackupPanel.vue)、[命令](../src-tauri/src/commands/backup.rs)、[provider](../src-tauri/src/backup/mod.rs)、[快照](../crates/terminal-storage/src/backup.rs)、[加密](../crates/terminal-security/src/backup.rs)：手动 Gist/WebDAV、加密元数据、分页版本列表、预览确认、非覆盖合并、首次云端初始化与本机配置保存 | 不备份应用设置/历史；无自动同步/版本清理/本地文件入口/取消 IPC；真实服务、跨设备、安全和内存峰值待运行验收 |
-| 设置与主题       | [SettingsWindow](../src/modules/settings/SettingsWindow.vue)、[SettingsPage](../src/modules/settings/SettingsPage.vue)：单实例窗口、自动保存/跨窗口热应用、Naive UI 明暗与自定义主色                                                                                            | 无效值/保存失败保留输入；应用主题独立于终端配色；窗口/并发/视觉待验收                               |
+| 设置与主题       | [SettingsWindow](../src/modules/settings/SettingsWindow.vue)、[SettingsPage](../src/modules/settings/SettingsPage.vue)：单实例窗口、自动保存/跨窗口热应用、Naive UI 明暗与自定义主色、简体中文/English/跟随系统                                                                                            | 无效值/保存失败保留输入；应用主题独立于终端配色；窗口/并发/视觉待验收                               |
 | 字体/配色/快捷键 | [fonts](../src/modules/settings/fonts.ts)、[ThemeSettings](../src/modules/settings/ThemeSettings.vue)、[ShortcutSettings](../src/modules/settings/ShortcutSettings.vue)：12字体默认 DejaVu Sans Mono、64配色默认 Pro、缩略图/预览、自定义/JSON/多层覆盖、命令录制/冲突/链接路由 | 热应用保留实例；系统后台热键未实现；来源许可及三平台字宽/剪贴板/IME待验收                           |
 | SFTP             | [侧栏](../src/modules/files/SftpPanel.vue)、[双栏](../src/modules/files/SftpWorkspace.vue)、[适配器](../crates/terminal-sftp/src/lib.rs)：浏览/上传下载、覆盖确认/目录合并、独立双远端对拷、原生拖入及 macOS 文件/目录拖出                                                      | 侧栏仅单 SSH 终端且与分屏互斥；无本地浏览/通用租约/完整任务管理/Windows-Linux 拖出                  |
 | 端口转发         | [页面](../src/modules/forwarding/PortForwardingPage.vue)、[SSH 转发](../crates/terminal-ssh/src/forwarding.rs)、[SOCKS5](../crates/terminal-ssh/src/socks.rs)：三模式、规则 CRUD/搜索/启停、独立连接、监听就绪高亮                                                              | 引用保存 SSH；默认回环，SOCKS5 仅回环/无认证/TCP CONNECT；无 PTY/Shell/终端 Tab，不自动启动/重连    |
@@ -200,7 +201,7 @@ Telnet 本机测试容器曾部署并通过登录提示就绪探针，未据此�
 | SSH 与生命周期      | 密钥拒绝/保存/变更、密码/加密私钥/OTP/PAM、多轮/空白轮、取消/超时、PTY/resize/KeepAlive、连续重连与历史/尾输出、洪泛/无 ACK 关闭、系统识别一次性与失败隔离、exec 启动/拒绝/快速退出/信号/手动重新运行、监控程序缩放与按键 |
 | 保险库与存储        | 首次密码/初始化中断、每进程一次 OS 读取、密码恢复/缓存失败、改密新旧密码/并发/逐文件切换中断/恢复重入/磁盘满/清理失败、错误密钥/损坏拒绝、DB/WAL/临时文件加密/权限、schema 2–5 升到6、SQLx 校验及迁移失败恢复、统一名称/并发替换 |
 | 备份与同步          | Gist/WebDAV 真实服务与跨设备往返、压缩/内存峰值、错密码/篡改/超限、ID/名称/工作区与凭据关联、信任冲突、事务失败回滚、首次初始化中断/配置保存、预览过期/重复确认、无覆盖发布/超时结果不明、窗口 ACL |
-| 桌面与设置          | 三平台标题栏/全屏/IME/焦点/剪贴板；macOS 开发及安装包的 Dock/应用菜单/关于窗口名称一致性（源码统一为 Termeta）；主机树/两步删除/拖拽/搜索/偏好恢复；独立设置关闭/重开/并发/失败恢复；应用主色/字体/配色/JSON/快捷键                                |
+| 桌面与设置          | 三平台标题栏/全屏/IME/焦点/剪贴板；macOS 开发及安装包的 Dock/应用菜单/关于窗口名称一致性（源码统一为 Termeta）；主机树/两步删除/拖拽/搜索/偏好恢复；独立设置关闭/重开/并发/失败恢复；语言切换/系统回退/长英文布局/中文残留与后端原生文案边界；应用主色/字体/配色/JSON/快捷键                                |
 | 工作区              | 标签横纵/滚动/拖动、嵌套分屏/迁移/比例/交换不重建终端、广播输入来源隔离、批量认证/失败保留、保存/替换/失效引用/重启后手动打开、Shell与监控命令混合布局/广播隔离                                         |
 | SFTP                | 分页/链接/隐藏、覆盖与目录合并、独立双栏无 PTY/Shell、对拷、资源上限/取消/断线/磁盘满、真实文件管理器拖入及 macOS 文件/目录拖出/取消                                  |
 | 端口转发            | 三模式/远端 DNS、监听范围/冲突/IPv6、认证/信任/取消、半关闭/并发/大流量、停止释放、断网/睡眠/窗口与心跳清理、规则持久化/删除主机                                      |

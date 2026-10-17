@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "check:types": "vue-tsc --noEmit",
-    "check:structure": "node scripts/check-structure.mjs"
+    "check:structure": "node scripts/check-structure.mjs",
+    "check:i18n": "node scripts/check-i18n.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "2.11.0",
