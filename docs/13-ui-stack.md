@@ -1,6 +1,6 @@
 # UI 技术选型与桌面适配
 
-更新：2026-10-17。采用 Naive UI 2.45.3 + Vue 3，工作区标签使用自定义 WorkspaceTabs，其余有对应能力的控件优先组件库。封装只适配业务值、事件、标签和安全默认值，不重造皮肤/弹层定位；三平台 WebView 交互尚待完整验收。
+更新：2026-10-17。采用 Naive UI 2.45.3 + Vue 3，应用标签使用自定义 AppTabs，其余有对应能力的控件优先组件库。封装只适配业务值、事件、标签和安全默认值，不重造皮肤/弹层定位；三平台 WebView 交互尚待完整验收。
 
 ## 组件与外观
 
@@ -67,14 +67,14 @@ ConnectionTypeDropdown 薄适配 NDropdown/NButton，共用 SSH/Telnet/串口菜
 
 ## 样式归属
 
-业务 CSS 位于所属 Vue 的 scoped 样式，两个入口共用 src/assets/base.css 的主题 tokens、基础/共享布局、xterm/传送菜单全局适配；字体 CSS 独立。WorkspaceTabs 管标签，TerminalStage 管分屏/分隔条，TerminalPane 管窗格/终端宿主。跨组件动态节点使用明确 :deep() 或入口全局规则，不恢复集中式业务 styles.css。
+业务 CSS 位于所属 Vue 的 scoped 样式，两个入口共用 src/assets/base.css 的主题 tokens、基础/共享布局、xterm/传送菜单全局适配；字体 CSS 独立。AppTabs 管应用标签，TerminalStage 管分屏/分隔条，TerminalPane 管窗格/终端宿主。标签 class/主题变量使用 app-tab-*，主内容使用 workbench-content，终端区域使用 terminal-area；DOM id、data-app-tab 和关联的焦点/拖动查询一起维护。跨组件动态节点使用明确 :deep() 或入口全局规则，不恢复集中式业务 styles.css。
 
 Vue 使用仓库 Prettier，htmlWhitespaceSensitivity=ignore 仅限 *.vue；pnpm format:vue 自动整理，pnpm check:format:vue 静态校验。依赖精确文本空格的节点使用显式文本表达式或有说明的局部 prettier-ignore，预格式化文本保持原样。
 
 ## 生命周期与焦点
 
-- WorkspaceStore 为标签状态源，TerminalRegistry 按稳定 terminalId 持有 xterm。排序/显隐/分屏/交换/重连保留实例，固定页不创建终端。
-- WorkspaceTabs 使用 tablist/roving tabindex、方向键/Home/End/Enter/空格、关闭/菜单键；库主题管理颜色和圆角，分屏几何由业务控制。
+- useWorkbenchStore 为标签与终端运行状态源，TerminalRegistry 按稳定 terminalId 持有 xterm。排序/显隐/分屏/交换/重连保留实例，固定页不创建终端。
+- AppTabs 使用 tablist/roving tabindex、方向键/Home/End/Enter/空格、关闭/菜单键；库主题管理颜色和圆角，分屏几何由业务控制。
 - 主机页显隐挂原生 DOM，分组/列表独立 NScrollbar；设置正文滚动、自动应用/重试 footer 固定，配色网格自然展开，编辑默认折叠。
 - AppDialog 转发 after-enter/after-leave，连接/认证退场后恢复当前活动终端焦点；模态和录制优先。弹层标记随实际 open 状态清理，避免隐藏节点拦截快捷键。
 - 搜索使用 NSelect remote/filterable/header 与 focusInput；字段复选框鼠标勾选保留输入光标，空查询隐藏菜单。全局 NewTabDialog 直接列结果并复用搜索配置。

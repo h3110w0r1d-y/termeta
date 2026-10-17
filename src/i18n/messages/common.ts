@@ -35,7 +35,7 @@ export default {
   输入信息: "Enter text",
   取消: "Cancel",
   确认: "Confirm",
-  终端工作区: "Terminal workspace",
+  终端区域: "Terminal area",
   搜索终端历史: "Search terminal history",
   "搜索终端历史…": "Search terminal history…",
   上一个: "Previous",

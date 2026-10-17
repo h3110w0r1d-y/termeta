@@ -5,7 +5,7 @@
 ## 1. 入口与生命周期
 
 - 已连接的单 SSH 终端通过底部状态栏开关显示可调宽度的右侧栏；Workspace 中禁用。
-- 开启侧栏的终端可以排序，但 `WorkspaceStore.canSplit` 禁止其作为分屏来源或目标；隐藏后恢复合并。
+- 开启侧栏的终端可以排序，但 `WorkbenchStore.canSplit` 禁止其作为分屏来源或目标；隐藏后恢复合并。
 - 文件视图首次打开时挂载，隐藏保留目录、选择和任务。终端宿主以 margin 留白，侧栏不继承终端外层 padding；显隐由既有 ResizeObserver 驱动 fit/resize，不重建 xterm。
 - 复用当前已认证 SSH 的独立 SFTP channel，不另启 Shell。隐藏继续传输，断开或关闭终端取消相关任务；重连使用新 sessionId，旧请求和任务不自动重放。
 - 固定 SFTP Tab 为独立双远端工作区，从保存主机分别建立 SSH/SFTP 连接，不创建终端或启动 PTY/Shell。可选左侧/底部面板、本地浏览、通用共享连接租约尚未实现。
@@ -81,7 +81,7 @@ Finder 请求兑现目标后才显示任务和进度；无内容请求的 Esc/�
 
 ## 源码职责
 
-固定双栏和侧栏均位于src/modules/files，workspace只负责固定Tab承载；types.ts保存端点/选择契约。fileEntries.ts共享目录优先排序、链接判定和名称展示；useSftpTransferQueue.ts管理侧栏任务，不持有DOM或监听原生拖放。分页代次、原生手势与双栏Pointer Events仍由各自视图维护。
+固定双栏 SftpBrowser 与侧栏 SftpPanel 均位于src/modules/files，workbench只负责固定Tab承载；types.ts保存端点/选择契约。fileEntries.ts共享目录优先排序、链接判定和名称展示；useSftpTransferQueue.ts管理侧栏任务，不持有DOM或监听原生拖放。分页代次、原生手势与双栏Pointer Events仍由各自视图维护。
 
 壳内files/browser、upload、download复用浏览器获取及受界文件操作，commands保留owner校验、授权与调用编排；下载回调由 files 服务提供。terminal-sftp通过browser、remote_file和copy分离目录浏览、句柄读写与对拷，公开类型路径保持兼容，通用租约与持久任务仍未实现。
 

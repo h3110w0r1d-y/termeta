@@ -27,7 +27,7 @@ Windows/macOS/Linux 桌面客户端，Tauri 2 + Rust + Vue 3 + TypeScript，通�
 | 14   | [快捷键设置](14-shortcuts.md)             | 应用内全局/终端快捷键、鼠标组合与冲突路由        |
 | 15   | [终端配色](15-terminal-themes.md)         | 内置方案、完全自定义取色、导入导出与热更新       |
 | 16   | [SFTP 工作区](16-sftp-workspace.md)       | 目录浏览、上传下载、原生拖放与资源边界           |
-| 18   | [终端工作区](18-terminal-workspaces.md)   | 标签排序、四向拖入、嵌套分屏、输入广播与终端保活 |
+| 18   | [终端工作台与工作区](18-terminal-workspaces.md)   | 标签排序、四向拖入、嵌套分屏、输入广播与终端保活 |
 | 19   | [Serial终端](19-serial-terminal.md)       | 串口枚举、启动参数、字符集与设备生命周期         |
 | 20   | [Telnet终端](20-telnet-terminal.md)       | Telnet协商、主机配置、明文边界与schema升级       |
 | 21   | [端口转发](21-port-forwarding.md)         | 本地/远程/SOCKS5、SSH引用、生命周期与监听边界    |

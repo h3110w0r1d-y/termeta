@@ -243,7 +243,7 @@ pub fn validate(settings: &Value) -> Result<()> {
     let keymap = &settings["keymap"];
     fields(keymap, &["schemaVersion", "bindings"])?;
     let bindings = keymap["bindings"].as_array().ok_or_else(invalid)?;
-    if keymap["schemaVersion"] != 1 || bindings.len() > 128 {
+    if keymap["schemaVersion"] != 2 || bindings.len() > 128 {
         return Err(invalid());
     }
     let mut binding_ids = std::collections::HashSet::new();
@@ -267,7 +267,7 @@ pub fn validate(settings: &Value) -> Result<()> {
             || !binding["enabled"].is_boolean()
             || binding["platform"] != "all"
             || !matches!(binding["scope"].as_str(), Some("application" | "terminal"))
-            || !matches!(binding["context"].as_str(), Some("workspace" | "terminal"))
+            || !matches!(binding["context"].as_str(), Some("workbench" | "terminal"))
             || !command(binding["commandId"].as_str().ok_or_else(invalid)?)
         {
             return Err(invalid());
@@ -276,7 +276,7 @@ pub fn validate(settings: &Value) -> Result<()> {
             .as_str()
             .is_some_and(|id| id.starts_with("terminal."));
         if binding["scope"] != if terminal { "terminal" } else { "application" }
-            || binding["context"] != if terminal { "terminal" } else { "workspace" }
+            || binding["context"] != if terminal { "terminal" } else { "workbench" }
         {
             return Err(invalid());
         }
@@ -359,13 +359,13 @@ pub fn normalize_legacy_schemes(settings: &mut Value) {
 
 fn command(id: &str) -> bool {
     [
-        "workspace.newConnection",
-        "workspace.newTab",
-        "workspace.closeTab",
-        "workspace.nextTab",
-        "workspace.previousTab",
+        "workbench.newConnection",
+        "workbench.newTab",
+        "workbench.closeTab",
+        "workbench.nextTab",
+        "workbench.previousTab",
         "settings.open",
-        "workspace.newLocalTerminal",
+        "workbench.newLocalTerminal",
         "terminal.copy",
         "terminal.paste",
         "terminal.find",
@@ -398,8 +398,43 @@ mod tests {
             "fontSize": 14, "scrollback": 5000, "defaultSchemeId": "pro",
             "confirmClose": true, "multilinePaste": true,
             "customSchemes": [], "hostSchemes": {},
-            "keymap": {"schemaVersion": 1, "bindings": []}
+            "keymap": {"schemaVersion": 2, "bindings": []}
         })
+    }
+
+    fn key_binding(command_id: &str, context: &str) -> Value {
+        json!({
+            "id": command_id, "commandId": command_id,
+            "scope": if command_id.starts_with("terminal.") { "terminal" } else { "application" },
+            "context": context,
+            "trigger": {"type": "key", "key": "F8", "modifiers": ["Alt"]},
+            "platform": "all", "enabled": false
+        })
+    }
+
+    #[test]
+    fn keymap_requires_current_version_commands_and_contexts() {
+        let mut settings = baseline();
+        settings["keymap"]["bindings"] = json!([
+            key_binding("workbench.closeTab", "workbench"),
+            key_binding("settings.open", "workbench"),
+            key_binding("terminal.copy", "terminal")
+        ]);
+        assert!(validate(&settings).is_ok());
+        for version in [0, 1, 3] {
+            settings["keymap"]["schemaVersion"] = json!(version);
+            assert!(validate(&settings).is_err());
+        }
+        settings["keymap"]["schemaVersion"] = json!(2);
+        for binding in [
+            key_binding("workspace.closeTab", "workbench"),
+            key_binding("workbench.closeTab", "workspace"),
+            key_binding("workbench.closeTab", "terminal"),
+            key_binding("terminal.copy", "workbench"),
+        ] {
+            settings["keymap"]["bindings"] = json!([binding]);
+            assert!(validate(&settings).is_err());
+        }
     }
 
     #[test]

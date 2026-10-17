@@ -2,10 +2,10 @@ import { t } from "../../i18n";
 import { computed, ref, type Ref } from "vue";
 import { desktop, errorMessage } from "../../services/desktop/client";
 import type { TransferProgress } from "../../services/desktop/types";
-import type { TerminalTab } from "../workspace/store";
+import type { TerminalItem } from "../workbench/store";
 
 export function useSftpTransferQueue(options: {
-  tab: () => TerminalTab;
+  terminal: () => TerminalItem;
   busy: () => boolean;
   disposed: () => boolean;
   connected: () => boolean;
@@ -73,14 +73,14 @@ export function useSftpTransferQueue(options: {
         ),
       { ...task, id: crypto.randomUUID(), status: "queued" },
     ];
-    if (!task.dragNames) options.tab().sftpTransferring = true;
+    if (!task.dragNames) options.terminal().sftpTransferring = true;
     void runQueue();
   }
   async function runQueue() {
     if (transferring.value || options.disposed()) return;
     const task = tasks.value.find((item) => item.status === "queued");
     if (!task) {
-      options.tab().sftpTransferring = false;
+      options.terminal().sftpTransferring = false;
       return;
     }
     if (!options.sameSession(task.sessionId)) {
@@ -96,7 +96,7 @@ export function useSftpTransferQueue(options: {
     const onProgress = (value: TransferProgress) => {
       if (currentTransfer?.id === task.id) {
         task.started = true;
-        options.tab().sftpTransferring = true;
+        options.terminal().sftpTransferring = true;
         task.progress = value;
         progress.value = value;
         // 若取消早于后端任务登记，首次进度到达后补发取消。
@@ -167,7 +167,7 @@ export function useSftpTransferQueue(options: {
       !transferring.value &&
       !tasks.value.some((item) => item.status === "queued")
     )
-      options.tab().sftpTransferring = false;
+      options.terminal().sftpTransferring = false;
   }
   async function cancel() {
     const transfer = currentTransfer;

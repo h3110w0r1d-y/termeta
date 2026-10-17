@@ -10,12 +10,12 @@ import CredentialsPage from "../modules/credentials/CredentialsPage.vue";
 import KnownHostsPage from "../modules/hosts/KnownHostsPage.vue";
 import ConnectionHistoryPage from "../modules/history/ConnectionHistoryPage.vue";
 import {
-  useWorkspace,
+  useWorkbenchStore,
   type VaultSection,
   type TerminalOpenMode,
-} from "../modules/workspace/store";
+} from "../modules/workbench/store";
 import type { HostKind, HostProfile } from "../services/desktop/types";
-const workspace = useWorkspace();
+const workbench = useWorkbenchStore();
 const navigationOptions = computed(() => {
   const items: { key: VaultSection; label: string }[] = [
     { key: "hosts", label: t("主机") },
@@ -41,29 +41,29 @@ const emit = defineEmits<{
 <template>
   <section
     id="page-home"
-    aria-labelledby="workspace-tab-home"
-    v-show="workspace.activeId === 'home'"
-    class="vault-workspace"
+    aria-labelledby="app-tab-home"
+    v-show="workbench.activeId === 'home'"
+    class="vault-page"
     role="tabpanel"
     :aria-label="t('保险箱')"
   >
     <aside class="vault-navigation">
       <NMenu
         :root-indent="18"
-        :value="workspace.vaultSection"
+        :value="workbench.vaultSection"
         :options="navigationOptions"
-        @update:value="workspace.openVault($event)"
+        @update:value="workbench.openVault($event)"
       />
     </aside>
     <div class="vault-content">
       <!-- 显隐挂在原生容器上，避免滚动组件内部的观察器根节点丢失指令。 -->
       <div
-        v-show="workspace.vaultSection === 'hosts'"
+        v-show="workbench.vaultSection === 'hosts'"
         class="vault-page-scroll"
       >
         <HostsPage
           :active="
-            workspace.activeId === 'home' && workspace.vaultSection === 'hosts'
+            workbench.activeId === 'home' && workbench.vaultSection === 'hosts'
           "
           @connect="emit('connect', $event)"
           @connect-many="
@@ -76,7 +76,7 @@ const emit = defineEmits<{
         />
       </div>
       <div
-        v-show="workspace.vaultSection === 'forwarding'"
+        v-show="workbench.vaultSection === 'forwarding'"
         class="vault-page-scroll"
       >
         <AppScrollArea :label="t('端口转发内容')">
@@ -84,21 +84,21 @@ const emit = defineEmits<{
         </AppScrollArea>
       </div>
       <AppScrollArea
-        v-if="workspace.vaultSection === 'credentials'"
+        v-if="workbench.vaultSection === 'credentials'"
         class="vault-page-scroll"
         :label="t('凭据内容')"
       >
         <CredentialsPage />
       </AppScrollArea>
       <AppScrollArea
-        v-if="workspace.vaultSection === 'known-hosts'"
+        v-if="workbench.vaultSection === 'known-hosts'"
         class="vault-page-scroll"
         :label="t('主机信任内容')"
       >
         <KnownHostsPage />
       </AppScrollArea>
       <AppScrollArea
-        v-if="workspace.vaultSection === 'history'"
+        v-if="workbench.vaultSection === 'history'"
         class="vault-page-scroll"
         :label="t('连接历史内容')"
       >
@@ -108,7 +108,7 @@ const emit = defineEmits<{
   </section>
 </template>
 <style scoped>
-.vault-workspace {
+.vault-page {
   display: flex;
   flex: 1;
   min-height: 0;

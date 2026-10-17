@@ -33,7 +33,7 @@
 
 在主窗口引入启动协调器，维护当前进程的启动批次与 `waiting → applying → consumed` 状态。`consumed` 在分配 terminalId 并登记创建动作时设置，不依赖 Shell 连接成功；失败也不在设置更新、组件重挂载或解锁回调中重试。
 
-执行条件为 `main`、保险库已解锁、设置已读取、WorkspaceStore/TerminalStage 可承载、初始启动意图已收集。继续通过已有 `workspace.add` 与 TerminalRegistry/open_session 创建，尺寸、Channel、ACK、历史及失败保留均沿用当前链路。
+执行条件为 `main`、保险库已解锁、设置已读取、WorkbenchStore/TerminalStage 可承载、初始启动意图已收集。继续通过已有 `workbench.add` 与 TerminalRegistry/open_session 创建，尺寸、Channel、ACK、历史及失败保留均沿用当前链路。
 
 当前 `loadUnlocked()` 使用 `Promise.all` 同时等待主机、转发和设置；实施时拆分“保险库/设置/终端宿主就绪”与各业务列表加载结果。Local 不应因主机列表加载失败而永久无法打开；主机/转发错误保留各自可见提示，不能把解锁失败当作可忽略错误。
 
@@ -94,7 +94,7 @@ argv / single-instance / macOS Opened / Services / URI
                          ↓
            main 解锁 + 设置/终端宿主 ready
                          ↓
-       领取请求 → workspace.add → terminalId 登记
+       领取请求 → workbench.add → terminalId 登记
                          ↓
            现有 open_session + Channel / ACK
 ```
@@ -189,7 +189,7 @@ macOS 使用现代 NSWorkspace 异步默认关联 API，按最低系统版本决
 | 阶段 | 主要落点 | 完成判断 |
 | --- | --- | --- |
 | A | settings model/store、SettingsPage、Rust settings 校验、App 启动协调 | 偏好持久化；解锁后普通启动只开一次；不影响手动新建 |
-| B | core LocalConfig、terminal-local、sessions OpenTarget、desktop types/client、WorkspaceStore、拟新增 launch 模块、ACL/command_names | cwd 到进程边界一致；冷暖启动、队列及失败语义完整 |
+| B | core LocalConfig、terminal-local、sessions OpenTarget、desktop types/client、WorkbenchStore、拟新增 launch 模块、ACL/command_names | cwd 到进程边界一致；冷暖启动、队列及失败语义完整 |
 | C | macOS Info.plist/Services；Linux desktop 模板/安装脚本；Windows 安装器自有 verb | 各自目录入口可安装/撤销；不误报系统默认 |
 | D | Local exec/CLI 参数、命令模式能力、Linux 默认适配、scheme/文件处理与状态查询 | 执行边界和真实桌面调用兼容；关联能力逐项验收 |
 | E | Windows COM/inbound adapter、可选 broker、包扩展/签名/发行配置 | 真实系统委派、权限、锁定、异常和卸载回退均有证据 |

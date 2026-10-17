@@ -5,7 +5,7 @@ import { confirmAction } from "../../components/ui/confirmation";
 import { useSettings } from "../settings/store";
 import { builtinSchemes as builtinThemeOptions } from "../settings/themes";
 import { terminalRegistry } from "../terminal/registry";
-import { useWorkspace, isActive } from "./store";
+import { useWorkbenchStore, isActive } from "./store";
 
 export function useTerminalMenu(options: {
   perform: (action: () => void | Promise<void>) => void;
@@ -14,7 +14,7 @@ export function useTerminalMenu(options: {
   focusTerminal: (id: string) => Promise<void>;
   openFind: () => void;
 }) {
-  const workspace = useWorkspace();
+  const workbench = useWorkbenchStore();
   const settings = useSettings();
   const { perform, closeTab, focusTerminal } = options;
   const tabMenu = ref({ show: false, id: "", groupId: "", x: 0, y: 0 });
@@ -25,12 +25,14 @@ export function useTerminalMenu(options: {
     style:
       "max-height: min(420px, calc(100dvh - 24px)); max-width: min(320px, calc(100dvw - 24px))",
   });
-  const menuTab = computed(() =>
-    workspace.tabs.find((tab) => tab.terminalId === tabMenu.value.id),
+  const menuTerminal = computed(() =>
+    workbench.terminals.find(
+      (terminal) => terminal.terminalId === tabMenu.value.id,
+    ),
   );
   const menuIsSingleTerminal = computed(
     () =>
-      workspace.groupForTerminal(tabMenu.value.id)?.root.kind === "terminal",
+      workbench.groupForTerminal(tabMenu.value.id)?.root.kind === "terminal",
   );
   const tabMenuOptions = computed(() =>
     tabMenu.value.groupId
@@ -38,7 +40,9 @@ export function useTerminalMenu(options: {
       : [
           {
             label: t("终端：{name}", {
-              name: menuTab.value ? terminalBaseTitle(menuTab.value) : "",
+              name: menuTerminal.value
+                ? terminalBaseTitle(menuTerminal.value)
+                : "",
             }),
             key: "target",
             disabled: true,
@@ -48,12 +52,12 @@ export function useTerminalMenu(options: {
                 {
                   label: t("复制标签页"),
                   key: "duplicate",
-                  disabled: !workspace.canDuplicateSession(tabMenu.value.id),
+                  disabled: !workbench.canDuplicateSession(tabMenu.value.id),
                 },
                 {
                   label: t("拆分会话"),
                   key: "split",
-                  disabled: !workspace.canDuplicateSession(
+                  disabled: !workbench.canDuplicateSession(
                     tabMenu.value.id,
                     true,
                   ),
@@ -74,10 +78,10 @@ export function useTerminalMenu(options: {
               ),
             ],
           },
-          isActive(menuTab.value?.state ?? "closed")
+          isActive(menuTerminal.value?.state ?? "closed")
             ? { label: t("断开"), key: "disconnect" }
             : {
-                label: menuTab.value?.sshCommand
+                label: menuTerminal.value?.sshCommand
                   ? t("重新运行")
                   : t("重新连接"),
                 key: "reconnect",
@@ -86,22 +90,22 @@ export function useTerminalMenu(options: {
   );
   function openTabMenu(event: MouseEvent | KeyboardEvent, id: string) {
     event.preventDefault();
-    const group = workspace.groups.find((item) => item.id === id);
+    const group = workbench.groups.find((item) => item.id === id);
     if (!group) return;
     openTerminalMenu(event, group.focusedTerminalId);
     if (group.root.kind === "split" || group.savedProfileId)
       tabMenu.value.groupId = group.id;
   }
   function duplicateTerminal(id: string, split: boolean) {
-    if (!workspace.canDuplicateSession(id, split)) return;
-    workspace.duplicateSession(id, split);
-    perform(() => focusTerminal(workspace.activeId));
+    if (!workbench.canDuplicateSession(id, split)) return;
+    workbench.duplicateSession(id, split);
+    perform(() => focusTerminal(workbench.activeId));
   }
   function doubleClickTab(id: string) {
     const action = settings.value.tabDoubleClickAction;
     if (action === "close") perform(() => closeTab(id));
     else if (action === "duplicate" || action === "split") {
-      const group = workspace.groups.find((item) => item.id === id);
+      const group = workbench.groups.find((item) => item.id === id);
       if (group?.root.kind === "terminal" && !group.savedProfileId)
         duplicateTerminal(group.root.terminalId, action === "split");
     }
@@ -123,25 +127,25 @@ export function useTerminalMenu(options: {
       options.saveWorkspace(tabMenu.value.groupId);
       return;
     }
-    const tab = menuTab.value;
-    if (!tab) return;
+    const terminal = menuTerminal.value;
+    if (!terminal) return;
     if (key === "duplicate" || key === "split") {
-      duplicateTerminal(tab.terminalId, key === "split");
+      duplicateTerminal(terminal.terminalId, key === "split");
     } else if (key === "disconnect") {
       if (
-        tab.sftpTransferring &&
+        terminal.sftpTransferring &&
         !(await confirmAction(t("断开 SSH 将取消当前 SFTP 传输，确定继续？")))
       )
         return;
-      perform(() => terminalRegistry.disconnect(tab.terminalId));
+      perform(() => terminalRegistry.disconnect(terminal.terminalId));
     } else if (key === "reconnect")
-      perform(() => terminalRegistry.connect(tab));
+      perform(() => terminalRegistry.connect(terminal));
     else if (key === "find") {
-      workspace.focusTerminal(tab.terminalId);
+      workbench.focusTerminal(terminal.terminalId);
       await nextTick();
       options.openFind();
     } else if (key.startsWith("scheme:")) {
-      tab.schemeId = key === "scheme:default" ? undefined : key.slice(7);
+      terminal.schemeId = key === "scheme:default" ? undefined : key.slice(7);
       terminalRegistry.apply();
     }
   }

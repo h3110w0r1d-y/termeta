@@ -28,7 +28,7 @@ flowchart TB
 | --------------------------------------------------- | ----------------------------------------------------------- |
 | src/App.vue、src/layout                             | 根装配、稳定终端舞台、保险箱导航、应用外观                  |
 | src/modules/hosts、credentials、history、forwarding | 保存项/分组/搜索、凭据元数据、信任/历史、转发规则及轻量状态 |
-| src/modules/terminal、workspace                     | xterm 注册表、输入路由、标签组、布局树、广播、工作区存档    |
+| src/modules/terminal、workbench                     | xterm 注册表、输入路由、标签组、布局树、广播、工作区存档    |
 | src/modules/settings                                | 独立 SettingsWindow、表单/预览、自动保存与跨窗口同步        |
 | src/modules/backup                                  | 共用 BackupPanel、配置/版本元数据、预览确认和轻量刷新订阅 |
 | src/modules/files                                   | 单终端 SFTP 侧栏、双远端工作区、轻量队列与目录展示          |
@@ -66,7 +66,7 @@ core 可使用 serde/bytes/Tokio/async-trait 等基础库，不依赖 Tauri、SQ
 
 ## 5. 稳定终端与工作区
 
-WorkspaceStore.tabs 保存终端元数据，groups 保存标签顺序/布局/聚焦/广播；activeId 指固定页或组，active 指聚焦终端。固定 home/sftp 不创建 xterm。TerminalRegistry 用普通 Map 按 terminalId 保存实例、当前 session/代次、订阅与输入队列。
+`useWorkbenchStore()` 管理整个工作台：`terminals: TerminalItem[]` 保存终端元数据，`groups: TerminalTabGroup[]` 保存标签顺序/布局/聚焦/广播，`tabBarItems: TabBarItem[]` 提供标签栏展示投影；`activeId` 指固定页或组，`activeTerminal` 指聚焦终端。Workbench 不代表单个工作区；Workspace 保留给多终端工作区与 SavedWorkspace 存档。固定 home/sftp 不创建 xterm。TerminalRegistry 用普通 Map 按 terminalId 保存实例、当前 session/代次、订阅与输入队列。
 
 打开连接前创建 terminalId、宿主和 Channel handlers；即使命令失败也保留视图。TerminalStage 在同一层按 terminalId keyed 渲染宿主，布局树只计算矩形，排序、分屏、比例/交换、迁移与切页不重建实例。隐藏终端继续解析/ACK，只减少渲染/resize。
 
@@ -82,7 +82,7 @@ WorkspaceStore.tabs 保存终端元数据，groups 保存标签顺序/布局/聚
 
 VaultGate 完成首次设置、OS 自动解锁或密码恢复后挂载业务页面。现有保险库锁定时仅 vault_status/unlock_vault 可进入业务；全新 setup 状态额外开放 main 的云端测试/列表/预览/初始化入口，不能用它绕过已有库的解锁。窗口操作保留。storage 发布已解锁 SQLCipher 池前完成迁移/外键检查；OS 仅缓存主密钥，秘密仅 Rust 加载。当前 schema 6 和升级边界见 [存储](07-storage.md)。密码修改由 security 重新校验并派生密钥，storage 以可替换连接池及数据库生命周期门闩执行加密副本 rekey、文件组合切换与启动恢复；不占用会话表锁，不重建终端。
 
-设置独立单实例窗口由 settings_window.rs 与 SettingsWindow.vue 装配，入口不挂载 App/终端/工作区心跳。useLiveSettings 校验/自动保存，useSettingsSync 跨窗口同步；Rust 设置专用队列合并最新局部字段。settings_owner 仅向 main/settings 开放设置、保险库改密/JSON 导出及专用备份同步命令，通用 owner 仍仅 main。
+设置独立单实例窗口由 settings_window.rs 与 SettingsWindow.vue 装配，入口不挂载 App/终端/工作台心跳。useLiveSettings 校验/自动保存，useSettingsSync 跨窗口同步；Rust 设置专用队列合并最新局部字段。settings_owner 仅向 main/settings 开放设置、保险库改密/JSON 导出及专用备份同步命令，通用 owner 仍仅 main。
 
 ### 备份与非覆盖同步
 
@@ -114,4 +114,4 @@ scripts/check-structure.mjs 仅读取源码/清单，检查边界和常见表单
 
 ## 9. 系统终端集成设计边界（待实现）
 
-外部 argv、目录服务、文件/URL 事件计划由 Tauri 壳的统一启动层规范化并有界暂存，解锁和终端宿主就绪后经 desktop 门面领取，再复用 WorkspaceStore/TerminalRegistry/open_session；不能只发一次易丢失的 WebView 事件。普通启动偏好只消费一次，显式外部请求优先。平台关联/注册留在壳，不进入 core；Windows inbound 委派与 Local 创建进程分为不同适配能力，原生句柄留在 Rust。当前没有这些队列/平台适配，现有门禁与接口不变，详见[实现方案](24-terminal-system-integration-plan.md)。
+外部 argv、目录服务、文件/URL 事件计划由 Tauri 壳的统一启动层规范化并有界暂存，解锁和终端宿主就绪后经 desktop 门面领取，再复用 WorkbenchStore/TerminalRegistry/open_session；不能只发一次易丢失的 WebView 事件。普通启动偏好只消费一次，显式外部请求优先。平台关联/注册留在壳，不进入 core；Windows inbound 委派与 Local 创建进程分为不同适配能力，原生句柄留在 Rust。当前没有这些队列/平台适配，现有门禁与接口不变，详见[实现方案](24-terminal-system-integration-plan.md)。

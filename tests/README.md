@@ -6,7 +6,8 @@ Node 用例直接导入 TypeScript，要求 Node 22.18+。Rust 测试会编译�
 
 | 文件                                                       | 覆盖范围                                                            |
 | ---------------------------------------------------------- | ------------------------------------------------------------------- |
-| [workspace-layout.test.mjs](workspace-layout.test.mjs)     | 四向/嵌套分屏、迁移/收缩、比例/不变性、批量均分                     |
+| [tab-insertion.test.mjs](tab-insertion.test.mjs) | 连续间隙命中、横纵/不等尺寸/滚动坐标、原位/首尾/窗格插入、双向排序与对象引用 |
+| [workbench-layout.test.mjs](workbench-layout.test.mjs)     | 四向/嵌套分屏、迁移/收缩、比例/不变性、批量均分                     |
 | [terminal-broadcast.test.mjs](terminal-broadcast.test.mjs) | 用户输入/设备应答/鼠标隔离、最终滚轮动作单次分发/编码、未聚焦滚轮来源、去重、光标模式、微任务标记/递归保护与降级、命令窗格收发隔离 |
 | [terminal-activity.test.mjs](terminal-activity.test.mjs) | 命令模式关闭提醒、远端标记隔离、重连回 Shell 后恢复判断 |
 | [host-search.test.mjs](host-search.test.mjs)               | 全拼/首字母/多音字/混输/多词、字段与地址匹配                        |
@@ -28,7 +29,7 @@ node --test tests/*.test.mjs
 | terminal-ssh/src                              | 系统识别、转发规则/监听匹配、SOCKS5 分片/远端 DNS/拒绝 UDP 等                              |
 | terminal-storage/src/tests.rs                 | 各类型持久化、SSH启动模式往返/旧值/非法配置、凭据/分组事务、revision、工作区/名称唯一、转发失效引用、加密格式/迁移/原摘要 |
 | terminal-security/src                         | 主密钥派生/校验、钥匙串注入/恢复、缓存失败与入口 future 的 Send 断言                       |
-| src-tauri/src/commands、settings.rs           | DTO 字段隔离、设置白名单/旧数据兼容等                                                      |
+| src-tauri/src/commands、settings.rs           | DTO 字段隔离、设置白名单/旧数据兼容、快捷键仅接受版本2、当前命令与上下文的严格校验等                                                      |
 
 历史串口授权调试中，macOS 的 terminal-core/terminal-serial 定向编译及15项测试通过；指定 ESP32-C3 输出/关闭和 xterm 无界面缓冲对比有局部证据，见 [串口记录](../docs/19-serial-terminal.md#5-已有验证与诊断入口)。这不覆盖后续新增 core/Telnet/存储集成；其他新增 Rust 回归源码尚未编译执行。
 

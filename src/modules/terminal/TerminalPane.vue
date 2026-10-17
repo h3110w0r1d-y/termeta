@@ -4,13 +4,13 @@ import { GitNetworkOutline, CloseOutline } from "@vicons/ionicons5";
 import { computed, onMounted, ref, watch } from "vue";
 import { NIcon, useThemeVars } from "naive-ui";
 import AppButton from "../../components/ui/AppButton.vue";
-import { useWorkspace, type TerminalTab } from "../workspace/store";
-import { stateLabels } from "../workspace/store";
-import { schemeForTab, terminalRegistry } from "./registry";
+import { useWorkbenchStore, type TerminalItem } from "../workbench/store";
+import { stateLabels } from "../workbench/store";
+import { schemeForTerminal, terminalRegistry } from "./registry";
 import { terminalBaseTitle, terminalDisplayTitle } from "./title";
 import SftpPanel from "../files/SftpPanel.vue";
 const props = defineProps<{
-  tab: TerminalTab;
+  terminal: TerminalItem;
   active: boolean;
   visible: boolean;
   split: boolean;
@@ -22,15 +22,15 @@ const emit = defineEmits<{
   menu: [event: MouseEvent | KeyboardEvent];
 }>();
 const themeVars = useThemeVars();
-const workspace = useWorkspace();
+const workbench = useWorkbenchStore();
 const broadcastCount = computed(() =>
-  workspace.broadcastTargetCount(props.tab.terminalId),
+  workbench.broadcastTargetCount(props.terminal.terminalId),
 );
 const participatesInBroadcast = computed(
-  () => props.broadcast && !props.tab.sshCommand,
+  () => props.broadcast && !props.terminal.sshCommand,
 );
 const broadcastTitle = computed(() =>
-  props.tab.sshCommand
+  props.terminal.sshCommand
     ? t("命令终端不接收广播")
     : props.broadcast
       ? t("关闭广播（{broadcastCount} 个终端）", {
@@ -42,29 +42,34 @@ const broadcastTitle = computed(() =>
             broadcastCount: broadcastCount.value,
           }),
 );
-const background = computed(() => schemeForTab(props.tab).colors.background);
+const background = computed(
+  () => schemeForTerminal(props.terminal).colors.background,
+);
 const displayTitle = computed(() =>
-  terminalDisplayTitle(terminalBaseTitle(props.tab), props.tab.remoteTitle),
+  terminalDisplayTitle(
+    terminalBaseTitle(props.terminal),
+    props.terminal.remoteTitle,
+  ),
 );
 const host = ref<HTMLElement>();
 const sftpMounted = ref(false);
 watch(
-  () => props.tab.sftpOpen,
+  () => props.terminal.sftpOpen,
   (open) => {
     if (open) sftpMounted.value = true;
   },
   { immediate: true },
 );
 onMounted(() => {
-  if (host.value) terminalRegistry.mount(props.tab, host.value);
-  if (props.active) terminalRegistry.focus(props.tab.terminalId);
+  if (host.value) terminalRegistry.mount(props.terminal, host.value);
+  if (props.active) terminalRegistry.focus(props.terminal.terminalId);
 });
 watch(
   () => props.active,
   (active) => {
     // 键盘标签导航保留导航焦点；分屏焦点只路由到选中的子终端。
     if (active && !document.activeElement?.closest('[role="tablist"]'))
-      terminalRegistry.focus(props.tab.terminalId);
+      terminalRegistry.focus(props.terminal.terminalId);
   },
 );
 function menuKey(event: KeyboardEvent) {
@@ -74,7 +79,7 @@ function menuKey(event: KeyboardEvent) {
 </script>
 <template>
   <div
-    :id="'terminal-panel-' + tab.terminalId"
+    :id="'terminal-panel-' + terminal.terminalId"
     role="region"
     v-show="visible"
     class="terminal-pane"
@@ -84,7 +89,7 @@ function menuKey(event: KeyboardEvent) {
       'broadcast-pane': split && participatesInBroadcast,
       'broadcast-peer': split && participatesInBroadcast && !active,
     }"
-    :data-terminal-pane="tab.terminalId"
+    :data-terminal-pane="terminal.terminalId"
     :aria-label="displayTitle"
     :style="{
       '--terminal-background': background,
@@ -98,15 +103,15 @@ function menuKey(event: KeyboardEvent) {
       <button
         type="button"
         class="terminal-pane-title"
-        :data-drag-terminal="tab.terminalId"
-        :title="displayTitle + ' · ' + t(stateLabels[tab.state])"
-        @click="terminalRegistry.focus(tab.terminalId)"
+        :data-drag-terminal="terminal.terminalId"
+        :title="displayTitle + ' · ' + t(stateLabels[terminal.state])"
+        @click="terminalRegistry.focus(terminal.terminalId)"
         @contextmenu="emit('menu', $event)"
         @keydown="menuKey"
       >
-        <i class="status-dot" :class="tab.state" aria-hidden="true" />
+        <i class="status-dot" :class="terminal.state" aria-hidden="true" />
         <span class="terminal-pane-title-text">{{ displayTitle }}</span>
-        <span v-if="tab.sshCommand" class="pane-command-label">
+        <span v-if="terminal.sshCommand" class="pane-command-label">
           {{ t("命令") }}
         </span>
       </button>
@@ -116,7 +121,7 @@ function menuKey(event: KeyboardEvent) {
         :aria-pressed="participatesInBroadcast"
         :aria-label="broadcastTitle"
         :title="broadcastTitle"
-        :disabled="!!tab.sshCommand || (!broadcast && broadcastCount < 2)"
+        :disabled="!!terminal.sshCommand || (!broadcast && broadcastCount < 2)"
         @click="terminalRegistry.toggleBroadcast()"
       >
         <NIcon :size="16" aria-hidden="true">
@@ -125,8 +130,10 @@ function menuKey(event: KeyboardEvent) {
       </AppButton>
       <AppButton
         class="icon-button pane-close"
-        :aria-label="t('关闭终端 {name}', { name: terminalBaseTitle(tab) })"
-        :title="t('关闭终端 {name}', { name: terminalBaseTitle(tab) })"
+        :aria-label="
+          t('关闭终端 {name}', { name: terminalBaseTitle(terminal) })
+        "
+        :title="t('关闭终端 {name}', { name: terminalBaseTitle(terminal) })"
         @click="emit('close')"
       >
         <NIcon :size="14" aria-hidden="true">
@@ -138,8 +145,8 @@ function menuKey(event: KeyboardEvent) {
       <div ref="host" class="terminal-host" />
       <SftpPanel
         v-if="sftpMounted"
-        v-show="!!tab.sftpOpen && !split"
-        :tab="tab"
+        v-show="!!terminal.sftpOpen && !split"
+        :terminal="terminal"
       />
     </div>
   </div>

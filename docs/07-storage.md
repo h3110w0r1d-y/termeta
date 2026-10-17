@@ -76,7 +76,7 @@ app 设置为带版本的 JSON，language 可选 system/zh-CN/en-US，旧值缺�
 | hostsView                    | includeChildren=false、expandedGroupIds=[]、showHosts=false、displayMode=card；展开键仅分组 UUID/ungrouped，去重且最多10000项 |
 | hostSearch                   | pinyin=true，name/address/username/tags/group 全选；name 固定，拒绝重复/未知字段                                              |
 | sftpShowHidden               | false，终端侧栏和双栏同步                                                                                                     |
-| 字体、配色、快捷键、标签位置 | 白名单/版本/引用校验，旧字段按兼容规则归一，详见对应模块文档                                                                  |
+| 字体、配色、快捷键、标签位置 | 白名单/版本/引用校验；keymap 仅接受版本2与workbench命名，不转换旧快捷键，外层 app 版本不变；其他旧字段按兼容规则归一，详见对应模块文档                                                                  |
 
 普通 app 设置最大256 KiB。搜索查询与拼音索引只驻内存。
 

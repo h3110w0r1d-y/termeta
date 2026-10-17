@@ -22,12 +22,12 @@ export function terminalDisplayTitle(
 }
 
 /** 仅本地终端的内置名称参与翻译，用户名称和远端标题保持原样。 */
-export function terminalBaseTitle(tab: {
+export function terminalBaseTitle(terminal: {
   title: string;
   baseTitle: string;
   target: { source: string };
 }): string {
-  return tab.target.source === "local" && tab.baseTitle === "本地终端"
-    ? tab.title.replace(/^本地终端(?= \(\d+\)$|$)/u, t("本地终端"))
-    : tab.title;
+  return terminal.target.source === "local" && terminal.baseTitle === "本地终端"
+    ? terminal.title.replace(/^本地终端(?= \(\d+\)$|$)/u, t("本地终端"))
+    : terminal.title;
 }

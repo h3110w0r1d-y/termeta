@@ -27,26 +27,29 @@ import {
   watch,
 } from "vue";
 import ConfirmationDialog from "./components/ui/ConfirmationDialog.vue";
-import WorkspaceTabs from "./modules/workspace/WorkspaceTabs.vue";
-import SftpWorkspace from "./modules/files/SftpWorkspace.vue";
+import AppTabs from "./modules/workbench/AppTabs.vue";
+import SftpBrowser from "./modules/files/SftpBrowser.vue";
 import NewTabDialog from "./modules/hosts/NewTabDialog.vue";
-import SaveWorkspaceDialog from "./modules/workspace/SaveWorkspaceDialog.vue";
+import SaveWorkspaceDialog from "./modules/workbench/SaveWorkspaceDialog.vue";
 import HostEditor from "./modules/hosts/HostEditor.vue";
 import SerialConnectDialog from "./modules/terminal/SerialConnectDialog.vue";
-import TerminalStage from "./modules/workspace/TerminalStage.vue";
-import { useTerminalMenu } from "./modules/workspace/useTerminalMenu";
-import { useTerminalClose } from "./modules/workspace/useTerminalClose";
+import TerminalStage from "./modules/workbench/TerminalStage.vue";
+import { useTerminalMenu } from "./modules/workbench/useTerminalMenu";
+import { useTerminalClose } from "./modules/workbench/useTerminalClose";
 import PasteDialog from "./modules/terminal/PasteDialog.vue";
 import ChallengeDialog from "./modules/terminal/ChallengeDialog.vue";
 import { useHosts } from "./modules/hosts/store";
 import { usePortForwards } from "./modules/forwarding/store";
 import { useSettings } from "./modules/settings/store";
 import {
-  useWorkspace,
+  useWorkbenchStore,
   stateLabels,
   type TerminalOpenMode,
-} from "./modules/workspace/store";
-import { schemeForTab, terminalRegistry } from "./modules/terminal/registry";
+} from "./modules/workbench/store";
+import {
+  schemeForTerminal,
+  terminalRegistry,
+} from "./modules/terminal/registry";
 import { needsCloseConfirmation } from "./modules/terminal/activity";
 import { commands } from "./services/commands/registry";
 import { desktop, errorMessage } from "./services/desktop/client";
@@ -61,7 +64,7 @@ import { useBackupRestored } from "./modules/backup/useBackupRestored";
 const settingsSync = useSettingsSync();
 const hosts = useHosts(),
   settings = useSettings(),
-  workspace = useWorkspace();
+  workbench = useWorkbenchStore();
 const portForwards = usePortForwards();
 const newTabOpen = ref(false);
 const serialOpen = ref(false);
@@ -93,11 +96,11 @@ async function loadUnlocked() {
   vaultReady.value = true;
 }
 const connected = computed(
-  () => workspace.tabs.filter((t) => t.state === "connected").length,
+  () => workbench.terminals.filter((t) => t.state === "connected").length,
 );
 const terminalBackground = computed(() =>
-  workspace.active
-    ? schemeForTab(workspace.active).colors.background
+  workbench.activeTerminal
+    ? schemeForTerminal(workbench.activeTerminal).colors.background
     : undefined,
 );
 const { naiveTheme, naiveThemeOverrides } = useAppAppearance();
@@ -130,7 +133,7 @@ function createHost(kind: HostKind, groupId: string | null) {
     serialOpen.value = true;
   }
 }
-const savingWorkspaceId = ref("");
+const savingGroupId = ref("");
 function openNewTab() {
   newTabOpen.value = true;
 }
@@ -148,29 +151,30 @@ function quickConnect(kind: HostKind = "ssh") {
   }
 }
 function openLocalTerminal() {
-  workspace.add("本地终端", { source: "local" });
+  workbench.add("本地终端", { source: "local" });
 }
 function openSerial(config: SerialConfig) {
-  workspace.add(config.path, { source: "serial", config });
+  workbench.add(config.path, { source: "serial", config });
 }
 function connect(host: HostProfile) {
   connectMany([host], "tabs");
 }
 function connectMany(profiles: HostProfile[], mode: TerminalOpenMode) {
   try {
-    workspace.addSavedHosts(profiles, mode);
+    workbench.addSavedHosts(profiles, mode);
   } catch (e) {
     initError.value = errorMessage(e);
   }
 }
 function ephemeral(target: OpenTarget, title: string) {
-  workspace.add(title, target);
+  workbench.add(title, target);
 }
 const { closeTab, closePane } = useTerminalClose();
 function perform(action: () => void | Promise<void>) {
   try {
     Promise.resolve(action()).catch((e) => {
-      if (workspace.active) workspace.active.error = errorMessage(e);
+      if (workbench.activeTerminal)
+        workbench.activeTerminal.error = errorMessage(e);
       else initError.value = errorMessage(e);
     });
   } catch (e) {
@@ -189,7 +193,7 @@ const {
   perform,
   closeTab,
   saveWorkspace: (id) => {
-    savingWorkspaceId.value = id;
+    savingGroupId.value = id;
   },
   focusTerminal,
   openFind: () => {
@@ -197,19 +201,20 @@ const {
   },
 });
 async function focusTerminal(id: string) {
-  const group = workspace.groups.find((item) => item.id === id);
+  const group = workbench.groups.find((item) => item.id === id);
   if (!group) return;
   await nextTick();
   terminalRegistry.focus(group.focusedTerminalId);
 }
 function restoreTerminalFocus() {
   // 连接/认证弹窗的焦点陷阱退场后再聚焦，避免库恢复到已经隐藏的保险箱控件。
-  if (!findOpen.value && workspace.active)
-    terminalRegistry.focus(workspace.active.terminalId);
+  if (!findOpen.value && workbench.activeTerminal)
+    terminalRegistry.focus(workbench.activeTerminal.terminalId);
 }
 function closeFind() {
   findOpen.value = false;
-  if (workspace.active) terminalRegistry.focus(workspace.active.terminalId);
+  if (workbench.activeTerminal)
+    terminalRegistry.focus(workbench.activeTerminal.terminalId);
 }
 function globalKey(event: KeyboardEvent) {
   if (!vaultReady.value) return;
@@ -222,7 +227,7 @@ watch(
   { deep: true },
 );
 watch(
-  () => [workspace.activeId, workspace.active?.terminalId],
+  () => [workbench.activeId, workbench.activeTerminal?.terminalId],
   () => {
     tabMenu.value.show = false;
     findOpen.value = false;
@@ -231,30 +236,35 @@ watch(
   { flush: "post" },
 );
 watch(
-  () => workspace.active?.schemeId,
+  () => workbench.activeTerminal?.schemeId,
   () => terminalRegistry.apply(),
 );
 onMounted(async () => {
-  commands.register("workspace.newConnection", openNewTab);
-  commands.register("workspace.newTab", openNewTab);
-  commands.register("workspace.newLocalTerminal", openLocalTerminal);
-  commands.register("workspace.closeTab", () => {
-    if (workspace.activeGroup) void closeTab(workspace.activeGroup.id);
+  commands.register("workbench.newConnection", openNewTab);
+  commands.register("workbench.newTab", openNewTab);
+  commands.register("workbench.newLocalTerminal", openLocalTerminal);
+  commands.register("workbench.closeTab", () => {
+    if (workbench.activeGroup) void closeTab(workbench.activeGroup.id);
   });
-  commands.register("workspace.nextTab", () => workspace.cycle(1));
-  commands.register("workspace.previousTab", () => workspace.cycle(-1));
+  commands.register("workbench.nextTab", () => workbench.cycle(1));
+  commands.register("workbench.previousTab", () => workbench.cycle(-1));
   commands.register("settings.open", () => perform(desktop.openSettingsWindow));
   commands.register("terminal.copy", () => {
-    if (workspace.active)
-      perform(() => terminalRegistry.copy(workspace.active!.terminalId));
+    if (workbench.activeTerminal)
+      perform(() =>
+        terminalRegistry.copy(workbench.activeTerminal!.terminalId),
+      );
   });
   commands.register("terminal.paste", () => {
-    if (workspace.active)
-      perform(() => terminalRegistry.paste(workspace.active!.terminalId));
+    if (workbench.activeTerminal)
+      perform(() =>
+        terminalRegistry.paste(workbench.activeTerminal!.terminalId),
+      );
   });
   commands.register("terminal.find", () => (findOpen.value = true));
   commands.register("terminal.scrollToBottom", () => {
-    if (workspace.active) terminalRegistry.bottom(workspace.active.terminalId);
+    if (workbench.activeTerminal)
+      terminalRegistry.bottom(workbench.activeTerminal.terminalId);
   });
   document.addEventListener("keydown", globalKey, true);
   try {
@@ -262,14 +272,14 @@ onMounted(async () => {
       if (closingWindow) return;
       event.preventDefault();
       if (
-        (workspace.fileTransferring ||
-          workspace.tabs.some((tab) => tab.sftpTransferring)) &&
+        (workbench.fileTransferring ||
+          workbench.terminals.some((terminal) => terminal.sftpTransferring)) &&
         !(await confirmAction(
           t("关闭窗口将取消正在进行的 SFTP 传输，确定继续？"),
         ))
       )
         return;
-      const running = workspace.tabs.filter(needsCloseConfirmation);
+      const running = workbench.terminals.filter(needsCloseConfirmation);
       if (
         (running.length > 0 || portForwards.hasActive) &&
         settings.value.confirmClose &&
@@ -288,7 +298,9 @@ onMounted(async () => {
         return;
       try {
         await Promise.all(
-          workspace.tabs.map((t) => terminalRegistry.dispose(t.terminalId)),
+          workbench.terminals.map((t) =>
+            terminalRegistry.dispose(t.terminalId),
+          ),
         );
         closingWindow = true;
         await desktop.closeWindow();
@@ -339,18 +351,18 @@ onBeforeUnmount(() => {
           <div class="window-drag-space" data-tauri-drag-region />
           <WindowControls @error="initError = $event" />
         </header>
-        <WorkspaceTabs
-          :tabs="workspace.workspaceTabs"
-          :active-id="workspace.activeId"
+        <AppTabs
+          :tabs="workbench.tabBarItems"
+          :active-id="workbench.activeId"
           :position="settings.value.tabPosition"
           :connected="connected"
           @window-error="initError = $event"
-          @activate="workspace.activateTab($event)"
+          @activate="workbench.activateTab($event)"
           @focus-terminal="focusTerminal"
           @close="closeTab"
           @double-click="doubleClickTab"
           @menu="openTabMenu"
-          @create="commands.execute('workspace.newTab')"
+          @create="commands.execute('workbench.newTab')"
         />
         <NDropdown
           :show="tabMenu.show"
@@ -367,7 +379,7 @@ onBeforeUnmount(() => {
           @clickoutside="closeContextMenuOnOutside($event, tabMenu)"
           @update:show="tabMenu.show = $event"
         />
-        <main class="workspace">
+        <main class="workbench-content">
           <NAlert
             v-if="initError"
             type="error"
@@ -384,14 +396,14 @@ onBeforeUnmount(() => {
             @quick="quickConnect"
             @edit="edit"
           />
-          <SftpWorkspace v-show="workspace.activeId === 'sftp'" />
+          <SftpBrowser v-show="workbench.activeId === 'sftp'" />
           <!-- 终端宿主始终留在同一组件树内；页面与布局切换仅改变可见性。 -->
           <section
-            v-show="!!workspace.active"
-            class="terminal-workspace"
-            :aria-label="t('终端工作区')"
+            v-show="!!workbench.activeTerminal"
+            class="terminal-area"
+            :aria-label="t('终端区域')"
           >
-            <div v-if="findOpen && workspace.active" class="find-bar">
+            <div v-if="findOpen && workbench.activeTerminal" class="find-bar">
               <AppInput
                 v-model="query"
                 autofocus
@@ -399,7 +411,7 @@ onBeforeUnmount(() => {
                 :placeholder="t('搜索终端历史…')"
                 @keydown.enter.prevent="
                   terminalRegistry.find(
-                    workspace.active.terminalId,
+                    workbench.activeTerminal.terminalId,
                     query,
                     $event.shiftKey,
                   )
@@ -409,7 +421,7 @@ onBeforeUnmount(() => {
               <AppButton
                 @click="
                   terminalRegistry.find(
-                    workspace.active.terminalId,
+                    workbench.activeTerminal.terminalId,
                     query,
                     true,
                   )
@@ -419,7 +431,10 @@ onBeforeUnmount(() => {
               </AppButton>
               <AppButton
                 @click="
-                  terminalRegistry.find(workspace.active.terminalId, query)
+                  terminalRegistry.find(
+                    workbench.activeTerminal.terminalId,
+                    query,
+                  )
                 "
               >
                 {{ t("下一个") }}
@@ -432,8 +447,8 @@ onBeforeUnmount(() => {
                 <NIcon :size="16" aria-hidden="true"><CloseOutline /></NIcon>
               </AppButton>
             </div>
-            <NAlert v-if="workspace.active?.error" type="error">
-              {{ workspace.active.error }}
+            <NAlert v-if="workbench.activeTerminal?.error" type="error">
+              {{ workbench.activeTerminal.error }}
             </NAlert>
             <div
               class="terminal-stage"
@@ -441,48 +456,50 @@ onBeforeUnmount(() => {
             >
               <TerminalStage @close="closePane" @menu="openTerminalMenu" />
             </div>
-            <footer v-if="workspace.active" class="status-bar">
+            <footer v-if="workbench.activeTerminal" class="status-bar">
               <span>
                 {{
-                  workspace.active.kind === "local"
+                  workbench.activeTerminal.kind === "local"
                     ? t("本地")
-                    : workspace.active.kind === "serial"
+                    : workbench.activeTerminal.kind === "serial"
                       ? t("串口")
-                      : workspace.active.kind === "telnet"
+                      : workbench.activeTerminal.kind === "telnet"
                         ? t("Telnet · 明文")
                         : "SSH"
                 }}
-                · {{ t(stateLabels[workspace.active.state]) }}
+                · {{ t(stateLabels[workbench.activeTerminal.state]) }}
               </span>
               <span
                 v-if="
-                  workspace.active.kind === 'serial' &&
-                  workspace.active.serialConfig
+                  workbench.activeTerminal.kind === 'serial' &&
+                  workbench.activeTerminal.serialConfig
                 "
               >
-                {{ workspace.active.serialConfig.baudRate }} baud ·
-                {{ workspace.active.serialConfig.charset }}
+                {{ workbench.activeTerminal.serialConfig.baudRate }} baud ·
+                {{ workbench.activeTerminal.serialConfig.charset }}
               </span>
               <span v-else>
-                {{ workspace.active.size.cols }} ×
-                {{ workspace.active.size.rows }} · UTF-8
+                {{ workbench.activeTerminal.size.cols }} ×
+                {{ workbench.activeTerminal.size.rows }} · UTF-8
               </span>
               <AppButton
                 v-if="
-                  workspace.active.kind === 'ssh' &&
-                  workspace.activeGroup?.root.kind === 'terminal'
+                  workbench.activeTerminal.kind === 'ssh' &&
+                  workbench.activeGroup?.root.kind === 'terminal'
                 "
                 class="status-sftp-toggle"
                 size="tiny"
-                :variant="workspace.active.sftpOpen ? 'primary' : 'default'"
-                :aria-pressed="!!workspace.active.sftpOpen"
+                :variant="
+                  workbench.activeTerminal.sftpOpen ? 'primary' : 'default'
+                "
+                :aria-pressed="!!workbench.activeTerminal.sftpOpen"
                 :disabled="
-                  !!workspace.drag ||
-                  (!workspace.active.sftpOpen &&
-                    workspace.active.state !== 'connected')
+                  !!workbench.drag ||
+                  (!workbench.activeTerminal.sftpOpen &&
+                    workbench.activeTerminal.state !== 'connected')
                 "
                 :title="t('显示或隐藏此终端的 SFTP 侧栏')"
-                @click="workspace.toggleSftp()"
+                @click="workbench.toggleSftp()"
               >
                 SFTP
               </AppButton>
@@ -506,8 +523,8 @@ onBeforeUnmount(() => {
           @after-leave="restoreTerminalFocus"
         />
         <SaveWorkspaceDialog
-          :group-id="savingWorkspaceId"
-          @close="savingWorkspaceId = ''"
+          :group-id="savingGroupId"
+          @close="savingGroupId = ''"
           @after-leave="restoreTerminalFocus"
         />
         <ChallengeDialog @after-leave="restoreTerminalFocus" />
@@ -536,7 +553,7 @@ onBeforeUnmount(() => {
   min-width: 680px;
   background: var(--bg);
 }
-.workspace {
+.workbench-content {
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -544,7 +561,7 @@ onBeforeUnmount(() => {
   min-height: 0;
   overflow: hidden;
 }
-.terminal-workspace {
+.terminal-area {
   flex: 1;
   min-height: 0;
   display: flex;
@@ -603,7 +620,7 @@ onBeforeUnmount(() => {
   grid-template-columns: 180px minmax(0, 1fr);
   grid-template-rows: 54px minmax(0, 1fr);
 }
-.tabs-left > .workspace {
+.tabs-left > .workbench-content {
   grid-column: 2;
   grid-row: 2;
 }

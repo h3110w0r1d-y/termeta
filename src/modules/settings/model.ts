@@ -1,5 +1,5 @@
 import type { Language } from "../../i18n";
-import type { Binding } from "../../services/commands/types";
+import type { Keymap } from "../../services/commands/types";
 
 export interface Scheme {
   schemaVersion: 1;
@@ -50,7 +50,7 @@ export interface AppSettings {
   hostSchemes: Record<string, string>;
   confirmClose: boolean;
   multilinePaste: boolean;
-  keymap: { schemaVersion: 1; bindings: Binding[] };
+  keymap: Keymap;
   customSchemes: Scheme[];
 }
 

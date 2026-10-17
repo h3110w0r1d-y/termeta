@@ -1,28 +1,28 @@
 import { t } from "../../i18n";
-import type { Binding, Modifier } from "./types";
+import type { Binding, Keymap, Modifier } from "./types";
 export const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
 export const commandDefinitions = [
-  ["workspace.newTab", "新建标签页", "application", "Primary+T"],
+  ["workbench.newTab", "新建标签页", "application", "Primary+T"],
   [
-    "workspace.newConnection",
+    "workbench.newConnection",
     "新建 SSH 连接",
     "application",
     isMac ? "Primary+N" : "Primary+Shift+N",
   ],
   [
-    "workspace.closeTab",
+    "workbench.closeTab",
     "关闭当前标签",
     "application",
     isMac ? "Primary+W" : "Primary+Shift+W",
   ],
   [
-    "workspace.nextTab",
+    "workbench.nextTab",
     "下一个标签",
     "application",
     isMac ? "Primary+Shift+]" : "Primary+PageDown",
   ],
   [
-    "workspace.previousTab",
+    "workbench.previousTab",
     "上一个标签",
     "application",
     isMac ? "Primary+Shift+[" : "Primary+PageUp",
@@ -49,7 +49,7 @@ export const commandDefinitions = [
   ["terminal.scrollToBottom", "滚动到底部", "terminal", ""],
   ["terminal.openLink", "打开链接", "terminal", ""],
   [
-    "workspace.newLocalTerminal",
+    "workbench.newLocalTerminal",
     "新建本地终端",
     "application",
     isMac ? "Primary+L" : "Primary+Shift+L",
@@ -64,7 +64,7 @@ export function defaults(): Binding[] {
       id: commandId,
       commandId,
       scope,
-      context: scope === "application" ? "workspace" : "terminal",
+      context: scope === "application" ? "workbench" : "terminal",
       trigger:
         commandId === "terminal.openLink"
           ? {
@@ -78,20 +78,6 @@ export function defaults(): Binding[] {
       enabled: !!combo || commandId === "terminal.openLink",
     };
   });
-}
-// 给旧设置补充新增动作；保留禁用和自定义绑定，已有按键冲突时不抢占。
-export function upgradeBindings(bindings: Binding[]): Binding[] {
-  if (
-    bindings.length >= 100 ||
-    bindings.some((binding) => binding.commandId === "workspace.newTab")
-  )
-    return bindings;
-  const added = defaults().find(
-    (binding) => binding.commandId === "workspace.newTab",
-  )!;
-  added.id = crypto.randomUUID();
-  if (conflict([...bindings, added])) added.enabled = false;
-  return [...bindings, added];
 }
 export function modifierMatches(
   event: MouseEvent | KeyboardEvent,
@@ -148,7 +134,7 @@ export function validateBindings(value: unknown): Binding[] {
       !b ||
       !allowed.has(b.commandId) ||
       !["application", "terminal"].includes(b.scope) ||
-      !["workspace", "terminal"].includes(b.context) ||
+      !["workbench", "terminal"].includes(b.context) ||
       b.platform !== "all" ||
       typeof b.enabled !== "boolean" ||
       !Array.isArray(b.trigger?.modifiers) ||
@@ -158,7 +144,7 @@ export function validateBindings(value: unknown): Binding[] {
     const definition = commandDefinitions.find((d) => d[0] === b.commandId)!;
     if (
       b.scope !== definition[2] ||
-      b.context !== (b.scope === "application" ? "workspace" : "terminal")
+      b.context !== (b.scope === "application" ? "workbench" : "terminal")
     )
       throw new Error(t("快捷键上下文与动作不匹配"));
     if (b.commandId === "terminal.openLink" && b.trigger.type !== "pointer")
@@ -185,6 +171,22 @@ export function validateBindings(value: unknown): Binding[] {
   const issue = conflict(value);
   if (issue) throw new Error(issue);
   return value;
+}
+/** 只接受当前格式；保留导入的绑定集合，不自动补充用户未配置的动作。 */
+export function parseKeymap(keymap: unknown): Keymap {
+  if (
+    !keymap ||
+    typeof keymap !== "object" ||
+    !("schemaVersion" in keymap) ||
+    keymap.schemaVersion !== 2
+  )
+    throw new Error(t("快捷键版本不支持"));
+  return {
+    schemaVersion: 2,
+    bindings: validateBindings(
+      "bindings" in keymap ? keymap.bindings : undefined,
+    ),
+  };
 }
 export class CommandRegistry {
   private handlers = new Map<string, () => void>();

@@ -38,7 +38,7 @@ import { errorMessage } from "../../services/desktop/client";
 import type { HostKind, HostProfile } from "../../services/desktop/types";
 import HostGroupTree from "./HostGroupTree.vue";
 import GroupConnectDialog from "./GroupConnectDialog.vue";
-import type { TerminalOpenMode } from "../workspace/store";
+import type { TerminalOpenMode } from "../workbench/store";
 import HostSearch from "./HostSearch.vue";
 import { useSettings } from "../settings/store";
 import { descendantIds, groupChoices, groupPath } from "./groups";

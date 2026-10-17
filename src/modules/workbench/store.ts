@@ -5,6 +5,7 @@ import { useHosts } from "../hosts/store";
 import { clone } from "../../services/data/clone";
 import { terminalBaseTitle, terminalDisplayTitle } from "../terminal/title";
 import type { TerminalActivity } from "../terminal/activity";
+import { moveTabBefore } from "./tabInsertion";
 import { broadcastTargets, type InputKind } from "../terminal/inputRouter";
 import {
   terminalIds,
@@ -29,7 +30,8 @@ import type {
   SavedWorkspace,
 } from "../../services/desktop/types";
 export type TerminalOpenMode = "tabs" | "workspace";
-export interface TerminalTab extends TerminalActivity {
+/** 单个终端的轻量运行状态；分屏后也不对应独立标签页。 */
+export interface TerminalItem extends TerminalActivity {
   terminalId: string;
   title: string;
   baseTitle: string;
@@ -45,7 +47,8 @@ export interface TerminalTab extends TerminalActivity {
   schemeId?: string;
   size: { cols: number; rows: number };
 }
-export interface WorkspaceTab {
+/** 一个动态标签的运行布局，可容纳一个或多个终端；工作区存档另用 SavedWorkspace。 */
+export interface TerminalTabGroup {
   name?: string;
   savedProfileId?: string;
   id: string;
@@ -54,38 +57,40 @@ export interface WorkspaceTab {
   broadcast: boolean;
   broadcastRevision: number;
 }
-export interface WorkspaceTabItem {
+/** 标签栏的展示投影，不承载终端实例或工作区存档。 */
+export interface TabBarItem {
   id: string;
   title: string;
   state: SessionState;
   terminalIds: string[];
   split: boolean;
 }
-export type WorkspaceDragSource =
+export type TabDragSource =
   { kind: "tab"; tabId: string } | { kind: "pane"; terminalId: string };
-export type WorkspaceDropTarget =
-  | { kind: "tab"; tabId: string; before: boolean }
-  | { kind: "pane"; terminalId: string; edge: SplitEdge }
-  | { kind: "tab-end" };
+export type TabDropTarget =
+  | { kind: "tab-slot"; beforeGroupId: string | null }
+  | { kind: "pane"; terminalId: string; edge: SplitEdge };
+export type TabBarDropResult =
+  "invalid" | "unchanged" | "reordered" | "detached";
 export type VaultSection =
   "hosts" | "forwarding" | "credentials" | "known-hosts" | "history";
-export const useWorkspace = defineStore("workspace", () => {
-  // tabs 仅保存终端元数据，groups 独立保存标签顺序与布局；移动布局不增删终端。
-  const tabs = ref<TerminalTab[]>([]);
-  const groups = ref<WorkspaceTab[]>([]);
+export const useWorkbenchStore = defineStore("workbench", () => {
+  // terminals 保存终端元数据，groups 独立保存标签顺序与布局；移动布局不增删终端。
+  const terminals = ref<TerminalItem[]>([]);
+  const groups = ref<TerminalTabGroup[]>([]);
   const activeId = ref("home");
   const vaultSection = ref<VaultSection>("hosts");
   const fileTransferring = ref(false);
   const connectionTitles = ref<Record<string, string>>({});
   const challenges = ref<(AuthChallenge | HostKeyChallenge)[]>([]);
   const closingTerminalIds = ref<string[]>([]);
-  const drag = ref<{ source: WorkspaceDragSource; x: number; y: number }>();
-  const dropTarget = ref<WorkspaceDropTarget>();
+  const drag = ref<{ source: TabDragSource; x: number; y: number }>();
+  const dropTarget = ref<TabDropTarget>();
   const activeGroup = computed(() =>
     groups.value.find((g) => g.id === activeId.value),
   );
-  const active = computed(() =>
-    tabs.value.find(
+  const activeTerminal = computed(() =>
+    terminals.value.find(
       (t) => t.terminalId === activeGroup.value?.focusedTerminalId,
     ),
   );
@@ -94,10 +99,10 @@ export const useWorkspace = defineStore("workspace", () => {
     "sftp",
     ...groups.value.map((g) => g.id),
   ]);
-  const workspaceTabs = computed<WorkspaceTabItem[]>(() =>
+  const tabBarItems = computed<TabBarItem[]>(() =>
     groups.value.map((group) => {
       const ids = terminalIds(group.root);
-      const terminal = tabs.value.find(
+      const terminal = terminals.value.find(
         (t) => t.terminalId === group.focusedTerminalId,
       );
       return {
@@ -112,7 +117,7 @@ export const useWorkspace = defineStore("workspace", () => {
         ),
         // 标签状态概括全部子终端，避免聚焦已关闭窗格时掩盖其他活动连接。
         state: ids.some((id) =>
-          tabs.value.some(
+          terminals.value.some(
             (t) => t.terminalId === id && t.state === "connected",
           ),
         )
@@ -148,12 +153,12 @@ export const useWorkspace = defineStore("workspace", () => {
   function add(
     title: string,
     target: OpenTarget,
-    metadata?: Pick<TerminalTab, "kind" | "serialConfig">,
+    metadata?: Pick<TerminalItem, "kind" | "serialConfig">,
   ) {
     const key = connectionKey(target);
     const number = (connectionNumbers.get(key) ?? 0) + 1;
     connectionNumbers.set(key, number);
-    const tab: TerminalTab = {
+    const terminal: TerminalItem = {
       terminalId: crypto.randomUUID(),
       title: number === 1 ? title : `${title} (${number})`,
       baseTitle: title,
@@ -179,16 +184,16 @@ export const useWorkspace = defineStore("workspace", () => {
       error: "",
       size: { cols: 80, rows: 24 },
     };
-    tabs.value.push(tab);
+    terminals.value.push(terminal);
     groups.value.push({
-      id: tab.terminalId,
-      root: { kind: "terminal", terminalId: tab.terminalId },
-      focusedTerminalId: tab.terminalId,
+      id: terminal.terminalId,
+      root: { kind: "terminal", terminalId: terminal.terminalId },
+      focusedTerminalId: terminal.terminalId,
       broadcast: false,
       broadcastRevision: 0,
     });
-    activeId.value = tab.terminalId;
-    return tabs.value[tabs.value.length - 1]!;
+    activeId.value = terminal.terminalId;
+    return terminals.value[terminals.value.length - 1]!;
   }
   function addSavedHosts(
     profiles: HostProfile[],
@@ -222,7 +227,7 @@ export const useWorkspace = defineStore("workspace", () => {
       return;
     }
     if (mode === "workspace" && created.length > 1) {
-      const ids = new Set(created.map((tab) => tab.terminalId));
+      const ids = new Set(created.map((terminal) => terminal.terminalId));
       const group = groups.value.find((item) => item.id === first.terminalId)!;
       group.root = balancedLayout([...ids])!;
       // Vue提交前收拢本批新标签，既有标签、宿主与广播成员均不受影响。
@@ -272,13 +277,13 @@ export const useWorkspace = defineStore("workspace", () => {
   }
   function openSavedWorkspace(host: HostProfile) {
     validateSavedWorkspace(host);
-    const created: TerminalTab[] = [];
+    const created: TerminalItem[] = [];
     const restore = (node: SavedLayout): LayoutNode => {
       if (node.kind === "connection") {
         const profile = useHosts().hosts.find((h) => h.id === node.profileId);
         if (!profile || profile.kind === "workspace")
           throw new Error(t("工作区连接引用无效"));
-        const tab = add(
+        const terminal = add(
           profile.name,
           { source: "saved", profileId: profile.id },
           {
@@ -286,8 +291,8 @@ export const useWorkspace = defineStore("workspace", () => {
             serialConfig: profile.serialConfig ?? undefined,
           },
         );
-        created.push(tab);
-        return { kind: "terminal", terminalId: tab.terminalId };
+        created.push(terminal);
+        return { kind: "terminal", terminalId: terminal.terminalId };
       }
       return {
         kind: "split",
@@ -315,8 +320,10 @@ export const useWorkspace = defineStore("workspace", () => {
     const hosts = useHosts();
     const capture = (node: LayoutNode): SavedLayout => {
       if (node.kind === "terminal") {
-        const tab = tabs.value.find((t) => t.terminalId === node.terminalId);
-        const target = tab?.target;
+        const terminal = terminals.value.find(
+          (t) => t.terminalId === node.terminalId,
+        );
+        const target = terminal?.target;
         if (
           target?.source !== "saved" ||
           !hosts.hosts.some(
@@ -347,19 +354,21 @@ export const useWorkspace = defineStore("workspace", () => {
     return groups.value.find((g) => terminalIds(g.root).includes(id));
   }
   function canDuplicateSession(id: string, split = false) {
-    const tab = tabs.value.find((item) => item.terminalId === id);
+    const terminal = terminals.value.find((item) => item.terminalId === id);
     return !!(
-      tab &&
-      tab.kind !== "serial" &&
+      terminal &&
+      terminal.kind !== "serial" &&
       groupForTerminal(id)?.root.kind === "terminal" &&
       !closingTerminalIds.value.includes(id) &&
       !drag.value &&
-      (!split || !tab.sftpOpen)
+      (!split || !terminal.sftpOpen)
     );
   }
   function duplicateSession(id: string, split = false) {
     if (!canDuplicateSession(id, split)) return;
-    const source = tabs.value.find((tab) => tab.terminalId === id)!;
+    const source = terminals.value.find(
+      (terminal) => terminal.terminalId === id,
+    )!;
     const group = groupForTerminal(id)!;
     // 仅复制连接配置与配色；新终端独立认证，不复制历史或输入。
     const created = add(source.baseTitle, clone(source.target), {
@@ -385,9 +394,9 @@ export const useWorkspace = defineStore("workspace", () => {
     activeId.value = id;
   }
   function remove(id: string) {
-    const removed = tabs.value.find((t) => t.terminalId === id);
+    const removed = terminals.value.find((t) => t.terminalId === id);
     const group = groupForTerminal(id);
-    tabs.value = tabs.value.filter((t) => t.terminalId !== id);
+    terminals.value = terminals.value.filter((t) => t.terminalId !== id);
     if (group) {
       resetBroadcast(group);
       const root = removeTerminal(group.root, id);
@@ -407,21 +416,12 @@ export const useWorkspace = defineStore("workspace", () => {
     if (removed) {
       const key = connectionKey(removed.target);
       // 同一连接全部关闭后重置序号；布局移动与中途关闭不改名或复用序号。
-      if (!tabs.value.some((t) => connectionKey(t.target) === key))
+      if (!terminals.value.some((t) => connectionKey(t.target) === key))
         connectionNumbers.delete(key);
     }
     cancelDrag();
   }
-  function reorderTab(id: string, targetId: string, before: boolean) {
-    if (id === targetId) return;
-    const source = groups.value.find((g) => g.id === id);
-    if (!source || !groups.value.some((g) => g.id === targetId)) return;
-    const next = groups.value.filter((g) => g.id !== id);
-    const at = next.findIndex((g) => g.id === targetId);
-    next.splice(at + (before ? 0 : 1), 0, source);
-    groups.value = next;
-  }
-  function dragTerminal(source: WorkspaceDragSource) {
+  function dragTerminal(source: TabDragSource) {
     if (source.kind === "pane") {
       const group = groupForTerminal(source.terminalId);
       return group && group.root.kind === "split"
@@ -433,12 +433,12 @@ export const useWorkspace = defineStore("workspace", () => {
       ? { group, terminalId: group.root.terminalId }
       : undefined;
   }
-  function groupIsClosing(group: WorkspaceTab) {
+  function groupIsClosing(group: TerminalTabGroup) {
     return terminalIds(group.root).some((id) =>
       closingTerminalIds.value.includes(id),
     );
   }
-  function canSplit(source: WorkspaceDragSource, targetTerminalId: string) {
+  function canSplit(source: TabDragSource, targetTerminalId: string) {
     const incoming = dragTerminal(source);
     const target = activeGroup.value;
     return !!(
@@ -447,18 +447,18 @@ export const useWorkspace = defineStore("workspace", () => {
       incoming.terminalId !== targetTerminalId &&
       (source.kind === "pane" || incoming.group.id !== target.id) &&
       terminalIds(target.root).includes(targetTerminalId) &&
-      !tabs.value.some(
-        (tab) =>
-          tab.sftpOpen &&
-          (tab.terminalId === incoming.terminalId ||
-            terminalIds(target.root).includes(tab.terminalId)),
+      !terminals.value.some(
+        (terminal) =>
+          terminal.sftpOpen &&
+          (terminal.terminalId === incoming.terminalId ||
+            terminalIds(target.root).includes(terminal.terminalId)),
       ) &&
       !groupIsClosing(incoming.group) &&
       !groupIsClosing(target)
     );
   }
   // 仅移除布局归属，不调用 remove/dispose，避免删除终端元数据或重置重复编号。
-  function extractTerminal(group: WorkspaceTab, id: string) {
+  function extractTerminal(group: TerminalTabGroup, id: string) {
     resetBroadcast(group);
     const root = removeTerminal(group.root, id);
     if (root) {
@@ -468,7 +468,7 @@ export const useWorkspace = defineStore("workspace", () => {
     } else groups.value = groups.value.filter((g) => g.id !== group.id);
   }
   function mergeTerminal(
-    source: WorkspaceDragSource,
+    source: TabDragSource,
     targetTerminalId: string,
     edge: SplitEdge,
   ) {
@@ -499,26 +499,26 @@ export const useWorkspace = defineStore("workspace", () => {
     return true;
   }
   function dropOnTabBar(
-    source: WorkspaceDragSource,
-    target?: { tabId: string; before: boolean },
-  ) {
+    source: TabDragSource,
+    beforeGroupId: string | null,
+  ): TabBarDropResult {
+    if (
+      beforeGroupId !== null &&
+      !groups.value.some((group) => group.id === beforeGroupId)
+    )
+      return "invalid";
     if (source.kind === "tab") {
-      if (target) reorderTab(source.tabId, target.tabId, target.before);
-      else {
-        const last = groups.value[groups.value.length - 1];
-        if (last) reorderTab(source.tabId, last.id, false);
-      }
-      return false;
+      const group = groups.value.find((group) => group.id === source.tabId);
+      if (!group || groupIsClosing(group)) return "invalid";
+      const next = moveTabBefore(groups.value, source.tabId, beforeGroupId);
+      if (next === groups.value) return "unchanged";
+      groups.value = next;
+      return "reordered";
     }
     const incoming = dragTerminal(source);
-    if (
-      !incoming ||
-      groupIsClosing(incoming.group) ||
-      (target && !groups.value.some((g) => g.id === target.tabId))
-    )
-      return false;
+    if (!incoming || groupIsClosing(incoming.group)) return "invalid";
     // 标签组ID不能沿用terminalId：原组可能仍以被拖出终端的ID为组ID。
-    const group: WorkspaceTab = {
+    const group: TerminalTabGroup = {
       id: crypto.randomUUID(),
       root: { kind: "terminal", terminalId: incoming.terminalId },
       focusedTerminalId: incoming.terminalId,
@@ -526,17 +526,16 @@ export const useWorkspace = defineStore("workspace", () => {
       broadcastRevision: 0,
     };
     extractTerminal(incoming.group, incoming.terminalId);
-    const at = target
-      ? groups.value.findIndex((g) => g.id === target.tabId) +
-        (target.before ? 0 : 1)
-      : groups.value.length;
-    groups.value.splice(at, 0, group);
+    const index =
+      beforeGroupId === null
+        ? groups.value.length
+        : groups.value.findIndex((group) => group.id === beforeGroupId);
+    groups.value.splice(index, 0, group);
     activeId.value = group.id;
-    cancelDrag();
-    return true;
+    return "detached";
   }
   // 成员变化必须显式重新开启广播；版本号也使等待粘贴确认的旧目标失效。
-  function resetBroadcast(group: WorkspaceTab) {
+  function resetBroadcast(group: TerminalTabGroup) {
     group.broadcast = false;
     group.broadcastRevision++;
   }
@@ -547,7 +546,7 @@ export const useWorkspace = defineStore("workspace", () => {
       group.root.kind !== "split" ||
       drag.value ||
       groupIsClosing(group) ||
-      active.value?.sshCommand ||
+      activeTerminal.value?.sshCommand ||
       (!group.broadcast && broadcastTargetCount(group.focusedTerminalId) < 2)
     )
       return;
@@ -560,7 +559,7 @@ export const useWorkspace = defineStore("workspace", () => {
     const ids = new Set(terminalIds(group.root));
     return broadcastTargets(
       id,
-      tabs.value.filter((tab) => ids.has(tab.terminalId)),
+      terminals.value.filter((terminal) => ids.has(terminal.terminalId)),
       group.focusedTerminalId,
       kind,
     );
@@ -569,26 +568,26 @@ export const useWorkspace = defineStore("workspace", () => {
     const group = groupForTerminal(id);
     if (!group) return 0;
     const ids = terminalIds(group.root);
-    return tabs.value.filter(
-      (tab) =>
-        ids.includes(tab.terminalId) &&
-        !tab.sshCommand &&
-        tab.state === "connected" &&
-        !closingTerminalIds.value.includes(tab.terminalId),
+    return terminals.value.filter(
+      (terminal) =>
+        ids.includes(terminal.terminalId) &&
+        !terminal.sshCommand &&
+        terminal.state === "connected" &&
+        !closingTerminalIds.value.includes(terminal.terminalId),
     ).length;
   }
   function toggleSftp() {
-    const tab = active.value;
+    const terminal = activeTerminal.value;
     if (
-      !tab ||
+      !terminal ||
       activeGroup.value?.root.kind !== "terminal" ||
       drag.value ||
-      closingTerminalIds.value.includes(tab.terminalId)
+      closingTerminalIds.value.includes(terminal.terminalId)
     )
       return;
-    if (tab.kind !== "ssh") return;
-    if (!tab.sftpOpen && tab.state !== "connected") return;
-    tab.sftpOpen = !tab.sftpOpen;
+    if (terminal.kind !== "ssh") return;
+    if (!terminal.sftpOpen && terminal.state !== "connected") return;
+    terminal.sftpOpen = !terminal.sftpOpen;
   }
   function swapSplitRegions(id: string) {
     const group = activeGroup.value;
@@ -621,14 +620,14 @@ export const useWorkspace = defineStore("workspace", () => {
     );
   }
   return {
-    tabs,
+    terminals,
     groups,
-    workspaceTabs,
+    tabBarItems,
     tabIds,
     activeId,
     vaultSection,
     activeGroup,
-    active,
+    activeTerminal,
     challenges,
     fileTransferring,
     connectionTitles,
@@ -644,7 +643,6 @@ export const useWorkspace = defineStore("workspace", () => {
     groupForTerminal,
     focusTerminal,
     activateTab,
-    reorderTab,
     dragTerminal,
     dropOnTabBar,
     canSplit,

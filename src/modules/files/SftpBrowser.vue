@@ -16,12 +16,12 @@ import type {
   SessionSnapshot,
   TransferProgress,
 } from "../../services/desktop/types";
-import { useWorkspace } from "../workspace/store";
+import { useWorkbenchStore } from "../workbench/store";
 import SftpEndpointPane from "./SftpEndpointPane.vue";
 import type { SftpEndpoint, SftpSelection } from "./types";
 import { formatFileSize } from "./format";
 
-const workspace = useWorkspace();
+const workbench = useWorkbenchStore();
 const endpoints = reactive<SftpEndpoint[]>(
   [0, 1].map(() => ({
     profileId: null,
@@ -49,7 +49,7 @@ const ready = (side: number) =>
 function update(side: number, snapshot: SessionSnapshot) {
   if (ended[side] || snapshot.stateRevision < revisions[side]) return;
   revisions[side] = snapshot.stateRevision;
-  workspace.connectionTitles[snapshot.sessionId] = snapshot.title;
+  workbench.connectionTitles[snapshot.sessionId] = snapshot.title;
   endpoints[side]!.sessionId = snapshot.sessionId;
   endpoints[side]!.state = snapshot.state;
 }
@@ -62,15 +62,15 @@ function control(side: number, generation: number, event: SessionEvent) {
     event.type === "authChallenge" ||
     event.type === "hostKeyChallenge"
   ) {
-    workspace.dismiss(event.sessionId);
-    workspace.challenges.push(event);
+    workbench.dismiss(event.sessionId);
+    workbench.challenges.push(event);
   } else if (event.type === "ended") {
     ended[side] = true;
     releaseDrag();
     endpoint.state = event.finalState;
     endpoint.error = event.error?.message ?? "";
-    workspace.dismiss(event.sessionId);
-    delete workspace.connectionTitles[event.sessionId];
+    workbench.dismiss(event.sessionId);
+    delete workbench.connectionTitles[event.sessionId];
     if (currentCopy)
       void desktop
         .sftpCancel(currentCopy.sessionId, currentCopy.id)
@@ -109,8 +109,8 @@ async function disconnect(side: number) {
   endpoint.opening = true;
   try {
     await desktop.close(endpoint.sessionId);
-    workspace.dismiss(endpoint.sessionId);
-    delete workspace.connectionTitles[endpoint.sessionId];
+    workbench.dismiss(endpoint.sessionId);
+    delete workbench.connectionTitles[endpoint.sessionId];
     generations[side]!++;
     endpoint.sessionId = undefined;
     endpoint.state = "closed";
@@ -140,7 +140,7 @@ async function copy(side: number, selection: SftpSelection) {
     return;
   const transferId = crypto.randomUUID();
   cancelRequested = false;
-  copying.value = workspace.fileTransferring = true;
+  copying.value = workbench.fileTransferring = true;
   currentCopy = { sessionId: sourceSessionId, id: transferId };
   progress.value = undefined;
   message.value = "";
@@ -173,7 +173,7 @@ async function copy(side: number, selection: SftpSelection) {
     error.value = errorMessage(cause);
   } finally {
     currentCopy = undefined;
-    copying.value = workspace.fileTransferring = false;
+    copying.value = workbench.fileTransferring = false;
     // 等待busy属性同步到子组件，再刷新两端目录。
     await nextTick();
     if (!disposed)
@@ -215,7 +215,7 @@ function startDrag(
   selection: SftpSelection,
 ) {
   releaseDrag();
-  if (copying.value || workspace.activeId !== "sftp") return;
+  if (copying.value || workbench.activeId !== "sftp") return;
   const element = event.currentTarget as HTMLElement;
   element.setPointerCapture(event.pointerId);
   gesture = {
@@ -267,7 +267,7 @@ function releaseDrag() {
 function keydown(event: KeyboardEvent) {
   if (event.key === "Escape") releaseDrag();
 }
-watch(() => workspace.activeId, releaseDrag);
+watch(() => workbench.activeId, releaseDrag);
 const detail = computed(() => {
   const value = progress.value;
   if (!value) return t("准备对拷…");
@@ -296,8 +296,8 @@ onBeforeUnmount(() => {
   window.removeEventListener("keydown", keydown);
   for (const endpoint of endpoints)
     if (endpoint.sessionId) {
-      workspace.dismiss(endpoint.sessionId);
-      delete workspace.connectionTitles[endpoint.sessionId];
+      workbench.dismiss(endpoint.sessionId);
+      delete workbench.connectionTitles[endpoint.sessionId];
       void desktop.close(endpoint.sessionId).catch(() => {});
     }
 });
@@ -307,10 +307,10 @@ onBeforeUnmount(() => {
   <section
     id="page-sftp"
     ref="root"
-    aria-labelledby="workspace-tab-sftp"
-    class="sftp-workspace"
+    aria-labelledby="app-tab-sftp"
+    class="sftp-browser"
     role="tabpanel"
-    :aria-label="t('双栏 SFTP 文件工作区')"
+    :aria-label="t('双栏 SFTP 文件浏览器')"
   >
     <NAlert v-if="error" type="error" closable @close="error = ''">
       {{ error }}
@@ -370,14 +370,14 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.sftp-workspace {
+.sftp-browser {
   flex: 1;
   min-height: 0;
   overflow: auto;
   padding: 34px;
 }
 
-.sftp-workspace {
+.sftp-browser {
   display: flex;
   flex-direction: column;
   gap: 12px;

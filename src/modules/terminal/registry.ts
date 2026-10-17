@@ -11,7 +11,7 @@ import { useHosts } from "../hosts/store";
 import { confirmPaste } from "./paste";
 import { observeTerminalInput, sendFinalWheelInput } from "./inputOrigin";
 import { createInputRouter, type InputKind } from "./inputRouter";
-import { terminalIds } from "../workspace/layout";
+import { terminalIds } from "../workbench/layout";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
@@ -25,7 +25,7 @@ import {
 import { useSettings } from "../settings/store";
 import { loadTerminalFont, terminalFontFamily } from "../settings/fonts";
 import { builtinSchemes, resolveScheme } from "../settings/themes";
-import { useWorkspace, type TerminalTab } from "../workspace/store";
+import { useWorkbenchStore, type TerminalItem } from "../workbench/store";
 import type {
   SessionEvent,
   SessionSnapshot,
@@ -62,13 +62,13 @@ interface Entry {
   fontRequest?: string;
 }
 const entries = new Map<string, Entry>();
-function update(tab: TerminalTab, snapshot: SessionSnapshot) {
-  if (snapshot.stateRevision >= tab.revision) {
-    tab.kind = snapshot.kind;
-    tab.sshCommand = snapshot.sshCommand;
-    tab.sessionId = snapshot.sessionId;
-    tab.state = snapshot.state;
-    tab.revision = snapshot.stateRevision;
+function update(terminal: TerminalItem, snapshot: SessionSnapshot) {
+  if (snapshot.stateRevision >= terminal.revision) {
+    terminal.kind = snapshot.kind;
+    terminal.sshCommand = snapshot.sshCommand;
+    terminal.sessionId = snapshot.sessionId;
+    terminal.state = snapshot.state;
+    terminal.revision = snapshot.stateRevision;
   }
 }
 async function acknowledge(entry: Entry, stream: Stream) {
@@ -80,10 +80,10 @@ async function acknowledge(entry: Entry, stream: Stream) {
     .then(() => desktop.ack(stream.sessionId!, offset.toString()))
     .catch((error) => {
       if (!stream.ended) {
-        const tab = useWorkspace().tabs.find(
+        const terminal = useWorkbenchStore().terminals.find(
           (t) => t.terminalId === entry.host.dataset.terminalId,
         );
-        if (tab) tab.error = errorMessage(error);
+        if (terminal) terminal.error = errorMessage(error);
       }
     });
   await stream.ack;
@@ -129,12 +129,12 @@ function receive(entry: Entry, stream: Stream, raw: ArrayBuffer) {
       }, 16);
     });
   } catch (error) {
-    const tab = useWorkspace().tabs.find(
+    const terminal = useWorkbenchStore().terminals.find(
       (t) => t.terminalId === entry.host.dataset.terminalId,
     );
-    if (tab) {
-      tab.error = errorMessage(error);
-      tab.state = "failed";
+    if (terminal) {
+      terminal.error = errorMessage(error);
+      terminal.state = "failed";
     }
     stream.ended = true;
     if (stream.sessionId)
@@ -143,7 +143,7 @@ function receive(entry: Entry, stream: Stream, raw: ArrayBuffer) {
 }
 function event(
   entry: Entry,
-  tab: TerminalTab,
+  terminal: TerminalItem,
   stream: Stream,
   value: SessionEvent,
 ) {
@@ -159,41 +159,41 @@ function event(
     void useHosts()
       .load()
       .catch((error) => {
-        tab.error = errorMessage(error);
+        terminal.error = errorMessage(error);
       });
   } else if (value.type === "stateChanged") {
     entry.canResize = value.snapshot.capabilities.resize;
-    const wasConnected = tab.state === "connected";
-    update(tab, value.snapshot);
-    if (!wasConnected && tab.state === "connected") {
+    const wasConnected = terminal.state === "connected";
+    update(terminal, value.snapshot);
+    if (!wasConnected && terminal.state === "connected") {
       // 认证期间布局可能已改变；PTY 建立后必须补发当前可见尺寸。
       entry.lastSize = "";
-      fit(entry, tab);
+      fit(entry, terminal);
     }
   } else if (
     value.type === "hostKeyChallenge" ||
     value.type === "authChallenge"
   ) {
-    const workspace = useWorkspace();
-    workspace.dismiss(value.sessionId);
-    workspace.challenges.push(value);
+    const workbench = useWorkbenchStore();
+    workbench.dismiss(value.sessionId);
+    workbench.challenges.push(value);
   } else if (value.type === "ended") {
     stream.ended = true;
     stream.finalOffset = BigInt(value.finalOffset);
-    tab.state = value.finalState;
-    tab.error =
+    terminal.state = value.finalState;
+    terminal.error =
       value.error?.message ??
       (!value.outputComplete ? t("连接结束，末尾输出可能不完整") : "");
-    useWorkspace().dismiss(value.sessionId);
+    useWorkbenchStore().dismiss(value.sessionId);
     // 等待最后一帧解析，控制事件与数据 Channel 没有全局先后顺序。
     void drain(entry, stream)
       .then(() => {
         if (entry.stream === stream) {
-          resetTerminalActivity(tab);
+          resetTerminalActivity(terminal);
           writeLocalStatus(
             entry.term,
             [
-              tab.sshCommand && value.reason === "remoteExit"
+              terminal.sshCommand && value.reason === "remoteExit"
                 ? t("命令已结束，可通过右键菜单重新运行")
                 : t("连接已结束"),
               value.exitCode !== undefined && value.exitCode !== null
@@ -207,10 +207,10 @@ function event(
         }
       })
       .catch((error) => {
-        tab.error = errorMessage(error);
+        terminal.error = errorMessage(error);
       });
   } else if (value.type === "notice")
-    tab.error = value.details ?? value.messageKey;
+    terminal.error = value.details ?? value.messageKey;
 }
 function drain(entry: Entry, stream: Stream): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -242,12 +242,17 @@ function drain(entry: Entry, stream: Stream): Promise<void> {
     check();
   });
 }
-function input(entry: Entry, tab: TerminalTab, bytes: Uint8Array) {
+function input(entry: Entry, terminal: TerminalItem, bytes: Uint8Array) {
   const stream = entry.stream;
-  if (!stream || stream.ended || tab.state !== "connected" || !stream.sessionId)
+  if (
+    !stream ||
+    stream.ended ||
+    terminal.state !== "connected" ||
+    !stream.sessionId
+  )
     return;
   if (stream.inputBytes + bytes.length > 65536) {
-    tab.error = t("输入队列已满，请等待后重试粘贴。");
+    terminal.error = t("输入队列已满，请等待后重试粘贴。");
     return;
   }
   stream.inputBytes += bytes.length;
@@ -258,7 +263,7 @@ function input(entry: Entry, tab: TerminalTab, bytes: Uint8Array) {
         if (
           entry.stream !== stream ||
           stream.ended ||
-          tab.state !== "connected"
+          terminal.state !== "connected"
         )
           return;
         if (stream.inputSeq >= 0xffffffff)
@@ -270,7 +275,7 @@ function input(entry: Entry, tab: TerminalTab, bytes: Uint8Array) {
         );
       } catch (error) {
         stream.ended = true;
-        tab.error = t("{error}；未发送的输入不会自动重试。", {
+        terminal.error = t("{error}；未发送的输入不会自动重试。", {
           error: errorMessage(error),
         });
         if (stream.sessionId)
@@ -282,8 +287,10 @@ function input(entry: Entry, tab: TerminalTab, bytes: Uint8Array) {
   }
 }
 function connectedTargets(sourceId: string, kind: InputKind = "keyboard") {
-  const workspace = useWorkspace();
-  const source = workspace.tabs.find((tab) => tab.terminalId === sourceId);
+  const workbench = useWorkbenchStore();
+  const source = workbench.terminals.find(
+    (terminal) => terminal.terminalId === sourceId,
+  );
   const origin = entries.get(sourceId);
   if (
     source?.state !== "connected" ||
@@ -294,17 +301,17 @@ function connectedTargets(sourceId: string, kind: InputKind = "keyboard") {
     return [];
   const ids = document.querySelector("[data-modal-open], [data-ui-popup-open]")
     ? [sourceId]
-    : workspace.inputTargets(sourceId, kind);
+    : workbench.inputTargets(sourceId, kind);
   return ids.filter((id) => {
-    const tab = workspace.tabs.find((item) => item.terminalId === id);
+    const terminal = workbench.terminals.find((item) => item.terminalId === id);
     const entry = entries.get(id);
     return (
-      tab?.state === "connected" &&
+      terminal?.state === "connected" &&
       entry &&
       !entry.disposed &&
       entry.stream?.sessionId &&
       !entry.stream.ended &&
-      !workspace.closingTerminalIds.includes(id)
+      !workbench.closingTerminalIds.includes(id)
     );
   });
 }
@@ -319,8 +326,10 @@ const inputRouter = createInputRouter({
   targets: connectedTargets,
   send(id, bytes) {
     const entry = entries.get(id);
-    const tab = useWorkspace().tabs.find((item) => item.terminalId === id);
-    if (entry && tab && !entry.disposed) input(entry, tab, bytes);
+    const terminal = useWorkbenchStore().terminals.find(
+      (item) => item.terminalId === id,
+    );
+    if (entry && terminal && !entry.disposed) input(entry, terminal, bytes);
   },
   applicationCursor: (id) =>
     entries.get(id)?.term.modes.applicationCursorKeysMode ?? false,
@@ -331,9 +340,9 @@ const inputRouter = createInputRouter({
     sendFinalWheelInput(target, final, source, event);
   },
 });
-function settings(entry: Entry, tab: TerminalTab) {
+function settings(entry: Entry, terminal: TerminalItem) {
   const s = useSettings().value;
-  applyTerminalTheme(entry.term, entry.host, schemeForTab(tab));
+  applyTerminalTheme(entry.term, entry.host, schemeForTerminal(terminal));
   const family = terminalFontFamily(s.fontFamily);
   const request = `${s.fontSize}px ${family}`;
   if (entry.fontRequest !== request) {
@@ -343,53 +352,53 @@ function settings(entry: Entry, tab: TerminalTab) {
         // 迟到的加载不能覆盖较新的选择，也不能访问已关闭的终端。
         if (entry.disposed || entry.fontRequest !== request) return;
         entry.term.options.fontFamily = family;
-        fit(entry, tab);
+        fit(entry, terminal);
       })
       .catch(() => {
         if (entry.disposed || entry.fontRequest !== request) return;
         entry.fontRequest = undefined;
-        tab.error = t("内置终端字体加载失败，请重新应用设置或重启应用。");
+        terminal.error = t("内置终端字体加载失败，请重新应用设置或重启应用。");
       });
   }
   entry.term.options.fontSize = s.fontSize;
   entry.term.options.scrollback = s.scrollback;
 }
-export function schemeForTab(tab: TerminalTab) {
+export function schemeForTerminal(terminal: TerminalItem) {
   const s = useSettings().value;
   return resolveScheme(
-    tab.schemeId ??
-      (tab.target.source === "saved"
-        ? s.hostSchemes[tab.target.profileId]
+    terminal.schemeId ??
+      (terminal.target.source === "saved"
+        ? s.hostSchemes[terminal.target.profileId]
         : undefined) ??
       s.defaultSchemeId,
     s.customSchemes,
   );
 }
-function fit(entry: Entry, tab: TerminalTab) {
+function fit(entry: Entry, terminal: TerminalItem) {
   if (entry.host.clientWidth < 10 || entry.host.clientHeight < 10) return;
   entry.fit.fit();
   const size = {
     cols: Math.min(1000, entry.term.cols),
     rows: Math.min(1000, entry.term.rows),
   };
-  tab.size = size;
+  terminal.size = size;
   const key = `${size.cols}:${size.rows}`;
   if (
     entry.canResize &&
     entry.lastSize !== key &&
-    tab.sessionId &&
-    tab.state === "connected"
+    terminal.sessionId &&
+    terminal.state === "connected"
   ) {
     entry.lastSize = key;
-    void desktop.resize(tab.sessionId, size).catch((error) => {
+    void desktop.resize(terminal.sessionId, size).catch((error) => {
       entry.lastSize = "";
-      tab.error = errorMessage(error);
+      terminal.error = errorMessage(error);
     });
   }
 }
 export const terminalRegistry = {
-  mount(tab: TerminalTab, host: HTMLElement) {
-    if (entries.has(tab.terminalId)) return;
+  mount(terminal: TerminalItem, host: HTMLElement) {
+    if (entries.has(terminal.terminalId)) return;
     const term = new Terminal({
       // 粗体仅改变字重，避免普通 ANSI 色被自动替换为高亮色。
       drawBoldTextInBrightColors: false,
@@ -426,37 +435,37 @@ export const terminalRegistry = {
         setTimeout(() => {
           if (entry.disposed) return;
           void desktop.openUrl(url).catch((error) => {
-            tab.error = errorMessage(error);
+            terminal.error = errorMessage(error);
           });
         }, 0);
       }
     };
     term.loadAddon(new WebLinksAddon(activate));
     term.options.linkHandler = { activate };
-    host.dataset.terminalId = tab.terminalId;
+    host.dataset.terminalId = terminal.terminalId;
     const entry: Entry = {
       term,
       fit: fitAddon,
       search,
       host,
-      observer: new ResizeObserver(() => fit(entry, tab)),
+      observer: new ResizeObserver(() => fit(entry, terminal)),
       connecting: false,
       disposed: false,
       lastSize: "",
       canResize: false,
     };
-    entries.set(tab.terminalId, entry);
+    entries.set(terminal.terminalId, entry);
     // xterm 统一解析 OSC 0/2；标题仅驻内存展示，不作为真实命令或主机身份。
     // 订阅随终端实例销毁，标签切换与分屏不重复注册。
     term.onTitleChange((title) => {
-      if (!entry.disposed) updateActivityTitle(tab, title);
+      if (!entry.disposed) updateActivityTitle(terminal, title);
     });
     // 只读取Shell执行阶段，不从输出猜命令，也不执行远端控制指令。
     term.parser.registerOscHandler(133, (payload) => {
-      if (!entry.disposed) updateShellActivity(tab, payload);
+      if (!entry.disposed) updateShellActivity(terminal, payload);
       return true;
     });
-    settings(entry, tab);
+    settings(entry, terminal);
     term.open(host);
     entry.observer.observe(host);
     term.attachCustomKeyEventHandler((e) => {
@@ -486,7 +495,7 @@ export const terminalRegistry = {
       return true;
     });
     entry.inputOrigin = observeTerminalInput(term, (packet) =>
-      inputRouter.data(tab.terminalId, packet),
+      inputRouter.data(terminal.terminalId, packet),
     );
     term.attachCustomWheelEventHandler((event) => {
       // 只标记即将编码的来源，等实际 onData/onBinary 生成输入后才广播最终动作。
@@ -500,15 +509,15 @@ export const terminalRegistry = {
         e.preventDefault();
         e.stopImmediatePropagation();
         const text = e.clipboardData?.getData("text/plain") ?? "";
-        void terminalRegistry.pasteText(tab.terminalId, text);
+        void terminalRegistry.pasteText(terminal.terminalId, text);
       },
       { capture: true },
     );
-    fit(entry, tab);
-    void this.connect(tab);
+    fit(entry, terminal);
+    void this.connect(terminal);
   },
-  async connect(tab: TerminalTab) {
-    const entry = entries.get(tab.terminalId);
+  async connect(terminal: TerminalItem) {
+    const entry = entries.get(terminal.terminalId);
     if (!entry || entry.connecting) return;
     entry.connecting = true;
     try {
@@ -524,34 +533,34 @@ export const terminalRegistry = {
         await drain(entry, old);
         if (old.ackTimer) clearTimeout(old.ackTimer);
         await acknowledge(entry, old);
-        useWorkspace().dismiss(old.sessionId ?? "");
+        useWorkbenchStore().dismiss(old.sessionId ?? "");
       }
-      if (tab.target.source === "saved") {
-        const profileId = tab.target.profileId;
+      if (terminal.target.source === "saved") {
+        const profileId = terminal.target.profileId;
         const profile = useHosts().hosts.find((host) => host.id === profileId);
         if (profile?.kind === "workspace")
           throw new Error(t("工作区不能作为单个终端连接"));
         if (profile) {
-          tab.kind = profile.kind;
-          tab.serialConfig = profile.serialConfig
+          terminal.kind = profile.kind;
+          terminal.serialConfig = profile.serialConfig
             ? { ...profile.serialConfig }
             : undefined;
         }
       }
-      resetTerminalActivity(tab);
+      resetTerminalActivity(terminal);
       writeLocalStatus(
         entry.term,
-        tab.kind === "local"
+        terminal.kind === "local"
           ? old
             ? t("重新打开本地终端，保留终端历史")
             : t("启动本地终端")
-          : tab.kind === "serial"
+          : terminal.kind === "serial"
             ? old
               ? t("重新打开串口，保留终端历史")
               : t("打开串口")
             : old
               ? t("重新连接，保留终端历史")
-              : tab.kind === "telnet"
+              : terminal.kind === "telnet"
                 ? t("开始 Telnet 连接（明文传输）")
                 : t("开始 SSH 连接"),
       );
@@ -570,16 +579,16 @@ export const terminalRegistry = {
         eventSeq: 0,
       };
       entry.stream = stream;
-      tab.state = "connecting";
-      tab.error = "";
-      tab.revision = 0;
-      tab.sessionId = undefined;
+      terminal.state = "connecting";
+      terminal.error = "";
+      terminal.revision = 0;
+      terminal.sessionId = undefined;
       const snapshot = await desktop.openSession(
-        tab.terminalId,
-        tab.target,
-        tab.size,
+        terminal.terminalId,
+        terminal.target,
+        terminal.size,
         (data) => receive(entry, stream, data),
-        (value) => event(entry, tab, stream, value),
+        (value) => event(entry, terminal, stream, value),
       );
       if (entry.disposed) {
         await desktop.close(snapshot.sessionId, "tabClosed");
@@ -587,23 +596,23 @@ export const terminalRegistry = {
       }
       stream.sessionId = snapshot.sessionId;
       entry.canResize = snapshot.capabilities.resize;
-      update(tab, snapshot);
+      update(terminal, snapshot);
       await acknowledge(entry, stream);
     } catch (error) {
-      tab.error = errorMessage(error);
-      tab.state = "failed";
-      writeLocalStatus(entry.term, tab.error);
+      terminal.error = errorMessage(error);
+      terminal.state = "failed";
+      writeLocalStatus(entry.term, terminal.error);
     } finally {
       entry.connecting = false;
     }
   },
   async disconnect(id: string) {
     const e = entries.get(id),
-      tab = useWorkspace().tabs.find((t) => t.terminalId === id);
+      terminal = useWorkbenchStore().terminals.find((t) => t.terminalId === id);
     if (e?.stream?.sessionId && !e.stream.ended) {
-      if (tab) tab.state = "closing";
+      if (terminal) terminal.state = "closing";
       const snapshot = await desktop.close(e.stream.sessionId);
-      if (tab) update(tab, snapshot);
+      if (terminal) update(terminal, snapshot);
     }
   },
   async dispose(id: string) {
@@ -618,33 +627,33 @@ export const terminalRegistry = {
     entries.delete(id);
   },
   apply() {
-    for (const tab of useWorkspace().tabs) {
-      const e = entries.get(tab.terminalId);
+    for (const terminal of useWorkbenchStore().terminals) {
+      const e = entries.get(terminal.terminalId);
       if (e) {
         const available = [
           ...useSettings().value.customSchemes.map((s) => s.id),
           ...builtinSchemes.map((s) => s.id),
         ];
-        if (tab.schemeId && !available.includes(tab.schemeId))
-          tab.schemeId = undefined;
-        settings(e, tab);
-        fit(e, tab);
+        if (terminal.schemeId && !available.includes(terminal.schemeId))
+          terminal.schemeId = undefined;
+        settings(e, terminal);
+        fit(e, terminal);
       }
     }
   },
   focus(id: string) {
     const e = entries.get(id),
-      tab = useWorkspace().tabs.find((t) => t.terminalId === id);
-    if (e && tab) {
+      terminal = useWorkbenchStore().terminals.find((t) => t.terminalId === id);
+    if (e && terminal) {
       requestAnimationFrame(() => {
         // 快速切换到保险箱或弹出认证时，迟到的焦点任务不能抢回隐藏终端。
         if (
           e.disposed ||
-          useWorkspace().active?.terminalId !== id ||
+          useWorkbenchStore().activeTerminal?.terminalId !== id ||
           document.querySelector("[data-modal-open], [data-ui-popup-open]")
         )
           return;
-        fit(e, tab);
+        fit(e, terminal);
         e.term.focus();
       });
     }
@@ -654,13 +663,13 @@ export const terminalRegistry = {
     if (text) await navigator.clipboard.writeText(text);
   },
   async paste(id: string) {
-    const workspace = useWorkspace();
-    const group = workspace.activeGroup;
+    const workbench = useWorkbenchStore();
+    const group = workbench.activeGroup;
     const revision = group?.broadcastRevision;
     const stream = entries.get(id)?.stream;
     const text = await navigator.clipboard.readText();
     if (
-      workspace.activeGroup !== group ||
+      workbench.activeGroup !== group ||
       group?.broadcastRevision !== revision ||
       entries.get(id)?.stream !== stream
     )
@@ -668,21 +677,21 @@ export const terminalRegistry = {
     await this.pasteText(id, text);
   },
   async pasteText(id: string, text: string) {
-    const workspace = useWorkspace();
+    const workbench = useWorkbenchStore();
     const e = entries.get(id);
-    const tab = workspace.tabs.find((item) => item.terminalId === id);
+    const terminal = workbench.terminals.find((item) => item.terminalId === id);
     if (
       !e ||
-      !tab ||
-      tab.state !== "connected" ||
-      workspace.active?.terminalId !== id
+      !terminal ||
+      terminal.state !== "connected" ||
+      workbench.activeTerminal?.terminalId !== id
     )
       return;
     if (new TextEncoder().encode(text).length > 65536) {
-      tab.error = t("单次粘贴不能超过 64 KiB。");
+      terminal.error = t("单次粘贴不能超过 64 KiB。");
       return;
     }
-    const group = workspace.activeGroup!;
+    const group = workbench.activeGroup!;
     const revision = group.broadcastRevision;
     const sourceStream = e.stream;
     const targets = connectedTargets(id).map((targetId) => ({
@@ -702,15 +711,15 @@ export const terminalRegistry = {
       e.disposed ||
       e.stream !== sourceStream ||
       sourceStream?.ended ||
-      tab.state !== "connected" ||
-      workspace.activeGroup !== group ||
-      workspace.active?.terminalId !== id ||
+      terminal.state !== "connected" ||
+      workbench.activeGroup !== group ||
+      workbench.activeTerminal?.terminalId !== id ||
       group.broadcastRevision !== revision ||
       document.querySelector("[data-modal-open], [data-ui-popup-open]")
     )
       return;
     for (const target of targets) {
-      const current = workspace.tabs.find(
+      const current = workbench.terminals.find(
         (item) => item.terminalId === target.id,
       );
       if (
@@ -718,7 +727,7 @@ export const terminalRegistry = {
         target.entry.stream !== target.stream ||
         target.stream?.ended ||
         current?.state !== "connected" ||
-        workspace.closingTerminalIds.includes(target.id)
+        workbench.closingTerminalIds.includes(target.id)
       )
         continue;
       // 每个目标独立应用括号粘贴模式；本次已展开目标，不能再次触发广播。
@@ -726,23 +735,24 @@ export const terminalRegistry = {
     }
   },
   toggleBroadcast() {
-    const workspace = useWorkspace();
-    const group = workspace.activeGroup;
+    const workbench = useWorkbenchStore();
+    const group = workbench.activeGroup;
     if (!group) return;
     if (
       !group.broadcast &&
       terminalIds(group.root).some(
         (id) =>
-          !workspace.tabs.find((tab) => tab.terminalId === id)?.sshCommand &&
-          !entries.get(id)?.inputOrigin?.supported,
+          !workbench.terminals.find((terminal) => terminal.terminalId === id)
+            ?.sshCommand && !entries.get(id)?.inputOrigin?.supported,
       )
     ) {
-      if (workspace.active)
-        workspace.active.error = t("当前终端暂不支持输入广播。");
+      if (workbench.activeTerminal)
+        workbench.activeTerminal.error = t("当前终端暂不支持输入广播。");
       return;
     }
-    workspace.toggleBroadcast();
-    if (workspace.active) this.focus(workspace.active.terminalId);
+    workbench.toggleBroadcast();
+    if (workbench.activeTerminal)
+      this.focus(workbench.activeTerminal.terminalId);
   },
   find(id: string, query: string, previous = false) {
     const search = entries.get(id)?.search;

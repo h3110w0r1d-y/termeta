@@ -4,7 +4,7 @@
 
 ## 当前动作
 
-`Primary` 在macOS对应Command，在Windows/Linux对应Control。注册表位于 `src/services/commands/registry.ts`，设置模型为 `keymap.schemaVersion=1` 和 `bindings`；按钮/菜单与键盘复用动作处理入口。
+`Primary` 在macOS对应Command，在Windows/Linux对应Control。注册表位于 `src/services/commands/registry.ts`，设置模型为 `keymap.schemaVersion=2` 和 `bindings`；按钮/菜单与键盘复用动作处理入口。
 
 | 动作              | macOS默认       | Windows/Linux默认      |
 | ----------------- | --------------- | ---------------------- |
@@ -19,9 +19,13 @@
 | 滚动到底部        | 未绑定          | 未绑定                 |
 | 新建本地终端      | Cmd+L           | Ctrl+Shift+L           |
 
-“全局”指应用窗口前台的application作用域，终端动作属于terminal作用域。Local工厂已实现，workspace.newLocalTerminal 注册到本地PTY，macOS为Cmd+L，Windows/Linux为Ctrl+Shift+L。SFTP目前使用状态栏开关，没有注册独立SFTP标签或面板快捷键。Windows/Linux默认Ctrl+C仍发送远端中断，Ctrl+L仍交给Shell；用户可显式改变绑定。
+“全局”指应用窗口前台的application作用域，终端动作属于terminal作用域。Local工厂已实现，workbench.newLocalTerminal 注册到本地PTY，macOS为Cmd+L，Windows/Linux为Ctrl+Shift+L。SFTP目前使用状态栏开关，没有注册独立SFTP标签或面板快捷键。Windows/Linux默认Ctrl+C仍发送远端中断，Ctrl+L仍交给Shell；用户可显式改变绑定。
 
 ## 设置与安全边界
+
+快捷键仅接受版本 2，使用 `workbench.*` 命令 ID 和 `context: "workbench"`；终端动作仍使用 `terminal.*` / `terminal`，`settings.open` 的应用上下文同样为 `workbench`。读取、保存和 JSON 导入直接校验当前格式；旧版本、旧命名、未知动作和错误上下文均拒绝，不进行兼容转换或回退为默认绑定。JSON 导入继续检查绑定冲突。
+
+读取和导入保留已配置的绑定集合、身份、触发器及启用状态，不自动补充缺失动作；新安装和用户主动恢复默认时才使用完整默认绑定。保存继续在设置专用队列中合并最新记录并完整校验，跨窗口通知后串行重读。外层 app 设置版本和数据库 schema 不变。当前版本及旧格式拒绝用例位于 `src-tauri/src/settings.rs`，尚未执行。
 
 设置草稿支持按名称/绑定搜索、录制键盘组合、编辑链接鼠标修饰键和JSON导入导出。录制只捕获组合，不执行动作或发送远端输入。保存时校验已注册commandId、scope/context、修饰键与按键白名单，拒绝同作用域重叠绑定；不接受脚本、Shell命令或输入宏。当前平台字段仅支持all，不承诺跨平台独立覆盖或OS保留键检测。
 
@@ -37,7 +41,7 @@ xterm在mouseup激活链接，处理程序仅preventDefault，不stopPropagation
 
 系统后台模式仅为后续范围，候选接口见 [Tauri Global Shortcut](https://v2.tauri.app/plugin/global-shortcut/)，当前未安装或注册。
 
-`workspace.newTab`默认Primary+T，标签栏＋共用此命令打开全局新建标签页弹窗。原`workspace.newConnection`及Cmd+N/Ctrl+Shift+N同样打开该弹窗；快速连接通过弹窗中的按钮进入。读取旧设置或导入旧keymap时补充newTab默认绑定，已有该动作（包括禁用）不改写，按键冲突时新绑定禁用，绑定已达100条不追加；恢复默认可获取完整默认动作集。Rust设置白名单同步允许workspace.newTab，无新增IPC。
+`workbench.newTab`默认Primary+T，标签栏＋共用此命令打开全局新建标签页弹窗。原`workbench.newConnection`及Cmd+N/Ctrl+Shift+N同样打开该弹窗；快速连接通过弹窗中的按钮进入。读取和导入不自动补充newTab绑定；恢复默认可获取完整默认动作集。Rust设置白名单同步允许workbench.newTab，无新增IPC。
 
 主页搜索结果下拉以data-application-shortcuts标记允许应用快捷键；全局路由仅对不含该标记的data-ui-popup-open弹层拦截。搜索框空查询、输入关键词及结果下拉打开时，均允许新建本地终端、新建标签页、切换标签及打开设置等应用动作；其他浮层和模态仍优先。
 

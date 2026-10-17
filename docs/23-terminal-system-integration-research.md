@@ -25,7 +25,7 @@ Termeta 可以提供启动即打开本地终端、命令行打开目录、文件
 | --- | --- | --- |
 | [本地驱动](../crates/terminal-local/src/lib.rs) | portable-pty 0.9.0；Unix PTY / Windows ConPTY；Unix 从 `$SHELL` 选择 Shell 并带 `-l`，回退 `/bin/sh`；Windows 从 `COMSPEC` 选择，回退 `cmd.exe` | 已能打开自建本地终端，不等于能接纳 OS 委派的控制台 |
 | 同上 | cwd 为 HOME / USERPROFILE，继承应用环境；尚无自定义 Shell/cwd/env/argv | 目录入口需要扩展 Local 配置；Finder 启动环境不保证与交互 Shell 相同 |
-| [App](../src/App.vue) | `openLocalTerminal()` 调用 `workspace.add(..., { source: "local" })`；`loadUnlocked()` 等待主机、转发和设置加载 | 普通启动可复用已有入口；应增加一次性启动协调，不能在 mounted 中无条件创建 |
+| [App](../src/App.vue) | `openLocalTerminal()` 调用 `workbench.add(..., { source: "local" })`；`loadUnlocked()` 等待主机、转发和设置加载 | 普通启动可复用已有入口；应增加一次性启动协调，不能在 mounted 中无条件创建 |
 | [会话命令](../src-tauri/src/commands/sessions.rs)、[owner](../src-tauri/src/state.rs) | `open_session` 需解锁；Local 同样先写连接历史，再创建 session | 不能假设 Local 现已支持锁定前使用，也不能只绕过前端 VaultGate |
 | [设置](../src/modules/settings/model.ts)、[Rust 校验](../src-tauri/src/settings.rs) | 加密设置，字段白名单，旧值补齐，跨窗口局部保存 | 新启动偏好需 Rust/TS 同步，不需要改 SQL schema |
 | [Tauri 装配](../src-tauri/src/lib.rs) | single-instance 2.4.2 已注册，但回调丢弃 argv/cwd，仅显示并聚焦 main | 第二次 CLI 调用当前不会新建带目录的 TAB |

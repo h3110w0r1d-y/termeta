@@ -10,9 +10,8 @@ import { computed, ref } from "vue";
 import {
   commandDefinitions,
   defaults,
-  upgradeBindings,
   keyLabel,
-  validateBindings,
+  parseKeymap,
   conflict,
 } from "../../services/commands/registry";
 import { downloadJson } from "./themes";
@@ -84,18 +83,15 @@ async function importKeys(event: Event) {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
     if (file.size > 1048576) throw new Error(t("文件过大"));
-    const raw = parseJson(await file.text()) as {
-      schemaVersion: number;
-      bindings: unknown;
-    };
-    if (raw.schemaVersion !== 1) throw new Error(t("快捷键版本不支持"));
-    const result = upgradeBindings(validateBindings(raw.bindings));
+    const keymap = parseKeymap(parseJson(await file.text()));
     if (
       await confirmAction(
-        t("导入 {count} 个绑定并替换当前编辑内容？", { count: result.length }),
+        t("导入 {count} 个绑定并替换当前编辑内容？", {
+          count: keymap.bindings.length,
+        }),
       )
     )
-      draft.value.keymap = { schemaVersion: 1, bindings: result };
+      draft.value.keymap = keymap;
   } catch (e) {
     error.value = errorMessage(e);
   }

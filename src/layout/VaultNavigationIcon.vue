@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import AssetIcon from "../components/ui/AssetIcon.vue";
-import type { VaultSection } from "../modules/workspace/store";
+import type { VaultSection } from "../modules/workbench/store";
 defineProps<{ section: VaultSection }>();
 const icons = {
   forwarding: "forwarding",

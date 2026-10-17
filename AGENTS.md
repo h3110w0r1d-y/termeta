@@ -30,20 +30,18 @@ Termeta 是 Tauri 2 + Rust + Vue 3 + TypeScript 桌面终端客户端，目标�
 
 数据库及配套 vault 元数据须配对保留，OS 只缓存一个 `master-key-v2` 主密钥；密码恢复不回退明文。旧格式不迁移。已应用迁移不可变；迁移4保持原始字节，名称索引调整由迁移5完成，恢复说明见 [存储设计](docs/07-storage.md#9-已应用迁移校验和不一致的恢复)。
 
-已有 macOS 用户反馈；历史授权调试中 terminal-core/terminal-serial 定向编译和15项测试通过，指定 ESP32-C3 的115200输出/关闭已验证。该证据不覆盖桌面应用、后续持久化集成或其他平台。其他新增 Rust 回归源码不能视为已执行。Telnet 手动测试服务配置见 [dev/telnet](dev/telnet/README.md)，既有部署/就绪证据不代表服务当前仍运行，也不授权构建或启动应用。
-
 主要待实现范围：专门睡眠恢复、本地自定义 Shell/cwd/env 与完整进程树清理、串口手动 DTR/RTS/DSR-DTR/HEX、ProxyJump/Agent、完整传输管理、Snippets/会话日志、打开标签自动恢复、自动备份/双向同步、本地备份文件入口与签名发布。
 
 ## 4. 架构约定
 
 - `src/layout/` 负责保险箱装配与外观监听；App 保留根布局与稳定终端宿主。设置由独立 SettingsWindow 装配，公共基础样式位于 `src/assets/base.css`。
-- `src/modules/` 按 hosts、credentials、history、forwarding、terminal、workspace、settings、files、backup 分责；Vue/Pinia 只保存轻量状态，不保存终端输出、文件正文、数据库备份正文或转发载荷。
+- `src/modules/` 按 hosts、credentials、history、forwarding、terminal、workbench、settings、files、backup 分责；Vue/Pinia 只保存轻量状态，不保存终端输出、文件正文、数据库备份正文或转发载荷。
 - `src/services/desktop/` 是唯一 Tauri IPC 门面；组件不能直接 invoke。CommandRegistry 统一按钮/菜单/快捷键；KeymapService/TerminalThemeService 是设计职责名，不假定存在同名类。
 - `src-tauri/src/commands/` 负责 DTO、窗口/资源所有权、Channel 和编排；`files/` 负责浏览器及上传下载服务；协议核心留在 crate。
 - 九个领域 crate 为 core、ssh、telnet、local、serial、storage、security、files、sftp。core 不依赖 Tauri/Vue/russh；具体适配器依赖 core。security 当前直接依赖 storage 协调保险库、凭据事务和备份压缩/加密；云端 provider 位于壳的 backup 模块，新增存储厂商通过 provider 边界扩展。
 - 每会话 actor + 有界字节队列 + 独立取消信号；输出二进制 Channel，控制类型化 Channel，消费 ACK 实现端到端背压。所有凭据、信任、网络与设备操作由 Rust 管理。
 - terminalId 跨重连稳定，sessionId 每次连接更新；TerminalRegistry 按 terminalId 持有 xterm。断线/失败/终态不得自动关闭 Tab、清空或销毁实例，只有用户关闭视图才 dispose。
-- WorkspaceStore 分离终端 tabs 与标签 groups；activeId 指组，active 指聚焦终端。布局树计算矩形，TerminalStage 扁平 keyed 宿主保证排序、交换、分屏与迁移不重建终端。
+- WorkbenchStore（useWorkbenchStore）分离终端 terminals 与标签 groups；activeId 指固定页或组，activeTerminal 指聚焦终端。Workbench 表示整个终端工作台，TerminalTabGroup 表示运行标签容器，Workspace 专指可保存/重新打开的工作区功能。布局树计算矩形，TerminalStage 扁平 keyed 宿主保证排序、交换、分屏与迁移不重建终端。
 - 终端、文件和转发分别使用 sessions/file_sessions/forward_sessions；文件与转发独立连接不申请 PTY/Shell。通用跨功能连接租约和完整 TransferManager 尚未实现。
 
 ## 5. 文档索引与阅读顺序
@@ -88,7 +86,7 @@ Termeta 是 Tauri 2 + Rust + Vue 3 + TypeScript 桌面终端客户端，目标�
 
 ## 8. 交互实现约束
 
-- 通用控件优先 Naive UI 2.45.3，工作区标签由自定义 WorkspaceTabs 管理；封装只做薄适配，使用库主题/公开 props/themeOverrides，不重造控件皮肤。业务 CSS 就近位于 Vue scoped 样式，跨组件动态 DOM 使用明确 `:deep()` 或入口全局适配。
+- 通用控件优先 Naive UI 2.45.3，应用标签由自定义 AppTabs 管理；封装只做薄适配，使用库主题/公开 props/themeOverrides，不重造控件皮肤。业务 CSS 就近位于 Vue scoped 样式，跨组件动态 DOM 使用明确 `:deep()` 或入口全局适配。
 - NForm model/rules/path 与控件共享响应式字段，提交前 validate，必填星号由库生成；快速连接名称、可选密码和服务器允许的空回答不强制必填。弹窗操作放 AppDialog `#footer`，与滚动正文分离。
 - 主机页保活显隐挂原生 DOM，不能直接给观察器为根的滚动组件施加 v-show。分组树/主机列表独立滚动；即时偏好串行局部保存，设置旧草稿不能覆盖。搜索不改变分组范围，分组批量打开包含后代。
 - 分组迁移前后端防环；删除默认保留直属主机/子组并上移，连同内容删除须独立二次确认。Rust 单事务保护范围和 revision，共享凭据与现有会话快照保留。

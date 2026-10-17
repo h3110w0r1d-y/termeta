@@ -3,7 +3,7 @@ export interface Binding {
   id: string;
   commandId: string;
   scope: "application" | "terminal";
-  context: "workspace" | "terminal";
+  context: "workbench" | "terminal";
   trigger:
     | { type: "key"; key: string; modifiers: Modifier[] }
     | {
@@ -14,4 +14,8 @@ export interface Binding {
       };
   platform: "all";
   enabled: boolean;
+}
+export interface Keymap {
+  schemaVersion: 2;
+  bindings: Binding[];
 }

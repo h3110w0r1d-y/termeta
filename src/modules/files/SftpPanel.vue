@@ -32,17 +32,17 @@ import type {
   SftpLocalDrop,
   SftpDropPosition,
 } from "../../services/desktop/types";
-import { useWorkspace } from "../workspace/store";
-import type { TerminalTab } from "../workspace/store";
+import { useWorkbenchStore } from "../workbench/store";
+import type { TerminalItem } from "../workbench/store";
 import { confirmAction } from "../../components/ui/confirmation";
 import { directoryRows, entryLabel, isDirectory } from "./fileEntries";
 import { useSftpTransferQueue } from "./useSftpTransferQueue";
 import FileEntryIcon from "./FileEntryIcon.vue";
 import { formatFileSize } from "./format";
 import { useSettings } from "../settings/store";
-const props = defineProps<{ tab: TerminalTab }>();
+const props = defineProps<{ terminal: TerminalItem }>();
 const panel = ref<HTMLElement>();
-const workspace = useWorkspace();
+const workbench = useWorkbenchStore();
 const panelWidth = ref(380);
 let resizeStart: { x: number; width: number; pointerId: number } | undefined;
 function startResize(event: PointerEvent) {
@@ -132,7 +132,7 @@ const {
   cancel,
   cancelActive,
 } = useSftpTransferQueue({
-  tab: () => props.tab,
+  terminal: () => props.terminal,
   busy: () => busy.value,
   disposed: () => disposed,
   connected: () => connected.value,
@@ -162,10 +162,10 @@ function releaseFilePointer() {
 }
 const listSession = ref<string>();
 const connected = computed(
-  () => props.tab.state === "connected" && !!props.tab.sessionId,
+  () => props.terminal.state === "connected" && !!props.terminal.sessionId,
 );
 const stale = computed(
-  () => !connected.value || listSession.value !== props.tab.sessionId,
+  () => !connected.value || listSession.value !== props.terminal.sessionId,
 );
 const busy = computed(() => loading.value || transferring.value);
 const rows = computed(() =>
@@ -211,14 +211,18 @@ const columns = computed<DataTableColumns<FileEntry>>(() => [
 let generation = 0;
 let disposed = false;
 async function load(path = directory.value, more = false) {
-  const sessionId = props.tab.sessionId;
+  const sessionId = props.terminal.sessionId;
   if (!connected.value || !sessionId || busy.value) return;
   const current = ++generation;
   loading.value = true;
   error.value = "";
   try {
     const page = await desktop.sftpList(sessionId, path, more);
-    if (disposed || current !== generation || sessionId !== props.tab.sessionId)
+    if (
+      disposed ||
+      current !== generation ||
+      sessionId !== props.terminal.sessionId
+    )
       return;
     directory.value = pathInput.value = page.path;
     entries.value = more ? [...entries.value, ...page.entries] : page.entries;
@@ -238,7 +242,7 @@ function sameSession(sessionId: string | undefined) {
   return (
     !disposed &&
     connected.value &&
-    sessionId === props.tab.sessionId &&
+    sessionId === props.terminal.sessionId &&
     listSession.value === sessionId
   );
 }
@@ -250,7 +254,7 @@ async function transfer(upload: boolean) {
   )
     return;
   enqueue({
-    sessionId: props.tab.sessionId!,
+    sessionId: props.terminal.sessionId!,
     path: directory.value,
     upload,
     name: upload ? null : selected.value!.name,
@@ -258,8 +262,8 @@ async function transfer(upload: boolean) {
 }
 function targetAt(position: SftpDropPosition): string | undefined {
   if (
-    !props.tab.sftpOpen ||
-    workspace.active?.terminalId !== props.tab.terminalId ||
+    !props.terminal.sftpOpen ||
+    workbench.activeTerminal?.terminalId !== props.terminal.terminalId ||
     stale.value ||
     dragStart !== undefined ||
     tasks.value.some((task) => task.dragNames && task.status === "running")
@@ -293,7 +297,7 @@ async function receiveDrop(drop: SftpLocalDrop) {
   if (consumedDrops.size > 256)
     consumedDrops.delete(consumedDrops.values().next().value!);
   pendingDrop = true;
-  const sessionId = props.tab.sessionId!;
+  const sessionId = props.terminal.sessionId!;
   try {
     if (
       await confirmAction(
@@ -360,7 +364,7 @@ function moveFileDrag(event: PointerEvent) {
   suppressClick = true;
   // 文件承诺由原生拖动会话提供，不构造浏览器下载链接或伪造文件路径。
   enqueue({
-    sessionId: props.tab.sessionId!,
+    sessionId: props.terminal.sessionId!,
     path: directory.value,
     upload: false,
     name: start.names.join("、"),
@@ -411,7 +415,7 @@ function rowProps(row: FileEntry) {
   };
 }
 watch(
-  () => [props.tab.sessionId, props.tab.state] as const,
+  () => [props.terminal.sessionId, props.terminal.state] as const,
   () => {
     generation++;
     loading.value = false;
@@ -475,10 +479,10 @@ onBeforeUnmount(() => {
       @keydown="resizeKey"
     />
     <NFlex justify="space-between" align="center">
-      <NText strong>SFTP · {{ tab.title }}</NText>
+      <NText strong>SFTP · {{ terminal.title }}</NText>
       <NButton
         size="tiny"
-        @click="tab.sftpOpen = false"
+        @click="terminal.sftpOpen = false"
         :title="visibleTransfer ? t('隐藏面板，传输继续') : t('隐藏 SFTP 侧栏')"
       >
         {{ t("隐藏") }}

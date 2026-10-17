@@ -9,7 +9,7 @@ import {
   setSplitRatio,
   splitTerminal,
   terminalIds,
-} from "../src/modules/workspace/layout.ts";
+} from "../src/modules/workbench/layout.ts";
 
 const terminal = (terminalId) => ({
   kind: "terminal",

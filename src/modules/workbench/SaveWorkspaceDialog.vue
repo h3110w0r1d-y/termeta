@@ -17,11 +17,11 @@ import { errorMessage } from "../../services/desktop/client";
 import { requiredText, validateForm } from "../../services/forms/rules";
 import type { SavedWorkspace } from "../../services/desktop/types";
 import { useHosts } from "../hosts/store";
-import { useWorkspace } from "./store";
+import { useWorkbenchStore } from "./store";
 const props = defineProps<{ groupId: string }>();
 const emit = defineEmits<{ close: []; "after-leave": [] }>();
 const hosts = useHosts();
-const workspace = useWorkspace();
+const workbench = useWorkbenchStore();
 const model = reactive({ name: "" });
 const form = ref<FormInst>();
 const error = ref("");
@@ -48,10 +48,10 @@ watch(
     if (!id) return;
     error.value = "";
     snapshot.value = undefined;
-    const group = workspace.groups.find((g) => g.id === id);
+    const group = workbench.groups.find((g) => g.id === id);
     model.name = group?.name ?? "Workspace";
     try {
-      snapshot.value = workspace.snapshotWorkspace(id);
+      snapshot.value = workbench.snapshotWorkspace(id);
     } catch (e) {
       error.value = errorMessage(e);
     }
@@ -68,7 +68,7 @@ async function save() {
       workspace: snapshot.value,
       expectedRevision: existing.value?.revision ?? null,
     });
-    const group = workspace.groups.find((g) => g.id === props.groupId);
+    const group = workbench.groups.find((g) => g.id === props.groupId);
     if (group) {
       group.name = saved.name;
       group.savedProfileId = saved.id;

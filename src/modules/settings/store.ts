@@ -3,7 +3,7 @@ import { defineStore } from "pinia";
 import { normalizeLanguage, setLanguage } from "../../i18n";
 import { ref, watch } from "vue";
 import { desktop } from "../../services/desktop/client";
-import { defaults, upgradeBindings } from "../../services/commands/registry";
+import { defaults } from "../../services/commands/registry";
 import type {
   AppSettings,
   SettingsPatch,
@@ -39,7 +39,7 @@ export function defaultSettings(): AppSettings {
     hostSchemes: {},
     confirmClose: true,
     multilinePaste: true,
-    keymap: { schemaVersion: 1, bindings: defaults() },
+    keymap: { schemaVersion: 2, bindings: defaults() },
     customSchemes: [],
   };
 }
@@ -56,10 +56,6 @@ export const useSettings = defineStore("settings", () => {
       language: normalizeLanguage(saved.language),
       // 旧版 hostsView 可能存在但缺少新增偏好，按子字段补齐默认值。
       hostsView: { ...defaultSettings().hostsView, ...saved.hostsView },
-      keymap: {
-        schemaVersion: 1,
-        bindings: upgradeBindings(saved.keymap?.bindings ?? defaults()),
-      },
       fontFamily: normalizeTerminalFont(
         saved.fontFamily ?? defaultTerminalFont,
       ),

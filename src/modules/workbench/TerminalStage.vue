@@ -5,17 +5,17 @@ import { NButton, NIcon, useThemeVars } from "naive-ui";
 import { CaretBack, CaretForward, CaretUp, CaretDown } from "@vicons/ionicons5";
 import TerminalPane from "../terminal/TerminalPane.vue";
 import { layoutGeometry, type LayoutRect, type SplitDivider } from "./layout";
-import { useWorkspace } from "./store";
+import { useWorkbenchStore } from "./store";
 const emit = defineEmits<{
   close: [terminalId: string];
   menu: [event: MouseEvent | KeyboardEvent, terminalId: string];
 }>();
-const workspace = useWorkspace();
+const workbench = useWorkbenchStore();
 const themeVars = useThemeVars();
 const stage = ref<HTMLElement>();
 const geometry = computed(() =>
-  workspace.activeGroup
-    ? layoutGeometry(workspace.activeGroup.root)
+  workbench.activeGroup
+    ? layoutGeometry(workbench.activeGroup.root)
     : { panes: new Map<string, LayoutRect>(), dividers: [] as SplitDivider[] },
 );
 function rectStyle(rect?: LayoutRect) {
@@ -29,11 +29,11 @@ function rectStyle(rect?: LayoutRect) {
     : undefined;
 }
 const preview = computed(() => {
-  const drop = workspace.dropTarget;
+  const drop = workbench.dropTarget;
   if (
-    !workspace.drag ||
+    !workbench.drag ||
     drop?.kind !== "pane" ||
-    !workspace.canSplit(workspace.drag.source, drop.terminalId)
+    !workbench.canSplit(workbench.drag.source, drop.terminalId)
   )
     return;
   const rect = geometry.value.panes.get(drop.terminalId);
@@ -57,7 +57,7 @@ const resizing = ref<{
   element: HTMLElement;
 }>();
 function startResize(event: PointerEvent, divider: SplitDivider) {
-  if (event.button !== 0 || !event.isPrimary || workspace.drag || !stage.value)
+  if (event.button !== 0 || !event.isPrimary || workbench.drag || !stage.value)
     return;
   event.preventDefault();
   event.stopPropagation();
@@ -86,7 +86,7 @@ function moveResize(event: PointerEvent) {
   // 极窄区域仍允许继续调整，同时避免一侧被压到完全不可见。
   const minimum = Math.max(0.1, Math.min(0.45, 80 / current.length));
   const point = current.axis === "horizontal" ? event.clientX : event.clientY;
-  workspace.resizeSplit(
+  workbench.resizeSplit(
     current.id,
     Math.max(
       minimum,
@@ -113,7 +113,7 @@ function resizeKey(event: KeyboardEvent, divider: SplitDivider) {
   if (![forward, backward, "Home", "End"].includes(event.key)) return;
   event.preventDefault();
   event.stopPropagation();
-  workspace.resizeSplit(
+  workbench.resizeSplit(
     divider.id,
     event.key === "Home"
       ? 0.1
@@ -122,7 +122,7 @@ function resizeKey(event: KeyboardEvent, divider: SplitDivider) {
         : divider.ratio + (event.key === forward ? 0.05 : -0.05),
   );
 }
-watch(() => workspace.activeId, stopResize);
+watch(() => workbench.activeId, stopResize);
 onMounted(() => window.addEventListener("blur", stopResize));
 onBeforeUnmount(() => {
   stopResize();
@@ -133,8 +133,8 @@ onBeforeUnmount(() => {
   <div
     ref="stage"
     :id="
-      workspace.activeGroup
-        ? 'workspace-panel-' + workspace.activeGroup.id
+      workbench.activeGroup
+        ? 'tab-panel-' + workbench.activeGroup.id
         : undefined
     "
     class="terminal-layout"
@@ -145,27 +145,25 @@ onBeforeUnmount(() => {
     }"
     role="tabpanel"
     :aria-labelledby="
-      workspace.activeGroup
-        ? 'workspace-tab-' + workspace.activeGroup.id
-        : undefined
+      workbench.activeGroup ? 'app-tab-' + workbench.activeGroup.id : undefined
     "
-    :class="{ 'is-resizing': !!resizing, 'is-dragging-tab': !!workspace.drag }"
+    :class="{ 'is-resizing': !!resizing, 'is-dragging-tab': !!workbench.drag }"
   >
     <!-- 所有宿主始终在这个平面列表中；布局树只计算矩形，绝不递归挂载/移动 xterm。 -->
     <TerminalPane
-      v-for="tab in workspace.tabs"
-      :key="tab.terminalId"
-      :tab="tab"
-      :active="workspace.active?.terminalId === tab.terminalId"
-      :broadcast="!!workspace.activeGroup?.broadcast"
-      :visible="geometry.panes.has(tab.terminalId)"
+      v-for="terminal in workbench.terminals"
+      :key="terminal.terminalId"
+      :terminal="terminal"
+      :active="workbench.activeTerminal?.terminalId === terminal.terminalId"
+      :broadcast="!!workbench.activeGroup?.broadcast"
+      :visible="geometry.panes.has(terminal.terminalId)"
       :split="
-        !!workspace.activeGroup && workspace.activeGroup.root.kind === 'split'
+        !!workbench.activeGroup && workbench.activeGroup.root.kind === 'split'
       "
-      :style="rectStyle(geometry.panes.get(tab.terminalId))"
-      @focus="workspace.focusTerminal(tab.terminalId)"
-      @close="emit('close', tab.terminalId)"
-      @menu="emit('menu', $event, tab.terminalId)"
+      :style="rectStyle(geometry.panes.get(terminal.terminalId))"
+      @focus="workbench.focusTerminal(terminal.terminalId)"
+      @close="emit('close', terminal.terminalId)"
+      @menu="emit('menu', $event, terminal.terminalId)"
     />
     <div
       v-for="divider in geometry.dividers"
@@ -228,7 +226,7 @@ onBeforeUnmount(() => {
         "
         @pointerdown.stop.prevent
         @mousedown.stop.prevent
-        @click.stop="workspace.swapSplitRegions(divider.id)"
+        @click.stop="workbench.swapSplitRegions(divider.id)"
         @keydown.stop
       >
         <span class="swap-triangles" aria-hidden="true">

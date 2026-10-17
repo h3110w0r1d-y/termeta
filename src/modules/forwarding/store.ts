@@ -9,7 +9,7 @@ import type {
   SessionSnapshot,
   SessionState,
 } from "../../services/desktop/types";
-import { useWorkspace } from "../workspace/store";
+import { useWorkbenchStore } from "../workbench/store";
 
 interface Runtime {
   sessionId?: string;
@@ -20,7 +20,7 @@ interface Runtime {
   ended: boolean;
 }
 export const usePortForwards = defineStore("port-forwards", () => {
-  const workspace = useWorkspace();
+  const workbench = useWorkbenchStore();
   const profiles = ref<ForwardProfile[]>([]);
   const runtimes = reactive<Record<string, Runtime>>({});
   const generations = new Map<string, number>();
@@ -70,7 +70,7 @@ export const usePortForwards = defineStore("port-forwards", () => {
       state: snapshot.state,
       revision: snapshot.stateRevision,
     });
-    workspace.connectionTitles[snapshot.sessionId] =
+    workbench.connectionTitles[snapshot.sessionId] =
       profiles.value.find((p) => p.id === id)?.name ?? snapshot.title;
   }
   function control(id: string, generation: number, event: SessionEvent) {
@@ -78,23 +78,23 @@ export const usePortForwards = defineStore("port-forwards", () => {
     const runtime = runtimes[id];
     if (!runtime || (runtime.ended && event.type !== "ended")) return;
     runtime.sessionId = event.sessionId;
-    workspace.connectionTitles[event.sessionId] =
+    workbench.connectionTitles[event.sessionId] =
       profiles.value.find((p) => p.id === id)?.name ?? t("端口转发");
     if (event.type === "stateChanged") update(id, event.snapshot);
     else if (
       event.type === "hostKeyChallenge" ||
       event.type === "authChallenge"
     ) {
-      workspace.dismiss(event.sessionId);
-      workspace.challenges.push(event);
+      workbench.dismiss(event.sessionId);
+      workbench.challenges.push(event);
     } else if (event.type === "ended") {
       Object.assign(runtime, {
         state: event.finalState,
         ended: true,
         error: event.error?.message ?? "",
       });
-      workspace.dismiss(event.sessionId);
-      delete workspace.connectionTitles[event.sessionId];
+      workbench.dismiss(event.sessionId);
+      delete workbench.connectionTitles[event.sessionId];
     }
   }
   async function load() {
@@ -126,8 +126,8 @@ export const usePortForwards = defineStore("port-forwards", () => {
       update(id, snapshot);
       if (terminal && runtimes[id]?.sessionId === snapshot.sessionId) {
         runtimes[id]!.ended = true;
-        workspace.dismiss(snapshot.sessionId);
-        delete workspace.connectionTitles[snapshot.sessionId];
+        workbench.dismiss(snapshot.sessionId);
+        delete workbench.connectionTitles[snapshot.sessionId];
       }
     }
   }
@@ -185,7 +185,7 @@ export const usePortForwards = defineStore("port-forwards", () => {
     try {
       await desktop.stopPortForward(id);
       if (!runtime.ended) runtime.state = "closing";
-      if (runtime.sessionId) workspace.dismiss(runtime.sessionId);
+      if (runtime.sessionId) workbench.dismiss(runtime.sessionId);
     } catch (cause) {
       runtime.error = errorMessage(cause);
     } finally {

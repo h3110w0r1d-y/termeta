@@ -271,11 +271,11 @@ macOS 拖出 names 最多 100 个普通文件或真实目录根，directories �
 
 搜索偏好通过既有get_settings/save_settings保存app.hostSearch（pinyin布尔值与fields字段集合），name强制存在，其他字段为address/username/tags/group且去重；缺失兼容旧数据。搜索下拉与设置页即时保存共用设置队列，设置页只提交修改字段，无新增IPC或ACL。
 
-新建标签页弹窗只使用既有HostProfile/设置，无新IPC。keymap.commandId增加workspace.newTab（application/workspace），Rust设置白名单同步；前端读取或导入旧keymap补充Primary+T绑定，保留已有动作/冲突配置及绑定数量上限。
+新建标签页弹窗只使用既有HostProfile/设置，无新IPC。keymap.commandId使用workbench.newTab（application/workbench），Rust设置白名单同步；默认配置包含Primary+T绑定；读取和导入保留原绑定集合，不自动补充动作，继续校验冲突及绑定数量上限。
 
 ## 独立设置窗口契约
 
-`open_settings_window()`仅main可调用且要求已解锁，Rust创建/聚焦settings窗口。`get_settings`返回完整AppSettings；`save_settings`在设置专用异步互斥队列中读取最新快照、合并patch并校验后写库，返回完整快照。hostsView/hostSearch额外按子字段合并，其余字段整体替换；默认值仅在无记录时使用，旧版本拒绝写入，兼容旧字体/配色归一。成功后Rust广播无秘密的`settings-changed`失效通知，两个窗口串行重读；前端不发送设置事件。数据库schema及设置schemaVersion不变。
+`open_settings_window()`仅main可调用且要求已解锁，Rust创建/聚焦settings窗口。`get_settings`返回完整AppSettings；`save_settings`在设置专用异步互斥队列中读取最新快照、合并patch并校验后写库，返回完整快照。hostsView/hostSearch额外按子字段合并，其余字段整体替换；默认值仅在无记录时使用，旧版本拒绝写入，兼容旧字体/配色归一。keymap 内层版本为 2，命令 ID/context 使用 workbench 命名；读取、保存和 JSON 导入只接受当前快捷键格式，拒绝旧版本及旧命名，不进行转换或补充缺失绑定。成功后Rust广播无秘密的`settings-changed`失效通知，两个窗口串行重读；前端不发送设置事件。数据库schema及设置schemaVersion不变。
 
 settings窗口仅开放设置、change_vault_password、export_json及下文7个已解锁备份命令，这些命令使用独立settings_owner检查窗口身份、本地来源和解锁状态；list_known_hosts/revoke_known_host/list_history/clear_history随业务页面移入保险箱，改用仅main可用的owner，且从settings capability移除。设置窗口另通过desktop门面调用库的setTitle更新自身标题，settings capability开放core:window:allow-set-title；不新增自定义IPC或任意其他窗口资源入口。其余资源owner保持main限制。新增命令纳入COMMANDS/AppManifest、handler和main capability；settings使用独立capability。
 

@@ -7,24 +7,24 @@ import { useSettings } from "../settings/store";
 import { needsCloseConfirmation } from "../terminal/activity";
 import { terminalRegistry } from "../terminal/registry";
 import { terminalIds } from "./layout";
-import { useWorkspace } from "./store";
+import { useWorkbenchStore } from "./store";
 
 export function useTerminalClose() {
-  const workspace = useWorkspace();
+  const workbench = useWorkbenchStore();
   const settings = useSettings();
   async function closeTerminals(ids: string[], title: string) {
-    if (ids.some((id) => workspace.closingTerminalIds.includes(id))) return;
-    const terminals = workspace.tabs.filter((tab) =>
-      ids.includes(tab.terminalId),
+    if (ids.some((id) => workbench.closingTerminalIds.includes(id))) return;
+    const terminals = workbench.terminals.filter((terminal) =>
+      ids.includes(terminal.terminalId),
     );
     if (!terminals.length) return;
-    workspace.closingTerminalIds.push(...ids);
+    workbench.closingTerminalIds.push(...ids);
     const restoreTabFocus = !!document.activeElement?.closest(
-      "[data-workspace-tab], .workspace-tab-close",
+      "[data-app-tab], .app-tab-close",
     );
     try {
       if (
-        terminals.some((tab) => tab.sftpTransferring) &&
+        terminals.some((terminal) => terminal.sftpTransferring) &&
         !(await confirmAction(
           t("此终端有 SFTP 传输正在进行，关闭将取消传输，确定继续？"),
         ))
@@ -49,36 +49,34 @@ export function useTerminalClose() {
         return;
       // 每个终端成功释放后才从布局删除，失败的窗格与历史保留以便重试。
       await Promise.all(
-        terminals.map(async (tab) => {
+        terminals.map(async (terminal) => {
           try {
-            await terminalRegistry.dispose(tab.terminalId);
-            workspace.dismiss(tab.sessionId ?? "");
-            workspace.remove(tab.terminalId);
+            await terminalRegistry.dispose(terminal.terminalId);
+            workbench.dismiss(terminal.sessionId ?? "");
+            workbench.remove(terminal.terminalId);
           } catch (error) {
-            tab.error = errorMessage(error);
+            terminal.error = errorMessage(error);
           }
         }),
       );
       await nextTick();
       if (restoreTabFocus)
         document
-          .querySelector<HTMLElement>(
-            '[data-workspace-tab][aria-selected="true"]',
-          )
+          .querySelector<HTMLElement>('[data-app-tab][aria-selected="true"]')
           ?.focus({ preventScroll: true });
-      else if (workspace.active)
-        terminalRegistry.focus(workspace.active.terminalId);
+      else if (workbench.activeTerminal)
+        terminalRegistry.focus(workbench.activeTerminal.terminalId);
     } finally {
-      workspace.closingTerminalIds = workspace.closingTerminalIds.filter(
+      workbench.closingTerminalIds = workbench.closingTerminalIds.filter(
         (id) => !ids.includes(id),
       );
     }
   }
   function closeTab(id: string) {
-    const group = workspace.groups.find((item) => item.id === id);
+    const group = workbench.groups.find((item) => item.id === id);
     if (group) {
-      const focused = workspace.tabs.find(
-        (tab) => tab.terminalId === group.focusedTerminalId,
+      const focused = workbench.terminals.find(
+        (terminal) => terminal.terminalId === group.focusedTerminalId,
       );
       return closeTerminals(
         terminalIds(group.root),
@@ -91,7 +89,9 @@ export function useTerminalClose() {
     }
   }
   function closePane(id: string) {
-    const terminal = workspace.tabs.find((tab) => tab.terminalId === id);
+    const terminal = workbench.terminals.find(
+      (terminal) => terminal.terminalId === id,
+    );
     if (terminal) return closeTerminals([id], terminalBaseTitle(terminal));
   }
   return { closeTab, closePane };
