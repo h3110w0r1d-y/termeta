@@ -16,6 +16,7 @@ const empty = ref(false);
 const error = ref("");
 const hasScreen = ref(false);
 const showScreen = ref(false);
+const richContent = ref(false);
 let snapshot: TerminalLogSnapshot | undefined;
 let viewer: ReturnType<typeof mountLogTerminal> | undefined;
 let generation = 0;
@@ -55,10 +56,12 @@ async function load() {
   snapshot = undefined;
   hasScreen.value = false;
   showScreen.value = false;
+  richContent.value = false;
   try {
     const log = await desktop.readSessionLog(props.log.id);
     if (current !== generation) return;
     snapshot = readTerminalLogSnapshot(log.content);
+    richContent.value = snapshot !== undefined;
     hasScreen.value = snapshot?.screen !== undefined;
     empty.value = !log.content.length;
     loaded.value = true;
@@ -136,6 +139,7 @@ onBeforeUnmount(() => {
         ref="output"
         v-show="loaded && !empty"
         class="log-content selectable-text"
+        :class="{ 'terminal-content': richContent }"
         tabindex="0"
         :aria-label="t('sessionLogs.content')"
       />
@@ -184,9 +188,22 @@ onBeforeUnmount(() => {
   font: inherit;
   white-space: pre;
 }
+.log-content.terminal-content {
+  overflow: hidden;
+}
 .log-content :deep(.log-terminal) {
+  width: 100%;
   height: 100%;
-  min-width: max-content;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.log-content :deep(.log-screen-viewport) {
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.log-content :deep(.log-screen-surface) {
+  position: relative;
 }
 .log-content :deep(.xterm) {
   height: 100%;
