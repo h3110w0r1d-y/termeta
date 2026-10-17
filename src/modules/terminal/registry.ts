@@ -8,8 +8,8 @@ import {
 } from "./activity";
 import { useHosts } from "../hosts/store";
 import { confirmPaste } from "./paste";
-import { observeTerminalInput } from "./inputOrigin";
-import { createInputRouter } from "./inputRouter";
+import { observeTerminalInput, sendFinalWheelInput } from "./inputOrigin";
+import { createInputRouter, type InputKind } from "./inputRouter";
 import { terminalIds } from "../workspace/layout";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
@@ -267,7 +267,7 @@ function input(entry: Entry, tab: TerminalTab, bytes: Uint8Array) {
     });
   }
 }
-function connectedTargets(sourceId: string) {
+function connectedTargets(sourceId: string, kind: InputKind = "keyboard") {
   const workspace = useWorkspace();
   const source = workspace.tabs.find((tab) => tab.terminalId === sourceId);
   const origin = entries.get(sourceId);
@@ -280,7 +280,7 @@ function connectedTargets(sourceId: string) {
     return [];
   const ids = document.querySelector("[data-modal-open], [data-ui-popup-open]")
     ? [sourceId]
-    : workspace.inputTargets(sourceId);
+    : workspace.inputTargets(sourceId, kind);
   return ids.filter((id) => {
     const tab = workspace.tabs.find((item) => item.terminalId === id);
     const entry = entries.get(id);
@@ -296,7 +296,8 @@ function connectedTargets(sourceId: string) {
 }
 function remoteWheel(term: Terminal) {
   return (
-    term.modes.mouseTrackingMode !== "none" ||
+    (term.modes.mouseTrackingMode !== "none" &&
+      term.modes.mouseTrackingMode !== "x10") ||
     term.buffer.active.type === "alternate"
   );
 }
@@ -309,41 +310,11 @@ const inputRouter = createInputRouter({
   },
   applicationCursor: (id) =>
     entries.get(id)?.term.modes.applicationCursorKeysMode ?? false,
-  wheel(id, event, sourceId) {
+  wheel(id, final, sourceId, event) {
     const target = entries.get(id)?.term;
     const source = entries.get(sourceId)?.term;
     if (!target?.element || !source?.element || !remoteWheel(target)) return;
-    const from = source.element.getBoundingClientRect();
-    const to = target.element.getBoundingClientRect();
-    // 只重放滚轮事件，由目标xterm按自身模式/尺寸编码；绝不重放点击、释放或拖动。
-    target.element.dispatchEvent(
-      new WheelEvent("wheel", {
-        bubbles: true,
-        cancelable: true,
-        deltaX: event.deltaX,
-        deltaY: event.deltaY,
-        deltaZ: event.deltaZ,
-        deltaMode: event.deltaMode,
-        ctrlKey: event.ctrlKey,
-        altKey: event.altKey,
-        shiftKey: event.shiftKey,
-        metaKey: event.metaKey,
-        clientX:
-          to.left +
-          Math.max(
-            0,
-            Math.min(1, (event.clientX - from.left) / Math.max(1, from.width)),
-          ) *
-            to.width,
-        clientY:
-          to.top +
-          Math.max(
-            0,
-            Math.min(1, (event.clientY - from.top) / Math.max(1, from.height)),
-          ) *
-            to.height,
-      }),
-    );
+    sendFinalWheelInput(target, final, source, event);
   },
 });
 function settings(entry: Entry, tab: TerminalTab) {
@@ -412,6 +383,8 @@ export const terminalRegistry = {
       cursorBlink: true,
       allowProposedApi: false,
       scrollback: 5000,
+      // 通过 xterm 公开选项让滚动增量按两倍累积，广播仍只跟随源端最终输入。
+      scrollSensitivity: 2,
       screenReaderMode: true,
     });
     const fitAddon = new FitAddon(),
@@ -502,9 +475,9 @@ export const terminalRegistry = {
       inputRouter.data(tab.terminalId, packet),
     );
     term.attachCustomWheelEventHandler((event) => {
-      // 普通历史滚动保持本地；全屏程序或启用鼠标协议时才广播滚轮。
+      // 只标记即将编码的来源，等实际 onData/onBinary 生成输入后才广播最终动作。
       if (remoteWheel(term) && event.deltaY !== 0)
-        inputRouter.wheel(tab.terminalId, event);
+        entry.inputOrigin?.markWheelInput(event);
       return true;
     });
     host.addEventListener(

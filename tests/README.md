@@ -7,7 +7,7 @@ Node 用例直接导入 TypeScript，要求 Node 22.18+。Rust 测试会编译�
 | 文件                                                       | 覆盖范围                                                            |
 | ---------------------------------------------------------- | ------------------------------------------------------------------- |
 | [workspace-layout.test.mjs](workspace-layout.test.mjs)     | 四向/嵌套分屏、迁移/收缩、比例/不变性、批量均分                     |
-| [terminal-broadcast.test.mjs](terminal-broadcast.test.mjs) | 用户输入/设备应答/鼠标隔离、去重、光标模式、粘贴/滚轮递归保护与降级、命令窗格收发隔离 |
+| [terminal-broadcast.test.mjs](terminal-broadcast.test.mjs) | 用户输入/设备应答/鼠标隔离、最终滚轮动作单次分发/编码、未聚焦滚轮来源、去重、光标模式、微任务标记/递归保护与降级、命令窗格收发隔离 |
 | [terminal-activity.test.mjs](terminal-activity.test.mjs) | 命令模式关闭提醒、远端标记隔离、重连回 Shell 后恢复判断 |
 | [host-search.test.mjs](host-search.test.mjs)               | 全拼/首字母/多音字/混输/多词、字段与地址匹配                        |
 | [file-entries.test.mjs](file-entries.test.mjs)             | 目录/目录链接优先、排序/隐藏、分页不变性与断链展示                  |

@@ -4,7 +4,7 @@ import { useHosts } from "../hosts/store";
 import { clone } from "../../services/data/clone";
 import { terminalDisplayTitle } from "../terminal/title";
 import type { TerminalActivity } from "../terminal/activity";
-import { broadcastTargets } from "../terminal/inputRouter";
+import { broadcastTargets, type InputKind } from "../terminal/inputRouter";
 import {
   terminalIds,
   balancedLayout,
@@ -547,19 +547,15 @@ export const useWorkspace = defineStore("workspace", () => {
     group.broadcast = !group.broadcast;
     group.broadcastRevision++;
   }
-  function inputTargets(id: string) {
+  function inputTargets(id: string, kind: InputKind = "keyboard") {
     const group = activeGroup.value;
-    if (
-      !group?.broadcast ||
-      group.focusedTerminalId !== id ||
-      drag.value ||
-      groupIsClosing(group)
-    )
-      return [id];
+    if (!group?.broadcast || drag.value || groupIsClosing(group)) return [id];
     const ids = new Set(terminalIds(group.root));
     return broadcastTargets(
       id,
       tabs.value.filter((tab) => ids.has(tab.terminalId)),
+      group.focusedTerminalId,
+      kind,
     );
   }
   function broadcastTargetCount(id: string) {
