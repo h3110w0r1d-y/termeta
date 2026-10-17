@@ -61,13 +61,9 @@ defineExpose({ busy, save, dirty });
 </script>
 
 <template>
-  <section class="backup-panel" :aria-label="t('备份与同步')">
+  <section class="backup-panel" :aria-label="t('backup.title')">
     <NAlert type="info">
-      {{
-        t(
-          "加密备份主机、分组、凭据、转发和主机信任。应用设置留在本机，请妥善保管备份密码。",
-        )
-      }}
+      {{ t("backup.description") }}
     </NAlert>
     <NForm
       ref="configForm"
@@ -78,7 +74,7 @@ defineExpose({ busy, save, dirty });
       class="backup-config"
       @submit.prevent="execute"
     >
-      <NFormItem :label="t('备份服务')" path="provider">
+      <NFormItem :label="t('backup.form.provider')" path="provider">
         <NSelect
           v-model:value="config.provider"
           :options="[
@@ -87,21 +83,21 @@ defineExpose({ busy, save, dirty });
           ]"
         />
       </NFormItem>
-      <NFormItem :label="t('本机设备名称')" path="deviceName">
+      <NFormItem :label="t('backup.form.deviceName')" path="deviceName">
         <NInput
           v-model:value="config.deviceName"
           :maxlength="120"
-          :placeholder="t('例如：我的 MacBook')"
+          :placeholder="t('backup.form.devicePlaceholder')"
         />
       </NFormItem>
       <template v-if="config.provider === 'webdav'">
-        <NFormItem :label="t('WebDAV HTTPS 目录地址')" path="endpoint">
+        <NFormItem :label="t('backup.form.webdavUrl')" path="endpoint">
           <NInput
             v-model:value="config.endpoint"
             placeholder="https://dav.example.com/termeta/"
           />
         </NFormItem>
-        <NFormItem :label="t('用户名')" path="username">
+        <NFormItem :label="t('common.fields.username')" path="username">
           <NInput
             v-model:value="config.username"
             :input-props="{ autocomplete: 'off' }"
@@ -111,8 +107,8 @@ defineExpose({ busy, save, dirty });
       <NFormItem
         :label="
           config.provider === 'gist'
-            ? t('GitHub Token（需 Gist 权限）')
-            : t('WebDAV 密码 / 应用密码')
+            ? t('backup.form.githubToken')
+            : t('backup.form.webdavPassword')
         "
         path="secret"
         class="backup-wide"
@@ -123,14 +119,14 @@ defineExpose({ busy, save, dirty });
           show-password-on="click"
           :placeholder="
             canReuseSecret
-              ? t('已保存，留空继续使用；输入新值替换')
-              : t('访问凭据仅加密保存在本机')
+              ? t('backup.form.savedSecretPlaceholder')
+              : t('backup.form.credentialsHint')
           "
           :input-props="{ autocomplete: 'off' }"
         />
       </NFormItem>
       <NFormItem
-        :label="t('备份密码（至少12个字符）')"
+        :label="t('backup.form.password')"
         path="backupPassword"
         class="backup-wide"
       >
@@ -140,8 +136,8 @@ defineExpose({ busy, save, dirty });
           show-password-on="click"
           :placeholder="
             canReuseBackupPassword
-              ? t('已保存，留空继续使用；输入新值替换')
-              : t('备份密码将加密保存在本机')
+              ? t('backup.form.savedSecretPlaceholder')
+              : t('backup.form.passwordHint')
           "
           :input-props="{ autocomplete: 'new-password', maxlength: 1024 }"
         />
@@ -149,7 +145,7 @@ defineExpose({ busy, save, dirty });
       <NFormItem
         v-if="config.backupPassword"
         ref="confirmationItem"
-        :label="t('确认备份密码')"
+        :label="t('backup.form.confirmPassword')"
         path="confirmation"
         class="backup-wide"
       >
@@ -160,9 +156,7 @@ defineExpose({ busy, save, dirty });
         />
       </NFormItem>
       <p class="muted backup-wide">
-        {{
-          t("备份密码会保存在本机。更改后只用于新备份，读取旧备份仍需原密码。")
-        }}
+        {{ t("backup.passwordHint") }}
       </p>
     </NForm>
     <NFlex justify="end">
@@ -171,7 +165,7 @@ defineExpose({ busy, save, dirty });
         :loading="busy"
         @click="testConnection"
       >
-        {{ t("测试连接") }}
+        {{ t("backup.actions.test") }}
       </NButton>
       <NButton
         v-if="!initializing"
@@ -179,23 +173,27 @@ defineExpose({ busy, save, dirty });
         :loading="busy"
         @click="save"
       >
-        {{ t("保存云端配置") }}
+        {{ t("backup.actions.saveConfig") }}
       </NButton>
     </NFlex>
     <NRadioGroup
       v-if="!initializing"
       v-model:value="action"
       :disabled="operationBusy"
-      :aria-label="t('备份或同步')"
+      :aria-label="t('backup.form.operation')"
     >
-      <NRadioButton value="backup">{{ t("备份 · 上传新版本") }}</NRadioButton>
-      <NRadioButton value="sync">{{ t("同步 · 从云端下载") }}</NRadioButton>
+      <NRadioButton value="backup">
+        {{ t("backup.actions.uploadVersion") }}
+      </NRadioButton>
+      <NRadioButton value="sync">
+        {{ t("backup.actions.downloadVersion") }}
+      </NRadioButton>
     </NRadioGroup>
     <p class="muted">
       {{
         action === "backup"
-          ? t("每次上传保留一个新版本。")
-          : t("选择备份版本，预览后确认导入。")
+          ? t("backup.upload.description")
+          : t("backup.download.description")
       }}
     </p>
     <NButton
@@ -205,7 +203,9 @@ defineExpose({ busy, save, dirty });
       @click="execute"
     >
       {{
-        action === "backup" ? t("加密并上传新备份") : t("读取并解密云端版本")
+        action === "backup"
+          ? t("backup.upload.progress")
+          : t("backup.download.progress")
       }}
     </NButton>
     <NAlert v-if="error && !previewOpen" type="error" role="alert">
@@ -214,28 +214,25 @@ defineExpose({ busy, save, dirty });
     <NAlert v-if="success" type="success">{{ success }}</NAlert>
     <NAlert v-if="importWarnings.length" type="warning">
       <p v-for="(message, index) in importWarnings" :key="index">
-        {{ t(message) }}
+        {{ message }}
       </p>
     </NAlert>
     <template v-if="listed && action === 'sync'">
-      <NEmpty
-        v-if="!entries.length"
-        :description="t('该云端目录 / 账户中没有备份。')"
-      />
+      <NEmpty v-if="!entries.length" :description="t('backup.empty')" />
       <NList v-else bordered>
         <NListItem v-for="entry in entries" :key="entry.id">
           <NThing
             :title="
               entry.metadata
                 ? `${time(entry.metadata.createdAt)} · ${entry.metadata.deviceName}`
-                : t('无法解密的备份')
+                : t('backup.version.undecryptable')
             "
             :description="
               entry.metadata
                 ? counts(entry.metadata.counts)
                 : entry.error
-                  ? t(entry.error)
-                  : t('密码不匹配或备份损坏。')
+                  ? entry.error
+                  : t('backup.version.decryptError')
             "
           >
             <span v-if="entry.metadata" class="muted">
@@ -247,7 +244,7 @@ defineExpose({ busy, save, dirty });
               :disabled="operationBusy || !entry.metadata"
               @click="prepare(entry)"
             >
-              {{ t("下载并预览") }}
+              {{ t("backup.actions.preview") }}
             </NButton>
           </template>
         </NListItem>
@@ -258,12 +255,12 @@ defineExpose({ busy, save, dirty });
         :loading="busy"
         @click="loadMore"
       >
-        {{ t("加载更多备份") }}
+        {{ t("backup.actions.loadMore") }}
       </NButton>
     </template>
     <AppDialog
       :open="previewOpen"
-      :title="t('确认从云端同步')"
+      :title="t('backup.import.title')"
       :locked="operationBusy"
       @update:open="previewOpen = $event"
     >
@@ -276,12 +273,8 @@ defineExpose({ busy, save, dirty });
         <NAlert type="info">
           {{
             initializing
-              ? t(
-                  "将创建本机保险库并导入所选备份。保险库密码与备份密码相互独立，请分别保管。",
-                )
-              : t(
-                  "导入会新增数据，保留本机内容和设置。重复导入会产生副本，主机信任冲突将跳过并提示。",
-                )
+              ? t("backup.import.setupDescription")
+              : t("backup.import.mergeDescription")
           }}
         </NAlert>
         <NAlert v-if="error" type="error" class="backup-error">
@@ -291,7 +284,7 @@ defineExpose({ busy, save, dirty });
       <template #footer>
         <NFlex justify="end">
           <NButton :disabled="operationBusy" @click="previewOpen = false">
-            {{ t("取消") }}
+            {{ t("common.actions.cancel") }}
           </NButton>
           <NButton
             type="primary"
@@ -299,7 +292,11 @@ defineExpose({ busy, save, dirty });
             :loading="busy"
             @click="apply"
           >
-            {{ initializing ? t("创建保险库并导入") : t("确认新增导入") }}
+            {{
+              initializing
+                ? t("backup.actions.setupAndImport")
+                : t("backup.actions.confirmImport")
+            }}
           </NButton>
         </NFlex>
       </template>

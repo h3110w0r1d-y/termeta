@@ -1,4 +1,4 @@
-import { t } from "../../i18n";
+import { t, type PlainMessageKey } from "../../i18n";
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { useHosts } from "../hosts/store";
@@ -109,10 +109,10 @@ export const useWorkbenchStore = defineStore("workbench", () => {
         id: group.id,
         title: terminalDisplayTitle(
           group.root.kind === "split" || group.savedProfileId
-            ? (group.name ?? t("工作区"))
+            ? (group.name ?? t("workspaces.title"))
             : terminal
               ? terminalBaseTitle(terminal)
-              : t("终端"),
+              : t("terminal.titles.terminal"),
           terminal?.remoteTitle,
         ),
         // 标签状态概括全部子终端，避免聚焦已关闭窗格时掩盖其他活动连接。
@@ -239,18 +239,19 @@ export const useWorkbenchStore = defineStore("workbench", () => {
     activeId.value = first.terminalId;
   }
   function validateSavedWorkspace(host: HostProfile) {
-    if (!host.workspace) throw new Error(t("工作区布局缺失"));
+    if (!host.workspace) throw new Error(t("workspaces.errors.missingLayout"));
     const hosts = useHosts();
     let count = 0;
     const visit = (node: SavedLayout, depth: number) => {
-      if (depth > 32 || count >= 64) throw new Error(t("工作区布局超出限制"));
+      if (depth > 32 || count >= 64)
+        throw new Error(t("workspaces.errors.layoutLimit"));
       if (node.kind === "connection") {
         const profile = hosts.hosts.find(
           (h) => h.id === node.profileId && h.kind !== "workspace",
         );
         if (!profile)
           throw new Error(
-            t("工作区“{name}”引用的连接已删除，请重新保存工作区", {
+            t("workspaces.errors.deletedConnection", {
               name: host.name,
             }),
           );
@@ -262,7 +263,7 @@ export const useWorkbenchStore = defineStore("workbench", () => {
           node.ratio < 0.1 ||
           node.ratio > 0.9
         )
-          throw new Error(t("工作区分割配置无效"));
+          throw new Error(t("workspaces.errors.invalidSplit"));
         visit(node.first, depth + 1);
         visit(node.second, depth + 1);
       }
@@ -273,7 +274,7 @@ export const useWorkbenchStore = defineStore("workbench", () => {
       host.workspace.focusedIndex < 0 ||
       host.workspace.focusedIndex >= count
     )
-      throw new Error(t("工作区焦点无效"));
+      throw new Error(t("workspaces.errors.invalidFocus"));
   }
   function openSavedWorkspace(host: HostProfile) {
     validateSavedWorkspace(host);
@@ -282,7 +283,7 @@ export const useWorkbenchStore = defineStore("workbench", () => {
       if (node.kind === "connection") {
         const profile = useHosts().hosts.find((h) => h.id === node.profileId);
         if (!profile || profile.kind === "workspace")
-          throw new Error(t("工作区连接引用无效"));
+          throw new Error(t("workspaces.errors.invalidConnection"));
         const terminal = add(
           profile.name,
           { source: "saved", profileId: profile.id },
@@ -316,7 +317,7 @@ export const useWorkbenchStore = defineStore("workbench", () => {
   function snapshotWorkspace(id: string): SavedWorkspace {
     const group = groups.value.find((g) => g.id === id);
     if (!group || (group.root.kind !== "split" && !group.savedProfileId))
-      throw new Error(t("只能保存工作区"));
+      throw new Error(t("workspaces.errors.workspaceOnly"));
     const hosts = useHosts();
     const capture = (node: LayoutNode): SavedLayout => {
       if (node.kind === "terminal") {
@@ -330,11 +331,7 @@ export const useWorkbenchStore = defineStore("workbench", () => {
             (h) => h.id === target.profileId && h.kind !== "workspace",
           )
         )
-          throw new Error(
-            t(
-              "工作区只能引用已保存的 SSH、Telnet 或串口连接；请先保存临时连接配置，本地终端暂不支持保存",
-            ),
-          );
+          throw new Error(t("workspaces.errors.unsavedConnections"));
         return { kind: "connection", profileId: target.profileId };
       }
       return {
@@ -659,19 +656,19 @@ export const useWorkbenchStore = defineStore("workbench", () => {
     dismiss,
   };
 });
-export const stateLabels: Record<SessionState, string> = {
-  created: "准备连接",
-  connecting: "连接中",
-  awaitingHostKey: "等待主机核验",
-  authenticating: "认证中",
-  awaitingAuth: "等待认证",
-  opening: "打开终端",
-  connected: "已连接",
-  closing: "正在断开",
-  closed: "已关闭连接",
-  failed: "连接失败",
-  disconnected: "已断开",
-};
+export const stateLabels = {
+  created: "terminal.state.created",
+  connecting: "terminal.state.connecting",
+  awaitingHostKey: "terminal.state.awaitingHostKey",
+  authenticating: "terminal.state.authenticating",
+  awaitingAuth: "terminal.state.awaitingAuth",
+  opening: "terminal.state.opening",
+  connected: "terminal.state.connected",
+  closing: "terminal.state.closing",
+  closed: "terminal.state.closed",
+  failed: "terminal.state.failed",
+  disconnected: "terminal.state.disconnected",
+} as const satisfies Record<SessionState, PlainMessageKey>;
 export function isActive(state: SessionState) {
   return !["closed", "failed", "disconnected"].includes(state);
 }

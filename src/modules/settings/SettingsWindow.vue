@@ -16,7 +16,7 @@ let disposed = false;
 let pendingTitle = Promise.resolve();
 // 标题与界面共用语言来源，串行更新避免快速切换时旧标题覆盖新标题。
 watch(
-  () => t("Termeta 设置"),
+  () => t("settings.windowTitle"),
   (title) => {
     document.title = title;
     pendingTitle = pendingTitle.then(async () => {

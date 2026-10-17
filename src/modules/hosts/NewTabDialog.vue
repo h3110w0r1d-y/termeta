@@ -97,8 +97,8 @@ function enter(event: KeyboardEvent) {
 <template>
   <AppDialog
     :open="open"
-    :title="t('新建标签页')"
-    :description="t('选择已保存的主机，或使用快速连接。')"
+    :title="t('workbench.actions.newTab')"
+    :description="t('hosts.newTab.description')"
     @update:open="emit('update:open', $event)"
     @after-enter="focus"
     @after-leave="afterLeave"
@@ -109,8 +109,8 @@ function enter(event: KeyboardEvent) {
         v-model:value="query"
         autofocus
         clearable
-        :placeholder="t('搜索全部主机…')"
-        :aria-label="t('搜索新标签页主机')"
+        :placeholder="t('hosts.search.placeholder')"
+        :aria-label="t('hosts.newTab.searchLabel')"
         :input-props="{
           maxlength: 256,
           role: 'combobox',
@@ -134,7 +134,7 @@ function enter(event: KeyboardEvent) {
             class="host-results"
             id="new-tab-results"
             role="listbox"
-            :aria-label="t('可连接的主机')"
+            :aria-label="t('hosts.newTab.available')"
           >
             <NListItem v-for="(host, index) in visible" :key="host.id">
               <NButton
@@ -155,7 +155,7 @@ function enter(event: KeyboardEvent) {
                       v-if="host.favorite"
                       :size="16"
                       role="img"
-                      :aria-label="t('已收藏')"
+                      :aria-label="t('hosts.status.favorite')"
                     >
                       <Star />
                     </NIcon>
@@ -173,15 +173,15 @@ function enter(event: KeyboardEvent) {
             v-else
             :description="
               query.trim()
-                ? t('没有匹配的主机')
-                : t('还没有保存主机，可使用快速连接')
+                ? t('hosts.search.noResults')
+                : t('hosts.newTab.empty')
             "
           />
         </div>
       </NScrollbar>
       <NText v-if="results.length > 100" depth="3">
         {{
-          t("共 {count} 台，仅显示前100台，请缩小搜索范围。", {
+          t("hosts.search.limitDescription", {
             count: results.length,
           })
         }}
@@ -191,11 +191,13 @@ function enter(event: KeyboardEvent) {
       <NFlex justify="space-between">
         <ConnectionTypeDropdown
           v-model:show="quickMenuShown"
-          :label="t('快速连接')"
+          :label="t('hosts.actions.quickConnect')"
           :disabled="!open"
           @select="quick"
         />
-        <NButton @click="emit('update:open', false)">{{ t("取消") }}</NButton>
+        <NButton @click="emit('update:open', false)">
+          {{ t("common.actions.cancel") }}
+        </NButton>
       </NFlex>
     </template>
   </AppDialog>

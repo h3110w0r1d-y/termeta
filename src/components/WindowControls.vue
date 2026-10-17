@@ -17,28 +17,32 @@ async function act(action: () => Promise<void>) {
 </script>
 <template>
   <!-- macOS 使用原生红黄绿按钮；关闭始终经过应用既有的会话与传输确认。 -->
-  <div v-if="!isMac" class="window-controls" :aria-label="t('窗口操作')">
+  <div
+    v-if="!isMac"
+    class="window-controls"
+    :aria-label="t('window.controls.label')"
+  >
     <ApplicationMenu />
     <AppButton
       class="icon-button"
-      :aria-label="t('最小化窗口')"
-      :title="t('最小化')"
+      :aria-label="t('window.controls.minimizeLabel')"
+      :title="t('window.controls.minimize')"
       @click="act(desktop.minimizeWindow)"
     >
       <NIcon :size="16" aria-hidden="true"><RemoveOutline /></NIcon>
     </AppButton>
     <AppButton
       class="icon-button"
-      :aria-label="t('最大化或还原窗口')"
-      :title="t('最大化 / 还原')"
+      :aria-label="t('window.controls.maximizeLabel')"
+      :title="t('window.controls.maximize')"
       @click="act(desktop.toggleMaximizeWindow)"
     >
       <NIcon :size="16" aria-hidden="true"><SquareOutline /></NIcon>
     </AppButton>
     <AppButton
       class="icon-button"
-      :aria-label="t('关闭窗口')"
-      :title="t('关闭窗口')"
+      :aria-label="t('window.controls.close')"
+      :title="t('window.controls.close')"
       @click="act(desktop.closeWindow)"
     >
       <NIcon :size="16" aria-hidden="true"><CloseOutline /></NIcon>

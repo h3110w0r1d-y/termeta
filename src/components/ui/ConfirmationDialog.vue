@@ -15,7 +15,11 @@ import AppDialog from "./AppDialog.vue";
 import { currentConfirmation, settleConfirmation } from "./confirmation";
 const form = ref<FormInst>();
 const rules = computed<FormRules>(() => ({
-  input: { max: 120, message: t("最多120个字符"), trigger: ["input", "blur"] },
+  input: {
+    max: 120,
+    message: t("common.validation.maxLength120"),
+    trigger: ["input", "blur"],
+  },
 }));
 watch(currentConfirmation, () => form.value?.restoreValidation());
 async function submit() {
@@ -26,7 +30,9 @@ async function submit() {
   <AppDialog
     :open="!!currentConfirmation"
     :title="
-      currentConfirmation?.input === undefined ? t('确认操作') : t('输入信息')
+      currentConfirmation?.input === undefined
+        ? t('common.dialog.confirmTitle')
+        : t('common.dialog.inputTitle')
     "
     @update:open="(value) => !value && settleConfirmation(false)"
   >
@@ -41,7 +47,7 @@ async function submit() {
       <p class="confirmation-message">{{ currentConfirmation.message }}</p>
       <NFormItem
         v-if="currentConfirmation.input !== undefined"
-        :label="t('输入信息')"
+        :label="t('common.dialog.inputTitle')"
         path="input"
       >
         <AppInput
@@ -54,10 +60,10 @@ async function submit() {
     <template #footer>
       <NFlex justify="end">
         <AppButton type="button" @click="settleConfirmation(false)">
-          {{ t("取消") }}
+          {{ t("common.actions.cancel") }}
         </AppButton>
         <AppButton type="submit" form="confirmation-form" class="primary">
-          {{ t("确认") }}
+          {{ t("common.actions.confirm") }}
         </AppButton>
       </NFlex>
     </template>

@@ -79,7 +79,8 @@ export const usePortForwards = defineStore("port-forwards", () => {
     if (!runtime || (runtime.ended && event.type !== "ended")) return;
     runtime.sessionId = event.sessionId;
     workbench.connectionTitles[event.sessionId] =
-      profiles.value.find((p) => p.id === id)?.name ?? t("端口转发");
+      profiles.value.find((p) => p.id === id)?.name ??
+      t("common.navigation.forwarding");
     if (event.type === "stateChanged") update(id, event.snapshot);
     else if (
       event.type === "hostKeyChallenge" ||

@@ -1,20 +1,14 @@
 import { computed, ref, watch } from "vue";
 import { zhCN, enUS, dateZhCN, dateEnUS } from "naive-ui";
-import common from "./messages/common";
-import hosts from "./messages/hosts";
-import terminal from "./messages/terminal";
-import settings from "./messages/settings";
+import { messages } from "./messages";
+import type { MessageKey, TranslationArguments } from "./messages";
+
+export type { MessageKey, PlainMessageKey } from "./messages";
 
 export type Language = "system" | "zh-CN" | "en-US";
 export type Locale = Exclude<Language, "system">;
 const preference = ref<Language>("system");
 const systemLanguages = ref([...navigator.languages]);
-const english: Record<string, string> = Object.assign(Object.create(null), {
-  ...common,
-  ...hosts,
-  ...terminal,
-  ...settings,
-});
 export const locale = computed<Locale>(() => {
   if (preference.value !== "system") return preference.value;
   for (const language of systemLanguages.value) {
@@ -35,13 +29,13 @@ export function normalizeLanguage(value: unknown): Language {
 export function setLanguage(value: Language) {
   preference.value = normalizeLanguage(value);
 }
-// 中文原文兼作词条标识；插值只替换命名参数，不解析 HTML 或执行表达式。
-export function t(
-  message: string,
-  parameters: Record<string, string | number> = {},
+// key 与译文分离；类型约束词条和命名参数，插值不解析 HTML 或执行表达式。
+export function t<Key extends MessageKey>(
+  key: Key,
+  ...args: TranslationArguments<Key>
 ): string {
-  const translated =
-    locale.value === "en-US" ? (english[message] ?? message) : message;
+  const parameters: Record<string, string | number> = args[0] ?? {};
+  const translated = messages[locale.value][key];
   return translated.replace(/\{(\w+)\}/g, (placeholder, name: string) =>
     Object.prototype.hasOwnProperty.call(parameters, name)
       ? String(parameters[name])

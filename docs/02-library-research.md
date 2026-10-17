@@ -1,6 +1,6 @@
 # 技术选型与依赖依据
 
-更新：2026-10-17。以下为当前源码与锁定发布包的静态核查结果，未代表编译兼容、真实连接或三平台运行验收。具体依赖以 Cargo.lock、pnpm-lock.yaml 为准。
+更新：2026-10-18。以下为当前源码与锁定发布包的静态核查结果，未代表编译兼容、真实连接或三平台运行验收。具体依赖以 Cargo.lock、pnpm-lock.yaml 为准。
 
 ## 1. 当前选型
 
@@ -120,3 +120,7 @@ SQLite快照沿用锁定libsqlite3-sys0.30.1的bundled-sqlcipher绑定及内嵌�
 ## 10. 系统终端集成候选
 
 2026-10-17 的三平台公开接口、Tauri 固定版本源码核对及来源见[系统终端调研](23-terminal-system-integration-research.md)。single-instance 2.4.2 可复用 argv/cwd 转交但当前装配只聚焦窗口；portable-pty 0.9.0 创建本地进程，不提供 Windows 默认控制台接管。macOS 关联需区分已弃用 LaunchServices setter 与 macOS 12+ NSWorkspace；Linux xdg-terminal-exec 仍为提议规范。deep-link、Windows COM/console host/proxy、包身份和菜单适配均为候选，未新增依赖或锁文件；实施前核对固定 release 的 API/features、MSRV、许可、公告与目标系统，不能直接以在线 latest 文档替代。
+
+## 11. macOS 原生菜单本地化
+
+沿用锁定 Tauri 2.11.5 / muda 0.19.3 与 objc2 0.6.5 / objc2-app-kit、foundation 0.3.2 / block2 0.6.2，不新增 crate 或修改版本；按需显式启用 AppKit NSMenuItem 与 Foundation NSBundle、NSNotification、block2 features，Cargo.lock 无依赖变化。按[维护者说明](https://github.com/tauri-apps/muda/issues/235)，普通菜单项创建时提供标题，原生预设项使用可选自定义文本，热切换调用 `MenuItem` / `Submenu` / `PredefinedMenuItem::set_text`。已静态核对锁定包的 menu/menu.rs、normal.rs、submenu.rs、predefined.rs：预设项保留系统 action/accelerator；窗口和帮助菜单使用 Tauri 固定 ID，安装菜单时继续关联 NSApplication 的原生角色。双语 JSON 由 Rust 内嵌并与前端共享，不依赖 muda 提供语言包。系统动态项通过公开的 [NSMenu 新增通知](https://developer.apple.com/documentation/appkit/nsmenu/didadditemnotification)、[变化通知](https://developer.apple.com/documentation/appkit/nsmenu/didchangeitemnotification)及开始跟踪通知同步改写标题，不替换 delegate；回调和令牌在主线程管理，并用重入保护防止 setTitle 再触发通知。锁定绑定源码已核对通知块签名、注销与 NSMenu/NSMenuItem 标题 API；系统标签及中文名称按本机 AppKit MenuCommands/InputManager/DictationManager 资源核对，仅识别固定作用域内的已知标签，未知项保留原文。源码/API 与资源静态检查不等于原生运行验证，仍须重新编译验收菜单角色、编辑操作、快捷键、关闭确认及语言切换。

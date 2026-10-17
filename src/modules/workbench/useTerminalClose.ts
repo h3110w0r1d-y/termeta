@@ -25,9 +25,7 @@ export function useTerminalClose() {
     try {
       if (
         terminals.some((terminal) => terminal.sftpTransferring) &&
-        !(await confirmAction(
-          t("此终端有 SFTP 传输正在进行，关闭将取消传输，确定继续？"),
-        ))
+        !(await confirmAction(t("files.confirmCloseTerminal")))
       )
         return;
       const running = terminals.filter(needsCloseConfirmation);
@@ -36,14 +34,11 @@ export function useTerminalClose() {
         settings.value.confirmClose &&
         !(await confirmAction(
           terminals.length > 1
-            ? t(
-                "“{title}”中有 {count} 个终端可能正在执行命令。关闭将断开连接并清除终端历史，是否继续？",
-                { title, count: running.length },
-              )
-            : t(
-                "“{title}”可能正在执行命令。关闭将断开连接并清除终端历史，是否继续？",
-                { title },
-              ),
+            ? t("workbench.close.confirmGroup", {
+                title,
+                count: running.length,
+              })
+            : t("workbench.close.confirmTerminal", { title }),
         ))
       )
         return;
@@ -81,10 +76,10 @@ export function useTerminalClose() {
       return closeTerminals(
         terminalIds(group.root),
         group.root.kind === "split" || group.savedProfileId
-          ? (group.name ?? t("工作区"))
+          ? (group.name ?? t("workspaces.title"))
           : focused
             ? terminalBaseTitle(focused)
-            : t("终端"),
+            : t("terminal.titles.terminal"),
       );
     }
   }

@@ -54,33 +54,33 @@ function resetPrimaryColor() {
     .catch(() => undefined);
 }
 const rules = computed<FormRules>(() => ({
-  tabPosition: requiredText("标签栏位置"),
-  tabDoubleClickAction: requiredText("双击标签页动作"),
-  appearance: requiredText("应用外观"),
+  tabPosition: requiredText("settings.general.tabPosition"),
+  tabDoubleClickAction: requiredText("settings.general.tabDoubleClickAction"),
+  appearance: requiredText("settings.general.appearance"),
   primaryColor: {
     trigger: ["change", "blur"],
     validator: (_, value: string) =>
       value === "" ||
       /^#[0-9a-f]{6}$/i.test(value) ||
-      new Error(t("请输入6位HEX颜色")),
+      new Error(t("settings.validation.accentColor")),
   },
-  fontFamily: requiredText("终端字体"),
+  fontFamily: requiredText("settings.terminal.font"),
   fontSize: {
     required: true,
     type: "number",
     min: 10,
     max: 32,
-    message: t("字号须为10–32"),
+    message: t("settings.validation.fontSize"),
     trigger: ["blur", "change"],
   },
-  scrollback: integerRange("滚屏行数", 1000, 50000),
+  scrollback: integerRange("settings.terminal.scrollback", 1000, 50000),
 }));
 </script>
 <template>
   <AppDialog
     embedded
     :open="true"
-    :title="t('设置')"
+    :title="t('settings.title')"
     wide
     class="embedded-settings"
   >
@@ -90,7 +90,7 @@ const rules = computed<FormRules>(() => ({
           <NTabs v-model:value="tab" type="line" animated>
             <NTabPane
               name="general"
-              :tab="t('常规')"
+              :tab="t('settings.sections.general')"
               display-directive="show:lazy"
             >
               <NForm
@@ -101,64 +101,102 @@ const rules = computed<FormRules>(() => ({
                 @submit.prevent
                 class="form-grid"
               >
-                <NFormItem :label="t('语言')" path="language">
+                <NFormItem
+                  :label="t('settings.general.language')"
+                  path="language"
+                >
                   <AppSelect
                     v-model="draft.language"
                     :options="[
-                      { value: 'system', label: t('跟随系统') },
+                      {
+                        value: 'system',
+                        label: t('settings.appearance.system'),
+                      },
                       { value: 'zh-CN', label: '简体中文' },
                       { value: 'en-US', label: 'English' },
                     ]"
                   />
                 </NFormItem>
-                <NFormItem :label="t('标签栏位置')" path="tabPosition">
+                <NFormItem
+                  :label="t('settings.general.tabPosition')"
+                  path="tabPosition"
+                >
                   <NRadioGroup
                     v-model:value="draft.tabPosition"
-                    :aria-label="t('标签栏位置')"
+                    :aria-label="t('settings.general.tabPosition')"
                   >
-                    <NRadioButton value="top">{{ t("顶部") }}</NRadioButton>
-                    <NRadioButton value="left">{{ t("左侧") }}</NRadioButton>
+                    <NRadioButton value="top">
+                      {{ t("settings.tabPosition.top") }}
+                    </NRadioButton>
+                    <NRadioButton value="left">
+                      {{ t("settings.tabPosition.left") }}
+                    </NRadioButton>
                   </NRadioGroup>
                 </NFormItem>
-                <NFormItem :label="t('双击标签页')" path="tabDoubleClickAction">
+                <NFormItem
+                  :label="t('settings.general.tabDoubleClick')"
+                  path="tabDoubleClickAction"
+                >
                   <AppSelect
                     v-model="draft.tabDoubleClickAction"
                     :options="[
-                      { value: 'none', label: t('无动作') },
-                      { value: 'close', label: t('关闭标签页') },
-                      { value: 'duplicate', label: t('复制标签页') },
-                      { value: 'split', label: t('拆分会话') },
+                      { value: 'none', label: t('settings.doubleClick.none') },
+                      {
+                        value: 'close',
+                        label: t('settings.doubleClick.close'),
+                      },
+                      {
+                        value: 'duplicate',
+                        label: t('workbench.actions.duplicateTab'),
+                      },
+                      { value: 'split', label: t('workbench.actions.split') },
                     ]"
                   />
                 </NFormItem>
-                <NFormItem :label="t('应用外观')" path="appearance">
+                <NFormItem
+                  :label="t('settings.general.appearance')"
+                  path="appearance"
+                >
                   <NRadioGroup
                     v-model:value="draft.appearance"
-                    :aria-label="t('应用外观')"
+                    :aria-label="t('settings.general.appearance')"
                   >
-                    <NRadioButton value="dark" :title="t('深色')">
+                    <NRadioButton
+                      value="dark"
+                      :title="t('settings.appearance.dark')"
+                    >
                       <span class="appearance-option">
                         <NIcon :size="16" aria-hidden="true">
                           <MoonOutline />
                         </NIcon>
-                        <span class="appearance-label">{{ t("深色") }}</span>
+                        <span class="appearance-label">
+                          {{ t("settings.appearance.dark") }}
+                        </span>
                       </span>
                     </NRadioButton>
-                    <NRadioButton value="light" :title="t('浅色')">
+                    <NRadioButton
+                      value="light"
+                      :title="t('settings.appearance.light')"
+                    >
                       <span class="appearance-option">
                         <NIcon :size="16" aria-hidden="true">
                           <SunnyOutline />
                         </NIcon>
-                        <span class="appearance-label">{{ t("浅色") }}</span>
+                        <span class="appearance-label">
+                          {{ t("settings.appearance.light") }}
+                        </span>
                       </span>
                     </NRadioButton>
-                    <NRadioButton value="system" :title="t('跟随系统')">
+                    <NRadioButton
+                      value="system"
+                      :title="t('settings.appearance.system')"
+                    >
                       <span class="appearance-option">
                         <NIcon :size="16" aria-hidden="true">
                           <DesktopOutline />
                         </NIcon>
                         <span class="appearance-label">
-                          {{ t("跟随系统") }}
+                          {{ t("settings.appearance.system") }}
                         </span>
                       </span>
                     </NRadioButton>
@@ -166,7 +204,7 @@ const rules = computed<FormRules>(() => ({
                 </NFormItem>
                 <NFormItem
                   ref="primaryColorItem"
-                  :label="t('主题色')"
+                  :label="t('settings.general.accentColor')"
                   path="primaryColor"
                 >
                   <div class="primary-color-row">
@@ -174,29 +212,38 @@ const rules = computed<FormRules>(() => ({
                       :value="draft.primaryColor || null"
                       :modes="['hex']"
                       :show-alpha="false"
-                      :aria-label="t('主题色')"
+                      :aria-label="t('settings.general.accentColor')"
                       @update:value="draft.primaryColor = $event ?? ''"
                     />
                     <NButton @click="resetPrimaryColor">
-                      {{ t("恢复默认") }}
+                      {{ t("common.actions.reset") }}
                     </NButton>
                   </div>
                 </NFormItem>
-                <NFormItem :label="t('终端字体')" path="fontFamily">
+                <NFormItem
+                  :label="t('settings.terminal.font')"
+                  path="fontFamily"
+                >
                   <AppSelect
                     v-model="draft.fontFamily"
                     :options="terminalFontOptions"
                     :render-label="renderFontLabel"
                   />
                 </NFormItem>
-                <NFormItem :label="t('字号')" path="fontSize">
+                <NFormItem
+                  :label="t('settings.terminal.fontSize')"
+                  path="fontSize"
+                >
                   <AppNumberField
                     v-model="draft.fontSize"
                     :min="10"
                     :max="32"
                   />
                 </NFormItem>
-                <NFormItem :label="t('滚屏行数')" path="scrollback">
+                <NFormItem
+                  :label="t('settings.terminal.scrollback')"
+                  path="scrollback"
+                >
                   <AppNumberField
                     v-model="draft.scrollback"
                     :min="1000"
@@ -204,54 +251,54 @@ const rules = computed<FormRules>(() => ({
                   />
                 </NFormItem>
                 <AppCheckbox v-model="draft.confirmClose" class="span-2">
-                  {{ t("关闭可能正在执行命令的终端前确认") }}
+                  {{ t("settings.security.confirmClose") }}
                 </AppCheckbox>
                 <AppCheckbox v-model="draft.multilinePaste" class="span-2">
-                  {{ t("多行粘贴前确认") }}
+                  {{ t("settings.security.confirmMultilinePaste") }}
                 </AppCheckbox>
                 <p class="muted span-2">
-                  {{ t("终端输出不会保存到磁盘，主机和凭据加密保存在本机。") }}
+                  {{ t("settings.security.description") }}
                 </p>
               </NForm>
             </NTabPane>
             <NTabPane
               name="system-detection"
-              :tab="t('SSH 系统识别')"
+              :tab="t('settings.sections.systemDetection')"
               display-directive="show:lazy"
             >
               <SystemDetectionSettings v-model="draft.detectSshSystem" />
             </NTabPane>
             <NTabPane
               name="search"
-              :tab="t('搜索')"
+              :tab="t('settings.sections.search')"
               display-directive="show:lazy"
             >
               <SearchPreferences />
             </NTabPane>
             <NTabPane
               name="security"
-              :tab="t('安全')"
+              :tab="t('settings.sections.security')"
               display-directive="show:lazy"
             >
               <VaultSecuritySettings ref="security" />
             </NTabPane>
             <NTabPane
               name="backup"
-              :tab="t('备份 / 同步')"
+              :tab="t('settings.sections.backup')"
               display-directive="show:lazy"
             >
               <BackupPanel ref="backup" />
             </NTabPane>
             <NTabPane
               name="themes"
-              :tab="t('终端配色')"
+              :tab="t('terminal.form.theme')"
               display-directive="show:lazy"
             >
               <ThemeSettings v-model:settings="draft" />
             </NTabPane>
             <NTabPane
               name="shortcuts"
-              :tab="t('快捷键')"
+              :tab="t('settings.sections.shortcuts')"
               display-directive="show:lazy"
             >
               <ShortcutSettings v-model:settings="draft" />

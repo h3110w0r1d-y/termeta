@@ -51,34 +51,34 @@ function afterLeave() {
 <template>
   <AppDialog
     :open="open"
-    :title="t('批量连接')"
+    :title="t('hosts.batch.title')"
     @update:open="cancel"
     @after-leave="afterLeave"
   >
     <p>
       {{
-        t("“{groupName}”中共有 {count} 台主机（包含子分组），是否批量连接？", {
+        t("hosts.batch.confirm", {
           groupName: groupName,
           count: hosts.length,
         })
       }}
     </p>
-    <NText depth="3">{{ t("选择在独立标签或分屏工作区中打开。") }}</NText>
+    <NText depth="3">{{ t("hosts.batch.description") }}</NText>
     <NText v-if="hosts.some((host) => host.kind === 'workspace')" depth="3">
-      {{ t("已保存的工作区将按原布局打开。") }}
+      {{ t("hosts.batch.savedWorkspaceHint") }}
     </NText>
     <template #footer>
       <NSpace justify="end">
-        <NButton @click="cancel">{{ t("取消") }}</NButton>
+        <NButton @click="cancel">{{ t("common.actions.cancel") }}</NButton>
         <NButton :disabled="!hosts.length" @click="choose('tabs')">
-          {{ t("在独立标签中打开") }}
+          {{ t("hosts.batch.separateTabs") }}
         </NButton>
         <NButton
           type="primary"
           :disabled="!hosts.length"
           @click="choose('workspace')"
         >
-          {{ t("在工作区中打开") }}
+          {{ t("hosts.batch.workspace") }}
         </NButton>
       </NSpace>
     </template>

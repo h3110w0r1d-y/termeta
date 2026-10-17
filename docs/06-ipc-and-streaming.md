@@ -1,6 +1,6 @@
 # IPC 契约与终端数据流
 
-更新：2026-10-17。协议版本 1，首期命令/Channel/ACL 已落源码，尚未运行验证。Rust/TS 实际入口及差异见 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)。
+更新：2026-10-18。协议版本 1，首期命令/Channel/ACL 已落源码，尚未运行验证。Rust/TS 实际入口及差异见 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)。
 
 ## 1. 控制面与数据面
 
@@ -277,7 +277,7 @@ macOS 拖出 names 最多 100 个普通文件或真实目录根，directories �
 
 `open_settings_window()`仅main可调用且要求已解锁，Rust创建/聚焦settings窗口。`get_settings`返回完整AppSettings；`save_settings`在设置专用异步互斥队列中读取最新快照、合并patch并校验后写库，返回完整快照。hostsView/hostSearch额外按子字段合并，其余字段整体替换；默认值仅在无记录时使用，旧版本拒绝写入，兼容旧字体/配色归一。keymap 内层版本为 2，命令 ID/context 使用 workbench 命名；读取、保存和 JSON 导入只接受当前快捷键格式，拒绝旧版本及旧命名，不进行转换或补充缺失绑定。成功后Rust广播无秘密的`settings-changed`失效通知，两个窗口串行重读；前端不发送设置事件。数据库schema及设置schemaVersion不变。
 
-settings窗口仅开放设置、change_vault_password、export_json及下文7个已解锁备份命令，这些命令使用独立settings_owner检查窗口身份、本地来源和解锁状态；list_known_hosts/revoke_known_host/list_history/clear_history随业务页面移入保险箱，改用仅main可用的owner，且从settings capability移除。设置窗口另通过desktop门面调用库的setTitle更新自身标题，settings capability开放core:window:allow-set-title；不新增自定义IPC或任意其他窗口资源入口。其余资源owner保持main限制。新增命令纳入COMMANDS/AppManifest、handler和main capability；settings使用独立capability。
+settings窗口仅开放设置、change_vault_password、export_json及下文7个已解锁备份命令，这些命令使用独立settings_owner检查窗口身份、本地来源和解锁状态；list_known_hosts/revoke_known_host/list_history/clear_history随业务页面移入保险箱，改用仅main可用的owner，且从settings capability移除。设置窗口另通过desktop门面调用库的setTitle更新自身标题，settings capability开放core:window:allow-set-title；不新增自定义IPC或任意其他窗口资源入口。其余资源owner保持main限制。原生菜单另提供 `set_native_menu_locale(locale:"zh-CN"|"en-US") -> void`：仅 main/local_navigation，通过 window_owner 检查，允许保险库锁定时同步系统语言；settings capability 不开放。前端仅发送解析后的语言，Rust 使用内嵌共享 JSON 词典更新固定菜单标题，不接受任意菜单 ID/文本/动作；macOS 在主线程完成更新后响应，其他平台校验后空操作。新增命令纳入 COMMANDS/AppManifest、handler 和 main capability；settings 使用独立 capability。
 
 ## SSH 系统图标契约
 

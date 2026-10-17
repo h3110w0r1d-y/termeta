@@ -50,6 +50,7 @@ pub const COMMANDS: &[&str] = &[
     "save_credential",
     "delete_credential",
     "open_settings_window",
+    "set_native_menu_locale",
     "get_settings",
     "save_settings",
     "open_external_url",

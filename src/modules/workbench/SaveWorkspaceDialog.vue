@@ -32,12 +32,12 @@ const existing = computed(() =>
 );
 const rules = computed<FormRules>(() => ({
   name: [
-    requiredText(t("名称")),
+    requiredText("common.fields.name"),
     {
       validator: () =>
         !existing.value ||
         existing.value.kind === "workspace" ||
-        new Error(t("名称已被连接使用，只允许替换同名工作区")),
+        new Error(t("workspaces.errors.nameConflict")),
       trigger: ["input", "blur"],
     },
   ],
@@ -84,13 +84,13 @@ async function save() {
 <template>
   <AppDialog
     :open="!!groupId"
-    :title="t('保存工作区')"
+    :title="t('workspaces.actions.save')"
     :locked="busy"
     @update:open="emit('close')"
     @after-leave="emit('after-leave')"
   >
     <NForm ref="form" :model="model" :rules="rules" @submit.prevent="save">
-      <NFormItem :label="t('名称')" path="name">
+      <NFormItem :label="t('common.fields.name')" path="name">
         <NInput
           v-model:value="model.name"
           :maxlength="128"
@@ -100,16 +100,16 @@ async function save() {
       </NFormItem>
     </NForm>
     <NText depth="3">
-      {{ t("保存当前布局和连接。需要更改时，可再次保存以替换同名工作区。") }}
+      {{ t("workspaces.save.description") }}
     </NText>
     <NAlert v-if="existing?.kind === 'workspace'" type="warning">
-      {{ t("将替换工作区“{name}”的布局和连接。", { name: existing.name }) }}
+      {{ t("workspaces.save.confirmReplace", { name: existing.name }) }}
     </NAlert>
     <NAlert v-if="error" type="error">{{ error }}</NAlert>
     <template #footer>
       <NSpace justify="end">
         <NButton :disabled="busy" @click="emit('close')">
-          {{ t("取消") }}
+          {{ t("common.actions.cancel") }}
         </NButton>
         <NButton
           type="primary"
@@ -117,7 +117,11 @@ async function save() {
           :disabled="!snapshot"
           @click="save"
         >
-          {{ existing?.kind === "workspace" ? t("替换工作区") : t("保存") }}
+          {{
+            existing?.kind === "workspace"
+              ? t("workspaces.actions.replace")
+              : t("common.actions.save")
+          }}
         </NButton>
       </NSpace>
     </template>

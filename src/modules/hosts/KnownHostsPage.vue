@@ -40,8 +40,7 @@ async function revoke(id: string) {
   if (busy.value) return;
   busy.value = true;
   try {
-    if (!(await confirmAction(t("撤销信任？下次连接需要重新核验指纹。"))))
-      return;
+    if (!(await confirmAction(t("knownHosts.confirmRevoke")))) return;
     await desktop.revokeKnownHost(id);
     await load();
   } catch (e) {
@@ -52,15 +51,15 @@ async function revoke(id: string) {
 }
 </script>
 <template>
-  <section class="home-page" :aria-label="t('主机信任')">
+  <section class="home-page" :aria-label="t('common.navigation.knownHosts')">
     <header class="page-heading">
       <div>
-        <NH1>{{ t("主机信任") }}</NH1>
-        <NText depth="3">{{ t("管理已信任的 SSH 主机") }}</NText>
+        <NH1>{{ t("common.navigation.knownHosts") }}</NH1>
+        <NText depth="3">{{ t("knownHosts.description") }}</NText>
       </div>
       <NFlex>
         <AppButton :disabled="loading || busy" @click="load">
-          {{ t("刷新") }}
+          {{ t("common.actions.refresh") }}
         </AppButton>
       </NFlex>
     </header>
@@ -69,7 +68,7 @@ async function revoke(id: string) {
       <NSpin :show="loading">
         <NEmpty
           v-if="!loading && !known.length"
-          :description="t('尚未保存主机信任。')"
+          :description="t('knownHosts.empty')"
         />
         <NList v-else bordered>
           <NListItem v-for="host in known" :key="host.id">
@@ -84,7 +83,7 @@ async function revoke(id: string) {
                 :disabled="loading || busy"
                 @click="revoke(host.id)"
               >
-                {{ t("撤销信任") }}
+                {{ t("knownHosts.actions.revoke") }}
               </AppButton>
             </template>
           </NListItem>

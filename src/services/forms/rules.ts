@@ -1,16 +1,16 @@
-import { t } from "../../i18n";
+import { t, type PlainMessageKey } from "../../i18n";
 import type { FormItemRule, FormInst } from "naive-ui";
-export function requiredText(label: string): FormItemRule {
+export function requiredText(label: PlainMessageKey): FormItemRule {
   return {
     required: true,
     trigger: ["input", "blur", "change"],
     validator: (_, value: unknown) =>
       (typeof value === "string" && !!value.trim()) ||
-      new Error(t("请填写{label}", { label: t(label) })),
+      new Error(t("common.validation.required", { label: t(label) })),
   };
 }
 export function integerRange(
-  label: string,
+  label: PlainMessageKey,
   min: number,
   max: number,
 ): FormItemRule {
@@ -24,7 +24,7 @@ export function integerRange(
         value >= min &&
         value <= max) ||
       new Error(
-        t("{label}须为 {min}–{max} 的整数", { label: t(label), min, max }),
+        t("common.validation.integerRange", { label: t(label), min, max }),
       ),
   };
 }

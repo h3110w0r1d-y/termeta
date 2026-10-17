@@ -28,7 +28,11 @@ const options = computed<DropdownOption[]>(() => [
     label: "Telnet",
     icon: icon(GlobeOutline),
   },
-  { key: "serial", label: t("串口"), icon: icon(HardwareChipOutline) },
+  {
+    key: "serial",
+    label: t("common.connection.serial"),
+    icon: icon(HardwareChipOutline),
+  },
 ]);
 watch(
   () => props.disabled,

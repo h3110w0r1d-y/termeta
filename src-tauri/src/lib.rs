@@ -5,6 +5,7 @@ mod file_drag;
 mod files;
 #[cfg(target_os = "macos")]
 mod macos_menu;
+mod native_menu;
 mod settings;
 mod settings_window;
 mod state;
@@ -144,8 +145,7 @@ pub fn run() {
                     state.forward_sessions.close_owner(window.label());
                     if window.label() == "main" {
                         #[cfg(target_os = "macos")]
-                        let _ =
-                            window.run_on_main_thread(macos_menu::remove_settings_shortcut_monitor);
+                        let _ = window.run_on_main_thread(macos_menu::remove_listeners);
                         if let Some(settings) = window.app_handle().get_webview_window("settings") {
                             let _ = settings.destroy();
                         }
@@ -207,6 +207,7 @@ pub fn run() {
             commands::save_credential,
             commands::delete_credential,
             commands::open_settings_window,
+            commands::set_native_menu_locale,
             commands::get_settings,
             commands::save_settings,
             commands::open_external_url,

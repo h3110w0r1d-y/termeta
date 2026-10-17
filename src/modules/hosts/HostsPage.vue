@@ -62,7 +62,7 @@ const batchOpen = ref(false);
 const batchGroup = ref({ id: "all", hostIds: [] as string[] });
 const batchGroupName = computed(() =>
   batchGroup.value.id === "all"
-    ? t("全部主机")
+    ? t("hosts.filters.all")
     : groupPath(
         store.groups,
         batchGroup.value.id === "ungrouped" ? null : batchGroup.value.id,
@@ -140,7 +140,7 @@ const selectedGroup = computed(() =>
 );
 const groupName = computed(() =>
   group.value === "all"
-    ? t("全部主机")
+    ? t("hosts.filters.all")
     : groupPath(store.groups, selectedGroup.value?.id ?? null),
 );
 const scope = computed(() =>
@@ -178,29 +178,37 @@ function createHost(kind: HostKind = "ssh") {
 }
 const menu = ref({ show: false, hostId: "", x: 0, y: 0 });
 const menuOptions = computed(() => [
-  { label: t("连接"), key: "connect" },
+  { label: t("common.actions.connect"), key: "connect" },
   {
-    label: t("编辑"),
+    label: t("common.actions.edit"),
     key: "edit",
     disabled:
       store.managementBusy ||
       store.hosts.find((h) => h.id === menu.value.hostId)?.kind === "workspace",
   },
   {
-    label: t("复制"),
+    label: t("common.actions.duplicate"),
     key: "duplicate",
     disabled:
       store.managementBusy ||
       store.hosts.find((h) => h.id === menu.value.hostId)?.kind === "workspace",
   },
-  { label: t("移动到分组…"), key: "move", disabled: store.managementBusy },
-  { label: t("删除"), key: "delete", disabled: store.managementBusy },
+  {
+    label: t("hosts.actions.moveToGroup"),
+    key: "move",
+    disabled: store.managementBusy,
+  },
+  {
+    label: t("common.actions.delete"),
+    key: "delete",
+    disabled: store.managementBusy,
+  },
 ]);
 const movingHost = ref<HostProfile>();
 const destination = ref("");
 const moveError = ref("");
 const moveOptions = computed(() => [
-  { value: "", label: t("未分组") },
+  { value: "", label: t("hosts.groups.ungrouped") },
   ...groupChoices(store.groups),
 ]);
 function openMenu(event: MouseEvent | KeyboardEvent, host: HostProfile) {
@@ -247,7 +255,7 @@ const moveRules: FormRules = {
     validator: () =>
       destination.value === "" ||
       store.groups.some((group) => group.id === destination.value) ||
-      new Error(t("请选择有效分组")),
+      new Error(t("hosts.validation.invalidGroup")),
     trigger: "change",
   },
 };
@@ -274,7 +282,7 @@ async function remove(host: HostProfile) {
   try {
     if (
       await confirmAction(
-        t("删除主机“{name}”？当前会话不受影响，共享凭据不会删除。", {
+        t("hosts.confirmDelete", {
           name: host.name,
         }),
       )
@@ -323,13 +331,13 @@ watch(group, () => {
     />
     <NSpace class="host-actions" justify="start">
       <ConnectionTypeDropdown
-        :label="t('新建主机')"
+        :label="t('hosts.actions.new')"
         primary
         :disabled="store.managementBusy || !active"
         @select="createHost"
       />
       <ConnectionTypeDropdown
-        :label="t('快速连接')"
+        :label="t('hosts.actions.quickConnect')"
         :disabled="!active"
         @select="emit('quick', $event)"
       />
@@ -337,7 +345,7 @@ watch(group, () => {
         <template #icon>
           <AssetIcon name="local-terminal" :size="18" />
         </template>
-        {{ t("本地终端") }}
+        {{ t("terminal.titles.local") }}
       </NButton>
     </NSpace>
     <NAlert
@@ -368,13 +376,13 @@ watch(group, () => {
         @connect="connectMany"
         @after-leave="batchGroup = { id: 'all', hostIds: [] }"
       />
-      <section class="host-content" :aria-label="t('分组主机')">
+      <section class="host-content" :aria-label="t('hosts.filters.group')">
         <div class="host-scope">
           <NEllipsis>
             <NText strong>{{ groupName }}</NText>
           </NEllipsis>
           <NText depth="3">
-            {{ t("{count} 台主机", { count: visible.length }) }}
+            {{ t("hosts.count", { count: visible.length }) }}
           </NText>
           <NCheckbox
             v-if="selectedGroup"
@@ -382,27 +390,27 @@ watch(group, () => {
             :disabled="savingIncludeChildren"
             @update:checked="setIncludeChildren"
           >
-            {{ t("包含子分组") }}
+            {{ t("hosts.filters.includeSubgroups") }}
           </NCheckbox>
           <NRadioGroup
             class="host-display-mode"
             :value="displayMode"
             :disabled="savingDisplayMode"
             name="host-display-mode"
-            :aria-label="t('主机显示模式')"
+            :aria-label="t('hosts.view.label')"
             @update:value="setDisplayMode"
           >
             <NRadioButton
               value="card"
-              :title="t('卡片模式')"
-              :aria-label="t('卡片模式')"
+              :title="t('hosts.view.cards')"
+              :aria-label="t('hosts.view.cards')"
             >
               <NIcon :size="18" aria-hidden="true"><GridOutline /></NIcon>
             </NRadioButton>
             <NRadioButton
               value="list"
-              :title="t('列表模式')"
-              :aria-label="t('列表模式')"
+              :title="t('hosts.view.list')"
+              :aria-label="t('hosts.view.list')"
             >
               <NIcon :size="18" aria-hidden="true"><ListOutline /></NIcon>
             </NRadioButton>
@@ -413,7 +421,7 @@ watch(group, () => {
             <NEmpty
               v-if="!visible.length"
               class="hosts-empty"
-              :description="t('此分组暂无主机，可新建或从其他分组拖入。')"
+              :description="t('hosts.groups.empty')"
             >
               <template #extra>
                 <NSpace justify="center">
@@ -421,7 +429,7 @@ watch(group, () => {
                     :disabled="store.managementBusy"
                     @click="createHost()"
                   >
-                    {{ t("在此新建主机") }}
+                    {{ t("hosts.actions.createHere") }}
                   </NButton>
                 </NSpace>
               </template>
@@ -434,7 +442,7 @@ watch(group, () => {
                 hoverable
                 tabindex="0"
                 :aria-label="
-                  t('{name}，按回车连接，右键或 Shift+F10 打开操作菜单', {
+                  t('hosts.accessibility.connect', {
                     name: host.name,
                   })
                 "
@@ -462,7 +470,11 @@ watch(group, () => {
                     quaternary
                     circle
                     :type="host.favorite ? 'warning' : 'default'"
-                    :aria-label="host.favorite ? t('取消收藏') : t('收藏')"
+                    :aria-label="
+                      host.favorite
+                        ? t('common.actions.removeFavorite')
+                        : t('hosts.actions.favorite')
+                    "
                     @dblclick.stop
                     @click.stop="favorite(host)"
                   >
@@ -493,7 +505,7 @@ watch(group, () => {
                 :key="host.id"
                 tabindex="0"
                 :aria-label="
-                  t('{name}，按回车连接，右键或 Shift+F10 打开操作菜单', {
+                  t('hosts.accessibility.connect', {
                     name: host.name,
                   })
                 "
@@ -538,7 +550,11 @@ watch(group, () => {
                     quaternary
                     circle
                     :type="host.favorite ? 'warning' : 'default'"
-                    :aria-label="host.favorite ? t('取消收藏') : t('收藏')"
+                    :aria-label="
+                      host.favorite
+                        ? t('common.actions.removeFavorite')
+                        : t('hosts.actions.favorite')
+                    "
                     @dblclick.stop
                     @click.stop="favorite(host)"
                   >
@@ -569,7 +585,7 @@ watch(group, () => {
     />
     <AppDialog
       :open="!!movingHost"
-      :title="t('移动主机')"
+      :title="t('hosts.actions.move')"
       :locked="store.managementBusy"
       @update:open="
         (value) => {
@@ -577,9 +593,9 @@ watch(group, () => {
         }
       "
     >
-      <p>{{ t("将“{name}”移到：", { name: movingHost?.name ?? "" }) }}</p>
+      <p>{{ t("hosts.move.prompt", { name: movingHost?.name ?? "" }) }}</p>
       <NForm ref="moveForm" :model="moveModel" :rules="moveRules">
-        <NFormItem :label="t('目标分组')" path="destination">
+        <NFormItem :label="t('hosts.move.destination')" path="destination">
           <NSelect
             v-model:value="moveModel.destination"
             :options="moveOptions"
@@ -594,14 +610,14 @@ watch(group, () => {
             :disabled="store.managementBusy"
             @click="movingHost = undefined"
           >
-            {{ t("取消") }}
+            {{ t("common.actions.cancel") }}
           </NButton>
           <NButton
             type="primary"
             :loading="store.managementBusy"
             @click="moveHost"
           >
-            {{ t("移动") }}
+            {{ t("common.actions.move") }}
           </NButton>
         </NSpace>
       </template>

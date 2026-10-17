@@ -78,11 +78,11 @@ const saveError = ref("");
 const committedHost = ref<HostProfile | null>(null);
 const fieldsLocked = computed(() => submitting.value || !!committedHost.value);
 const groupOptions = computed(() => [
-  { value: "", label: t("未分组") },
+  { value: "", label: t("hosts.groups.ungrouped") },
   ...groupChoices(hosts.groups),
 ]);
 const schemeOptions = computed(() => [
-  { value: "", label: t("跟随全局默认") },
+  { value: "", label: t("common.options.globalDefault") },
   ...[...builtinSchemes, ...settings.value.customSchemes].map((scheme) => ({
     value: scheme.id,
     label: scheme.name,
@@ -121,19 +121,19 @@ const charsets = [
 const bits = [8, 7, 6, 5].map((value) => ({ label: String(value), value }));
 const stopBits = [1, 2].map((value) => ({ label: String(value), value }));
 const flowOptions = computed(() => [
-  { label: t("无"), value: "none" },
+  { label: t("common.options.none"), value: "none" },
   { label: "RTS/CTS", value: "hardware" },
   { label: "XON/XOFF", value: "software" },
 ]);
 const parityOptions = computed(() => [
-  { label: t("无"), value: "none" },
-  { label: t("奇校验"), value: "odd" },
-  { label: t("偶校验"), value: "even" },
+  { label: t("common.options.none"), value: "none" },
+  { label: t("serial.parity.odd"), value: "odd" },
+  { label: t("serial.parity.even"), value: "even" },
 ]);
 const rules = computed<FormRules>(() => ({
   name: props.save
     ? [
-        requiredText(t("名称")),
+        requiredText("common.fields.name"),
         uniqueHostNameRule(
           () => hosts.hosts,
           () => (props.duplicate ? null : props.host?.id),
@@ -147,7 +147,7 @@ const rules = computed<FormRules>(() => ({
       (!!value.trim() &&
         new TextEncoder().encode(value.trim()).length <= 1024 &&
         !/[\u0000-\u001f\u007f-\u009f]/u.test(value)) ||
-      new Error(t("请输入串口设备路径或名称，最长1024字节且不能含控制字符")),
+      new Error(t("serial.validation.device")),
   },
   baudRate: {
     required: true,
@@ -156,7 +156,7 @@ const rules = computed<FormRules>(() => ({
       (/^\d+$/.test(value) &&
         Number(value) >= 1 &&
         Number(value) <= 4_000_000) ||
-      new Error(t("波特率须为 1–4000000 的整数")),
+      new Error(t("serial.validation.baudRate")),
   },
 }));
 async function refresh() {
@@ -196,7 +196,7 @@ watch(
       Object.assign(draft, {
         name: host
           ? props.duplicate
-            ? t("{name} 副本", { name: host.name })
+            ? t("common.format.copyName", { name: host.name })
             : host.name
           : "",
         groupId: host ? (host.groupId ?? "") : (props.initialGroupId ?? ""),
@@ -273,7 +273,7 @@ async function connect() {
     emit("update:open", false);
   } catch (cause) {
     saveError.value = committedHost.value
-      ? t("主机已保存，但配色保存失败。请重试。{error}", {
+      ? t("hosts.errors.savedWithoutTheme", {
           error: errorMessage(cause),
         })
       : errorMessage(cause);
@@ -289,9 +289,9 @@ async function connect() {
     :title="
       save
         ? host && !duplicate
-          ? t('编辑串口主机')
-          : t('新建串口主机')
-        : t('串口连接')
+          ? t('serial.actions.editHost')
+          : t('serial.actions.newHost')
+        : t('serial.connect.title')
     "
     :locked="submitting"
     :auto-focus="false"
@@ -305,14 +305,18 @@ async function connect() {
       :disabled="fieldsLocked"
       @submit.prevent="connect"
     >
-      <NFormItem v-if="save" :label="t('名称')" path="name">
+      <NFormItem v-if="save" :label="t('common.fields.name')" path="name">
         <NInput
           v-model:value="draft.name"
           maxlength="120"
-          :placeholder="t('例如：开发板串口')"
+          :placeholder="t('serial.form.namePlaceholder')"
         />
       </NFormItem>
-      <NFormItem ref="portField" :label="t('串口')" path="path">
+      <NFormItem
+        ref="portField"
+        :label="t('common.connection.serial')"
+        path="path"
+      >
         <NFlex class="serial-port-row" :wrap="false" align="center">
           <NAutoComplete
             v-model:value="draft.path"
@@ -322,13 +326,13 @@ async function connect() {
             :loading="loading"
             :disabled="fieldsLocked"
             :blur-after-select="false"
-            :placeholder="t('选择或输入串口设备路径/名称')"
+            :placeholder="t('serial.form.devicePlaceholder')"
           />
           <NButton
             :loading="loading"
             :disabled="loading || fieldsLocked"
-            :aria-label="t('刷新串口')"
-            :title="t('刷新串口')"
+            :aria-label="t('serial.actions.refresh')"
+            :title="t('serial.actions.refresh')"
             @click="refresh"
           >
             <template #icon>
@@ -339,31 +343,27 @@ async function connect() {
       </NFormItem>
       <NAlert v-if="error" type="error">{{ error }}</NAlert>
       <NAlert v-else-if="!loading && !ports.length" type="info">
-        {{
-          t(
-            "未发现串口。请连接设备后刷新，或手动输入设备名称。Linux 用户还需检查串口访问权限。",
-          )
-        }}
+        {{ t("serial.empty") }}
       </NAlert>
-      <NFormItem :label="t('波特率')" path="baudRate">
+      <NFormItem :label="t('serial.form.baudRate')" path="baudRate">
         <NAutoComplete
           v-model:value="draft.baudRate"
           :options="baudOptions"
           :disabled="fieldsLocked"
           :blur-after-select="false"
-          :placeholder="t('选择或输入波特率（默认9600）')"
+          :placeholder="t('serial.form.baudRatePlaceholder')"
         />
       </NFormItem>
       <NCollapse>
-        <NCollapseItem :title="t('高级设置')" name="advanced">
-          <NFormItem :label="t('字符集')" path="charset">
+        <NCollapseItem :title="t('serial.form.advanced')" name="advanced">
+          <NFormItem :label="t('serial.form.encoding')" path="charset">
             <NSelect
               v-model:value="draft.charset"
               :options="charsets"
               filterable
             />
           </NFormItem>
-          <NFormItem :label="t('数据位')" path="dataBits">
+          <NFormItem :label="t('serial.form.dataBits')" path="dataBits">
             <NRadioGroup v-model:value="draft.dataBits" name="serial-data-bits">
               <NRadioButton
                 v-for="option in bits"
@@ -374,7 +374,7 @@ async function connect() {
               </NRadioButton>
             </NRadioGroup>
           </NFormItem>
-          <NFormItem :label="t('停止位')" path="stopBits">
+          <NFormItem :label="t('serial.form.stopBits')" path="stopBits">
             <NRadioGroup v-model:value="draft.stopBits" name="serial-stop-bits">
               <NRadioButton
                 v-for="option in stopBits"
@@ -385,7 +385,7 @@ async function connect() {
               </NRadioButton>
             </NRadioGroup>
           </NFormItem>
-          <NFormItem :label="t('流控')" path="flowControl">
+          <NFormItem :label="t('serial.form.flowControl')" path="flowControl">
             <NRadioGroup
               v-model:value="draft.flowControl"
               name="serial-flow-control"
@@ -399,7 +399,7 @@ async function connect() {
               </NRadioButton>
             </NRadioGroup>
           </NFormItem>
-          <NFormItem :label="t('校验')" path="parity">
+          <NFormItem :label="t('serial.form.parity')" path="parity">
             <NRadioGroup v-model:value="draft.parity" name="serial-parity">
               <NRadioButton
                 v-for="option in parityOptions"
@@ -413,21 +413,21 @@ async function connect() {
         </NCollapseItem>
       </NCollapse>
       <template v-if="save">
-        <NFormItem :label="t('主机终端配色')" path="hostScheme">
+        <NFormItem :label="t('hosts.form.theme')" path="hostScheme">
           <NSelect v-model:value="draft.hostScheme" :options="schemeOptions" />
         </NFormItem>
-        <NFormItem :label="t('分组')" path="groupId">
+        <NFormItem :label="t('common.fields.group')" path="groupId">
           <NSelect v-model:value="draft.groupId" :options="groupOptions" />
         </NFormItem>
-        <NFormItem :label="t('标签')" path="tagText">
+        <NFormItem :label="t('common.fields.tags')" path="tagText">
           <NInput
             v-model:value="draft.tagText"
-            :placeholder="t('开发板, 调试')"
+            :placeholder="t('serial.form.tagsPlaceholder')"
           />
         </NFormItem>
         <NFormItem>
           <NCheckbox v-model:checked="draft.favorite">
-            {{ t("加入收藏") }}
+            {{ t("common.actions.addFavorite") }}
           </NCheckbox>
         </NFormItem>
       </template>
@@ -436,7 +436,11 @@ async function connect() {
     <template #footer>
       <NSpace justify="end">
         <NButton :disabled="submitting" @click="emit('update:open', false)">
-          {{ committedHost ? t("关闭") : t("取消") }}
+          {{
+            committedHost
+              ? t("common.actions.close")
+              : t("common.actions.cancel")
+          }}
         </NButton>
         <NButton
           type="primary"
@@ -445,7 +449,11 @@ async function connect() {
           @click="connect"
         >
           {{
-            committedHost ? t("重试保存配色") : save ? t("保存主机") : t("连接")
+            committedHost
+              ? t("hosts.actions.retryTheme")
+              : save
+                ? t("hosts.actions.save")
+                : t("common.actions.connect")
           }}
         </NButton>
       </NSpace>

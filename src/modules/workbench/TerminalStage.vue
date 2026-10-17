@@ -187,8 +187,8 @@ onBeforeUnmount(() => {
       tabindex="0"
       :aria-label="
         divider.axis === 'horizontal'
-          ? t('调整左右终端宽度')
-          : t('调整上下终端高度')
+          ? t('workbench.layout.resizeHorizontal')
+          : t('workbench.layout.resizeVertical')
       "
       :aria-orientation="
         divider.axis === 'horizontal' ? 'vertical' : 'horizontal'
@@ -219,10 +219,14 @@ onBeforeUnmount(() => {
           textColorFocus: themeVars.primaryColor,
         }"
         :aria-label="
-          divider.axis === 'horizontal' ? t('交换左右区域') : t('交换上下区域')
+          divider.axis === 'horizontal'
+            ? t('workbench.layout.swapHorizontal')
+            : t('workbench.layout.swapVertical')
         "
         :title="
-          divider.axis === 'horizontal' ? t('交换左右区域') : t('交换上下区域')
+          divider.axis === 'horizontal'
+            ? t('workbench.layout.swapHorizontal')
+            : t('workbench.layout.swapVertical')
         "
         @pointerdown.stop.prevent
         @mousedown.stop.prevent

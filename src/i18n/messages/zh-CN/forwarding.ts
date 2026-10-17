@@ -1,0 +1,43 @@
+// 使用稳定的语义 key，文案修改不改变调用标识。
+export default {
+  "forwarding.validation.nameLength": "名称最多128个字符",
+  "forwarding.form.bindAddress": "监听 IP 地址",
+  "forwarding.form.bindPort": "监听端口",
+  "forwarding.form.targetAddress": "目标地址",
+  "forwarding.form.targetPort": "目标端口",
+  "forwarding.actions.edit": "编辑端口转发",
+  "forwarding.actions.new": "新建端口转发",
+  "forwarding.form.namePlaceholder": "例如：数据库、开发服务或代理",
+  "forwarding.form.hostHint": "请先在主机页创建 SSH 主机，再创建转发。",
+  "forwarding.form.mode": "转发模式",
+  "forwarding.modes.local": "本地转发",
+  "forwarding.modes.remote": "远程转发",
+  "forwarding.modes.dynamic": "动态 SOCKS5",
+  "forwarding.form.remoteBindAddress": "远程监听 IP",
+  "forwarding.form.localBindAddress": "本机监听 IP",
+  "forwarding.form.loopbackPlaceholder": "127.0.0.1 或 ::1",
+  "forwarding.form.localTargetAddress": "本机侧目标地址",
+  "forwarding.form.remoteTargetAddress": "远程侧目标地址",
+  "forwarding.form.targetPlaceholder": "域名或 IP，IPv6 不带方括号",
+  "forwarding.confirmDelete": "删除端口转发“{name}”？引用的 SSH 主机将保留。",
+  "forwarding.actions.create": "新建转发",
+  "forwarding.search.placeholder": "搜索名称、SSH 主机或转发地址",
+  "forwarding.search.label": "搜索端口转发",
+  "forwarding.search.noResults": "没有匹配的端口转发",
+  "forwarding.empty": "还没有端口转发",
+  "forwarding.status.stopped": "未启动",
+  "forwarding.errors.hostDeleted": "引用的 SSH 主机已删除",
+  "forwarding.endpoints.local": "本机",
+  "forwarding.endpoints.dynamicTarget": "SOCKS5 → 由应用指定目标",
+  "forwarding.endpoints.localSide": "本机侧",
+  "forwarding.endpoints.remoteSide": "远程侧",
+  "forwarding.endpoints.target": "→ {value1} {value2}",
+  "forwarding.descriptions.local":
+    "通过本机端口访问远程目标，目标地址由 SSH 服务器解析。",
+  "forwarding.descriptions.remote":
+    "通过服务器端口访问本机侧目标，目标地址由本机解析。",
+  "forwarding.descriptions.dynamic":
+    "创建仅本机可用的 SOCKS5 代理，由 SSH 服务器解析域名。仅支持 TCP，无认证。",
+  "forwarding.warning.publicListener":
+    "监听 0.0.0.0 或 :: 将允许其他设备访问。远程监听范围还取决于服务器设置。",
+} as const;

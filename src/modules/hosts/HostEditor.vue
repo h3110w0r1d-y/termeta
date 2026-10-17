@@ -109,7 +109,9 @@ watch(
           })()
         : blank();
       if (props.duplicate)
-        draft.value.name = t("{name} 副本", { name: draft.value.name });
+        draft.value.name = t("common.format.copyName", {
+          name: draft.value.name,
+        });
       const startup = draft.value.startup;
       startupType.value = startup?.type ?? "shell";
       startupCommand.value = startup?.type === "exec" ? startup.command : "";
@@ -157,32 +159,34 @@ watch(
   { flush: "sync" },
 );
 const authOptions = computed(() => [
-  { value: "password" as const, label: t("密码认证") },
-  { value: "privateKey" as const, label: t("公钥认证") },
+  { value: "password" as const, label: t("hosts.auth.password") },
+  { value: "privateKey" as const, label: t("hosts.auth.publicKey") },
 ]);
 const startupOptions = computed(() => [
-  { value: "shell", label: t("交互 Shell") },
-  { value: "exec", label: t("执行命令") },
+  { value: "shell", label: t("hosts.startup.shell") },
+  { value: "exec", label: t("hosts.startup.command") },
 ]);
 const credentialOptions = computed(() => [
   {
     value: "",
     label:
-      auth.value === "privateKey" ? t("请选择私钥凭据") : t("使用此主机的密码"),
+      auth.value === "privateKey"
+        ? t("hosts.validation.privateKeyRequired")
+        : t("hosts.form.useHostPassword"),
   },
   ...credentials.value
     .filter((item) => item.status === "ready" && item.kind === auth.value)
     .map((item) => ({ value: item.id, label: item.label })),
 ]);
 const schemeOptions = computed(() => [
-  { value: "", label: t("跟随全局默认") },
+  { value: "", label: t("common.options.globalDefault") },
   ...[...builtinSchemes, ...settings.value.customSchemes].map((scheme) => ({
     value: scheme.id,
     label: scheme.name,
   })),
 ]);
 const groupOptions = computed(() => [
-  { value: "", label: t("未分组") },
+  { value: "", label: t("hosts.groups.ungrouped") },
   ...groupChoices(hosts.groups),
 ]);
 const groupId = computed({
@@ -208,34 +212,36 @@ const rules = computed<FormRules>(() => ({
   "draft.name": props.quick
     ? []
     : [
-        requiredText(t("名称")),
+        requiredText("common.fields.name"),
         uniqueHostNameRule(
           () => hosts.hosts,
           () => draft.value.id,
         ),
       ],
-  "draft.address": requiredText(t("主机地址")),
-  "draft.icon": requiredText(t("图标")),
-  "draft.username": isTelnet.value ? [] : requiredText(t("用户名")),
-  "draft.port": integerRange(t("端口"), 1, 65535),
-  startupType: isTelnet.value ? [] : requiredText(t("启动方式")),
+  "draft.address": requiredText("hosts.form.address"),
+  "draft.icon": requiredText("hosts.form.icon"),
+  "draft.username": isTelnet.value
+    ? []
+    : requiredText("common.fields.username"),
+  "draft.port": integerRange("common.fields.port", 1, 65535),
+  startupType: isTelnet.value ? [] : requiredText("hosts.form.startupMode"),
   startupCommand:
     !isTelnet.value && startupType.value === "exec"
       ? [
-          requiredText(t("启动命令")),
+          requiredText("hosts.form.startupCommand"),
           {
             trigger: ["input", "change", "blur"],
             validator: (_, value: string) =>
               (!value.includes("\0") &&
                 new TextEncoder().encode(value).length <= 8192) ||
-              new Error(t("命令过长或包含无效字符")),
+              new Error(t("hosts.validation.invalidCommand")),
           },
         ]
       : [],
-  auth: isTelnet.value ? [] : requiredText(t("认证方式")),
+  auth: isTelnet.value ? [] : requiredText("hosts.form.authentication"),
   credentialId:
     !isTelnet.value && auth.value === "privateKey"
-      ? requiredText(t("私钥凭据"))
+      ? requiredText("hosts.form.privateKeyCredential")
       : [],
 }));
 async function submit() {
@@ -245,7 +251,7 @@ async function submit() {
   error.value = "";
   try {
     if (!isTelnet.value && auth.value === "privateKey" && !credentialId.value)
-      throw new Error(t("请先在凭据页创建并选择私钥凭据"));
+      throw new Error(t("hosts.form.privateKeyHint"));
     // 主机只保存认证引用；专属密码单独传递，避免进入轻量配置状态。
     const first: AuthStep =
       auth.value === "privateKey"
@@ -317,7 +323,7 @@ async function submit() {
     emit("update:open", false);
   } catch (e) {
     error.value = committedHost.value
-      ? t("主机已保存，配色未保存。请重试：{value1}", {
+      ? t("hosts.errors.themeSave", {
           value1: errorMessage(e),
         })
       : errorMessage(e);
@@ -333,21 +339,17 @@ async function submit() {
     @after-leave="emit('after-leave')"
     :locked="busy"
     :title="
-      t('{value1} · {value2}', {
+      t('common.format.pair', {
         value1: quick
-          ? t('快速连接')
+          ? t('hosts.actions.quickConnect')
           : host && !duplicate
-            ? t('编辑主机')
-            : t('新建主机'),
+            ? t('hosts.actions.edit')
+            : t('hosts.actions.new'),
         value2: isTelnet ? 'Telnet' : 'SSH',
       })
     "
     :description="
-      isTelnet
-        ? t(
-            'Telnet 以明文传输，用户名和密码在终端内输入；请仅连接可信网络中的设备。',
-          )
-        : t('使用密码或公钥连接主机。')
+      isTelnet ? t('hosts.telnet.warning') : t('hosts.form.description')
     "
     @update:open="emit('update:open', $event)"
   >
@@ -362,18 +364,22 @@ async function submit() {
       @submit.prevent="submit"
     >
       <NGrid :cols="2" :x-gap="16">
-        <NFormItemGi :span="2" :label="t('名称')" path="draft.name">
+        <NFormItemGi
+          :span="2"
+          :label="t('common.fields.name')"
+          path="draft.name"
+        >
           <AppInput
             id="host-name"
             v-model="formModel.draft.name"
             maxlength="120"
-            :placeholder="t('例如：生产环境 · 上海')"
+            :placeholder="t('hosts.form.namePlaceholder')"
           />
         </NFormItemGi>
         <NFormItemGi
           v-if="!quick && !isTelnet"
           :span="2"
-          :label="t('图标')"
+          :label="t('hosts.form.icon')"
           path="draft.icon"
         >
           <NSelect
@@ -381,10 +387,10 @@ async function submit() {
             :options="systemIconOptions"
             :render-label="renderSystemLabel"
             :menu-props="systemMenuProps"
-            :aria-label="t('主机图标')"
+            :aria-label="t('hosts.form.iconLabel')"
           />
         </NFormItemGi>
-        <NFormItemGi :label="t('主机地址')" path="draft.address">
+        <NFormItemGi :label="t('hosts.form.address')" path="draft.address">
           <AppInput
             id="host-address"
             v-model="formModel.draft.address"
@@ -392,7 +398,7 @@ async function submit() {
             placeholder="example.com / IPv6"
           />
         </NFormItemGi>
-        <NFormItemGi :label="t('端口')" path="draft.port">
+        <NFormItemGi :label="t('common.fields.port')" path="draft.port">
           <AppNumberField
             id="host-port"
             v-model="formModel.draft.port"
@@ -402,7 +408,7 @@ async function submit() {
         </NFormItemGi>
         <NFormItemGi
           v-if="!isTelnet"
-          :label="t('用户名')"
+          :label="t('common.fields.username')"
           path="draft.username"
         >
           <AppInput
@@ -412,7 +418,11 @@ async function submit() {
             autocomplete="off"
           />
         </NFormItemGi>
-        <NFormItemGi v-if="!isTelnet" :label="t('认证方式')" path="auth">
+        <NFormItemGi
+          v-if="!isTelnet"
+          :label="t('hosts.form.authentication')"
+          path="auth"
+        >
           <AppSelect
             id="host-auth"
             v-model="formModel.auth"
@@ -423,7 +433,11 @@ async function submit() {
         <NFormItemGi
           v-if="!isTelnet"
           :span="2"
-          :label="auth === 'privateKey' ? t('私钥凭据') : t('密码凭据')"
+          :label="
+            auth === 'privateKey'
+              ? t('hosts.form.privateKeyCredential')
+              : t('hosts.form.passwordCredential')
+          "
           path="credentialId"
         >
           <AppSelect
@@ -435,14 +449,14 @@ async function submit() {
         </NFormItemGi>
         <NGi v-if="!isTelnet && auth === 'password' && !credentialId" :span="2">
           <template v-if="!quick">
-            <NFormItem :label="t('主机专属密码（可选）')">
+            <NFormItem :label="t('hosts.form.password')">
               <AppInput
                 id="host-password"
                 v-model="formModel.secret"
                 type="password"
                 autocomplete="new-password"
                 :disabled="fieldsLocked"
-                :placeholder="t('填写后随主机安全保存；留空则连接时询问')"
+                :placeholder="t('hosts.form.passwordHint')"
               />
             </NFormItem>
           </template>
@@ -450,7 +464,7 @@ async function submit() {
         <NFormItemGi
           v-if="!isTelnet"
           :span="2"
-          :label="t('启动方式')"
+          :label="t('hosts.form.startupMode')"
           path="startupType"
         >
           <AppSelect
@@ -463,7 +477,7 @@ async function submit() {
         <NFormItemGi
           v-if="!isTelnet && startupType === 'exec'"
           :span="2"
-          :label="t('启动命令')"
+          :label="t('hosts.form.startupCommand')"
           path="startupCommand"
         >
           <AppInput
@@ -471,14 +485,14 @@ async function submit() {
             v-model="formModel.startupCommand"
             :disabled="fieldsLocked"
             :maxlength="8192"
-            :placeholder="t('例如：/usr/bin/btop 或 docker stats')"
+            :placeholder="t('hosts.form.commandPlaceholder')"
             autocomplete="off"
           />
         </NFormItemGi>
         <NFormItemGi
           v-if="!quick"
           :span="2"
-          :label="t('主机终端配色')"
+          :label="t('hosts.form.theme')"
           path="hostScheme"
         >
           <AppSelect
@@ -489,7 +503,7 @@ async function submit() {
           />
         </NFormItemGi>
         <template v-if="!quick">
-          <NFormItemGi :label="t('分组')" path="groupId">
+          <NFormItemGi :label="t('common.fields.group')" path="groupId">
             <AppSelect
               id="host-group"
               v-model="formModel.groupId"
@@ -497,11 +511,11 @@ async function submit() {
               :disabled="fieldsLocked"
             />
           </NFormItemGi>
-          <NFormItemGi :label="t('标签')" path="tagText">
+          <NFormItemGi :label="t('common.fields.tags')" path="tagText">
             <AppInput
               id="host-tags"
               v-model="formModel.tagText"
-              :placeholder="t('生产, Linux')"
+              :placeholder="t('hosts.form.tagsPlaceholder')"
             />
           </NFormItemGi>
           <NGi :span="2">
@@ -509,7 +523,7 @@ async function submit() {
               v-model="formModel.draft.favorite"
               :disabled="fieldsLocked"
             >
-              {{ t("加入收藏") }}
+              {{ t("common.actions.addFavorite") }}
             </AppCheckbox>
           </NGi>
         </template>
@@ -521,7 +535,11 @@ async function submit() {
     <template #footer>
       <NFlex justify="end">
         <AppButton :disabled="busy" @click="emit('update:open', false)">
-          {{ committedHost ? t("关闭") : t("取消") }}
+          {{
+            committedHost
+              ? t("common.actions.close")
+              : t("common.actions.cancel")
+          }}
         </AppButton>
         <AppButton
           type="submit"
@@ -531,12 +549,12 @@ async function submit() {
         >
           {{
             busy
-              ? t("处理中…")
+              ? t("common.status.processing")
               : committedHost
-                ? t("重试保存配色")
+                ? t("hosts.actions.retryTheme")
                 : quick
-                  ? t("连接")
-                  : t("保存主机")
+                  ? t("common.actions.connect")
+                  : t("hosts.actions.save")
           }}
         </AppButton>
       </NFlex>

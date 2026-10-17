@@ -11,14 +11,10 @@ const emit = defineEmits<{ "update:modelValue": [boolean] }>();
       :model-value="modelValue"
       @update:model-value="emit('update:modelValue', $event)"
     >
-      {{ t("连接 SSH 时自动识别系统") }}
+      {{ t("settings.detection.enabled") }}
     </AppCheckbox>
     <NText depth="3">
-      {{
-        t(
-          "自动为保存的 SSH 主机选择系统图标，优先保留你手动选择的图标。关闭后保留已有结果。",
-        )
-      }}
+      {{ t("settings.detection.description") }}
     </NText>
   </div>
 </template>

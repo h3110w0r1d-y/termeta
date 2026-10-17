@@ -1,4 +1,5 @@
 import { t } from "../../i18n";
+import type { Locale } from "../../i18n";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { Channel, invoke } from "@tauri-apps/api/core";
@@ -202,6 +203,8 @@ export const desktop = {
   ) => getCurrentWindow().onCloseRequested(callback),
   closeWindow: () => getCurrentWindow().close(),
   setWindowTitle: (title: string) => getCurrentWindow().setTitle(title),
+  setNativeMenuLocale: (locale: Locale) =>
+    invoke<void>("set_native_menu_locale", { locale }),
   minimizeWindow: () => getCurrentWindow().minimize(),
   toggleMaximizeWindow: () => getCurrentWindow().toggleMaximize(),
   listHosts: () => invoke<HostProfile[]>("list_hosts"),
@@ -292,5 +295,5 @@ export function errorMessage(error: unknown): string {
   if (typeof error === "string") return error;
   if (error && typeof error === "object" && "message" in error)
     return String(error.message);
-  return t("操作失败，请重试。");
+  return t("common.errors.operationFailed");
 }

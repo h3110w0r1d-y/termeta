@@ -27,7 +27,7 @@ export function groupPath(groups: HostGroup[], id: string | null): string {
     names.unshift(group.name);
     id = group.parentId;
   }
-  return names.join(" / ") || t("未分组");
+  return names.join(" / ") || t("hosts.groups.ungrouped");
 }
 
 export function groupChoices(

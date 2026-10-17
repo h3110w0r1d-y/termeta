@@ -2,60 +2,74 @@ import { t } from "../../i18n";
 import type { Binding, Keymap, Modifier } from "./types";
 export const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
 export const commandDefinitions = [
-  ["workbench.newTab", "新建标签页", "application", "Primary+T"],
+  ["workbench.newTab", "workbench.actions.newTab", "application", "Primary+T"],
   [
     "workbench.newConnection",
-    "新建 SSH 连接",
+    "workbench.actions.newSshConnection",
     "application",
     isMac ? "Primary+N" : "Primary+Shift+N",
   ],
   [
     "workbench.closeTab",
-    "关闭当前标签",
+    "workbench.actions.closeCurrentTab",
     "application",
     isMac ? "Primary+W" : "Primary+Shift+W",
   ],
   [
     "workbench.nextTab",
-    "下一个标签",
+    "workbench.actions.nextTab",
     "application",
     isMac ? "Primary+Shift+]" : "Primary+PageDown",
   ],
   [
     "workbench.previousTab",
-    "上一个标签",
+    "workbench.actions.previousTab",
     "application",
     isMac ? "Primary+Shift+[" : "Primary+PageUp",
   ],
-  ["settings.open", "打开设置", "application", isMac ? "" : "Primary+,"],
+  [
+    "settings.open",
+    "settings.actions.open",
+    "application",
+    isMac ? "" : "Primary+,",
+  ],
   [
     "terminal.copy",
-    "复制选区",
+    "terminal.actions.copySelection",
     "terminal",
     isMac ? "Primary+C" : "Primary+Shift+C",
   ],
   [
     "terminal.paste",
-    "粘贴",
+    "terminal.actions.paste",
     "terminal",
     isMac ? "Primary+V" : "Primary+Shift+V",
   ],
   [
     "terminal.find",
-    "搜索终端",
+    "terminal.actions.find",
     "terminal",
     isMac ? "Primary+F" : "Primary+Shift+F",
   ],
-  ["terminal.scrollToBottom", "滚动到底部", "terminal", ""],
-  ["terminal.openLink", "打开链接", "terminal", ""],
+  [
+    "terminal.scrollToBottom",
+    "terminal.actions.scrollToBottom",
+    "terminal",
+    "",
+  ],
+  ["terminal.openLink", "terminal.actions.openLink", "terminal", ""],
   [
     "workbench.newLocalTerminal",
-    "新建本地终端",
+    "workbench.actions.newLocalTerminal",
     "application",
     isMac ? "Primary+L" : "Primary+Shift+L",
   ],
 ] as const;
 export type CommandId = (typeof commandDefinitions)[number][0];
+export function commandLabel(commandId: string): string {
+  const definition = commandDefinitions.find((item) => item[0] === commandId);
+  return definition ? t(definition[1]) : commandId;
+}
 export function defaults(): Binding[] {
   return commandDefinitions.map(([commandId, , scope, combo]) => {
     const parts = combo.split("+");
@@ -98,7 +112,9 @@ export function keyLabel(binding: Binding) {
     ...binding.trigger.modifiers.map((m) =>
       m === "Primary" ? (isMac ? "Cmd" : "Ctrl") : m,
     ),
-    binding.trigger.type === "key" ? binding.trigger.key : t("点击"),
+    binding.trigger.type === "key"
+      ? binding.trigger.key
+      : t("shortcuts.triggers.click"),
   ].join("+");
 }
 export function conflict(bindings: Binding[]) {
@@ -110,15 +126,9 @@ export function conflict(bindings: Binding[]) {
       .join("+");
     const key = `${b.scope}/${b.trigger.type}/${mods}/${b.trigger.type === "key" ? b.trigger.key.toLowerCase() : "click"}`;
     if (seen.has(key))
-      return t("快捷键冲突：{first} 与 {second}", {
-        first: t(
-          commandDefinitions.find((item) => item[0] === seen.get(key))?.[1] ??
-            seen.get(key)!,
-        ),
-        second: t(
-          commandDefinitions.find((item) => item[0] === b.commandId)?.[1] ??
-            b.commandId,
-        ),
+      return t("shortcuts.validation.conflict", {
+        first: commandLabel(seen.get(key)!),
+        second: commandLabel(b.commandId),
       });
     seen.set(key, b.commandId);
   }
@@ -126,7 +136,7 @@ export function conflict(bindings: Binding[]) {
 }
 export function validateBindings(value: unknown): Binding[] {
   if (!Array.isArray(value) || value.length > 100)
-    throw new Error(t("快捷键条目无效"));
+    throw new Error(t("shortcuts.validation.invalidEntries"));
   const allowed = new Set<string>(commandDefinitions.map((d) => d[0]));
   const modifiers = new Set(["Primary", "Control", "Meta", "Alt", "Shift"]);
   for (const b of value) {
@@ -140,15 +150,15 @@ export function validateBindings(value: unknown): Binding[] {
       !Array.isArray(b.trigger?.modifiers) ||
       b.trigger.modifiers.some((m: unknown) => !modifiers.has(String(m)))
     )
-      throw new Error(t("快捷键字段不合法"));
+      throw new Error(t("shortcuts.validation.invalidFields"));
     const definition = commandDefinitions.find((d) => d[0] === b.commandId)!;
     if (
       b.scope !== definition[2] ||
       b.context !== (b.scope === "application" ? "workbench" : "terminal")
     )
-      throw new Error(t("快捷键上下文与动作不匹配"));
+      throw new Error(t("shortcuts.validation.contextMismatch"));
     if (b.commandId === "terminal.openLink" && b.trigger.type !== "pointer")
-      throw new Error(t("链接动作需要鼠标绑定"));
+      throw new Error(t("shortcuts.validation.linkRequiresMouse"));
     if (
       b.trigger.type === "key" &&
       !(b.enabled === false && b.trigger.key === "") &&
@@ -158,7 +168,7 @@ export function validateBindings(value: unknown): Binding[] {
           b.trigger.key,
         ))
     )
-      throw new Error(t("不支持的按键"));
+      throw new Error(t("shortcuts.validation.unsupportedKey"));
     if (
       b.trigger.type !== "key" &&
       (b.trigger.type !== "pointer" ||
@@ -166,7 +176,7 @@ export function validateBindings(value: unknown): Binding[] {
         b.trigger.event !== "click" ||
         b.commandId !== "terminal.openLink")
     )
-      throw new Error(t("不支持的触发器"));
+      throw new Error(t("shortcuts.validation.unsupportedTrigger"));
   }
   const issue = conflict(value);
   if (issue) throw new Error(issue);
@@ -180,7 +190,7 @@ export function parseKeymap(keymap: unknown): Keymap {
     !("schemaVersion" in keymap) ||
     keymap.schemaVersion !== 2
   )
-    throw new Error(t("快捷键版本不支持"));
+    throw new Error(t("shortcuts.validation.unsupportedVersion"));
   return {
     schemaVersion: 2,
     bindings: validateBindings(

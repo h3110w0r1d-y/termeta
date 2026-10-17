@@ -1,4 +1,4 @@
-import { t } from "../../i18n";
+import { t, type PlainMessageKey } from "../../i18n";
 import { computed, ref, type Ref } from "vue";
 import { desktop, errorMessage } from "../../services/desktop/client";
 import type { TransferProgress } from "../../services/desktop/types";
@@ -31,7 +31,7 @@ export function useSftpTransferQueue(options: {
     status: "queued" | "running" | "done" | "cancelled" | "failed";
     progress?: TransferProgress;
     message?: string;
-    messageKey?: string;
+    messageKey?: PlainMessageKey;
     cancelRequested?: boolean;
   };
   const tasks = ref<TransferTask[]>([]);
@@ -53,12 +53,12 @@ export function useSftpTransferQueue(options: {
           (item) => item.status === "queued" || item.status === "running",
         ))
     ) {
-      error.value = t("请等待当前操作完成后重新拖动文件。");
+      error.value = t("files.errors.dropBusy");
       return;
     }
     // 保留最近的任务记录，等待任务上限防止长期积压授权引用。
     if (tasks.value.filter((item) => item.status === "queued").length >= 32) {
-      error.value = t("待传输任务已达 32 项，请等待当前任务完成。");
+      error.value = t("files.transfer.queueFull");
       return;
     }
     tasks.value = [
@@ -85,7 +85,7 @@ export function useSftpTransferQueue(options: {
     }
     if (!options.sameSession(task.sessionId)) {
       task.status = "cancelled";
-      task.messageKey = "连接已变化，任务未执行";
+      task.messageKey = "files.transfer.connectionChanged";
       void runQueue();
       return;
     }
@@ -133,7 +133,9 @@ export function useSftpTransferQueue(options: {
               onProgress,
             );
       task.status = saved ? "done" : "cancelled";
-      task.messageKey = saved ? "传输完成" : "已取消";
+      task.messageKey = saved
+        ? "files.transfer.complete"
+        : "common.status.cancelled";
     } catch (cause) {
       const cancelled =
         typeof cause === "object" &&
@@ -141,7 +143,7 @@ export function useSftpTransferQueue(options: {
         "code" in cause &&
         cause.code === "CANCELLED";
       task.status = cancelled ? "cancelled" : "failed";
-      if (cancelled) task.messageKey = "已取消";
+      if (cancelled) task.messageKey = "common.status.cancelled";
       else task.message = errorMessage(cause);
       if (task.dragNames && !task.started && !cancelled)
         error.value = task.message ?? "";
@@ -162,7 +164,7 @@ export function useSftpTransferQueue(options: {
   }
   function cancelQueued(task: TransferTask) {
     task.status = "cancelled";
-    task.messageKey = "已移出队列";
+    task.messageKey = "files.transfer.removed";
     if (
       !transferring.value &&
       !tasks.value.some((item) => item.status === "queued")

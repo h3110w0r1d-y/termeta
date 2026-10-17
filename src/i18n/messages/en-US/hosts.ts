@@ -1,0 +1,117 @@
+// 使用稳定的语义 key，文案修改不改变调用标识。
+export default {
+  "hosts.batch.title": "Connect multiple hosts",
+  "hosts.batch.confirm":
+    "Connect to all {count} hosts in “{groupName}”, including subgroups?",
+  "hosts.batch.separateTabs": "Open in separate tabs",
+  "hosts.batch.workspace": "Open in workspace",
+  "hosts.auth.password": "Password",
+  "hosts.auth.publicKey": "Public key",
+  "hosts.startup.shell": "Interactive shell",
+  "hosts.startup.command": "Run command",
+  "hosts.validation.privateKeyRequired": "Select a private key",
+  "hosts.groups.ungrouped": "Ungrouped",
+  "hosts.form.address": "Host address",
+  "hosts.form.icon": "Icon",
+  "hosts.form.startupMode": "Startup mode",
+  "hosts.form.startupCommand": "Startup command",
+  "hosts.form.authentication": "Authentication",
+  "hosts.form.privateKeyCredential": "Private key credential",
+  "hosts.form.privateKeyHint":
+    "Create a private key credential on the Credentials page, then select it here",
+  "hosts.actions.quickConnect": "Quick connect",
+  "hosts.actions.edit": "Edit host",
+  "hosts.actions.new": "New host",
+  "hosts.telnet.warning":
+    "Telnet sends data without encryption. Enter your username and password in the terminal. Use only on trusted networks.",
+  "hosts.form.namePlaceholder": "e.g. Production · Shanghai",
+  "hosts.form.iconLabel": "Host icon",
+  "hosts.form.passwordCredential": "Password credential",
+  "hosts.form.password": "Host password (optional)",
+  "hosts.form.passwordHint":
+    "Saved securely with this host; leave blank to be asked when connecting",
+  "hosts.form.commandPlaceholder": "e.g. /usr/bin/btop or docker stats",
+  "hosts.form.theme": "Host color scheme",
+  "hosts.form.tagsPlaceholder": "Production, Linux",
+  "hosts.actions.retryTheme": "Retry saving color scheme",
+  "hosts.actions.save": "Save host",
+  "hosts.errors.sidebarSave": "Could not save sidebar preferences: {value1}",
+  "hosts.errors.expansionSave": "Could not save expanded groups: {value1}",
+  "hosts.filters.all": "All hosts",
+  "hosts.groups.topLevel": "Top level",
+  "hosts.groups.newChild": "New subgroup",
+  "hosts.groups.create": "Create group",
+  "hosts.groups.editParent": "Edit group / change parent",
+  "hosts.groups.deleteMenu": "Delete group…",
+  "hosts.groups.topLevelDestination": "Top level (hosts become ungrouped)",
+  "hosts.groups.name": "Group name",
+  "hosts.groups.confirmDeleteAll":
+    "Permanently delete “{name}”, its {groups} subgroups and {hosts} hosts? Host passwords will also be deleted. This cannot be undone. Existing sessions and shared credentials will be kept.",
+  "hosts.groups.refreshAfterDeleteFailed":
+    "The group was deleted, but the list could not be refreshed: {value1}. Refresh the list to continue.",
+  "hosts.groups.title": "Host groups",
+  "hosts.groups.new": "New group",
+  "hosts.groups.showHosts": "Show hosts",
+  "hosts.groups.showHostsInSidebar": "Show hosts in sidebar",
+  "hosts.groups.edit": "Edit group",
+  "hosts.groups.parent": "Parent group",
+  "hosts.groups.delete": "Delete group",
+  "hosts.groups.deletePrompt":
+    "Choose what to do with the contents of “{name}”:",
+  "hosts.groups.keepContents": "Keep hosts and subgroups, move to parent",
+  "hosts.groups.moveContentsDescription":
+    "Move {direct} direct hosts and all direct subgroups to {parent}. Contents within subgroups stay together.",
+  "hosts.groups.deleteContents": "Delete all subgroups and hosts",
+  "hosts.groups.deleteContentsDescription":
+    "Delete {groups} subgroups and all {hosts} hosts within them. You will be asked to confirm again.",
+  "hosts.groups.deleteAndMove": "Delete group and move contents",
+  "hosts.search.limit":
+    "Showing the first 100 of {count} hosts. Refine your search.",
+  "hosts.status.favorite": "Favorite",
+  "hosts.search.placeholder": "Search all hosts…",
+  "hosts.search.label": "Search all hosts",
+  "hosts.search.noResults": "No matching hosts",
+  "hosts.search.hint": "Type to search all hosts",
+  "hosts.actions.moveToGroup": "Move to group…",
+  "hosts.validation.invalidGroup": "Select a valid group",
+  "hosts.confirmDelete":
+    "Delete host “{name}”? Existing sessions and shared credentials will be kept.",
+  "hosts.filters.group": "Hosts in group",
+  "hosts.count": "{count} hosts",
+  "hosts.filters.includeSubgroups": "Include subgroups",
+  "hosts.view.label": "Host display mode",
+  "hosts.view.cards": "Card view",
+  "hosts.view.list": "List view",
+  "hosts.groups.empty":
+    "No hosts in this group. Create one or drag one here from another group.",
+  "hosts.actions.createHere": "Create host here",
+  "hosts.actions.favorite": "Add to favorites",
+  "hosts.actions.move": "Move host",
+  "hosts.move.prompt": "Move “{name}” to:",
+  "hosts.move.destination": "Destination group",
+  "hosts.newTab.description": "Choose a saved host or use Quick connect.",
+  "hosts.newTab.searchLabel": "Search hosts for new tab",
+  "hosts.newTab.available": "Available hosts",
+  "hosts.newTab.empty": "No saved hosts yet. Use Quick connect to get started.",
+  "hosts.search.limitDescription":
+    "Showing the first 100 of {count} hosts. Refine your search.",
+  "hosts.drag.destination": "Move to: {target}",
+  "hosts.drag.invalidTarget": "Cannot drop here",
+  "hosts.batch.description": "Choose separate tabs or a split workspace.",
+  "hosts.batch.savedWorkspaceHint":
+    "Saved workspaces open with their original layout.",
+  "hosts.form.useHostPassword": "Use a password for this host",
+  "hosts.errors.themeSave":
+    "The host was saved, but its theme was not. Try again: {value1}",
+  "hosts.form.description": "Connect using a password or public key.",
+  "hosts.validation.invalidCommand":
+    "Command is too long or contains invalid characters",
+  "hosts.validation.nameConflict":
+    "This name is already used by another host or workspace",
+  "hosts.accessibility.connect":
+    "{name}, press Enter to connect; right-click or press Shift+F10 for actions",
+  "hosts.errors.savedWithoutTheme":
+    "Host saved, but its color scheme could not be saved. Please retry. {error}",
+  "hosts.selection.sshRequired": "Select a saved SSH host",
+  "hosts.selection.sshPlaceholder": "Select a saved SSH host",
+} as const;

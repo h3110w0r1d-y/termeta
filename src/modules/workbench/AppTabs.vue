@@ -52,7 +52,7 @@ const dragTitle = computed(() => {
   return props.tabs.find((tab) => tab.id === source.tabId)?.title;
 });
 const fixedTabs = computed(() => [
-  { id: "home", title: t("保险箱"), panel: "page-home" },
+  { id: "home", title: t("common.navigation.vault"), panel: "page-home" },
   { id: "sftp", title: "SFTP", panel: "page-sftp" },
 ]);
 function selectedElement() {
@@ -118,7 +118,7 @@ watch(
       'tabs-vertical': position === 'left',
       'titlebar-mac': isMac && position === 'top',
     }"
-    :aria-label="t('应用标签页')"
+    :aria-label="t('workbench.tabs.label')"
     :style="{
       '--app-tab-hover': themeVars.buttonColor2,
       '--app-tab-active': themeVars.buttonColor2Hover,
@@ -131,7 +131,7 @@ watch(
     <div
       class="app-tablist"
       role="tablist"
-      :aria-label="t('应用标签页')"
+      :aria-label="t('workbench.tabs.label')"
       :aria-orientation="position === 'left' ? 'vertical' : 'horizontal'"
       @keydown="onKey"
     >
@@ -194,7 +194,9 @@ watch(
                 tab.title +
                 (tab.split
                   ? ' · ' +
-                    t('{count} 个终端', { count: tab.terminalIds.length })
+                    t('workbench.terminalCount', {
+                      count: tab.terminalIds.length,
+                    })
                   : '') +
                 ' · ' +
                 t(stateLabels[tab.state])
@@ -210,8 +212,10 @@ watch(
               type="button"
               class="app-tab-close"
               tabindex="-1"
-              :aria-label="t('关闭 {name}', { name: tab.title })"
-              :title="t('关闭 {name}', { name: tab.title })"
+              :aria-label="
+                t('workbench.actions.closeNamed', { name: tab.title })
+              "
+              :title="t('workbench.actions.closeNamed', { name: tab.title })"
               @click="emit('close', tab.id)"
             >
               <NIcon :size="position === 'top' ? 16 : 14" aria-hidden="true">
@@ -225,8 +229,8 @@ watch(
     <div ref="tabEnd" class="app-tab-end">
       <AppButton
         class="icon-button new-tab"
-        :aria-label="t('新建标签页')"
-        :title="t('新建标签页 (Cmd/Ctrl+T)')"
+        :aria-label="t('workbench.actions.newTab')"
+        :title="t('workbench.actions.newTabWithShortcut')"
         @click="emit('create')"
       >
         <AssetIcon name="add" :size="20" />
@@ -260,7 +264,7 @@ watch(
       class="connection-count"
     >
       <i class="status-dot" :class="{ connected: connected > 0 }" />
-      {{ t("{count} 个连接", { count: connected }) }}
+      {{ t("common.count.connections", { count: connected }) }}
     </span>
     <WindowControls
       v-if="position === 'top'"

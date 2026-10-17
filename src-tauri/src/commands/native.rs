@@ -1,8 +1,26 @@
 use crate::state::{AppState, owner, storage_error};
+#[cfg(target_os = "macos")]
+use tauri::Manager;
 use tauri::{State, WebviewWindow};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 use terminal_core::{Result, SessionError};
+
+#[tauri::command]
+pub async fn set_native_menu_locale(
+    window: WebviewWindow,
+    locale: crate::native_menu::NativeMenuLocale,
+) -> Result<()> {
+    // 锁定页也需跟随系统语言；仅允许本地主窗口更新固定菜单的语言。
+    crate::state::window_owner(&window)?;
+    #[cfg(target_os = "macos")]
+    crate::macos_menu::set_locale(window.app_handle(), locale)
+        .await
+        .map_err(|_| SessionError::new("MENU_UPDATE_FAILED", "desktop", "无法更新原生菜单语言"))?;
+    #[cfg(not(target_os = "macos"))]
+    let _ = locale;
+    Ok(())
+}
 
 #[tauri::command]
 pub async fn select_private_key_file(

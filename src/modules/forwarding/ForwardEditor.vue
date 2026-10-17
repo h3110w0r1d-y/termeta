@@ -72,7 +72,7 @@ watch(
       id: props.copy ? null : (profile?.id ?? null),
       name: profile
         ? props.copy
-          ? t("{name} 副本", { name: profile.name })
+          ? t("common.format.copyName", { name: profile.name })
           : profile.name
         : "",
       profileId: profile?.profileId ?? "",
@@ -101,33 +101,35 @@ function changeMode(mode: string | number | boolean) {
 }
 const rules = computed<FormRules>(() => ({
   name: [
-    requiredText(t("名称")),
-    { max: 128, message: t("名称最多128个字符"), trigger: ["input", "blur"] },
+    requiredText("common.fields.name"),
+    {
+      max: 128,
+      message: t("forwarding.validation.nameLength"),
+      trigger: ["input", "blur"],
+    },
   ],
   profileId: {
     required: true,
     trigger: "change",
     validator: (_, value) =>
       hostOptions.value.some((h) => h.value === value) ||
-      new Error(t("请选择已保存的 SSH 主机")),
+      new Error(t("hosts.selection.sshRequired")),
   },
-  "rule.bindAddress": requiredText(t("监听 IP 地址")),
-  "rule.bindPort": integerRange(t("监听端口"), 1, 65535),
+  "rule.bindAddress": requiredText("forwarding.form.bindAddress"),
+  "rule.bindPort": integerRange("forwarding.form.bindPort", 1, 65535),
   ...(draft.rule.mode === "dynamic"
     ? {}
     : {
-        "rule.targetAddress": requiredText(t("目标地址")),
-        "rule.targetPort": integerRange(t("目标端口"), 1, 65535),
+        "rule.targetAddress": requiredText("forwarding.form.targetAddress"),
+        "rule.targetPort": integerRange("forwarding.form.targetPort", 1, 65535),
       }),
 }));
 const description = computed(
   () =>
     ({
-      local: t("通过本机端口访问远程目标，目标地址由 SSH 服务器解析。"),
-      remote: t("通过服务器端口访问本机侧目标，目标地址由本机解析。"),
-      dynamic: t(
-        "创建仅本机可用的 SOCKS5 代理，由 SSH 服务器解析域名。仅支持 TCP，无认证。",
-      ),
+      local: t("forwarding.descriptions.local"),
+      remote: t("forwarding.descriptions.remote"),
+      dynamic: t("forwarding.descriptions.dynamic"),
     })[draft.rule.mode],
 );
 async function save() {
@@ -159,7 +161,9 @@ async function save() {
 <template>
   <AppDialog
     :open="open"
-    :title="draft.id ? t('编辑端口转发') : t('新建端口转发')"
+    :title="
+      draft.id ? t('forwarding.actions.edit') : t('forwarding.actions.new')
+    "
     :locked="busy"
     @update:open="emit('update:open', $event)"
   >
@@ -170,29 +174,35 @@ async function save() {
       :disabled="busy"
       @submit.prevent="save"
     >
-      <NFormItem :label="t('名称')" path="name">
+      <NFormItem :label="t('common.fields.name')" path="name">
         <NInput
           v-model:value="draft.name"
           :maxlength="128"
-          :placeholder="t('例如：数据库、开发服务或代理')"
+          :placeholder="t('forwarding.form.namePlaceholder')"
         />
       </NFormItem>
-      <NFormItem :label="t('SSH 主机')" path="profileId">
+      <NFormItem :label="t('common.connection.sshHost')" path="profileId">
         <NSelect
           v-model:value="draft.profileId"
           :options="hostOptions"
           filterable
-          :placeholder="t('选择已保存的 SSH 主机')"
+          :placeholder="t('hosts.selection.sshPlaceholder')"
         />
       </NFormItem>
       <NAlert v-if="!hostOptions.length" type="info">
-        {{ t("请先在主机页创建 SSH 主机，再创建转发。") }}
+        {{ t("forwarding.form.hostHint") }}
       </NAlert>
-      <NFormItem :label="t('转发模式')" path="rule.mode">
+      <NFormItem :label="t('forwarding.form.mode')" path="rule.mode">
         <NRadioGroup :value="draft.rule.mode" @update:value="changeMode">
-          <NRadioButton value="local">{{ t("本地转发") }}</NRadioButton>
-          <NRadioButton value="remote">{{ t("远程转发") }}</NRadioButton>
-          <NRadioButton value="dynamic">{{ t("动态 SOCKS5") }}</NRadioButton>
+          <NRadioButton value="local">
+            {{ t("forwarding.modes.local") }}
+          </NRadioButton>
+          <NRadioButton value="remote">
+            {{ t("forwarding.modes.remote") }}
+          </NRadioButton>
+          <NRadioButton value="dynamic">
+            {{ t("forwarding.modes.dynamic") }}
+          </NRadioButton>
         </NRadioGroup>
       </NFormItem>
       <p>
@@ -201,16 +211,21 @@ async function save() {
       <NGrid :cols="2" :x-gap="16">
         <NFormItemGi
           :label="
-            draft.rule.mode === 'remote' ? t('远程监听 IP') : t('本机监听 IP')
+            draft.rule.mode === 'remote'
+              ? t('forwarding.form.remoteBindAddress')
+              : t('forwarding.form.localBindAddress')
           "
           path="rule.bindAddress"
         >
           <NInput
             v-model:value="draft.rule.bindAddress"
-            :placeholder="t('127.0.0.1 或 ::1')"
+            :placeholder="t('forwarding.form.loopbackPlaceholder')"
           />
         </NFormItemGi>
-        <NFormItemGi :label="t('监听端口')" path="rule.bindPort">
+        <NFormItemGi
+          :label="t('forwarding.form.bindPort')"
+          path="rule.bindPort"
+        >
           <NInputNumber
             v-model:value="draft.rule.bindPort"
             :min="1"
@@ -222,18 +237,21 @@ async function save() {
           <NFormItemGi
             :label="
               draft.rule.mode === 'remote'
-                ? t('本机侧目标地址')
-                : t('远程侧目标地址')
+                ? t('forwarding.form.localTargetAddress')
+                : t('forwarding.form.remoteTargetAddress')
             "
             path="rule.targetAddress"
           >
             <NInput
               :value="draft.rule.targetAddress ?? ''"
               @update:value="draft.rule.targetAddress = $event"
-              :placeholder="t('域名或 IP，IPv6 不带方括号')"
+              :placeholder="t('forwarding.form.targetPlaceholder')"
             />
           </NFormItemGi>
-          <NFormItemGi :label="t('目标端口')" path="rule.targetPort">
+          <NFormItemGi
+            :label="t('forwarding.form.targetPort')"
+            path="rule.targetPort"
+          >
             <NInputNumber
               v-model:value="draft.rule.targetPort"
               :min="1"
@@ -244,18 +262,14 @@ async function save() {
         </template>
       </NGrid>
       <NText v-if="draft.rule.mode !== 'dynamic'" depth="3">
-        {{
-          t(
-            "监听 0.0.0.0 或 :: 将允许其他设备访问。远程监听范围还取决于服务器设置。",
-          )
-        }}
+        {{ t("forwarding.warning.publicListener") }}
       </NText>
     </NForm>
     <NAlert v-if="error" type="error">{{ error }}</NAlert>
     <template #footer>
       <NFlex justify="end">
         <NButton :disabled="busy" @click="emit('update:open', false)">
-          {{ t("取消") }}
+          {{ t("common.actions.cancel") }}
         </NButton>
         <NButton
           type="primary"
@@ -263,7 +277,7 @@ async function save() {
           :disabled="!hostOptions.length"
           @click="save"
         >
-          {{ t("保存") }}
+          {{ t("common.actions.save") }}
         </NButton>
       </NFlex>
     </template>

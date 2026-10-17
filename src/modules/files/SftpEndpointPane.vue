@@ -46,7 +46,7 @@ const connectForm = ref<FormInst>();
 const connectRules = computed(() => ({
   profile: {
     required: true,
-    message: t("请选择已保存的 SSH 主机"),
+    message: t("hosts.selection.sshRequired"),
     trigger: "change",
   },
 }));
@@ -70,7 +70,7 @@ const pathForm = ref<FormInst>();
 const pathRules = computed(() => ({
   path: {
     required: true,
-    message: t("请输入远端路径"),
+    message: t("files.path.placeholder"),
     trigger: ["input", "blur"],
   },
 }));
@@ -109,7 +109,7 @@ const columns = computed<DataTableColumns<FileEntry>>(() => [
     disabled: (row) => row.name === ".." || disabled.value,
   },
   {
-    title: t("名称"),
+    title: t("common.fields.name"),
     key: "name",
     minWidth: 160,
     sorter: true,
@@ -121,13 +121,13 @@ const columns = computed<DataTableColumns<FileEntry>>(() => [
       ]),
   },
   {
-    title: t("大小"),
+    title: t("files.fields.size"),
     key: "size",
     width: 105,
     render: (row) => formatFileSize(row.size),
   },
   {
-    title: t("权限"),
+    title: t("files.fields.permissions"),
     key: "permissions",
     width: 70,
     render: (row) =>
@@ -177,7 +177,7 @@ function selection(items = chosen.value): SftpSelection | undefined {
   if (
     items.some((entry) => entry.kind !== "file" && entry.kind !== "directory")
   ) {
-    error.value = t("只能复制普通文件和文件夹，暂不支持符号链接。");
+    error.value = t("files.copy.unsupportedType");
     return;
   }
   return {
@@ -238,12 +238,16 @@ defineExpose({ refresh: () => load(), path: directory, available });
       @submit.prevent="connect"
     >
       <NFlex :wrap="false">
-        <NFormItem :label="t('SSH 主机')" path="profile" class="path-form">
+        <NFormItem
+          :label="t('common.connection.sshHost')"
+          path="profile"
+          class="path-form"
+        >
           <NSelect
             v-model:value="connectModel.profile"
             :options="options"
             filterable
-            :placeholder="t('选择已保存的 SSH 主机')"
+            :placeholder="t('hosts.selection.sshPlaceholder')"
             :disabled="busy || endpoint.opening || !!endpoint.sessionId"
           />
         </NFormItem>
@@ -253,14 +257,14 @@ defineExpose({ refresh: () => load(), path: directory, available });
           :loading="endpoint.opening"
           @click="connect"
         >
-          {{ t("连接") }}
+          {{ t("common.actions.connect") }}
         </NButton>
         <NButton
           v-else
           :disabled="busy || endpoint.opening"
           @click="emit('disconnect')"
         >
-          {{ t("断开") }}
+          {{ t("terminal.actions.disconnect") }}
         </NButton>
       </NFlex>
     </NForm>
@@ -273,12 +277,14 @@ defineExpose({ refresh: () => load(), path: directory, available });
           :disabled="disabled || directory === '/'"
           @click="load(directory.slice(0, directory.lastIndexOf('/')) || '/')"
         >
-          {{ t("上级") }}
+          {{ t("files.actions.parent") }}
         </NButton>
         <NButton :disabled="disabled" @click="load('.')">
-          {{ t("主目录") }}
+          {{ t("files.actions.home") }}
         </NButton>
-        <NButton :disabled="disabled" @click="load()">{{ t("刷新") }}</NButton>
+        <NButton :disabled="disabled" @click="load()">
+          {{ t("common.actions.refresh") }}
+        </NButton>
       </NFlex>
       <NForm
         ref="pathForm"
@@ -287,11 +293,15 @@ defineExpose({ refresh: () => load(), path: directory, available });
         @submit.prevent="navigatePath"
         class="path-form"
       >
-        <NFormItem :label="t('远端路径')" path="path" :show-label="false">
+        <NFormItem
+          :label="t('files.path.label')"
+          path="path"
+          :show-label="false"
+        >
           <NInput
             v-model:value="pathModel.path"
             :disabled="disabled"
-            :placeholder="t('远端路径')"
+            :placeholder="t('files.path.label')"
           />
         </NFormItem>
       </NForm>
@@ -301,14 +311,14 @@ defineExpose({ refresh: () => load(), path: directory, available });
           :disabled="disabled || settings.savingSftpHidden"
           @update:checked="updateHidden"
         >
-          {{ t("显示隐藏文件") }}
+          {{ t("files.actions.showHidden") }}
         </NCheckbox>
         <NButton
           size="small"
           :disabled="disabled || !chosen.length || !canCopy"
           @click="copySelected"
         >
-          {{ t("复制到另一侧") }}
+          {{ t("files.actions.copyToOtherPane") }}
         </NButton>
       </NFlex>
       <NDataTable
@@ -329,7 +339,7 @@ defineExpose({ refresh: () => load(), path: directory, available });
       <NFlex justify="space-between" align="center">
         <NText depth="3">
           {{
-            t("已加载 {loaded} 项 · 已选 {selected} 项", {
+            t("files.selection.loaded", {
               loaded: entries.length,
               selected: checked.length,
             })
@@ -341,7 +351,7 @@ defineExpose({ refresh: () => load(), path: directory, available });
           :disabled="disabled"
           @click="load(directory, true)"
         >
-          {{ t("加载更多") }}
+          {{ t("common.actions.loadMore") }}
         </NButton>
       </NFlex>
     </template>
@@ -349,7 +359,9 @@ defineExpose({ refresh: () => load(), path: directory, available });
       v-else
       class="empty"
       :description="
-        endpoint.sessionId ? t('正在连接或连接已结束') : t('选择主机以浏览文件')
+        endpoint.sessionId
+          ? t('terminal.state.unavailable')
+          : t('files.hostPlaceholder')
       "
     />
   </section>

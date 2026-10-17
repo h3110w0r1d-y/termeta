@@ -15,10 +15,10 @@ export function parseJson(text: string): unknown {
       if (text[at++] === '"')
         return JSON.parse(text.slice(start, at)) as string;
     }
-    throw new Error(t("JSON 字符串未结束"));
+    throw new Error(t("json.errors.unterminatedString"));
   }
   function value(depth: number): void {
-    if (depth > 20) throw new Error(t("JSON 嵌套超过 20 层"));
+    if (depth > 20) throw new Error(t("json.errors.excessiveDepth"));
     space();
     const char = text[at];
     if (char === '"') {
@@ -36,16 +36,18 @@ export function parseJson(text: string): unknown {
         return;
       }
       for (;;) {
-        if (++count > 1000) throw new Error(t("JSON 集合条目过多"));
+        if (++count > 1000) throw new Error(t("json.errors.tooManyEntries"));
         space();
         if (char === "{") {
-          if (text[at] !== '"') throw new Error(t("JSON 属性名无效"));
+          if (text[at] !== '"')
+            throw new Error(t("json.errors.invalidProperty"));
           const key = string();
           if (keys.has(key))
-            throw new Error(t("JSON 存在重复属性：{name}", { name: key }));
+            throw new Error(t("json.errors.duplicateProperty", { name: key }));
           keys.add(key);
           space();
-          if (text[at++] !== ":") throw new Error(t("JSON 缺少冒号"));
+          if (text[at++] !== ":")
+            throw new Error(t("json.errors.missingColon"));
         }
         value(depth + 1);
         space();
@@ -53,16 +55,17 @@ export function parseJson(text: string): unknown {
           at++;
           return;
         }
-        if (text[at++] !== ",") throw new Error(t("JSON 集合格式错误"));
+        if (text[at++] !== ",")
+          throw new Error(t("json.errors.invalidCollection"));
       }
     }
     const start = at;
     while (at < text.length && !/[\s,\]}]/.test(text[at]!)) at++;
-    if (start === at) throw new Error(t("JSON 值无效"));
+    if (start === at) throw new Error(t("json.errors.invalidValue"));
     JSON.parse(text.slice(start, at));
   }
   value(0);
   space();
-  if (at !== text.length) throw new Error(t("JSON 含多余内容"));
+  if (at !== text.length) throw new Error(t("json.errors.trailingContent"));
   return JSON.parse(text);
 }

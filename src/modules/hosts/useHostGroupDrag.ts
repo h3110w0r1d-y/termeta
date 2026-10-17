@@ -120,9 +120,9 @@ export function useHostGroupDrag(options: {
     }
     const targetLabel =
       current.target === "all"
-        ? t("顶层")
+        ? t("hosts.groups.topLevel")
         : current.target === "ungrouped"
-          ? t("未分组")
+          ? t("hosts.groups.ungrouped")
           : store.groups.find((group) => group.id === current.target)?.name;
     preview?.move(event.clientX, event.clientY, targetLabel ?? null);
     // 指针靠近树边缘时滚动真实容器，折叠的目标悬停展开。

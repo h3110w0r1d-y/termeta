@@ -11,6 +11,7 @@ import {
   NDropdown,
 } from "naive-ui";
 import { useAppAppearance } from "./layout/useAppAppearance";
+import { useNativeMenuLocale } from "./layout/useNativeMenuLocale";
 import VaultLayout from "./layout/VaultLayout.vue";
 import VaultGate from "./components/VaultGate.vue";
 import WindowControls from "./components/WindowControls.vue";
@@ -62,6 +63,7 @@ import type {
 import { useSettingsSync } from "./modules/settings/useSettingsSync";
 import { useBackupRestored } from "./modules/backup/useBackupRestored";
 const settingsSync = useSettingsSync();
+const nativeMenu = useNativeMenuLocale();
 const hosts = useHosts(),
   settings = useSettings(),
   workbench = useWorkbenchStore();
@@ -274,9 +276,7 @@ onMounted(async () => {
       if (
         (workbench.fileTransferring ||
           workbench.terminals.some((terminal) => terminal.sftpTransferring)) &&
-        !(await confirmAction(
-          t("关闭窗口将取消正在进行的 SFTP 传输，确定继续？"),
-        ))
+        !(await confirmAction(t("window.close.confirmTransfers")))
       )
         return;
       const running = workbench.terminals.filter(needsCloseConfirmation);
@@ -286,10 +286,10 @@ onMounted(async () => {
         !(await confirmAction(
           [
             running.length
-              ? t("{count} 个终端可能正在执行命令。", { count: running.length })
+              ? t("window.close.runningTerminals", { count: running.length })
               : "",
-            portForwards.hasActive ? t("端口转发正在运行。") : "",
-            t("关闭窗口将断开全部连接，确定继续？"),
+            portForwards.hasActive ? t("window.close.activeForwarding") : "",
+            t("window.close.confirmSessions"),
           ]
             .filter(Boolean)
             .join(" "),
@@ -334,6 +334,12 @@ onBeforeUnmount(() => {
     :date-locale="naiveDateLocale"
   >
     <NGlobalStyle />
+    <NAlert v-if="nativeMenu.error.value" type="error" role="alert">
+      {{ t("common.errors.nativeMenuUpdate") }}
+      <AppButton @click="nativeMenu.retry">
+        {{ t("common.actions.retry") }}
+      </AppButton>
+    </NAlert>
     <VaultGate :initialize="loadUnlocked">
       <div
         class="app-shell"
@@ -401,14 +407,14 @@ onBeforeUnmount(() => {
           <section
             v-show="!!workbench.activeTerminal"
             class="terminal-area"
-            :aria-label="t('终端区域')"
+            :aria-label="t('terminal.regions.area')"
           >
             <div v-if="findOpen && workbench.activeTerminal" class="find-bar">
               <AppInput
                 v-model="query"
                 autofocus
-                :aria-label="t('搜索终端历史')"
-                :placeholder="t('搜索终端历史…')"
+                :aria-label="t('terminal.search.label')"
+                :placeholder="t('terminal.search.placeholder')"
                 @keydown.enter.prevent="
                   terminalRegistry.find(
                     workbench.activeTerminal.terminalId,
@@ -427,7 +433,7 @@ onBeforeUnmount(() => {
                   )
                 "
               >
-                {{ t("上一个") }}
+                {{ t("common.actions.previous") }}
               </AppButton>
               <AppButton
                 @click="
@@ -437,11 +443,11 @@ onBeforeUnmount(() => {
                   )
                 "
               >
-                {{ t("下一个") }}
+                {{ t("common.actions.next") }}
               </AppButton>
               <AppButton
                 class="icon-button"
-                :aria-label="t('关闭搜索')"
+                :aria-label="t('terminal.search.close')"
                 @click="closeFind()"
               >
                 <NIcon :size="16" aria-hidden="true"><CloseOutline /></NIcon>
@@ -460,11 +466,11 @@ onBeforeUnmount(() => {
               <span>
                 {{
                   workbench.activeTerminal.kind === "local"
-                    ? t("本地")
+                    ? t("common.connection.local")
                     : workbench.activeTerminal.kind === "serial"
-                      ? t("串口")
+                      ? t("common.connection.serial")
                       : workbench.activeTerminal.kind === "telnet"
-                        ? t("Telnet · 明文")
+                        ? t("common.connection.telnetUnencrypted")
                         : "SSH"
                 }}
                 · {{ t(stateLabels[workbench.activeTerminal.state]) }}
@@ -498,7 +504,7 @@ onBeforeUnmount(() => {
                   (!workbench.activeTerminal.sftpOpen &&
                     workbench.activeTerminal.state !== 'connected')
                 "
-                :title="t('显示或隐藏此终端的 SFTP 侧栏')"
+                :title="t('files.sidebar.toggle')"
                 @click="workbench.toggleSftp()"
               >
                 SFTP

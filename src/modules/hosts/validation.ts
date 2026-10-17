@@ -14,6 +14,6 @@ export function uniqueHostNameRule(
       !profiles().some(
         (host) => host.id !== exceptId() && host.name === value.trim(),
       ) ||
-      new Error(t("名称已被其他主机或工作区使用")),
+      new Error(t("hosts.validation.nameConflict")),
   };
 }

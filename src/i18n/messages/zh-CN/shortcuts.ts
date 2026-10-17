@@ -1,0 +1,33 @@
+// 使用稳定的语义 key，文案修改不改变调用标识。
+export default {
+  "shortcuts.triggers.click": "点击",
+  "shortcuts.validation.conflict": "快捷键冲突：{first} 与 {second}",
+  "shortcuts.validation.invalidEntries": "快捷键条目无效",
+  "shortcuts.validation.invalidFields": "快捷键字段不合法",
+  "shortcuts.validation.contextMismatch": "快捷键上下文与动作不匹配",
+  "shortcuts.validation.linkRequiresMouse": "链接动作需要鼠标绑定",
+  "shortcuts.validation.unsupportedKey": "不支持的按键",
+  "shortcuts.validation.unsupportedTrigger": "不支持的触发器",
+  "shortcuts.import.confirm": "导入 {count} 个绑定并替换当前编辑内容？",
+  "shortcuts.categories.label": "快捷键分类",
+  "shortcuts.search.placeholder": "搜索动作或按键…",
+  "shortcuts.actions.addBinding": "增加同动作绑定",
+  "shortcuts.actions.resetCommand": "恢复此动作默认",
+  "shortcuts.actions.deleteBinding": "删除绑定",
+  "shortcuts.categories.application": "全局快捷键",
+  "shortcuts.categories.terminal": "终端快捷键",
+  "shortcuts.warning.remoteKeys":
+    "将 Ctrl+C 等组合键设为快捷键后，它们将不再发送到远端。",
+  "shortcuts.hint.nativeSettings":
+    "Cmd+, 固定打开系统菜单中的设置，此组合不受此处绑定影响；可为打开设置录制其他组合键。",
+  "shortcuts.actions.resetAll": "全部恢复默认",
+  "shortcuts.actions.export": "导出配置",
+  "shortcuts.actions.import": "导入配置",
+  "shortcuts.validation.fileTooLarge": "文件过大",
+  "shortcuts.validation.unsupportedVersion": "快捷键版本不支持",
+  "shortcuts.triggers.primaryClick": "Cmd / Ctrl + 点击",
+  "shortcuts.triggers.altClick": "Alt + 点击",
+  "shortcuts.triggers.shiftClick": "Shift + 点击",
+  "shortcuts.recording.hint": "按组合键，Esc 取消",
+  "shortcuts.recording.unbound": "未绑定",
+} as const;

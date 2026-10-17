@@ -12,15 +12,15 @@ defineProps<{
     :size="16"
     :aria-label="
       {
-        directory: t('文件夹'),
-        file: t('文件'),
+        directory: t('files.types.directory'),
+        file: t('files.types.file'),
         symlink:
           targetKind === 'directory'
-            ? t('文件夹软连接')
+            ? t('files.types.directoryLink')
             : targetKind === 'file'
-              ? t('文件软连接')
-              : t('软连接（目标类型未知）'),
-        other: t('其他文件'),
+              ? t('files.types.fileLink')
+              : t('files.types.unknownLink'),
+        other: t('files.types.other'),
       }[kind]
     "
     role="img"

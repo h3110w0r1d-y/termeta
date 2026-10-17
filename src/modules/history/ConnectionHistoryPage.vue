@@ -36,8 +36,7 @@ async function clearHistory() {
   if (busy.value) return;
   busy.value = true;
   try {
-    if (!(await confirmAction(t("清空本地连接历史？不会删除主机配置。"))))
-      return;
+    if (!(await confirmAction(t("history.confirmClear")))) return;
     await desktop.clearHistory();
     await load();
   } catch (e) {
@@ -48,22 +47,22 @@ async function clearHistory() {
 }
 </script>
 <template>
-  <section class="home-page" :aria-label="t('连接历史')">
+  <section class="home-page" :aria-label="t('history.title')">
     <header class="page-heading">
       <div>
-        <NH1>{{ t("连接历史") }}</NH1>
-        <NText depth="3">{{ t("最近 20 次连接") }}</NText>
+        <NH1>{{ t("history.title") }}</NH1>
+        <NText depth="3">{{ t("history.description") }}</NText>
       </div>
       <NFlex>
         <AppButton :disabled="loading || busy" @click="load">
-          {{ t("刷新") }}
+          {{ t("common.actions.refresh") }}
         </AppButton>
         <AppButton
           class="danger"
           :disabled="loading || busy || !history.length"
           @click="clearHistory"
         >
-          {{ t("清空历史") }}
+          {{ t("history.actions.clear") }}
         </AppButton>
       </NFlex>
     </header>
@@ -72,7 +71,7 @@ async function clearHistory() {
       <NSpin :show="loading">
         <NEmpty
           v-if="!loading && !history.length"
-          :description="t('尚无连接历史。')"
+          :description="t('history.empty')"
         />
         <NList v-else bordered>
           <NListItem v-for="item in history" :key="item.id">
@@ -83,7 +82,7 @@ async function clearHistory() {
                 ' · ' +
                 formatDate(item.startedAt) +
                 ' · ' +
-                (item.endReason || t('进行中')) +
+                (item.endReason || t('history.status.inProgress')) +
                 ' ' +
                 (item.errorCode || '')
               "

@@ -18,11 +18,11 @@ import type { HostKind, HostProfile } from "../services/desktop/types";
 const workbench = useWorkbenchStore();
 const navigationOptions = computed(() => {
   const items: { key: VaultSection; label: string }[] = [
-    { key: "hosts", label: t("主机") },
-    { key: "forwarding", label: t("端口转发") },
-    { key: "credentials", label: t("凭据") },
-    { key: "known-hosts", label: t("主机信任") },
-    { key: "history", label: t("历史") },
+    { key: "hosts", label: t("common.navigation.hosts") },
+    { key: "forwarding", label: t("common.navigation.forwarding") },
+    { key: "credentials", label: t("common.navigation.credentials") },
+    { key: "known-hosts", label: t("common.navigation.knownHosts") },
+    { key: "history", label: t("common.navigation.history") },
   ];
   return items.map((item) => ({
     ...item,
@@ -45,7 +45,7 @@ const emit = defineEmits<{
     v-show="workbench.activeId === 'home'"
     class="vault-page"
     role="tabpanel"
-    :aria-label="t('保险箱')"
+    :aria-label="t('common.navigation.vault')"
   >
     <aside class="vault-navigation">
       <NMenu
@@ -79,28 +79,28 @@ const emit = defineEmits<{
         v-show="workbench.vaultSection === 'forwarding'"
         class="vault-page-scroll"
       >
-        <AppScrollArea :label="t('端口转发内容')">
+        <AppScrollArea :label="t('common.regions.forwarding')">
           <PortForwardingPage />
         </AppScrollArea>
       </div>
       <AppScrollArea
         v-if="workbench.vaultSection === 'credentials'"
         class="vault-page-scroll"
-        :label="t('凭据内容')"
+        :label="t('common.regions.credentials')"
       >
         <CredentialsPage />
       </AppScrollArea>
       <AppScrollArea
         v-if="workbench.vaultSection === 'known-hosts'"
         class="vault-page-scroll"
-        :label="t('主机信任内容')"
+        :label="t('common.regions.knownHosts')"
       >
         <KnownHostsPage />
       </AppScrollArea>
       <AppScrollArea
         v-if="workbench.vaultSection === 'history'"
         class="vault-page-scroll"
-        :label="t('连接历史内容')"
+        :label="t('common.regions.history')"
       >
         <ConnectionHistoryPage />
       </AppScrollArea>

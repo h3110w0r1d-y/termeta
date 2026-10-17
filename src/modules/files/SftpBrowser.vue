@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { t } from "../../i18n";
+import { t, type PlainMessageKey } from "../../i18n";
 import {
   computed,
   nextTick,
@@ -36,7 +36,7 @@ const panes = [left, right];
 const root = ref<HTMLElement>();
 const copying = ref(false);
 const progress = ref<TransferProgress>();
-const message = ref("");
+const message = ref<PlainMessageKey | "">("");
 const error = ref("");
 let disposed = false;
 const generations = [0, 0];
@@ -168,7 +168,7 @@ async function copy(side: number, selection: SftpSelection) {
         }
       },
     );
-    message.value = "对拷完成";
+    message.value = "files.copy.complete";
   } catch (cause) {
     error.value = errorMessage(cause);
   } finally {
@@ -270,9 +270,9 @@ function keydown(event: KeyboardEvent) {
 watch(() => workbench.activeId, releaseDrag);
 const detail = computed(() => {
   const value = progress.value;
-  if (!value) return t("准备对拷…");
-  return t("{name} · {completed}/{total} 个文件 · {transferred}{size}", {
-    name: value.currentName ?? t("正在传输"),
+  if (!value) return t("files.copy.preparing");
+  return t("files.transfer.summary", {
+    name: value.currentName ?? t("files.transfer.inProgress"),
     completed: value.completedFiles ?? 0,
     total: value.totalFiles ?? "?",
     transferred: formatFileSize(value.transferred),
@@ -310,7 +310,7 @@ onBeforeUnmount(() => {
     aria-labelledby="app-tab-sftp"
     class="sftp-browser"
     role="tabpanel"
-    :aria-label="t('双栏 SFTP 文件浏览器')"
+    :aria-label="t('files.browser.title')"
   >
     <NAlert v-if="error" type="error" closable @close="error = ''">
       {{ error }}
@@ -320,7 +320,9 @@ onBeforeUnmount(() => {
     </NAlert>
     <NFlex v-if="copying" align="center" :wrap="false">
       <NText class="copy-progress">{{ detail }}</NText>
-      <NButton size="small" @click="cancelCopy">{{ t("取消对拷") }}</NButton>
+      <NButton size="small" @click="cancelCopy">
+        {{ t("files.actions.cancelCopy") }}
+      </NButton>
     </NFlex>
     <div class="endpoint-grid">
       <div
@@ -360,8 +362,8 @@ onBeforeUnmount(() => {
         <NTag :type="drag.target !== undefined ? 'success' : 'default'">
           {{
             drag.target !== undefined
-              ? t("复制 {count} 项到对侧文件夹", { count: drag.count })
-              : t("复制 {count} 项 · 拖到另一栏", { count: drag.count })
+              ? t("files.copy.confirm", { count: drag.count })
+              : t("files.copy.dragHint", { count: drag.count })
           }}
         </NTag>
       </div>

@@ -10,11 +10,11 @@ const store = useSettings();
 const busy = ref(false),
   error = ref("");
 const fields = computed<{ value: HostSearchField; label: string }[]>(() => [
-  { value: "name", label: t("名称") },
-  { value: "address", label: t("地址") },
-  { value: "username", label: t("用户名") },
-  { value: "tags", label: t("标签") },
-  { value: "group", label: t("分组") },
+  { value: "name", label: t("common.fields.name") },
+  { value: "address", label: t("settings.search.address") },
+  { value: "username", label: t("common.fields.username") },
+  { value: "tags", label: t("common.fields.tags") },
+  { value: "group", label: t("common.fields.group") },
 ]);
 async function update(patch: Partial<HostSearchSettings>) {
   if (busy.value) return;
@@ -39,11 +39,11 @@ function select(values: (string | number)[]) {
 <template>
   <NSpace vertical :size="12">
     <NSpace v-if="!compact" align="center">
-      <NText>{{ t("拼音模糊搜索") }}</NText>
+      <NText>{{ t("settings.search.pinyin") }}</NText>
       <NSwitch
         :value="store.value.hostSearch.pinyin"
         :disabled="busy"
-        :aria-label="t('拼音模糊搜索')"
+        :aria-label="t('settings.search.pinyin')"
         @update:value="update({ pinyin: $event })"
       />
     </NSpace>
@@ -64,7 +64,7 @@ function select(values: (string | number)[]) {
       </NSpace>
     </NCheckboxGroup>
     <NText v-if="!compact" depth="3">
-      {{ t("搜索设置修改后立即保存；名称始终参与搜索。") }}
+      {{ t("settings.search.description") }}
     </NText>
     <NText v-if="error" type="error" role="alert">{{ error }}</NText>
   </NSpace>

@@ -3,10 +3,11 @@ use objc2::{rc::Retained, runtime::AnyObject};
 use objc2_app_kit::{NSApplication, NSEvent, NSEventMask, NSEventModifierFlags};
 use objc2_foundation::MainThreadMarker;
 use std::{cell::RefCell, ptr::NonNull};
-use tauri::{
-    Manager,
-    menu::{Menu, MenuItem, PredefinedMenuItem, Submenu, WINDOW_SUBMENU_ID},
-};
+use tauri::Manager;
+
+mod items;
+mod system_items;
+use items::LocalizedMenu;
 
 struct SettingsShortcutMonitor(Retained<AnyObject>);
 
@@ -64,49 +65,17 @@ fn install_settings_shortcut_monitor() -> tauri::Result<()> {
     Ok(())
 }
 
-pub fn remove_settings_shortcut_monitor() {
+pub fn remove_listeners() {
     // 调用方通过主线程调度，主窗口销毁时同时移除应用内监听。
     SETTINGS_SHORTCUT_MONITOR.with_borrow_mut(|slot| {
         drop(slot.take());
     });
+    system_items::remove();
 }
 
 pub fn configure(app: &tauri::App) -> tauri::Result<()> {
-    let menu = Menu::default(app.handle())?;
-    // 系统预设Close Window自带Cmd+W，会绕过WebView的弹窗/标签路由。
-    // 保留窗口菜单操作，但用无快捷键的普通项替代，让Cmd+W只由前端处理。
-    let window_menu = Submenu::with_id_and_items(
-        app,
-        WINDOW_SUBMENU_ID,
-        "Window",
-        true,
-        &[
-            &PredefinedMenuItem::minimize(app, None)?,
-            &PredefinedMenuItem::maximize(app, None)?,
-            &PredefinedMenuItem::separator(app)?,
-            &MenuItem::with_id(
-                app,
-                "termeta.closeWindow",
-                "Close Window",
-                true,
-                None::<&str>,
-            )?,
-        ],
-    )?;
-    for (index, item) in menu.items()?.into_iter().enumerate() {
-        if item.id().as_ref() == WINDOW_SUBMENU_ID {
-            menu.remove(&item)?;
-            menu.insert(&window_menu, index)?;
-            break;
-        }
-    }
-    if let Some(tauri::menu::MenuItemKind::Submenu(application)) = menu.items()?.first() {
-        application.insert(
-            &MenuItem::with_id(app, "termeta.settings", "设置", true, Some("Cmd+,"))?,
-            1,
-        )?;
-    }
-    app.set_menu(menu)?;
+    LocalizedMenu::install(app)?;
+    system_items::install()?;
     app.on_menu_event(|app, event| {
         if event.id().as_ref() == "termeta.settings" {
             let _ = crate::settings_window::open(app);
@@ -123,4 +92,25 @@ pub fn configure(app: &tauri::App) -> tauri::Result<()> {
         }
     });
     install_settings_shortcut_monitor()
+}
+
+// 整轮标题更新在主线程执行，IPC 只在所有 set_text 完成后返回。
+pub async fn set_locale(
+    app: &tauri::AppHandle,
+    locale: crate::native_menu::NativeMenuLocale,
+) -> tauri::Result<()> {
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    let handle = app.clone();
+    app.run_on_main_thread(move || {
+        let result = handle
+            .state::<LocalizedMenu>()
+            .set_locale(locale)
+            .map(|()| {
+                system_items::set_locale(locale);
+            });
+        let _ = sender.send(result);
+    })?;
+    receiver
+        .await
+        .map_err(|_| std::io::Error::other("原生菜单语言更新已取消"))?
 }

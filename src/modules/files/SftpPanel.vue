@@ -91,7 +91,7 @@ const pathForm = ref<FormInst>();
 const pathRules = computed(() => ({
   path: {
     required: true,
-    message: t("请输入远端路径"),
+    message: t("files.path.placeholder"),
     trigger: ["input", "blur"],
   },
 }));
@@ -181,7 +181,7 @@ const columns = computed<DataTableColumns<FileEntry>>(() => [
     disabled: (row) => row.name === ".." || busy.value || stale.value,
   },
   {
-    title: t("名称"),
+    title: t("common.fields.name"),
     key: "name",
     minWidth: 150,
     sorter: true,
@@ -193,13 +193,13 @@ const columns = computed<DataTableColumns<FileEntry>>(() => [
       ]),
   },
   {
-    title: t("大小"),
+    title: t("files.fields.size"),
     key: "size",
     width: 100,
     render: (row) => formatFileSize(row.size),
   },
   {
-    title: t("权限"),
+    title: t("files.fields.permissions"),
     key: "permissions",
     width: 70,
     render: (row) =>
@@ -300,12 +300,7 @@ async function receiveDrop(drop: SftpLocalDrop) {
   const sessionId = props.terminal.sessionId!;
   try {
     if (
-      await confirmAction(
-        t(
-          "将拖入的文件或目录上传到 {target}？同名目录合并；已有文件会在覆盖前逐项询问。",
-          { target: target },
-        ),
-      )
+      await confirmAction(t("files.upload.confirmDrop", { target: target }))
     ) {
       if (sameSession(sessionId))
         enqueue({
@@ -461,14 +456,14 @@ onBeforeUnmount(() => {
     :style="{ flexBasis: panelWidth + 'px' }"
     class="sftp-panel"
     :class="{ 'sftp-drop-target': dropTarget !== undefined }"
-    :aria-label="t('此终端的 SFTP 文件浏览器')"
+    :aria-label="t('files.sidebar.label')"
     @keydown.stop
   >
     <div
       class="sftp-resizer"
       role="separator"
       tabindex="0"
-      :aria-label="t('调整 SFTP 侧栏宽度')"
+      :aria-label="t('files.sidebar.resize')"
       aria-orientation="vertical"
       :aria-valuenow="panelWidth"
       @pointerdown="startResize"
@@ -483,13 +478,21 @@ onBeforeUnmount(() => {
       <NButton
         size="tiny"
         @click="terminal.sftpOpen = false"
-        :title="visibleTransfer ? t('隐藏面板，传输继续') : t('隐藏 SFTP 侧栏')"
+        :title="
+          visibleTransfer
+            ? t('files.transfer.hidePanel')
+            : t('files.sidebar.hide')
+        "
       >
-        {{ t("隐藏") }}
+        {{ t("common.actions.hide") }}
       </NButton>
     </NFlex>
     <NAlert v-if="stale" type="warning" :show-icon="false">
-      {{ connected ? t("列表已过期，请刷新") : t("SSH 未连接，列表已过期") }}
+      {{
+        connected
+          ? t("files.errors.staleList")
+          : t("files.errors.sshDisconnected")
+      }}
     </NAlert>
     <NAlert
       v-if="error"
@@ -506,7 +509,7 @@ onBeforeUnmount(() => {
       type="info"
       :show-icon="false"
     >
-      {{ t("松开以上传到 {path}", { path: dropTarget }) }}
+      {{ t("files.upload.dropHint", { path: dropTarget }) }}
     </NAlert>
     <NText v-if="notice" type="success">{{ notice }}</NText>
     <NFlex :wrap="false">
@@ -517,13 +520,17 @@ onBeforeUnmount(() => {
         @submit.prevent="navigatePath"
         class="path-form"
       >
-        <NFormItem :label="t('远端路径')" path="path" :show-label="false">
+        <NFormItem
+          :label="t('files.path.label')"
+          path="path"
+          :show-label="false"
+        >
           <NInput
             v-model:value="pathModel.path"
             size="small"
-            :placeholder="t('远端路径')"
+            :placeholder="t('files.path.label')"
             :disabled="busy || !connected"
-            :aria-label="t('远端路径')"
+            :aria-label="t('files.path.label')"
           />
         </NFormItem>
       </NForm>
@@ -532,22 +539,22 @@ onBeforeUnmount(() => {
         :disabled="busy || !connected"
         @click="navigatePath"
       >
-        {{ t("前往") }}
+        {{ t("files.actions.go") }}
       </NButton>
     </NFlex>
     <NFlex>
       <NButton size="tiny" :disabled="busy || !connected" @click="load('.')">
-        {{ t("主目录") }}
+        {{ t("files.actions.home") }}
       </NButton>
       <NButton
         size="tiny"
         :disabled="busy || stale || atRoot"
         @click="load(directory.replace(/\/$/, '') + '/..')"
       >
-        {{ t("上级") }}
+        {{ t("files.actions.parent") }}
       </NButton>
       <NButton size="tiny" :disabled="busy || !connected" @click="load()">
-        {{ t("刷新") }}
+        {{ t("common.actions.refresh") }}
       </NButton>
       <NCheckbox
         :checked="hidden"
@@ -555,42 +562,44 @@ onBeforeUnmount(() => {
         size="small"
         @update:checked="updateHidden"
       >
-        {{ t("显示隐藏文件") }}
+        {{ t("files.actions.showHidden") }}
       </NCheckbox>
     </NFlex>
     <NFlex>
       <NButton size="tiny" :disabled="loading || stale" @click="transfer(true)">
-        {{ t("上传") }}
+        {{ t("files.actions.upload") }}
       </NButton>
       <NButton
         size="tiny"
         :disabled="busy || stale || selected?.kind !== 'file'"
         @click="transfer(false)"
       >
-        {{ t("下载") }}
+        {{ t("files.actions.download") }}
       </NButton>
     </NFlex>
     <NFlex v-if="visibleTransfer" align="center" justify="space-between">
       <NText>
         {{
           progress
-            ? t("已传输 {transferred} / {total}", {
+            ? t("files.transfer.bytes", {
                 transferred: formatFileSize(progress.transferred),
                 total:
                   progress.total === null
                     ? "?"
                     : formatFileSize(progress.total),
               })
-            : t("选择文件或准备传输…")
+            : t("files.transfer.preparing")
         }}
       </NText>
-      <NButton size="tiny" @click="cancel">{{ t("取消传输") }}</NButton>
+      <NButton size="tiny" @click="cancel">
+        {{ t("files.actions.cancelTransfer") }}
+      </NButton>
     </NFlex>
     <NScrollbar
       v-if="visibleTasks.length"
       class="sftp-transfer-queue"
       style="max-height: 120px"
-      :aria-label="t('传输队列')"
+      :aria-label="t('files.transfer.queue')"
     >
       <NFlex
         v-for="task in visibleTasks"
@@ -606,18 +615,22 @@ onBeforeUnmount(() => {
             task.messageKey ? t(task.messageKey) : task.message || task.path
           "
         >
-          {{ task.upload ? t("上传") : t("下载") }} ·
-          {{ task.progress?.currentName || task.name || task.path }} ·
+          {{
+            task.upload
+              ? t("files.actions.upload")
+              : t("files.actions.download")
+          }}
+          · {{ task.progress?.currentName || task.name || task.path }} ·
           {{
             task.status === "queued"
-              ? t("等待中")
+              ? t("common.status.waiting")
               : task.status === "running"
                 ? task.progress?.totalFiles
-                  ? t("传输中 {completed}/{total}", {
+                  ? t("files.transfer.progress", {
                       completed: task.progress.completedFiles || 0,
                       total: task.progress.totalFiles,
                     })
-                  : t("传输中")
+                  : t("files.transfer.active")
                 : task.messageKey
                   ? t(task.messageKey)
                   : task.message
@@ -628,7 +641,7 @@ onBeforeUnmount(() => {
           size="tiny"
           @click="cancelQueued(task)"
         >
-          {{ t("移除") }}
+          {{ t("common.actions.remove") }}
         </NButton>
       </NFlex>
     </NScrollbar>
@@ -655,8 +668,8 @@ onBeforeUnmount(() => {
       <NText depth="3">
         {{
           hasMore
-            ? t("{count} 项（尚未全部加载）", { count: rows.length - 1 })
-            : t("{count} 项", { count: rows.length - 1 })
+            ? t("files.countPartial", { count: rows.length - 1 })
+            : t("files.count", { count: rows.length - 1 })
         }}
       </NText>
       <NButton
@@ -665,17 +678,17 @@ onBeforeUnmount(() => {
         :disabled="busy || stale || entries.length >= 10000"
         @click="load(directory, true)"
       >
-        {{ t("加载更多（100 项）") }}
+        {{ t("files.actions.loadMorePage") }}
       </NButton>
     </NFlex>
     <NText v-if="entries.length >= 10000 && hasMore" type="warning">
-      {{ t("文件过多，请进入子文件夹继续浏览。") }}
+      {{ t("files.errors.tooManyEntries") }}
     </NText>
     <NText v-if="selectedEntries.length" depth="3" class="sftp-selection">
       {{
         selected
-          ? t("已选择：{name}", { name: selected.name })
-          : t("已选择 {count} 项", { count: selectedEntries.length })
+          ? t("files.selection.named", { name: selected.name })
+          : t("files.selection.count", { count: selectedEntries.length })
       }}
     </NText>
   </aside>

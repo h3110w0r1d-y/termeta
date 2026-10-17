@@ -31,14 +31,14 @@ const participatesInBroadcast = computed(
 );
 const broadcastTitle = computed(() =>
   props.terminal.sshCommand
-    ? t("命令终端不接收广播")
+    ? t("workbench.broadcast.commandExcluded")
     : props.broadcast
-      ? t("关闭广播（{broadcastCount} 个终端）", {
+      ? t("workbench.broadcast.disable", {
           broadcastCount: broadcastCount.value,
         })
       : broadcastCount.value < 2
-        ? t("请先连接至少两个交互终端")
-        : t("广播输入到 {broadcastCount} 个终端", {
+        ? t("workbench.broadcast.minimumTerminals")
+        : t("workbench.broadcast.enable", {
             broadcastCount: broadcastCount.value,
           }),
 );
@@ -112,7 +112,7 @@ function menuKey(event: KeyboardEvent) {
         <i class="status-dot" :class="terminal.state" aria-hidden="true" />
         <span class="terminal-pane-title-text">{{ displayTitle }}</span>
         <span v-if="terminal.sshCommand" class="pane-command-label">
-          {{ t("命令") }}
+          {{ t("terminal.titles.command") }}
         </span>
       </button>
       <AppButton
@@ -131,9 +131,15 @@ function menuKey(event: KeyboardEvent) {
       <AppButton
         class="icon-button pane-close"
         :aria-label="
-          t('关闭终端 {name}', { name: terminalBaseTitle(terminal) })
+          t('terminal.actions.closeNamed', {
+            name: terminalBaseTitle(terminal),
+          })
         "
-        :title="t('关闭终端 {name}', { name: terminalBaseTitle(terminal) })"
+        :title="
+          t('terminal.actions.closeNamed', {
+            name: terminalBaseTitle(terminal),
+          })
+        "
         @click="emit('close')"
       >
         <NIcon :size="14" aria-hidden="true">

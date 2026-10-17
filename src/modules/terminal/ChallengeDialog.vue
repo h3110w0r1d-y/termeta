@@ -46,7 +46,7 @@ const rules = computed<FormRules>(() =>
       String(index),
       {
         max: 16384,
-        message: t("回答最多16384个字符"),
+        message: t("terminal.auth.answerTooLong"),
         trigger: ["input", "blur"],
       },
     ]),
@@ -96,31 +96,31 @@ async function auth(cancel = false) {
     :locked="true"
     :description="
       targetTitle
-        ? t('连接目标：{targetTitle}', { targetTitle: targetTitle })
+        ? t('terminal.auth.target', { targetTitle: targetTitle })
         : undefined
     "
     :title="
       current?.type === 'hostKeyChallenge'
-        ? t('核验 SSH 主机身份')
+        ? t('knownHosts.verifyTitle')
         : current?.type === 'authChallenge'
-          ? current.name || t('SSH 身份认证')
+          ? current.name || t('terminal.auth.title')
           : ''
     "
   >
     <template v-if="current?.type === 'hostKeyChallenge'">
       <p>
-        {{ t("请通过可信渠道核对服务器指纹。只有核验后才会提交认证信息。") }}
+        {{ t("knownHosts.verifyDescription") }}
       </p>
       <dl class="fingerprint">
-        <dt>{{ t("主机地址") }}</dt>
+        <dt>{{ t("hosts.form.address") }}</dt>
         <dd>{{ current.endpoint.host }}:{{ current.endpoint.port }}</dd>
-        <dt>{{ t("算法") }}</dt>
+        <dt>{{ t("knownHosts.algorithm") }}</dt>
         <dd>{{ current.algorithm }}</dd>
-        <dt>{{ t("SHA256 指纹") }}</dt>
+        <dt>{{ t("knownHosts.fingerprint") }}</dt>
         <dd>{{ current.fingerprint }}</dd>
       </dl>
       <p class="muted">
-        {{ t("服务器指纹变化时会阻止连接，请重新核实。") }}
+        {{ t("knownHosts.changedWarning") }}
       </p>
     </template>
     <NForm
@@ -153,22 +153,22 @@ async function auth(cancel = false) {
     <template #footer>
       <NFlex v-if="current?.type === 'hostKeyChallenge'" justify="end">
         <AppButton :disabled="busy" @click="hostKey('reject')">
-          {{ t("拒绝") }}
+          {{ t("knownHosts.actions.reject") }}
         </AppButton>
         <AppButton :disabled="busy" @click="hostKey('allowOnce')">
-          {{ t("仅本次信任") }}
+          {{ t("knownHosts.actions.trustOnce") }}
         </AppButton>
         <AppButton
           class="primary"
           :disabled="busy"
           @click="hostKey('trustAndSave')"
         >
-          {{ t("信任并保存") }}
+          {{ t("knownHosts.actions.trustAndSave") }}
         </AppButton>
       </NFlex>
       <NFlex v-else-if="current?.type === 'authChallenge'" justify="end">
         <AppButton type="button" :disabled="busy" @click="auth(true)">
-          {{ t("取消连接") }}
+          {{ t("terminal.actions.cancelConnection") }}
         </AppButton>
         <AppButton
           id="auth-challenge-continue"
@@ -177,7 +177,7 @@ async function auth(cancel = false) {
           class="primary"
           :disabled="busy"
         >
-          {{ t("继续") }}
+          {{ t("common.actions.continue") }}
         </AppButton>
       </NFlex>
     </template>

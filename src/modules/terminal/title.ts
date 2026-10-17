@@ -28,6 +28,9 @@ export function terminalBaseTitle(terminal: {
   target: { source: string };
 }): string {
   return terminal.target.source === "local" && terminal.baseTitle === "本地终端"
-    ? terminal.title.replace(/^本地终端(?= \(\d+\)$|$)/u, t("本地终端"))
+    ? terminal.title.replace(
+        /^本地终端(?= \(\d+\)$|$)/u,
+        t("terminal.titles.local"),
+      )
     : terminal.title;
 }

@@ -53,8 +53,8 @@ export function createDragPreview(
     move(x: number, y: number, target: string | null) {
       preview.style.transform = `translate3d(${x - offsetX}px, ${y - offsetY}px, 0)`;
       hint.textContent = target
-        ? t("移到：{target}", { target: target })
-        : t("⊘ 当前位置不可放置");
+        ? t("hosts.drag.destination", { target: target })
+        : t("hosts.drag.invalidTarget");
     },
     dispose() {
       preview.replaceChildren();
