@@ -1,155 +1,73 @@
 # SSH 连接、安全信任与认证
 
-日期：2026-10-16。首期直连 SSH2 已按 russh 0.64.1 源码实现；完整密码/公钥 + OTP 互通矩阵仍待运行验收。依赖公告与待验收项见 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)。
+更新：2026-10-18。直连 SSH2、PTY Shell/exec 和系统识别已有源码；认证互通、流控及三平台完整验收尚未完成。统一生命周期见 [会话模型](04-session-model.md)，依赖风险见 [产品需求](01-product-requirements.md)。
 
 ## 1. 连接配置
 
-`SshProfile`：address、port（默认 22）、username、authPlan、terminalType（默认 xterm-256color）、初始 rows/cols、timeoutPolicy、keepAlivePolicy、algorithmPolicyRef。保存记录只包含公共或主机专属 credentialRef；私钥从凭据库读取，不在连接时引用原文件，不包含密码、私钥内容或 OTP。
+权威类型为 [SshConfig](../crates/terminal-core/src/types.rs)：`configVersion`、`address`、`port`、`username`、`authPlan`、`startup`。保存主机连接只传 ProfileId，由 Rust 重读配置及加密凭据；私钥使用导入凭据，不在每次连接时重新读取原文件。主机配置保存凭据引用，不保存秘密正文或 OTP。
 
-address 输入不支持夹带端口或 shell 片段；UI 分别处理端口，允许域名/IPv4/IPv6，后端拒绝控制字符与嵌入 NUL。IPv6 展示时加括号，但 canonical key 不依赖字符串拼接猜测。DNS 用于定位网络目标，不能代替 SSH 主机身份校验。
+地址支持域名、IPv4、无方括号 IPv6，端口单独填写，默认 22。后端拒绝控制字符、空白、嵌入端口等非法形式。DNS 只定位目标，不替代主机身份验证。
 
-保存主机与临时 SSH 的 `startup` 共用 `SshStartup={type:"shell"}|{type:"exec",command}`，缺失默认为 shell，未知类型/空值拒绝。命令不能为空白、不得含 NUL、最多8192 UTF-8字节；保留原文，不在客户端拆分参数、补引号或拼接 Shell 包装。主机编辑器与快速连接都提供启动方式，命令模式可直接操作 btop/htop/docker stats 等程序。
+`startup` 默认为 `{type:"shell"}`，或 `{type:"exec",command}`。命令须非空白、无 NUL、最多 8192 UTF-8 字节；原文发送给服务端，不拆参数、不补引号或拼接包装命令。
 
-## 2. 正常流程
+## 2. 连接顺序
 
-```mermaid
-sequenceDiagram
-  participant UI as Vue 工作台
-  participant App as Manager / Challenge Broker
-  participant SSH as SSH Driver
-  participant DB as HostTrustStore
-  participant Remote as SSH Server
-  UI->>App: open_session + 两个 Channel
-  App-->>UI: Created 快照
-  App->>SSH: 异步启动
-  SSH->>Remote: DNS / TCP / SSH KEX
-  Remote-->>SSH: 主机公钥与握手证明
-  SSH->>DB: 读取该 endpoint 的信任记录
-  alt 精确匹配
-    DB-->>SSH: trusted
-  else 未知
-    SSH->>App: HostKeyChallenge
-    App-->>UI: 指纹 / endpoint / 三种选择
-    UI->>App: respond_host_key
-    App-->>SSH: AllowOnce / TrustAndSave / Reject
-  else 发生变更
-    SSH-->>UI: HOST_KEY_CHANGED，阻止连接
-  end
-  SSH->>Remote: 用户认证（仅信任通过后）
-  SSH->>Remote: open session / request PTY
-  Remote-->>SSH: PTY success
-  alt 交互 Shell
-    SSH->>Remote: request shell
-    Remote-->>SSH: shell success
-  else 执行命令
-    SSH->>Remote: exec 用户保存的命令
-    Remote-->>SSH: exec success
-  end
-  SSH-->>UI: Connected + 数据流
-```
+DNS/TCP → SSH 握手与主机密钥核验 → 用户认证 → session channel → PTY → Shell 或 exec → Connected。读取和提交认证秘密发生在主机身份通过后；PTY、Shell、exec 分别等待协议确认，拒绝或超时报错，不回退其他启动方式。
 
-上图为逻辑流程，不意味着 driver 直接引用 UI；实际通过 core 控制事件和 Tauri 桥接。引用凭据可在配置中存在，但秘密读取/提交应尽量延后至主机身份通过之后。
+文件和转发使用专用工厂，只复用身份、认证及传输，不执行保存主机的启动命令，见 [SFTP](16-sftp-workspace.md)、[端口转发](21-port-forwarding.md)。
 
 ## 3. 主机密钥策略
 
-### 首次信任
+信任按规范化的 host + port 匹配完整公钥类型与内容；不按 DNS 解析结果合并别名，不自动推导通配符。未知密钥须核验 SHA256 指纹后明确选择 Reject、AllowOnce 或 TrustAndSave。AllowOnce 只限当前连接；永久保存成功才继续，写失败不视为已保存。
 
-russh Handler 的 server key 检查接入 HostTrustStore。未知 endpoint 暂停握手，由独立控制 Channel 呈现：原输入 host、实际端口、key algorithm、SHA256 指纹、连接来源。提示用户通过可信渠道核验，不能声称首次弹窗本身已证明主机可信。
+挑战绑定会话、owner、endpoint、公钥与期限，只能消费一次；取消或超时即作废。并发保存事务内重查，冲突按密钥变更阻断。
 
-- Reject：默认选项，结束连接。
-- AllowOnce：只限当前连接尝试；不写 SQLite，重连再次询问。
-- TrustAndSave：验证 challenge 仍有效，在事务内持久化完整公钥及元数据，成功后继续。写失败不得静默变成永久信任；用户可以重新选择 AllowOnce。
-
-Challenge 绑定 session、owner、key digest 和 endpoint；超时、取消、窗口关闭、阶段改变立即作废；只能成功消费一次。两个并发连接对同一 endpoint 的确认需事务内重查，出现冲突时按变更阻断处理。
-
-### 身份与匹配
-
-信任范围为应用内显式规范化后的 host + port，不自动按解析后的 IP 合并别名。规范化域名大小写、IPv6 表示，明确存储输入名与规范名；不自动推导通配符信任。
-
-匹配比较 endpoint 已保存的完整公钥类型和内容，不只比较 UI 指纹字符串。已有信任记录时，服务端提供不同公钥一律 HOST_KEY_CHANGED；换用新 algorithm 也不能绕过现有 pin。当前保存入口不允许为已信任 endpoint 追加不同公钥，须先显式撤销旧记录再重新连接核验。
-
-首期不实现主机证书 CA、`@cert-authority`、hashed known_hosts、自动轮换证明，也不自动读取/覆盖 `~/.ssh/known_hosts`。后续通过专用导入设计扩展，遇不支持项明确提示。
-
-### 密钥变更
-
-连接阶段直接阻断，展示历史与当前指纹。普通弹窗无“自动接受变更”快捷路径；用户须先通过带影响说明的信任管理界面撤销旧记录，再重新连接并核验。所有重连都重新检查，不能复用上次 AllowOnce。
+已信任 endpoint 出现不同公钥一律 `HOST_KEY_CHANGED`，更换算法不能绕过 pin。须在信任管理中显式撤销旧记录后重新连接核验；每次重连均重查。当前不读取/覆盖系统 known_hosts，不支持主机 CA、hashed known_hosts 或自动轮换证明。
 
 ## 4. 认证策略
 
-`authPlan` 只保存一个主要认证方式及凭据引用，不保留旧版有序步骤兼容；不是无限尝试所有本地密钥。用户无需配置“密码 / 私钥之后继续交互认证（OTP）”。主机身份通过后，后端先发送不携带秘密的 `none` 请求查询可用认证方法，再按服务端 `remaining_methods` 与 `partial_success` 协商。服务器若允许 `none`，直接完成认证。
+`authPlan` 恰好一个主要方式：密码或私钥。先用无秘密的 `none` 请求查询服务端方法，再按 `remaining_methods` / `partial_success` 协商；服务端允许 none 时直接成功。不会遍历本地所有密钥或调用系统 ssh 回退。
 
-| 方式                 | 首期行为                                                                   | 数据边界                                |
-| -------------------- | -------------------------------------------------------------------------- | --------------------------------------- |
-| 密码                 | 读取公共/主机专属 OS 密码，未设置则 challenge 询问                         | 不写入主机配置/SQLite/Pinia 持久化      |
-| 私钥                 | OpenSSH Ed25519 与 RSA-SHA2 优先；从 privateKey 凭据读取正文及可选解密密码 | 前端仅见文件名/公钥指纹，完整私钥不回传 |
-| 私钥解密密码         | 可随私钥凭据保存；缺失/错误时通过 masked challenge 本次补充                | 不再独立建凭据；本次补充不自动保存      |
-| Keyboard-interactive | 显示 banner/name/instructions 与每轮 prompts，按 echo 标记输入             | echo=false 必须掩码；OTP 永不持久化     |
-| partial success      | 保留已完成因素，继续服务器要求的下一步                                     | 不把多因素要求误报成错误密码            |
+- 密码从保险库凭据读取；未保存或失败时请求本次输入，补充输入不自动保存。
+- 私钥正文与可选解密密码从加密凭据读取，缺失或错误的解密密码可本次补充。RSA 须确认 RSA-SHA2 支持，不回退 SHA-1。
+- 服务端要求 Keyboard-interactive/PAM/OTP 时动态展示提示，遵守 echo 标记；OTP 不持久化。部分成功后继续下一因素，仅 PAM 服务不会先索要无效的密码或私钥口令。
 
-认证由服务器与配置共同决定；密码 auth 和 Keyboard-interactive 是不同协议步骤。密码 / 私钥部分成功且服务器要求 Keyboard-interactive 时立即进入服务端挑战；仅支持 Keyboard-interactive 的主机不会先索要无效的密码或私钥口令。主认证失败后如服务器仍提供交互认证，也允许自动进入 PAM 表单。配置不含 Keyboard-interactive 步骤，后端不会重复启动已处理的挑战组。保存密码仅自动用于单个非回显、去除两端空白和末尾冒号后精确为 Password（不区分英文大小写）或“密码”的提示，每次连接最多一次，且只使用当前密码认证配置的凭据；已提交过密码协议时不再自动填入。重复提示、失败重试、OTP、复合提示、回显或未知字段由用户输入，OTP 不持久化。服务端零输入且名称/说明均为空白的轮次自动发送零个响应，不产生 AuthChallenge；含非空通知的零输入轮仍显示。所有轮次先校验相同提示限额，并计入八轮预算；此行为由 Rust 统一处理，覆盖终端和双栏 SFTP。常见 password+OTP 需要真实服务器验证；文档有方法并不表示应用已兼容任意 PAM/MFA。
+保存密码仅可自动填入单个非回显、精确为 Password/密码（忽略英文大小写及末尾冒号）的提示，每连接最多一次；已提交过密码协议后不再自动填入。OTP、复合或未知提示均由用户输入。零提示且名称/说明空白的轮次直接回复空响应，其余通知仍展示；所有轮次均受限额约束。
 
-首期密码提交共享最多 3 次预算，私钥口令最多 3 次重新输入；交互认证最多启动 3 次，所有交互尝试共享最多 8 轮 challenge（均为初始上限），每轮设置期限；服务端提示数量、单条长度和总字节数均需限额。拒绝复用旧 challenge。不要将完整 server banner 当作可信富文本，所有提示按普通文本显示。
+密码提交最多 3 次，私钥口令最多 3 次补充，交互认证最多启动 3 次且共享 8 轮挑战；提示数量、长度和总字节受限。服务器提示按普通文本显示。Agent/Pageant、证书、FIDO/GSSAPI 与全格式私钥兼容尚未实现。
 
-Agent、Pageant、证书、FIDO、安全密钥、PPK/PEM 全格式与 GSSAPI 不纳入 M2 承诺；不支持时明确说明，不默认调用系统 ssh 回退。
+## 5. PTY、Shell 与命令
 
-## 5. PTY、Shell、命令与数据
+两种启动模式均请求 `xterm-256color` PTY，支持输入和 resize；exec 只发送配置命令，不先启动 Shell 或模拟键盘输入。请求确认期限不限制程序运行时长。无 PTY、自定义 cwd/env 和自动重启未实现。
 
-认证成功后开 session channel，先请求 `TERM=xterm-256color` PTY，再按 startup 请求交互 Shell 或 exec，分别等待协议 Success。exec 只发送配置命令，不先启动 Shell 或模拟键盘输入；服务端通常仍通过用户 Shell 解释命令。两种模式都支持全屏终端、输入及 resize，首期不提供无 PTY、工作目录、环境变量或自动重启选项。exec 拒绝/确认超时报 EXEC_REJECTED，绝不回退 Shell；请求确认期限不限制程序运行时长。
+确认期间的输出及退出消息有界保留，接受后进入统一输出/ACK 流程；正常结束先提交尾输出，再发布退出码/信号。命令退出保留终端，不转入交互 Shell；重新运行须用户显式建立新连接。命令模式不参与输入广播。
 
-请求确认期间的 Data/ExtendedData、ExitStatus/ExitSignal/EOF 按顺序保留，累计载荷不超过256KiB、消息不超过1024条；接受后沿用有界输出/ACK与取消路径。快速退出程序的尾输出先提交，再发布终态，不因只收到退出码就丢弃尾帧。正常结束保留窗格和输出，显示退出码/信号及“重新运行”入口，不继续进入交互 Shell。
+尺寸限 1–1000，初始可用 80×24 兜底，随后发送最新有效尺寸；不重建会话。Ctrl+C 作为终端字节由远端 PTY 处理；不自动执行 locale 配置命令。PTY 的普通与扩展输出合并展示，不从字节流推断标准输出边界。
 
-初始尺寸来自已挂载且有效的 xterm；可暂用 80×24 兜底，随后以可见实测尺寸更新。resize 校验 rows/cols 为 1–1000 的整数，去重并合并，只发 window-change，不重建会话。不要默认在远端执行 locale 设置命令；UTF-8 显示与远端 locale 不一致时提示用户调整。
+## 6. 超时与保活
 
-输入作为 bytes 保序写入。TTY 模式的 Ctrl+C 发送终端控制字节，由远端 PTY 行规处理；不得把用户键盘行为翻译成本地进程终止。处理 Data/ExtendedData、EOF、ExitStatus、ExitSignal、Close；PTY 输出中 stderr 合并展示，底层仍保留扩展类型供诊断，不尝试从字节流还原标准输出边界。
+当前固定值：DNS 10 秒，TCP 总预算 15 秒，握手网络时间 20 秒，信任及每轮挑战 120 秒，认证总预算 10 分钟，非交互网络请求 30 秒，PTY/Shell/exec 每步确认 10 秒。握手等待信任时暂停网络计时，取消独立生效。
 
-普通终端复制选区不应向远端写数据；中文输入法组合阶段不提前发送不完整字符；粘贴使用终端支持的 bracketed paste 与输入队列。
+KeepAlive 间隔 30 秒、max=3，不设用户活动空闲断线；russh 收包重置计数且超出 max 才断开，不能解释为精确 90 秒。专门睡眠恢复尚未实现。
 
-## 6. 超时与保活初始策略
+## 7. 算法与资源
 
-| 阶段           | 初始值（待测）                     | 处理                                  |
-| -------------- | ---------------------------------- | ------------------------------------- |
-| DNS            | 10 秒                              | 独立取消/错误阶段                     |
-| TCP            | 总预算 15 秒                       | 多地址尝试共享预算，含 IPv6/IPv4 回退 |
-| SSH 握手       | 20 秒                              | 与等待用户确认分开计时                |
-| 主机信任       | 120 秒                             | 超时拒绝，提示重新连接                |
-| 认证交互       | 每轮 120 秒，总交互预算 10 分钟    | 防无限 challenge；用户可随时取消      |
-| 非交互认证请求 | 30 秒                              | 明确失败，避免重复提交秘密            |
-| PTY / Shell / exec | 每步确认 10 秒                    | 区分请求拒绝与确认超时，不限制程序运行时长 |
-| KeepAlive      | 30 秒空闲探测，连续 3 次无回复判定 | 实际语义按选定 russh release 验证     |
-| 关闭           | 3 秒资源回收预算                   | 到期释放 transport 并报告清理结果     |
+使用锁定 russh release 的算法列表，显式移除主机密钥 `ssh-rsa/SHA-1`，RSA 用户认证只允许 SHA-2；不自动启用弱算法。每 SSH channel 配置 256 KiB 窗口、32 KiB 最大包和 16 条消息缓冲。取消通过底层 transport shutdown 生效，不依赖输出 ACK；库内部队列满时的公平性仍待实测。
 
-握手等待信任时不继续消耗 20 秒网络超时；要么拆分阶段定时器，要么显式暂停并保留 120 秒挑战期限。KeepAlive 不等于“用户 N 秒没按键就退出”；默认不设用户活动空闲断线。系统睡眠唤醒后若存活性不明，呈现检测状态，失败后终止旧 session，等待用户重连。
+## 8. 重连与扩展边界
 
-## 7. 算法与兼容性
+重连重新握手、核验密钥和认证，沿用原 TerminalId/xterm/滚屏缓冲，清除旧输入且不自动重放命令。保存主机的显式重新运行读取最新配置，临时连接沿用打开配置；既有会话不受后续主机编辑影响。
 
-默认使用锁定 release 的安全算法列表，在设计审核时记录实际协商策略，优先现代 KEX/AEAD、Ed25519/RSA-SHA2；禁用 DSA、ssh-rsa/SHA-1 签名及弱 KEX 的自动回退。RSA 密钥格式不等于使用 ssh-rsa SHA-1 签名。
-
-库“支持算法”与项目“启用算法”分别记录。老旧交换机若需要弱算法，后续通过单主机显式策略开启，并显示影响；不得全局放宽。首期不自行设计密码算法，不承诺因使用 Rust 就没有安全漏洞。
-
-## 8. 重连与未来专业功能
-
-重连建立新的后端连接：新 requestId/sessionId、重新握手、检查主机密钥、重新认证；不重放输入、不重新执行 snippet。**同一 Tab、terminalId、xterm 实例和滚屏缓冲必须保留**，新输出在原终端末尾继续追加，不创建替代视图或清空缓冲。断线、首次连接失败、重连失败均保留 Tab 和历史滚动/复制/搜索能力；没有历史的首次失败也保留空终端与可查看的错误信息。
-
-新旧连接之间通过可信本地状态消息标识时间与重连结果，不把错误当作新远端输出；旧流排空、代次隔离及终端模式边界见 IPC/交互文档。保留显示历史不代表恢复原远端 Shell；远端任务恢复仍需 tmux/screen 等远端能力。
-
-ProxyJump 后续通过明确 hop 列表，为每一跳独立校验密钥与认证；不接受任意 ProxyCommand 自动执行。单终端 SFTP 经独立子系统复用已认证连接，生命周期仍绑定终端；独立双栏使用文件专用 SessionManager 与 files-only 工厂，只认证并开放 SFTP channel，不请求 PTY/Shell，复用密码/私钥/keyboard-interactive 与主机信任端口；通用共享连接租约仍为后续设计，见架构文档，不向通用终端加入 listFiles/startTunnel 等方法。
-
-命令模式的“重新运行”显式建立新连接并执行一次最新保存命令；临时连接沿用其打开配置。网络断开、程序退出均不自动重新执行。复制标签/拆分会话、打开保存工作区各自创建独立会话，按对应启动方式连接；既有运行会话不受主机后续编辑影响。命令模式不收发工作区广播，直接聚焦操作正常；关闭提醒以本次实际 exec 模式及连接状态判断，不依赖 OSC 标题/执行标记。
+ProxyJump、ProxyCommand、Agent、SSH config 导入与通用连接租约尚未实现。保留终端显示历史不代表恢复远端进程；远端任务恢复依赖 tmux/screen 等能力。
 
 ## 9. 源码与验证边界
 
-启动命令校验、存储兼容、广播隔离与关闭提醒有回归源码，未执行。命令不存在、快速退出/尾输出、exec 拒绝、btop/htop 缩放与 q/Ctrl+C、工作区重新打开/手动重新运行及文件/转发隔离仍待授权运行验收。
-
-实现位于 terminal-ssh 的 connection/host_key/auth/driver。固定配置为 256 KiB SSH window、32 KiB maximum packet、16 条 channel 消息、30 秒 KeepAlive 与 max=3；russh 收到包会重置保活计数，且超出 max 才断开，不能解释为精确 90 秒。库内部 channel 满时的协议公平性仍须 SP-05 验证，socket shutdown 取消不依赖输出 ACK。
-
-已静态核对 russh 0.64.1 的认证、交互及 PTY/Shell/exec API。当前源码不等于认证互通验收：公共/专属密码、加密/无密码私钥、密码或私钥加 OTP、仅 PAM、错误重试、取消与超时仍须真实服务器验证。RSA 算法选择不消除实现侧信道风险，依赖公告见 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)。
+实现入口：[connection](../crates/terminal-ssh/src/connection.rs)、[host_key](../crates/terminal-ssh/src/host_key.rs)、[auth](../crates/terminal-ssh/src/auth.rs)、[driver](../crates/terminal-ssh/src/driver.rs)。真实密码/私钥/OTP/PAM、取消/超时、快速退出尾输出、全屏程序与资源回收仍待完整运行验收；静态核对 API 不等于服务端兼容性通过。
 
 ## 10. 一次性主机系统识别
 
-仅保存的交互 Shell 模式 SSH 终端生效，开关detectSshSystem缺失时默认true；命令模式、Local、临时SSH、files-only及 Telnet不启动检测。命令模式跳过时不消耗尝试机会，之后改为 Shell 可正常检测。PTY/Shell建立后与driver并发运行，RemoteSystemStore先按主机ID、目标快照和默认图标事务claim，持久化systemDetectionAttempted与session令牌。无标记且图标为ssh才允许claim；失败、超时、断开或进程中断均不撤销标记，后续连接永不自动重试。修改连接目标不重置标记；复制新主机保留icon但独立计算新主机的尝试状态。
+仅保存的交互 Shell SSH 终端生效，`detectSshSystem` 默认开启；临时连接、命令模式、Telnet、文件及转发不检测。PTY/Shell 建立后事务 claim 一次机会：须尚未尝试且仍为默认 SSH 图标。关闭开关或命令模式跳过不消耗机会；claim 后失败、超时或中断也不重试，修改目标不重置标记。
 
-kex_done采集受界SSH服务端标识，仅作展示线索。完整平台词或明确软件标识可直接归类；其余通过同一transport的独立exec channel执行echo $SHELL，再选择POSIX/Fish/RouterOS脚本，必要时尝试固定Windows版本查询。没有Termius版本对OpenSSH版本的执行限制，不承诺设备都支持exec。普通脚本优先/etc/os-release、/usr/lib/os-release，再回退release文件；仅Rust按文本解析ID、NAME、DISTRIB_ID、ID_LIKE等，不source，不拼接远端返回值为命令。
+先读取受界的 SSH 服务端标识，必要时通过独立 exec 执行 [固定只读命令](../resources/ssh-os-detection.json)。所有探测共用 5 秒、32 KiB 输出预算，同一时刻仅一个探测 channel；只解析 stdout，不 source 远端文件或将返回文本拼入命令，不写 PTY、不进入广播。失败不影响终端状态，探测可能被服务器审计。
 
-全部exec共用5秒截止时间与32KiB stdout/stderr预算，每次最多一个探测channel，必须等待exec协议Success和退出码；仅stdout用于解析。超时/取消/超限关闭探测channel，不向PTY注入命令、不显示探测正文、不进入输入广播或修改交互Shell。检测结果只有白名单图标类别；失败不改变会话状态。complete校验令牌、目标及仍为默认图标，防止删除/目标变化/手动选择被迟到结果覆盖；提交后发hostSystemChanged控制通知重读主机。改变icon或目标会作废旧令牌，但不清除一次性标记。
-
-内置命令来自 resources/ssh-os-detection.json；设置仅提供开关和用途说明，不展示内部命令，不提供脚本编辑或任意exec IPC。检测会在远端执行内置只读命令，可能被服务器审计。当前仅静态验证，运行兼容性和故障矩阵待验收。
+结果仅用于白名单图标；提交时重查令牌、目标和默认图标，避免覆盖用户修改或复活已删主机。目标或图标变化作废旧令牌，不清除尝试标记；复制主机独立计算尝试状态。设置只提供开关及用途说明，不开放脚本编辑或任意 exec IPC。实现见 [os_detection](../crates/terminal-ssh/src/os_detection.rs)，兼容性待运行验收。

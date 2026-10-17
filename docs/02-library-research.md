@@ -1,126 +1,44 @@
-# 技术选型与依赖依据
+# 依赖选型与核查边界
 
-更新：2026-10-18。以下为当前源码与锁定发布包的静态核查结果，未代表编译兼容、真实连接或三平台运行验收。具体依赖以 Cargo.lock、pnpm-lock.yaml 为准。
+更新：2026-10-18。版本和 features 以 manifest、Cargo.lock、pnpm-lock.yaml 为准。本文保留选型依据与升级注意事项，不记录逐轮调研/API 排查过程；静态核对不代表编译、兼容性或安全审计通过。
 
-## 1. 当前选型
+## 1. 主要依赖
 
-| 模块   | 当前实现                                                           | 依据与边界                                                                                                                                                                                                                                     |
-| ------ | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 桌面   | Tauri 2.11.5 / build 2.6.3，JS API 2.11.0                          | [Commands](https://v2.tauri.app/develop/calling-rust/)、[Channel](https://v2.tauri.app/reference/javascript/api/namespacecore/)、[Capabilities](https://v2.tauri.app/security/capabilities/)；应用命令须 AppManifest/ACL 与业务 owner 双重校验 |
-| 前端   | Vue 3、TypeScript、Pinia 4.1.0                                     | [Pinia](https://pinia.vuejs.org/introduction.html)；仅管理轻量状态，不持有终端或文件正文                                                                                                                                                       |
-| UI     | Naive UI 2.45.3                                                    | MIT，Node >=20、Vue ^3.0.0；采用库组件与主题，工作区标签自定义，详见 [UI 选型](13-ui-stack.md)                                                                                                                                                 |
-| 终端   | xterm 6.0.0、Fit 0.11.0、Search 0.16.0、WebLinks 0.12.0            | MIT；[Terminal API](https://xtermjs.org/docs/api/terminal/classes/terminal/)、[编码](https://xtermjs.org/docs/guides/encoding/)、[流控](https://xtermjs.org/docs/guides/flowcontrol/)、[安全](https://xtermjs.org/docs/guides/security/)       |
-| SSH    | russh 0.64.1，关闭默认 features，ring+rsa                          | Apache-2.0，MSRV 1.89；[发布 API](https://docs.rs/russh/0.64.1/russh/)、[维护者仓库](https://github.com/Eugeny/russh)                                                                                                                          |
-| 异步   | Tokio / tokio-util，共用 Tauri runtime                             | [spawn_blocking](https://docs.rs/tokio/latest/tokio/task/fn.spawn_blocking.html)；长期阻塞与短期凭据工作分别管理                                                                                                                               |
-| 数据库 | SQLx 0.8.6，关闭默认 features，sqlite/runtime-tokio/migrate/macros | MIT OR Apache-2.0；[发布 API](https://docs.rs/sqlx/0.8.6/sqlx/)；Rust 独占 SQL，无前端任意 SQL                                                                                                                                                 |
-| 凭据   | keyring 3.6.3                                                      | MIT OR Apache-2.0，MSRV 1.75；[发布 API](https://docs.rs/keyring/3.6.3/keyring/)；macOS apple-native、Windows windows-native、Linux sync-secret-service/crypto-rust/vendored                                                                   |
-| SFTP   | russh-sftp 3.0.1                                                   | Apache-2.0；[发布 API](https://docs.rs/russh-sftp/3.0.1/russh_sftp/)；独立 subsystem 流，不混入 PTY                                                                                                                                            |
-
-xterm.write 接收原始 Uint8Array，解析回调用于消费 ACK，不等同 GPU 呈现；不使用 HTTP/WebSocket 或 addon-attach。WebGL 不是可用性前提。认证、PTY/Shell 请求须等服务器接受回复，不能将发送成功等同连接成功。
-
-keyring 当前采用 3.6.3 的平台适配器；[keyring-core](https://docs.rs/keyring-core/latest/keyring_core/) 为后续候选，不混用其 API。系统服务不可用时禁止明文或 mock 回退。秘密尽早进入 Zeroizing；钥匙串仅保存一把主密钥，私钥正文与可选解密密码封装在同一加密数据库凭据项，serde/serde_json/uuid 使用根锁定版本，不回传前端。
-
-## 2. SFTP 与原生拖放
-
-russh-sftp 的 RawSftpSession 提供增量目录与文件流 API，避免高层 read_dir 全量收集。3.0.1 正式依赖不绑定 russh，通过 AsyncRead+AsyncWrite 对接当前 SSH 子系统。包上限 256 KiB，单请求 15 秒超时，读写块 64 KiB，全局最多 4 个任务。上传通过打开后属性核对及 fsetstat 截断已确认的普通文件；新文件独占创建，同名目录仅合并，不依赖远端 hardlink。
-
-上游未声明 MSRV，锁解析不证明编译兼容。其依赖下界要求 bytes 1.12.1、serde 1.0.229、tokio-util 0.7.19；根锁文件已同步。最新 RustSec 全量复核受接口访问限制未完成，不宣称依赖安全审计通过。
-
-macOS 原生文件/目录承诺使用 [objc2 0.6.5](https://docs.rs/objc2/0.6.5/objc2/)、[block2 0.6.2](https://docs.rs/block2/0.6.2/block2/)、[objc2-app-kit 0.3.2](https://docs.rs/objc2-app-kit/0.3.2/objc2_app_kit/struct.NSFilePromiseProvider.html)、objc2-foundation 0.3.2，限 macOS target、按需 features。声明 MSRV 1.71；objc2/foundation/block2 为 MIT，AppKit 为 Zlib OR Apache-2.0 OR MIT。主线程创建拖动会话，NSOperationQueue 后台兑现文件，复用有界 Rust 下载。原生拖入 [Tauri 事件](https://v2.tauri.app/reference/javascript/api/namespacewebview/) 的平台坐标在壳内统一为逻辑坐标，不在前端重复除 DPR。双向拖放生命周期与 Finder 行为待运行验证。
-
-macOS 固定 Cmd+, 复用上述锁定版本的 AppKit NSEvent 应用内监视器、block2 RcBlock 与 NSMenu::performKeyEquivalent；新增启用 NSMenu feature，不新增 crate 或修改版本，Cargo.lock 无依赖变化。已按 0.3.2 源码核对回调签名（有效事件指针或空指针）、返回的 retained 监视器令牌及 removeMonitor 清理契约，令牌在主线程持有并在主窗口销毁时移除。该 API 仅监听本应用事件，不使用全局监视器；编译兼容、输入法与输入框焦点下的事件顺序仍待运行验证。
-
-Windows/Linux 拖出尚未实现。候选 [drag 2.1.1](https://docs.rs/drag/2.1.1/drag/) / [tauri-plugin-drag 2.1.1](https://crates.io/crates/tauri-plugin-drag/2.1.1) 为 MIT OR Apache-2.0、edition 2021，未声明 MSRV；当前未引入。Windows OLE CF_HDROP 与 Linux GTK URI 需要已存在本地文件，不能直接承诺 SFTP 内容。后续若采用缓存，须限制授权/配额/TTL，准备后由用户重新发起拖动；GTK URI 编码及 X11/Wayland 须单独验证。
-
-## 3. 字体、主题与输入
-
-12 个本地字体家族的正式来源、许可、版本和 SHA-256 见 [字体资源](../public/fonts/README.md) 与 [manifest](../public/fonts/manifest.json)。使用原始字体、不依赖 CDN，不新增运行时字体下载；各字体许可分别保留，不按单一许可证概括。
-
-配色使用 [xterm ITheme](https://xtermjs.org/docs/api/terminal/interfaces/itheme/) 与共享静态方案库，具体映射见 [配色规格](15-terminal-themes.md)。系统后台快捷键仅为后续 opt-in，[Tauri Global Shortcut](https://v2.tauri.app/plugin/global-shortcut/) 不替代应用命令路由和 IME/焦点策略。
-
-固定 xterm 6.0.0 的公开 onData 包含自动应答，onKey 不覆盖全部 IME。inputOrigin.ts 只读订阅内部 coreService.onUserInput，与 onData/onBinary 配合隔离广播来源；能力缺失拒绝广播，升级必须复核内部接口，不能仅凭焦点认定所有输出为用户输入。
-
-## 4. Local、Serial 与 Telnet
-
-| 适配器         | 固定依赖与依据                                                                                                        | 边界                                                                                                                                                                                                                                                                                                                                                                                    |
-| -------------- | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Local          | [portable-pty 0.9.0](https://crates.io/crates/portable-pty/0.9.0)，MIT，未声明 MSRV                                   | Unix PTY/Windows ConPTY；阻塞 I/O 独立线程，初始进程组回收；完整跨平台进程树待完善                                                                                                                                                                                                                                                                                                      |
-| Serial         | [serialport 4.10.1](https://docs.rs/serialport/4.10.1/serialport/)，MPL-2.0、MSRV1.59，禁用 libudev 默认 feature      | 库仅 None/Software/Hardware 流控；Unix TIOCEXCL/flock、Windows 零共享；macOS 通过 IOKit 角色适配筛选                                                                                                                                                                                                                                                                                    |
-| 编码           | [encoding_rs 0.8.42](https://docs.rs/encoding_rs/0.8.42/encoding_rs/)，MSRV1.88，(Apache-2.0 OR MIT) AND BSD-3-Clause | 流式解码、非法输出替换，不可表示输入明确失败                                                                                                                                                                                                                                                                                                                                            |
-| macOS 角色枚举 | core-foundation 0.10.1、io-kit-sys 0.4.1，均 MIT/Apache-2.0                                                           | 读取 IODialinDevice 精确匹配候选，RAII 处理对象所有权，实际打开保持用户节点                                                                                                                                                                                                                                                                                                             |
-| Telnet         | 内部 terminal-telnet + 已锁 Tokio 1.50.0/async-trait/core                                                             | 不调用系统 telnet 或额外协议库；[RFC 854](https://www.rfc-editor.org/rfc/rfc854)、[855](https://www.rfc-editor.org/rfc/rfc855)、[856](https://www.rfc-editor.org/rfc/rfc856)、[857](https://www.rfc-editor.org/rfc/rfc857)、[858](https://www.rfc-editor.org/rfc/rfc858)、[1091](https://www.rfc-editor.org/rfc/rfc1091)、[1073](https://www.rfc-editor.org/rfc/rfc1073) 的有界交互子集 |
-
-上述版本的 API/features/许可证曾按固定发布源码核对；Serial/core 已有 macOS 局部编译/测试证据，其余平台和完整应用兼容性未验收。OSV 对当时 serialport/encoding_rs 固定版本查询未返回公告，不代表全依赖审计。实现和设备边界见 [Serial](19-serial-terminal.md) 与 [Telnet](20-telnet-terminal.md)。
-
-## 5. 未关闭验证
-
-| 编号  | 必须回答的问题                                                                                             | 失败时的处理                                                     |
-| ----- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| SP-01 | russh 同一 release 能否完成密钥校验等待/取消、密码/加密私钥、交互认证、PTY 和 resize？                     | 调整 release/适配层；不能跳过密钥校验                            |
-| SP-02 | 三种 WebView 的原始 Channel、解析 ACK、背景标签是否可用且有界？                                            | 调整帧/批次；二进制不可用时经 ADR 改受界的字节序列化方案         |
-| SP-03 | keyring 平台后端能否可靠读写/取消并处理无服务/锁定？                                                       | 收紧支持矩阵或暂禁保存；不降低秘密保护                           |
-| SP-04 | SQLx SQLite feature、迁移、路径、备份在三平台是否一致？                                                    | 更换版本/隔离存储实现，不暴露 SQL 给前端                         |
-| SP-05 | 关闭是否打断满队列/无 ACK/远端无响应？KeepAlive 是否仍正常？                                               | 调整 actor/任务拓扑，未通过不进入 MVP                            |
-| SP-06 | PTY/串口在设备阻塞时如何唤醒退出？                                                                         | 评估专用线程、平台取消 API、tokio-serial                         |
-| SP-07 | Naive UI/xterm 组合能否在三种 WebView 中保持终端跨重连不清空，并正确处理焦点、Portal、CSP 和旧流模式边界？ | 调整控件/流适配层；不能用清屏或重建终端规避                      |
-| SP-08 | 应用内全局/终端按键与点击手势能否配置、消除冲突/重复执行，并兼容 IME/菜单？                                | 调整 router/焦点适配；系统后台另在 M5 验证，不牺牲远端默认控制键 |
-| SP-09 | 所选 xterm release 是否映射全部已编辑 palette 字段、可热应用，导入可往返且安全？                           | 调整映射或版本，不能静默忽略颜色，不以重建终端热更新             |
-| SP-10 | SFTP-only、双栏各端点组合、metadata/冲突/取消/中转与共享连接公平性是否满足？                               | 调整 provider/独立连接/能力策略；不跳过身份或覆盖检查            |
-| SP-11 | 原生拖入/拖出能否在三平台文件管理器工作，staging 生命周期/冲突是否可靠？                                   | 替换原生适配、明确受限平台；需求未通过不得声称完整交付           |
-
-各 SP 项尚无完整三平台验收；SP-06 有局部串口证据，SP-10/11 有部分 macOS 交互反馈，均不能标整项通过。系统后台快捷键属 M5。执行规则和证据记录见 [运行验收边界](01-product-requirements.md#11-运行验收边界)。
-
-发布前须对实际启用依赖重新检查公告、传递 MSRV、许可证 notices 与三平台支持；静态 API/格式检查不能替代这些门槛。
-
-## 6. 加密保险库固定依赖
-
-| 依赖            | 版本与用途                                   | 源码核对与边界                                                                                                                                                      |
-| --------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| libsqlite3-sys  | 0.30.1，`bundled-sqlcipher-vendored-openssl` | 内嵌SQLCipher4.5.7（BSD），AES-256-CBC/HMAC-SHA512；SQLx0.8.6共享同一sys链接，vendored OpenSSL。核对Cargo features和内嵌版本；三平台C/OpenSSL工具链与完整公告待验收 |
-| argon2          | 0.6.0，`alloc/zeroize`，禁用默认features     | MIT OR Apache-2.0，MSRV1.85；v19 Argon2id固定64MiB/3轮/1并行度、32字节输出                                                                                          |
-| aes-gcm         | 0.11.1，`zeroize`                            | MIT OR Apache-2.0，MSRV1.85；仅保险库密钥校验记录使用AES-256-GCM，不自行替代数据库页加密                                                                            |
-| rand_core / hex | 0.6.4（getrandom）/0.4.3                     | OS随机盐/nonce；SQLCipher raw-key编码，编码不代替加密                                                                                                               |
-
-来源：[SQLCipher设计](https://www.zetetic.net/sqlcipher/design/)、[libsqlite3-sys固定源码](https://docs.rs/crate/libsqlite3-sys/0.30.1/source/)、[Argon2固定API](https://docs.rs/argon2/0.6.0/argon2/)、[AES-GCM固定API](https://docs.rs/aes-gcm/0.11.1/aes_gcm/)。实际以锁定registry源码核对使用的接口、features、MSRV与许可证；未编译或执行，不据此宣称完成密码学审计或三平台支持验收。
-
-密码修改不新增依赖。已核对锁定 libsqlite3-sys 0.30.1 内嵌 SQLCipher 4.5.7 的 sqlite3_rekey_v2 与 PRAGMA 处理，支持 raw-key rekey；结合[官方 API](https://www.zetetic.net/sqlcipher/sqlcipher-api/)在 DELETE 模式的独占加密副本上使用，并以新密钥重新打开验证，不能只依据 PRAGMA 返回成功。SQLx 0.8.6 的 Pool::begin 返回独立事务，Pool::close 等待连接归还；tokio RwLockReadGuard::try_map 用于数据库切换门闩。上述均为源码/API 静态核对，尚未运行 SQLCipher 改密或三平台故障验证。
-
-## 7. UI、搜索与资源依据
-
-通用 UI 图标使用 [@vicons/ionicons5 0.13.0](https://registry.npmjs.org/@vicons/ionicons5/0.13.0)，MIT、无运行依赖，manifest 未声明 engines/peerDependencies；类型与源码按固定发布包核对，实际体积未测量。favicon 保留 [Ionicons MIT](https://github.com/ionic-team/ionicons/blob/v5.5.4/LICENSE) 声明，图标范围见 [UI 规范](13-ui-stack.md#图标来源与替换范围)。
-
-主机搜索采用 Naive UI NSelect remote/filterable/header/focusInput；静态拼音表和匹配算法来自用户指定 roco-helper-web，无新增 npm 依赖，来源/摘要见 [资源说明](../resources/README.md#主机搜索拼音表)。下拉和 IME 仍需 WebView 验收。
-
-SSH 系统识别使用锁定 russh 的远端标识、独立 session channel/exec 及受界消息；命令资源由 Rust/前端共享 JSON，解析结果只供图标。用户指定素材与配色原始来源/摘要保留在 resources，固定脚本及 UI 只读约束见 [SSH 设计](05-ssh-design.md#10-一次性主机系统识别)。不把资源核对当成许可发布通过。
-
-## 8. 迁移 API 与验证口径
-
-SQLx 0.8.6 的 SQLite 迁移事务由 Migrator 管理，当前已取得连接后使用 run_direct；父表重建的 foreign_keys 切换在专用连接的迁移事务外完成，恢复/检查后才发布池。不是通过 SQL 脚本内 PRAGMA 或 no-transaction 标记绕过事务。完整升级链及回归边界见 [存储](07-storage.md)。
-
-清单/锁解析、下载源码和格式检查不等于编译兼容、漏洞处置或运行验收。完整公告与许可、实际启用依赖、MSRV 和三平台原生工具链须发布前重新核验，已知未关闭风险见 [公告记录](01-product-requirements.md#10-依赖与公告核查)。
-
-## 9. 云备份依赖与格式边界
-
-2026-10-17新增直接依赖并同步Cargo.lock，核对固定发布包源码而非latest页：
-
-| 依赖 | features / MSRV / 许可 | 本项目使用与核对 |
+| 领域 | 锁定基线与来源 | 用途与约束 |
 | --- | --- | --- |
-| reqwest =0.13.5 | default-features=false；rustls,json；Rust1.85；MIT OR Apache-2.0 | HTTPS、redirect none、retry never、连接/读取/总超时、Response::chunk有界读取；TLS使用平台证书验证，不关闭证书检查 |
-| quick-xml =0.42.0 | default-features=false；Rust1.86；MIT | NsReader/ResolveResult/read_resolved_event、命名空间绑定数限制；只解析受限UTF-8 DAV响应，不启用外部实体 |
-| zstd =0.13.3 | default-features=false；Rust1.64；MIT | stream write Encoder level3及read Decoder::window_log_max；先压缩SQLite再整包加密 |
-| base64 =0.22.1 | 默认std；Rust1.48；MIT OR Apache-2.0 | STANDARD包编码，STANDARD_NO_PAD主机指纹验证；同workspace既有版本 |
-| futures-util 0.3.31范围，锁0.3.34 | 当前默认features；MIT OR Apache-2.0 | TryStreamExt逐行消费SQLx快照，不新增不同版本 |
+| 桌面 | Tauri 2.11.5 / build 2.6.3 / JS API 2.11.0；[Channel](https://v2.tauri.app/reference/javascript/api/namespacecore/)、[Capabilities](https://v2.tauri.app/security/capabilities/) | Commands + 原始二进制 Channel；自定义命令须 AppManifest/ACL 与资源 owner 双重校验 |
+| 前端 | Vue 3、TypeScript、Pinia 4.1.0、Naive UI 2.45.3、Ionicons 0.13.0 | 通用控件和轻量状态，桌面行为见 [交互](09-desktop-ux.md) |
+| 终端 | xterm 6.0.0 / Fit 0.11.0 / Search 0.16.0 / WebLinks 0.12.0；[API](https://xtermjs.org/docs/api/terminal/classes/terminal/)、[流控](https://xtermjs.org/docs/guides/flowcontrol/)、[安全](https://xtermjs.org/docs/guides/security/) | 原始 Uint8Array；解析回调用于 ACK，不等于 GPU 呈现。无需 addon-attach/WebGL |
+| SSH | [russh 0.64.1](https://docs.rs/russh/0.64.1/russh/)，禁用默认 features，启用 ring/rsa | Apache-2.0，声明 MSRV 1.89；认证/PTY 请求须等待服务器接受，不能将发送成功视为完成 |
+| SFTP | [russh-sftp 3.0.1](https://docs.rs/russh-sftp/3.0.1/russh_sftp/)，禁用默认 features | Apache-2.0，未声明 MSRV；通过 AsyncRead/AsyncWrite 接 SSH subsystem，增量浏览避免全量目录收集 |
+| 数据库 | [SQLx 0.8.6](https://docs.rs/sqlx/0.8.6/sqlx/)，sqlite/runtime-tokio/migrate/macros | MIT OR Apache-2.0；Rust 独占 SQL。迁移事务和父表重建见 [存储](07-storage.md) |
+| SQLCipher | [libsqlite3-sys 0.30.1](https://docs.rs/crate/libsqlite3-sys/0.30.1/source/)，bundled-sqlcipher-vendored-openssl | 内嵌 SQLCipher 4.5.7（BSD）与 OpenSSL；不回退普通 SQLite，三平台原生工具链待验证 |
+| 主密钥/备份加密 | [Argon2 0.6.0](https://docs.rs/argon2/0.6.0/argon2/) alloc/zeroize；[AES-GCM 0.11.1](https://docs.rs/aes-gcm/0.11.1/aes_gcm/) zeroize | MIT OR Apache-2.0，声明 MSRV 1.85；用于主密钥校验与独立云包加密，不替代 SQLCipher 页加密 |
+| OS 缓存 | [keyring 3.6.3](https://docs.rs/keyring/3.6.3/keyring/)，按平台启用 backend | MIT OR Apache-2.0，声明 MSRV 1.75；macOS apple-native、Windows windows-native、Linux sync-secret-service/crypto-rust/vendored，仅缓存主密钥 |
+| Local | [portable-pty 0.9.0](https://crates.io/crates/portable-pty/0.9.0) | MIT，未声明 MSRV；Unix PTY/Windows ConPTY、独立阻塞 I/O，完整进程树回收待完善 |
+| Serial | [serialport 4.10.1](https://docs.rs/serialport/4.10.1/serialport/)，禁用默认 libudev feature | MPL-2.0，声明 MSRV 1.59；None/Software/Hardware 流控及平台独占 |
+| 文本编码 | [encoding_rs 0.8.42](https://docs.rs/encoding_rs/0.8.42/encoding_rs/) | (Apache-2.0 OR MIT) AND BSD-3-Clause，声明 MSRV 1.88；流式解码，不可表示输入明确失败 |
+| Telnet | 内部 terminal-telnet + Tokio 1.50.0 | 不调用系统 telnet；实现 [RFC 854](https://www.rfc-editor.org/rfc/rfc854) 及 BINARY/ECHO/SGA/TTYPE/NAWS 的有界子集 |
+| HTTPS | [reqwest 0.13.5](https://docs.rs/reqwest/0.13.5/reqwest/)，禁用默认 features，启用 rustls/json | MIT OR Apache-2.0，声明 MSRV 1.85；云访问验证证书、禁重定向及自动重试、有界读响应 |
+| WebDAV | [quick-xml 0.42.0](https://docs.rs/quick-xml/0.42.0/quick_xml/)，禁用默认 features | MIT，声明 MSRV 1.86；受限 UTF-8 DAV 解析，不启用外部实体 |
+| 备份压缩/封装 | [zstd 0.13.3](https://docs.rs/zstd/0.13.3/zstd/)（禁用默认 features）、base64 0.22.1 | MIT / MIT OR Apache-2.0，声明 MSRV 1.64 / 1.48；先压缩再加密，解压窗口和输出受限 |
 
-zstd-safe锁7.3.0、zstd-sys锁2.1.2+zstd.1.5.7均为BSD-3-Clause、声明Rust1.64；引入Zstd原生C编译。reqwest rustls路径加入rustls0.23.46、aws-lc-rs1.18.2和aws-lc-sys0.46.0等原生/平台依赖，三平台工具链、许可集合与实际链接待编译核验。直接依赖声明低于项目Rust1.89不代表整个传递集合已兼容。
+基础库共用 Tokio/async-trait/serde/uuid/bytes/zeroize 等锁定依赖；`spawn_blocking` 用于短期阻塞工作，长期 PTY/设备 I/O 使用独立线程。表中 MSRV 是直接依赖声明，不是整个传递集合的兼容保证；SQLCipher/OpenSSL、Zstd、rustls 所选 aws-lc 等还涉及原生编译和许可集合。
 
-SQLite快照沿用锁定libsqlite3-sys0.30.1的bundled-sqlcipher绑定及内嵌源码；已静态核对sqlite3_serialize/deserialize、authorizer/progress和DBCONFIG常量。当前build配置未设置SQLITE_OMIT_DESERIALIZE，不另引入普通SQLite库；仍需运行核验SQLCipher内存快照行为。密码学复用既有argon2/aes-gcm/zeroize，固定参数与数据限额见[数据备份](22-data-backup.md)。
+## 2. 平台适配与资源
 
-依赖解析/下载未执行构建脚本，未进行项目编译或网络联调。最新公开安全公告的在线查询未完整取得，新增依赖尚未完成RustSec/传递依赖全面审计，不能记为无漏洞或发布风险已关闭。
+macOS 文件承诺与原生菜单使用 objc2 0.6.5、block2 0.6.2、objc2-app-kit/foundation 0.3.2，仅 macOS target 按需启用 features。objc2/foundation/block2 为 MIT，AppKit 为 Zlib OR Apache-2.0 OR MIT，声明 MSRV 1.71。AppKit 对象及通知令牌在主线程管理，文件承诺后台兑现；API 来源见 [NSFilePromiseProvider](https://docs.rs/objc2-app-kit/0.3.2/objc2_app_kit/struct.NSFilePromiseProvider.html) 和 [菜单](https://github.com/tauri-apps/muda/issues/235)。串口角色枚举另用 core-foundation 0.10.1、io-kit-sys 0.4.1（MIT/Apache-2.0）。
 
-## 10. 系统终端集成候选
+Windows/Linux 原生文件拖出没有落地，不将候选库写成已支持。系统后台热键同样未引入，见 [路线](10-roadmap.md)。
 
-2026-10-17 的三平台公开接口、Tauri 固定版本源码核对及来源见[系统终端调研](23-terminal-system-integration-research.md)。single-instance 2.4.2 可复用 argv/cwd 转交但当前装配只聚焦窗口；portable-pty 0.9.0 创建本地进程，不提供 Windows 默认控制台接管。macOS 关联需区分已弃用 LaunchServices setter 与 macOS 12+ NSWorkspace；Linux xdg-terminal-exec 仍为提议规范。deep-link、Windows COM/console host/proxy、包身份和菜单适配均为候选，未新增依赖或锁文件；实施前核对固定 release 的 API/features、MSRV、许可、公告与目标系统，不能直接以在线 latest 文档替代。
+12 家族字体的固定版本、来源、许可和摘要集中在 [字体清单](../public/fonts/README.md)；配色、拼音表和用户指定 SSH 系统图标集中在 [资源来源](../resources/README.md)。资源来源记录不等同发布许可审查通过，不重复维护尺寸、提取过程或组件样式。
 
-## 11. macOS 原生菜单本地化
+## 3. 升级时必须复核的边界
 
-沿用锁定 Tauri 2.11.5 / muda 0.19.3 与 objc2 0.6.5 / objc2-app-kit、foundation 0.3.2 / block2 0.6.2，不新增 crate 或修改版本；按需显式启用 AppKit NSMenuItem 与 Foundation NSBundle、NSNotification、block2 features，Cargo.lock 无依赖变化。按[维护者说明](https://github.com/tauri-apps/muda/issues/235)，普通菜单项创建时提供标题，原生预设项使用可选自定义文本，热切换调用 `MenuItem` / `Submenu` / `PredefinedMenuItem::set_text`。已静态核对锁定包的 menu/menu.rs、normal.rs、submenu.rs、predefined.rs：预设项保留系统 action/accelerator；窗口和帮助菜单使用 Tauri 固定 ID，安装菜单时继续关联 NSApplication 的原生角色。双语 JSON 由 Rust 内嵌并与前端共享，不依赖 muda 提供语言包。系统动态项通过公开的 [NSMenu 新增通知](https://developer.apple.com/documentation/appkit/nsmenu/didadditemnotification)、[变化通知](https://developer.apple.com/documentation/appkit/nsmenu/didchangeitemnotification)及开始跟踪通知同步改写标题，不替换 delegate；回调和令牌在主线程管理，并用重入保护防止 setTitle 再触发通知。锁定绑定源码已核对通知块签名、注销与 NSMenu/NSMenuItem 标题 API；系统标签及中文名称按本机 AppKit MenuCommands/InputManager/DictationManager 资源核对，仅识别固定作用域内的已知标签，未知项保留原文。源码/API 与资源静态检查不等于原生运行验证，仍须重新编译验收菜单角色、编辑操作、快捷键、关闭确认及语言切换。
+- xterm 内部用户输入标记与鼠标动作编码集中在 inputOrigin.ts，选区适配也依赖渲染结构。升级须复核 IME、自动应答、广播与选区，不能仅依据公开 onData 判断用户输入。
+- Tauri 原始 Channel、ACK、后台标签、取消和三种 WebView 的内存水位须联合验证；AppManifest、capability 与 owner 不可只保留其一。
+- SQLCipher raw key、加密副本 rekey、serialize/deserialize、迁移/外键切换和故障恢复须使用实际数据库验证，不能由 API 存在推定可靠。
+- keyring 后端需覆盖服务缺失/锁定/缓存失败，不允许明文或 mock 回退；PTY/串口需验证阻塞时唤醒与平台清理。
+- 依赖 release、features、传递 MSRV、原生工具链、许可证及公告须与锁文件一起复核。当前已知公告集中在 [风险记录](01-product-requirements.md#10-依赖与公告核查)，不宣称全依赖审计通过。
+
+真实服务、设备、原生拖放/菜单及三平台验证门槛统一见 [运行验收边界](01-product-requirements.md#11-运行验收边界)。
