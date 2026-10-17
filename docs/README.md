@@ -1,6 +1,6 @@
 # Termeta 开发文档
 
-更新：2026-10-16。M1/M2 SSH 主体源码已落地，尚未完成 MVP 验收。文档保留最终状态与有效设计；当前范围统一见 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)，待办见 [路线](10-roadmap.md)，验收见 [运行验收边界](01-product-requirements.md#11-运行验收边界)。
+更新：2026-10-17。M1/M2 SSH 主体源码已落地，尚未完成 MVP 验收。文档保留最终状态与有效设计；当前范围统一见 [需求与实现状态](01-product-requirements.md#8-当前实现与限制)，待办见 [路线](10-roadmap.md)，验收见 [运行验收边界](01-product-requirements.md#11-运行验收边界)。
 
 ## 当前基线
 
@@ -31,6 +31,7 @@ Windows/macOS/Linux 桌面客户端，Tauri 2 + Rust + Vue 3 + TypeScript，通�
 | 19   | [Serial终端](19-serial-terminal.md)       | 串口枚举、启动参数、字符集与设备生命周期         |
 | 20   | [Telnet终端](20-telnet-terminal.md)       | Telnet协商、主机配置、明文边界与schema升级       |
 | 21   | [端口转发](21-port-forwarding.md)         | 本地/远程/SOCKS5、SSH引用、生命周期与监听边界    |
+| 22   | [数据备份方案](22-data-backup.md)         | 待实施的 Gist/WebDAV 加密快照、本地备份与恢复设计 |
 
 协作与执行规则见 [AGENTS.md](../AGENTS.md)。未经用户明确要求，不构建、启动、执行 Rust 测试或连接真实主机；允许不触发构建的依赖维护与静态检查。静态检查通过不代表运行验收；用户既有 macOS 反馈不外推为当前版本或三平台验收。
 
