@@ -67,6 +67,7 @@ fn validate_metadata(metadata: &BackupMetadata) -> Result<(), SecurityError> {
             metadata.counts.credentials,
             metadata.counts.forwards,
             metadata.counts.known_hosts,
+            metadata.counts.snippets,
         ]
         .into_iter()
         .try_fold(0u64, |sum, count| sum.checked_add(count))

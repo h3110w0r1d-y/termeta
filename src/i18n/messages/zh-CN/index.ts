@@ -12,7 +12,8 @@ import knownHosts from "./knownHosts";
 import workspaces from "./workspaces";
 import serial from "./serial";
 import credentials from "./credentials";
-import history from "./history";
+import sessionLogs from "./sessionLogs";
+import snippets from "./snippets";
 import forwarding from "./forwarding";
 import themes from "./themes";
 import backup from "./backup";
@@ -35,7 +36,8 @@ export default {
   ...workspaces,
   ...serial,
   ...credentials,
-  ...history,
+  ...sessionLogs,
+  ...snippets,
   ...forwarding,
   ...themes,
   ...backup,

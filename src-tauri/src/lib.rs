@@ -8,6 +8,7 @@ mod macos_menu;
 mod native_menu;
 mod settings;
 mod settings_window;
+mod shutdown;
 mod state;
 
 use state::AppState;
@@ -35,6 +36,7 @@ fn local_navigation(url: &url::Url) -> bool {
 
 pub fn run() {
     tauri::Builder::default()
+        .manage(shutdown::ShutdownState::default())
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
@@ -212,9 +214,21 @@ pub fn run() {
             commands::save_settings,
             commands::open_external_url,
             commands::export_json,
-            commands::list_history,
-            commands::clear_history,
+            commands::list_snippets,
+            commands::save_snippet,
+            commands::delete_snippet,
+            commands::save_session_log,
+            commands::list_session_logs,
+            commands::read_session_log,
+            commands::delete_session_log,
+            commands::clear_session_logs,
+            shutdown::finish_app_exit,
         ])
-        .run(tauri::generate_context!())
-        .expect("Termeta 初始化失败；请检查应用数据目录与桌面环境");
+        .build(tauri::generate_context!())
+        .expect("Termeta 初始化失败；请检查应用数据目录与桌面环境")
+        .run(|app, event| {
+            if let tauri::RunEvent::ExitRequested { api, .. } = event {
+                shutdown::intercept(app, api);
+            }
+        });
 }

@@ -38,7 +38,7 @@ export default {
   "backup.actions.setupAndImport": "创建保险库并导入",
   "backup.actions.confirmImport": "确认新增导入",
   "backup.import.counts":
-    "主机 {hosts} · 分组 {groups} · 凭据 {credentials} · 转发 {forwards} · 主机信任 {knownHosts}",
+    "主机 {hosts} · 分组 {groups} · 凭据 {credentials} · 转发 {forwards} · 主机信任 {knownHosts} · Snippets {snippets}",
   "backup.import.success": "同步完成：{counts}。本机原有数据和设置已保留。",
   "backup.defaultDeviceName": "我的设备",
   "backup.validation.deviceName": "请输入设备名称，长度不能超过256字节",

@@ -6,7 +6,7 @@
 
 | 位置 | 内容与边界 |
 | --- | --- |
-| `termeta-encrypted-v2.sqlite3` | SQLCipher 4 加密业务表，包括主机、凭据、信任、设置、历史与私钥来源登记；页面 AES-256-CBC、HMAC-SHA512，WAL 同样加密，临时存储仅内存 |
+| `termeta-encrypted-v2.sqlite3` | SQLCipher 4 加密业务表，包括主机、凭据、信任、设置、Snippets、会话日志与私钥来源登记；页面 AES-256-CBC、HMAC-SHA512，WAL 同样加密，临时存储仅内存 |
 | `termeta-encrypted-v2.vault.json` | 格式、保险库 UUID、固定 KDF 标识、16 字节盐、12 字节 nonce、AES-256-GCM 校验记录和初始化标记；不含密码/主密钥，必须与数据库配对保留 |
 | OS 凭据库 | 只缓存一个 32 字节主密钥：service=`io.termeta`、account=`master-key-v2` |
 | Rust 内存 | 已解锁连接池及短期秘密；秘密不通过公共 DTO 返回，不能保证第三方库内部副本全部擦除 |
@@ -27,7 +27,7 @@ SQLCipher 由锁定的 `libsqlite3-sys 0.30.1` 内嵌 4.5.7 源码与 vendored O
 
 改密要求已解锁并重新验证旧密码；新密码遵守首次设置限制且不能与旧密码相同。保留 UUID，生成新盐和 nonce，格式与 schema 不变。实现见 [主密钥协调](../crates/terminal-security/src/master_key.rs) 与 [文件切换](../crates/terminal-storage/src/password_change.rs)。
 
-流程与凭据多步写入串行，数据库生命周期门闩暂停新查询并等待原池归还事务。关闭 WAL、切至 DELETE 日志模式后复制完整加密主文件，仅在独占副本执行 SQLCipher `rekey`；验证新密钥、完整性和外键后切换正式数据库及元数据。全程不生成明文库、不改迁移记录；重新开放业务池不重复启动迁移或改写活动历史，终端输出/取消不经此门闩。
+流程与凭据多步写入串行，数据库生命周期门闩暂停新查询并等待原池归还事务。关闭 WAL、切至 DELETE 日志模式后复制完整加密主文件，仅在独占副本执行 SQLCipher `rekey`；验证新密钥、完整性和外键后切换正式数据库及元数据。全程不生成明文库、不改迁移记录；重新开放业务池不重复启动迁移或改写会话日志，终端输出/取消不经此门闩。
 
 同目录 `termeta-encrypted-v2.password-change/` 保存新旧加密文件和持久化标记：
 
@@ -63,17 +63,17 @@ SSH `config_json.startup` 使用共享 `SshStartup` 类型：Shell 或 PTY exec�
 
 改密只更换当前数据库密钥，既有物理副本仍用原密码；[云备份](22-data-backup.md)使用独立密码及白名单逻辑快照，不包含来源主密钥/vault.json。当前路径不打开或自动清理旧 `termeta.sqlite3`、`termeta-credentials-v1.sqlite3`，旧明文库不会自动加密。
 
-## 5. 设置与连接历史
+## 5. 设置、Snippets 与会话日志
 
 应用设置保存在 `settings.key=app` 的版本化 JSON，最大 256 KiB。Rust 校验版本、白名单、字段及方案引用；main/settings 使用专用串行队列读取最新值并局部合并，hostsView/hostSearch 逐字段合并，旧草稿不能覆盖即时偏好。提交后通知其他窗口重读。字段和默认值以 [settings.rs](../src-tauri/src/settings.rs) 为准；搜索查询与拼音索引只驻内存。
 
 云认证及备份密码另存于 `settings.key=backup`、`value_version=2`，不通过普通设置返回，也不进入云备份。专用读取仅返回秘密存在标记；版本 1 配置可保留认证并补填密码后升级，不改变业务 schema。详见 [备份配置](22-data-backup.md#5-配置初始化与权限)。
 
-`session_history` 合计保留 SSH/Telnet/Local/Serial 最近 20 次尝试，不按主机去重。新增与裁剪同事务，启动把未结束记录标记为中断；正文、环境、远端标题不入历史，独立 SFTP/转发不写终端历史。历史被裁剪后的结束更新为空操作，不影响会话。
+`snippets` 保存命令片段；`session_logs` 只在终端视图或软件关闭时保存 xterm 带配色/样式的现存缓冲快照及无主机外键的基础连接副本。连接创建/断开不写日志，日志无自动数量裁剪，正文不进入云备份。旧连接历史运行代码已删除，旧表不再使用，也不转换旧记录。关闭写入以 FULL 同步事务提交成功作为销毁视图/退出的前提；完整契约与异常退出限制见 [Snippets 与会话日志](23-snippets-and-session-logs.md)。
 
 ## 6. schema 与迁移
 
-密钥和页面完整性通过后，专用初始化连接接受 `user_version=0` 或同格式 2–6。父表重建前在迁移事务外关闭外键，SQLx `Migrator::run_direct` 之后恢复并检查外键，通过才发布业务池；失败保持回滚与校验和检查。
+密钥和页面完整性通过后，专用初始化连接接受 `user_version=0` 或同格式 2–6。2026-10-18 新增 Snippets/日志采用迁移后幂等建表，不增加 SQLx 迁移或改变 user_version，不改已有迁移及校验记录。父表重建前在迁移事务外关闭外键，SQLx `Migrator::run_direct` 之后恢复并检查外键，通过才发布业务池；失败保持回滚与校验和检查。
 
 | 迁移文件 | 结果 schema | 内容 |
 | --- | --- | --- |

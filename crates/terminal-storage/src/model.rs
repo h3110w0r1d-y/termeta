@@ -119,19 +119,6 @@ pub struct CredentialRecord {
     pub status: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HistoryEntry {
-    pub id: String,
-    pub profile_id: Option<String>,
-    pub display_name: String,
-    pub endpoint: Option<String>,
-    pub started_at: i64,
-    pub ended_at: Option<i64>,
-    pub end_reason: Option<String>,
-    pub error_code: Option<String>,
-}
-
 fn default_host_icon() -> String {
     "ssh".into()
 }

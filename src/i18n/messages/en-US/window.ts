@@ -1,5 +1,6 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
+  "window.close.savingLogs": "Saving session logs. Please wait…",
   "window.controls.label": "Window controls",
   "window.controls.minimizeLabel": "Minimize window",
   "window.controls.minimize": "Minimize",

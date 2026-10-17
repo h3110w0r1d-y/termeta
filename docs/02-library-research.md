@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | 桌面 | Tauri 2.11.5 / build 2.6.3 / JS API 2.11.0；[Channel](https://v2.tauri.app/reference/javascript/api/namespacecore/)、[Capabilities](https://v2.tauri.app/security/capabilities/) | Commands + 原始二进制 Channel；自定义命令须 AppManifest/ACL 与资源 owner 双重校验 |
 | 前端 | Vue 3、TypeScript、Pinia 4.1.0、Naive UI 2.45.3、Ionicons 0.13.0 | 通用控件和轻量状态，桌面行为见 [交互](09-desktop-ux.md) |
-| 终端 | xterm 6.0.0 / Fit 0.11.0 / Search 0.16.0 / WebLinks 0.12.0；[API](https://xtermjs.org/docs/api/terminal/classes/terminal/)、[流控](https://xtermjs.org/docs/guides/flowcontrol/)、[安全](https://xtermjs.org/docs/guides/security/) | 原始 Uint8Array；解析回调用于 ACK，不等于 GPU 呈现。无需 addon-attach/WebGL |
+| 终端 | xterm 6.0.0 / Fit 0.11.0 / Search 0.16.0 / Serialize 0.14.0 / WebLinks 0.12.0；[API](https://xtermjs.org/docs/api/terminal/classes/terminal/)、[流控](https://xtermjs.org/docs/guides/flowcontrol/)、[安全](https://xtermjs.org/docs/guides/security/) | 原始 Uint8Array；解析回调用于 ACK，不等于 GPU 呈现。无需 addon-attach/WebGL |
 | SSH | [russh 0.64.1](https://docs.rs/russh/0.64.1/russh/)，禁用默认 features，启用 ring/rsa | Apache-2.0，声明 MSRV 1.89；认证/PTY 请求须等待服务器接受，不能将发送成功视为完成 |
 | SFTP | [russh-sftp 3.0.1](https://docs.rs/russh-sftp/3.0.1/russh_sftp/)，禁用默认 features | Apache-2.0，未声明 MSRV；通过 AsyncRead/AsyncWrite 接 SSH subsystem，增量浏览避免全量目录收集 |
 | 数据库 | [SQLx 0.8.6](https://docs.rs/sqlx/0.8.6/sqlx/)，sqlite/runtime-tokio/migrate/macros | MIT OR Apache-2.0；Rust 独占 SQL。迁移事务和父表重建见 [存储](07-storage.md) |
@@ -23,6 +23,8 @@
 | WebDAV | [quick-xml 0.42.0](https://docs.rs/quick-xml/0.42.0/quick_xml/)，禁用默认 features | MIT，声明 MSRV 1.86；受限 UTF-8 DAV 解析，不启用外部实体 |
 | 备份压缩/封装 | [zstd 0.13.3](https://docs.rs/zstd/0.13.3/zstd/)（禁用默认 features）、base64 0.22.1 | MIT / MIT OR Apache-2.0，声明 MSRV 1.64 / 1.48；先压缩再加密，解压窗口和输出受限 |
 
+2026-10-18 新增 `@xterm/addon-serialize 0.14.0`，MIT，包未声明独立 engines/features/MSRV；其与 xterm 6.0.0 的 npm 包均标记源码提交 `f447274f430fd22513f6adbf9862d19524471c04`。已核对该固定 release 的 `serialize({excludeModes,excludeAltBuffer})` 类型与实现，用于关闭时保留缓冲样式；不使用 HTML 导出。包将插件标为 experimental，升级时须验证复杂样式、宽字符及备用屏往返。2026-10-18 npm 生产依赖公告查询未返回公告，不替代完整安全审计。来源：[固定包元数据](https://registry.npmjs.org/@xterm/addon-serialize/0.14.0)、[对应提交 API](https://github.com/xtermjs/xterm.js/blob/f447274f430fd22513f6adbf9862d19524471c04/addons/addon-serialize/typings/addon-serialize.d.ts)。
+
 基础库共用 Tokio/async-trait/serde/uuid/bytes/zeroize 等锁定依赖；`spawn_blocking` 用于短期阻塞工作，长期 PTY/设备 I/O 使用独立线程。表中 MSRV 是直接依赖声明，不是整个传递集合的兼容保证；SQLCipher/OpenSSL、Zstd、rustls 所选 aws-lc 等还涉及原生编译和许可集合。
 
 ## 2. 平台适配与资源
@@ -35,6 +37,7 @@ Windows/Linux 原生文件拖出没有落地，不将候选库写成已支持。
 
 ## 3. 升级时必须复核的边界
 
+- 日志颜色快照集中在 `session-logs/snapshot.ts`，读取固定 xterm 6 的 `_core._themeService.colors` 以保留运行中动态调色，结构不兼容时阻止归档而非静默替换颜色；升级须复核此适配和 SerializeAddon。
 - xterm 内部用户输入标记与鼠标动作编码集中在 inputOrigin.ts，选区适配也依赖渲染结构。升级须复核 IME、自动应答、广播与选区，不能仅依据公开 onData 判断用户输入。
 - Tauri 原始 Channel、ACK、后台标签、取消和三种 WebView 的内存水位须联合验证；AppManifest、capability 与 owner 不可只保留其一。
 - SQLCipher raw key、加密副本 rekey、serialize/deserialize、迁移/外键切换和故障恢复须使用实际数据库验证，不能由 API 存在推定可靠。

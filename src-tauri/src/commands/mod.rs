@@ -19,3 +19,8 @@ pub use file_drag::*;
 
 mod file_workspace;
 pub use file_workspace::*;
+
+mod snippets;
+pub use snippets::*;
+mod session_logs;
+pub use session_logs::*;

@@ -24,6 +24,7 @@
 | [Serial](19-serial-terminal.md) | 设备独占、参数、字符集与控制线边界 |
 | [Telnet](20-telnet-terminal.md) | 协商、NVT/BINARY 与明文登录边界 |
 | [端口转发](21-port-forwarding.md) | 三模式、独立连接、监听与取消 |
+| [Snippets 与会话日志](23-snippets-and-session-logs.md) | 片段管理、关闭归档、退出握手与日志回看 |
 | [备份与同步](22-data-backup.md) | 云 provider、加密快照、预览/新增合并及首次初始化 |
 
 文件编号保留空缺，不为连续编号重命名。

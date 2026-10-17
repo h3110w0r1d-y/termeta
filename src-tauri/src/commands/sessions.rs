@@ -84,16 +84,10 @@ pub async fn open_session(
     if let Some(snapshot) = state.sessions.lookup_request(&owner, &request_id) {
         return Ok(snapshot);
     }
-    let (config, profile_id, name) = match target {
-        OpenTarget::Local => (SessionConfig::Local, None, "本地终端".to_string()),
-        OpenTarget::Telnet { config } => {
-            let name = config.endpoint();
-            (SessionConfig::Telnet(config), None, name)
-        }
-        OpenTarget::Serial { config } => {
-            let name = config.path.clone();
-            (SessionConfig::Serial(config), None, name)
-        }
+    let config = match target {
+        OpenTarget::Local => SessionConfig::Local,
+        OpenTarget::Telnet { config } => SessionConfig::Telnet(config),
+        OpenTarget::Serial { config } => SessionConfig::Serial(config),
         OpenTarget::Saved { profile_id } => {
             let host = state
                 .store
@@ -126,7 +120,7 @@ pub async fn open_session(
                     ));
                 }
             };
-            (config, Some(profile_id), host.name)
+            config
         }
         OpenTarget::Ephemeral { kind, config } => {
             if kind != "ssh" {
@@ -165,50 +159,18 @@ pub async fn open_session(
                     }
                 }
             }
-            let name = format!("{}@{}", config.username, config.address);
-            (SessionConfig::Ssh(config), None, name)
+            SessionConfig::Ssh(config)
         }
     };
     config.validate()?;
     size.validate()?;
-    // 历史记录只存连接摘要；requestId 在同一窗口内同时承担幂等键。
-    let endpoint = match &config {
-        SessionConfig::Ssh(config) => {
-            if config.address.contains(':') {
-                format!("[{}]:{}", config.address, config.port)
-            } else {
-                format!("{}:{}", config.address, config.port)
-            }
-        }
-        SessionConfig::Telnet(config) => format!("telnet://{}", config.endpoint()),
-        SessionConfig::Local => "local".into(),
-        SessionConfig::Serial(config) => format!("serial:{}@{}", config.path, config.baud_rate),
-        SessionConfig::Forwarding { .. } => unreachable!("终端入口不接受转发配置"),
-    };
-    let history_id = state
-        .store
-        .start_history(profile_id.as_deref(), &name, Some(&endpoint))
-        .await
-        .map_err(storage_error)?;
     let sink = Arc::new(DesktopSink {
         output: on_output,
         control: on_control,
-        store: state.store.clone(),
-        history_id: history_id.clone(),
     });
-    match state
+    state
         .sessions
         .open(&owner, request_id, terminal_id, config, size, sink)
-    {
-        Ok(snapshot) => Ok(snapshot),
-        Err(error) => {
-            let _ = state
-                .store
-                .end_history(&history_id, "openRejected", Some(&error.code))
-                .await;
-            Err(error)
-        }
-    }
 }
 #[tauri::command]
 pub async fn write_session(

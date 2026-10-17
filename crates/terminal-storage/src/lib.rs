@@ -7,6 +7,8 @@ pub use backup::{
 mod credentials;
 mod password_change;
 pub use password_change::PasswordChangeOutcome;
+mod snippets;
+pub use snippets::*;
 mod forwarding;
 pub use forwarding::*;
 mod groups;
@@ -15,6 +17,8 @@ mod workspaces;
 use workspaces::ensure_unique_profile_name;
 mod key_files;
 mod metadata;
+mod session_logs;
+pub use session_logs::*;
 mod model;
 mod system;
 #[cfg(test)]
@@ -187,18 +191,14 @@ impl SqliteStore {
             .execute(&mut *connection)
             .await?;
         migrated?;
+        snippets::ensure_snippets_schema(&mut connection).await?;
         let violations = sqlx::query("PRAGMA foreign_key_check")
             .fetch_all(&mut *connection)
             .await?;
         if !violations.is_empty() {
             return Err(StorageError::Validation("数据库外键完整性校验失败"));
         }
-        drop(connection);
-        sqlx::query("UPDATE session_history SET ended_at=?,end_reason='appInterrupted' WHERE ended_at IS NULL").bind(now()).execute(pool).await?;
-        sqlx::query(metadata::PRUNE_HISTORY_SQL)
-            .bind(metadata::HISTORY_LIMIT)
-            .execute(pool)
-            .await?;
+        session_logs::ensure_session_logs_schema(&mut connection).await?;
         Ok(())
     }
     #[cfg(test)]

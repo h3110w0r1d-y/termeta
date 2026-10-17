@@ -18,6 +18,8 @@ pub struct BackupCounts {
     pub credentials: u64,
     pub forwards: u64,
     pub known_hosts: u64,
+    #[serde(default)]
+    pub snippets: u64,
 }
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -147,6 +149,10 @@ pub(super) static TABLES: &[Table] = &[
         name: "known_hosts",
         definition: "id TEXT NOT NULL,canonical_host TEXT NOT NULL,port INTEGER NOT NULL,key_algorithm TEXT NOT NULL,public_key BLOB NOT NULL,fingerprint_sha256 TEXT NOT NULL,trusted_at INTEGER NOT NULL,last_seen_at INTEGER",
     },
+    Table {
+        name: "snippets",
+        definition: "id TEXT NOT NULL,name TEXT NOT NULL,content TEXT NOT NULL,revision INTEGER NOT NULL,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL",
+    },
 ];
 type Data = Vec<Vec<Vec<Cell>>>;
 fn invalid() -> StorageError {
@@ -159,6 +165,7 @@ fn counts(data: &Data) -> BackupCounts {
         credentials: data[2].len() as u64,
         forwards: data[7].len() as u64,
         known_hosts: data[8].len() as u64,
+        snippets: data[9].len() as u64,
     }
 }
 fn id(value: &str) -> Result<()> {
@@ -447,6 +454,13 @@ fn validate(data: &Data) -> Result<()> {
     let tag_ids = unique(&data[5])?;
     unique(&data[7])?;
     unique(&data[8])?;
+    unique(&data[9])?;
+    for row in &data[9] {
+        crate::snippets::validate_snippet(row[1].text()?, row[2].text()?)?;
+        if row[3].integer()? < 1 {
+            return Err(invalid());
+        }
+    }
     let group_parents: HashMap<&str, Option<&str>> = data[0]
         .iter()
         .map(|row| Ok((row[0].text()?, row[1].optional_text()?)))
@@ -829,6 +843,10 @@ async fn remap(data: &mut Data, tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>) ->
     for row in &mut data[8] {
         row[0].set_text(uuid::Uuid::new_v4().to_string());
     }
+    for row in &mut data[9] {
+        row[0].set_text(uuid::Uuid::new_v4().to_string());
+        row[3] = Cell::Integer(1);
+    }
     Ok(())
 }
 
@@ -908,8 +926,35 @@ mod tests {
             .set_setting("backup", 2, &serde_json::json!({"target":{"secret":"do-not-export"},"backupPassword":"backup-password-do-not-export"}))
             .await
             .unwrap();
+        let snippet = source
+            .save_snippet(crate::SnippetDraft {
+                id: None,
+                revision: None,
+                name: "查看状态".into(),
+                content: "systemctl status\n".into(),
+            })
+            .await
+            .unwrap();
+        source
+            .save_session_log(crate::SessionLogDraft {
+                id: uuid::Uuid::new_v4().to_string(),
+                protocol: "local".into(),
+                name: "本机日志".into(),
+                username: None,
+                host: None,
+                port: None,
+                started_at: 0,
+                content: "private-session-log-do-not-export".into(),
+            })
+            .await
+            .unwrap();
         let snapshot = source.export_backup_database().await.unwrap();
         assert!(snapshot.starts_with(b"SQLite format 3\0"));
+        assert!(
+            !snapshot
+                .windows(b"private-session-log-do-not-export".len())
+                .any(|bytes| bytes == b"private-session-log-do-not-export")
+        );
         assert!(
             !snapshot
                 .windows(b"do-not-export".len())
@@ -939,6 +984,11 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(summary.counts.hosts, 2);
+        assert_eq!(summary.counts.snippets, 1);
+        assert!(target.list_session_logs().await.unwrap().is_empty());
+        let imported_snippets = target.list_snippets().await.unwrap();
+        assert_eq!(imported_snippets[0].content, snippet.content);
+        assert_ne!(imported_snippets[0].id, snippet.id);
         assert_eq!(
             target.get_setting("app").await.unwrap().unwrap().value["theme"],
             "local"
@@ -1045,6 +1095,17 @@ mod tests {
         );
         assert_eq!(target.list_hosts("").await.unwrap().len(), before);
         assert!(target.get_setting("backup").await.unwrap().is_none());
+    }
+    #[test]
+    fn previous_snapshot_without_snippets_is_still_accepted() {
+        let data: Data = TABLES[..9].iter().map(|_| Vec::new()).collect();
+        let mut bytes = crate::backup_sqlite::encode(&data).unwrap();
+        // SQLite 文件头的 user_version 为大端，旧快照使用版本 1。
+        bytes[60..64].copy_from_slice(&1u32.to_be_bytes());
+        assert_eq!(
+            inspect_backup_database(bytes.to_vec()).unwrap(),
+            BackupCounts::default()
+        );
     }
     #[test]
     fn snapshot_rejects_untrusted_schema_and_group_cycles() {

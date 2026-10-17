@@ -46,7 +46,7 @@ Termeta 是 Tauri 2 + Rust + Vue 3 + TypeScript 桌面终端客户端，目标 W
 - SFTP 侧栏仅单 SSH 终端且与分屏互斥，隐藏保留任务，断开/关闭取消，重连不重放。双栏独立连接与对拷，不借原生拖出做内部复制；文件正文仅 Rust 流动，上传确认覆盖/目录合并不承诺回滚，下载拒绝覆盖。
 - 原生拖入仅消费 owner-bound 一次性 dropId，不接收任意本地路径；macOS 承诺拖出兑现请求后才显示任务，取消清理手势与迟到请求。限额与路径边界见 [SFTP](docs/16-sftp-workspace.md)。
 - SSH 主要认证为密码或公钥，Keyboard-interactive/OTP 依服务器协商且 OTP 不保存；保存的交互 Shell SSH 系统识别仅用固定只读命令、独立 exec，不写 PTY/广播。转发默认回环，SOCKS5 仅回环/TCP CONNECT，独立取消，不持久化运行状态或自动启动。
-- 云备份仅白名单业务快照，本机设置/历史/云秘密不导出。备份密码与 Token 存本机加密 settings.backup，读回只给存在标记。先压缩后连同元数据认证加密，上传新版本，预览后仅新增合并；首次初始化仅全新库，导入与本机云配置同事务，现有锁定库不得绕过解锁。详见 [备份](docs/22-data-backup.md)。
+- 云备份仅白名单业务快照，本机设置/会话日志/云秘密不导出，Snippets 进入白名单。备份密码与 Token 存本机加密 settings.backup，读回只给存在标记。先压缩后连同元数据认证加密，上传新版本，预览后仅新增合并；首次初始化仅全新库，导入与本机云配置同事务，现有锁定库不得绕过解锁。详见 [备份](docs/22-data-backup.md)。
 - 应用主色与终端配色独立，热应用不清历史、不重连；字体限内置 12 家族。其他界面约束见 [桌面交互](docs/09-desktop-ux.md)，布局/存档契约见 [工作区](docs/18-terminal-workspaces.md)，资源与许可见 public/fonts 和 resources。
 
 ## 6. 文档同步与交付

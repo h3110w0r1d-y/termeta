@@ -62,8 +62,6 @@ pub fn storage_error(error: terminal_storage::StorageError) -> SessionError {
 pub struct DesktopSink {
     pub output: Channel<Response>,
     pub control: Channel<SessionEvent>,
-    pub store: Arc<SqliteStore>,
-    pub history_id: String,
 }
 impl SessionSink for DesktopSink {
     fn output(&self, frame: Vec<u8>) -> Result<()> {
@@ -72,16 +70,6 @@ impl SessionSink for DesktopSink {
             .map_err(|_| SessionError::new("CLIENT_DISCONNECTED", "output", "终端输出接收端已关闭"))
     }
     fn event(&self, event: SessionEvent) -> Result<()> {
-        if let terminal_core::EventPayload::Ended { reason, error, .. } = &event.payload {
-            let store = self.store.clone();
-            let id = self.history_id.clone();
-            let reason = reason.clone();
-            let code = error.as_ref().map(|error| error.code.clone());
-            tauri::async_runtime::spawn(async move {
-                // 连接历史失败不阻塞终态，也不把认证或输出正文写入诊断。
-                let _ = store.end_history(&id, &reason, code.as_deref()).await;
-            });
-        }
         self.control.send(event).map_err(|_| {
             SessionError::new("CLIENT_DISCONNECTED", "control", "终端控制接收端已关闭")
         })

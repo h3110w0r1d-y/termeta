@@ -28,6 +28,7 @@ import type {
   HostKind,
   SavedLayout,
   SavedWorkspace,
+  SessionLogSummary,
 } from "../../services/desktop/types";
 export type TerminalOpenMode = "tabs" | "workspace";
 /** 单个终端的轻量运行状态；分屏后也不对应独立标签页。 */
@@ -59,11 +60,17 @@ export interface TerminalTabGroup {
 }
 /** 标签栏的展示投影，不承载终端实例或工作区存档。 */
 export interface TabBarItem {
+  kind: "terminal" | "log";
   id: string;
   title: string;
   state: SessionState;
   terminalIds: string[];
   split: boolean;
+}
+/** 日志标签只保存摘要；正文由当前回看组件按需读取。 */
+export interface SessionLogTab {
+  id: string;
+  log: SessionLogSummary;
 }
 export type TabDragSource =
   { kind: "tab"; tabId: string } | { kind: "pane"; terminalId: string };
@@ -73,11 +80,12 @@ export type TabDropTarget =
 export type TabBarDropResult =
   "invalid" | "unchanged" | "reordered" | "detached";
 export type VaultSection =
-  "hosts" | "forwarding" | "credentials" | "known-hosts" | "history";
+  "hosts" | "forwarding" | "credentials" | "snippets" | "known-hosts" | "logs";
 export const useWorkbenchStore = defineStore("workbench", () => {
   // terminals 保存终端元数据，groups 独立保存标签顺序与布局；移动布局不增删终端。
   const terminals = ref<TerminalItem[]>([]);
   const groups = ref<TerminalTabGroup[]>([]);
+  const logTabs = ref<SessionLogTab[]>([]);
   const activeId = ref("home");
   const vaultSection = ref<VaultSection>("hosts");
   const fileTransferring = ref(false);
@@ -94,18 +102,23 @@ export const useWorkbenchStore = defineStore("workbench", () => {
       (t) => t.terminalId === activeGroup.value?.focusedTerminalId,
     ),
   );
+  const activeLogTab = computed(() =>
+    logTabs.value.find((tab) => tab.id === activeId.value),
+  );
   const tabIds = computed(() => [
     "home",
     "sftp",
     ...groups.value.map((g) => g.id),
+    ...logTabs.value.map((tab) => tab.id),
   ]);
-  const tabBarItems = computed<TabBarItem[]>(() =>
-    groups.value.map((group) => {
+  const tabBarItems = computed<TabBarItem[]>(() => [
+    ...groups.value.map((group): TabBarItem => {
       const ids = terminalIds(group.root);
       const terminal = terminals.value.find(
         (t) => t.terminalId === group.focusedTerminalId,
       );
       return {
+        kind: "terminal",
         id: group.id,
         title: terminalDisplayTitle(
           group.root.kind === "split" || group.savedProfileId
@@ -127,7 +140,40 @@ export const useWorkbenchStore = defineStore("workbench", () => {
         split: group.root.kind === "split" || !!group.savedProfileId,
       };
     }),
-  );
+    ...logTabs.value.map((tab): TabBarItem => ({
+      kind: "log",
+      id: tab.id,
+      title: t("sessionLogs.tabTitle", { name: tab.log.name }),
+      state: "closed",
+      terminalIds: [],
+      split: false,
+    })),
+  ]);
+  function openSessionLog(log: SessionLogSummary) {
+    const id = `log:${log.id}`;
+    if (!logTabs.value.some((tab) => tab.id === id))
+      logTabs.value.push({ id, log: clone(log) });
+    activeId.value = id;
+  }
+  function closeSessionLogTab(id: string) {
+    const at = logTabs.value.findIndex((tab) => tab.id === id);
+    if (at < 0) return false;
+    logTabs.value.splice(at, 1);
+    if (activeId.value === id) {
+      const next = logTabs.value[Math.min(at, logTabs.value.length - 1)];
+      if (next) activateTab(next.id);
+      else openVault("logs");
+    }
+    return true;
+  }
+  function closeSessionLog(logId: string) {
+    closeSessionLogTab(`log:${logId}`);
+  }
+  function closeAllSessionLogs() {
+    const wasLog = !!activeLogTab.value;
+    logTabs.value = [];
+    if (wasLog) openVault("logs");
+  }
   // 序号按连接身份递增，不依赖可变的显示名称，也不将密码纳入键。
   const connectionNumbers = new Map<string, number>();
   function connectionKey(target: OpenTarget) {
@@ -619,6 +665,12 @@ export const useWorkbenchStore = defineStore("workbench", () => {
   return {
     terminals,
     groups,
+    logTabs,
+    activeLogTab,
+    openSessionLog,
+    closeSessionLogTab,
+    closeSessionLog,
+    closeAllSessionLogs,
     tabBarItems,
     tabIds,
     activeId,

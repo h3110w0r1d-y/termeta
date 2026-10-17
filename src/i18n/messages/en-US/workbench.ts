@@ -8,9 +8,9 @@ export default {
   "workbench.actions.newLocalTerminal": "New local terminal",
   "workbench.terminalCount": "{count} terminals",
   "workbench.close.confirmGroup":
-    "{count} terminals in “{title}” may be running commands. Closing will disconnect them and clear their terminal history. Continue?",
+    "{count} terminals in “{title}” may be running commands. Closing will disconnect them and save their session logs. Continue?",
   "workbench.close.confirmTerminal":
-    "“{title}” may be running a command. Closing will disconnect it and clear its terminal history. Continue?",
+    "“{title}” may be running a command. Closing will disconnect it and save its session log. Continue?",
   "workbench.layout.swapVertical": "Swap top and bottom",
   "workbench.layout.swapHorizontal": "Swap left and right",
   "workbench.actions.closeNamed": "Close {name}",

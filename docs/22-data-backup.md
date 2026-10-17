@@ -8,7 +8,7 @@
 
 | 包含 | 排除 |
 | --- | --- |
-| SSH/Telnet/Serial 主机、分组、标签、收藏、保存工作区与转发规则 | 应用设置、快捷键、自定义配色及主机配色映射、连接历史 |
+| SSH/Telnet/Serial 主机、分组、标签、收藏、保存工作区、转发规则与 Snippets | 应用设置、快捷键、自定义配色及主机配色映射、会话日志与旧连接历史 |
 | 公共及主机专属凭据、已导入私钥正文与口令、认证关联 | 私钥来源路径登记、OS 主密钥、vault.json、SQLx 迁移记录 |
 | SSH 主机信任 | 云配置/Token/WebDAV 密码/备份密码、OTP、终端输出、运行标签/广播及文件任务/正文 |
 
@@ -16,15 +16,15 @@
 
 ## 2. 快照与导入事务
 
-`terminal-storage` 在同一读事务读取九表：`host_groups`、`connection_profiles`、`credentials`、`ssh_profiles`、`profile_auth_steps`、`tags`、`profile_tags`、`port_forwards`、`known_hosts`。凭据操作门闩协调多步写入与改密，只导出 ready 凭据并移除进行中的系统识别令牌。事务释放后才压缩、派生密码和联网。
+`terminal-storage` 在同一读事务读取十表：`host_groups`、`connection_profiles`、`credentials`、`ssh_profiles`、`profile_auth_steps`、`tags`、`profile_tags`、`port_forwards`、`known_hosts`、`snippets`。凭据操作门闩协调多步写入与改密，只导出 ready 凭据并移除进行中的系统识别令牌。事务释放后才压缩、派生密码和联网。
 
-快照在独立内存连接创建固定普通表，经 SQLite serialize 输出真实数据库；独立 `user_version=1`，与业务 schema 6 分开演进，明文不写临时文件。最大 128 MiB、九表合计 100000 行。全量处理需要内存，不能保证压缩后满足云端限额。
+快照在独立内存连接创建固定普通表，经 SQLite serialize 输出真实数据库；独立 `user_version=2`（兼容读取不含 Snippets 的版本 1 九表快照），与业务 schema 6 分开演进，明文不写临时文件。最大 128 MiB、十表合计 100000 行。全量处理需要内存，不能保证压缩后满足云端限额。
 
 恢复只执行应用内固定 SQL，严格匹配 SQLite 文件头、版本、表结构、字段类型及业务关联，拒绝额外表、视图、触发器与虚拟表。解析采用只读 deserialize、defensive、禁 trusted schema/扩展及只读 authorizer，并限制 SQL 长度、深度、行数和执行预算；认证通过不等于内容可信。
 
 导入在一个目标库事务中完成：
 
-- 主机、分组、凭据、认证步骤及转发生成新 ID，重写关联和工作区叶子；来源失效引用保持失效，不误绑定目标库同 ID 主机。
+- 主机、分组、凭据、认证步骤、Snippets 及转发生成新 ID，重写关联和工作区叶子；来源失效引用保持失效，不误绑定目标库同 ID 主机。
 - 保存项名称冲突追加 ` (同步 n)`，标签按名称复用，既有主机/凭据/转发不更新或删除。
 - 信任核验算法、完整公钥及 SHA256 指纹；同端点同公钥跳过，不同公钥保留本机 pin 并警告。
 - 普通恢复不写本机设置；首次初始化才把本次云配置与业务数据同事务提交。

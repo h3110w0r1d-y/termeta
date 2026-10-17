@@ -184,15 +184,36 @@ export interface KnownHost {
   fingerprintSha256: string;
   trustedAt: number;
 }
-export interface HistoryEntry {
+export interface Snippet {
   id: string;
-  profileId: string | null;
-  displayName: string;
-  endpoint: string;
+  name: string;
+  content: string;
+  revision: number;
+  createdAt: number;
+  updatedAt: number;
+}
+export interface SnippetDraft {
+  id?: string;
+  revision?: number;
+  name: string;
+  content: string;
+}
+export interface SessionLogDraft {
+  id: string;
+  protocol: "ssh" | "telnet" | "serial" | "local";
+  name: string;
+  username?: string | null;
+  host?: string | null;
+  port?: number | null;
   startedAt: number;
-  endedAt: number | null;
-  endReason: string | null;
-  errorCode: string | null;
+  content: string;
+}
+export interface SessionLogSummary extends Omit<SessionLogDraft, "content"> {
+  closedAt: number;
+  byteLength: number;
+}
+export interface SessionLog extends SessionLogSummary {
+  content: string;
 }
 export interface CredentialMetadata {
   status: string;
@@ -278,6 +299,7 @@ export interface BackupConfigView extends Omit<
   hasBackupPassword: boolean;
 }
 export interface BackupCounts {
+  snippets: number;
   hosts: number;
   groups: number;
   credentials: number;

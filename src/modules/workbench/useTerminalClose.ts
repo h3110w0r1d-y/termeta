@@ -68,6 +68,10 @@ export function useTerminalClose() {
     }
   }
   function closeTab(id: string) {
+    if (workbench.logTabs.some((tab) => tab.id === id)) {
+      workbench.closeSessionLogTab(id);
+      return;
+    }
     const group = workbench.groups.find((item) => item.id === id);
     if (group) {
       const focused = workbench.terminals.find(

@@ -9,7 +9,8 @@ import {
   LockClosedOutline,
   ServerOutline,
   ShieldCheckmarkOutline,
-  TimeOutline,
+  DocumentTextOutline,
+  CodeSlashOutline,
 } from "@vicons/ionicons5";
 
 const icons = {
@@ -21,7 +22,8 @@ const icons = {
   credentials: KeyOutline,
   "local-terminal": HomeOutline,
   "host-trust": ShieldCheckmarkOutline,
-  "connection-history": TimeOutline,
+  "session-logs": DocumentTextOutline,
+  snippets: CodeSlashOutline,
 };
 defineProps<{ name: keyof typeof icons; size?: number }>();
 </script>

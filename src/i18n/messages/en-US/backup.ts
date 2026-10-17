@@ -42,7 +42,7 @@ export default {
   "backup.actions.setupAndImport": "Create vault and import",
   "backup.actions.confirmImport": "Import as new data",
   "backup.import.counts":
-    "Hosts {hosts} · Groups {groups} · Credentials {credentials} · Forwards {forwards} · Trusted keys {knownHosts}",
+    "Hosts {hosts} · Groups {groups} · Credentials {credentials} · Forwards {forwards} · Trusted keys {knownHosts} · Snippets {snippets}",
   "backup.import.success":
     "Sync complete: {counts}. Existing local data and settings were kept.",
   "backup.defaultDeviceName": "My device",

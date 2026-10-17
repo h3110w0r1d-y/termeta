@@ -1,5 +1,6 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
+  "window.close.savingLogs": "正在保存会话日志，请稍候…",
   "window.controls.label": "窗口操作",
   "window.controls.minimizeLabel": "最小化窗口",
   "window.controls.minimize": "最小化",

@@ -56,7 +56,7 @@ Closed、Failed、Disconnected 都要求释放协议资源，不是保留后台�
 
 Local 使用阻塞读写线程和有界桥，输出排空后发布终态；取消清理子进程，晚到的 PTY 创建结果也由 RAII 回收。Unix 结束初始进程组；脱离进程组的子进程及 Windows 完整进程树仍待完善。实现见 [terminal-local](../crates/terminal-local/src/lib.rs)。
 
-独立文件和转发复用状态、挑战与取消，不申请 PTY/Shell，也不记录终端连接历史；分别见 [SFTP](16-sftp-workspace.md)、[端口转发](21-port-forwarding.md)。
+独立文件和转发复用状态、挑战与取消，不申请 PTY/Shell，也不记录终端会话日志；分别见 [SFTP](16-sftp-workspace.md)、[端口转发](21-port-forwarding.md)。
 
 ## 6. 工作台隔离与错误
 

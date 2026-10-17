@@ -8,7 +8,8 @@ import HostsPage from "../modules/hosts/HostsPage.vue";
 import PortForwardingPage from "../modules/forwarding/PortForwardingPage.vue";
 import CredentialsPage from "../modules/credentials/CredentialsPage.vue";
 import KnownHostsPage from "../modules/hosts/KnownHostsPage.vue";
-import ConnectionHistoryPage from "../modules/history/ConnectionHistoryPage.vue";
+import SessionLogsPage from "../modules/session-logs/SessionLogsPage.vue";
+import SnippetsPage from "../modules/snippets/SnippetsPage.vue";
 import {
   useWorkbenchStore,
   type VaultSection,
@@ -21,8 +22,9 @@ const navigationOptions = computed(() => {
     { key: "hosts", label: t("common.navigation.hosts") },
     { key: "forwarding", label: t("common.navigation.forwarding") },
     { key: "credentials", label: t("common.navigation.credentials") },
+    { key: "snippets", label: t("common.navigation.snippets") },
     { key: "known-hosts", label: t("common.navigation.knownHosts") },
-    { key: "history", label: t("common.navigation.history") },
+    { key: "logs", label: t("common.navigation.logs") },
   ];
   return items.map((item) => ({
     ...item,
@@ -91,6 +93,13 @@ const emit = defineEmits<{
         <CredentialsPage />
       </AppScrollArea>
       <AppScrollArea
+        v-if="workbench.vaultSection === 'snippets'"
+        class="vault-page-scroll"
+        :label="t('common.regions.snippets')"
+      >
+        <SnippetsPage />
+      </AppScrollArea>
+      <AppScrollArea
         v-if="workbench.vaultSection === 'known-hosts'"
         class="vault-page-scroll"
         :label="t('common.regions.knownHosts')"
@@ -98,11 +107,11 @@ const emit = defineEmits<{
         <KnownHostsPage />
       </AppScrollArea>
       <AppScrollArea
-        v-if="workbench.vaultSection === 'history'"
+        v-if="workbench.vaultSection === 'logs'"
         class="vault-page-scroll"
-        :label="t('common.regions.history')"
+        :label="t('common.regions.logs')"
       >
-        <ConnectionHistoryPage />
+        <SessionLogsPage />
       </AppScrollArea>
     </div>
   </section>

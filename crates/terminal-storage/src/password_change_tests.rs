@@ -135,7 +135,7 @@ fn damaged_marker_fails_closed_and_preserves_all_files() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn rekey_preserves_wal_data_migrations_and_active_history() {
+async fn rekey_preserves_wal_data_migrations_and_session_logs() {
     let files = TestJournal::new();
     remove_file(&files.journal.database).unwrap();
     let store = SqliteStore::open(&files.journal.database).await.unwrap();
@@ -143,8 +143,18 @@ async fn rekey_preserves_wal_data_migrations_and_active_history() {
         .set_setting("test", 1, &serde_json::json!({"preserved": true}))
         .await
         .unwrap();
-    let history = store
-        .start_history(None, "仍在运行", Some("local"))
+    let log_id = uuid::Uuid::new_v4().to_string();
+    store
+        .save_session_log(SessionLogDraft {
+            id: log_id.clone(),
+            protocol: "local".into(),
+            name: "本地终端".into(),
+            username: None,
+            host: None,
+            port: None,
+            started_at: 1,
+            content: "已显示的日志\n".into(),
+        })
         .await
         .unwrap();
     let before: Vec<(i64, Vec<u8>)> =
@@ -169,13 +179,11 @@ async fn rekey_preserves_wal_data_migrations_and_active_history() {
             .await
             .unwrap();
     assert_eq!(before, after);
-    let ended: Option<i64> = sqlx::query_scalar("SELECT ended_at FROM session_history WHERE id=?")
-        .bind(&history)
-        .fetch_one(&*store.pool().await.unwrap())
-        .await
-        .unwrap();
-    assert!(ended.is_none());
-    store.end_history(&history, "user", None).await.unwrap();
+    assert_eq!(
+        store.read_session_log(&log_id).await.unwrap().content,
+        "已显示的日志\n"
+    );
+    store.delete_session_log(&log_id).await.unwrap();
     store.pool().await.unwrap().close().await;
     assert!(
         SqliteStore::checked_pool(&store.path, &[42; 32], SqliteJournalMode::Wal)

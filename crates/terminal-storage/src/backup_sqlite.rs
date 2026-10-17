@@ -182,7 +182,7 @@ pub(super) fn encode(data: &[Vec<Vec<Cell>>]) -> Result<Zeroizing<Vec<u8>>> {
     let db = MemoryDb::new()?;
     db.execute("PRAGMA page_size=4096")?;
     db.execute("PRAGMA max_page_count=32768")?;
-    db.execute("PRAGMA user_version=1")?;
+    db.execute("PRAGMA user_version=2")?;
     db.execute("BEGIN")?;
     for (table, rows) in TABLES.iter().zip(data) {
         db.execute(&table.schema())?;
@@ -278,11 +278,16 @@ pub(super) fn decode(bytes: Zeroizing<Vec<u8>>) -> Result<Vec<Vec<Vec<Cell>>>> {
         }
         db.execute("PRAGMA query_only=ON")?;
         let version = db.prepare("PRAGMA user_version")?;
-        if unsafe { ffi::sqlite3_step(version.0) } != ffi::SQLITE_ROW
-            || unsafe { ffi::sqlite3_column_int64(version.0, 0) } != 1
-        {
+        if unsafe { ffi::sqlite3_step(version.0) } != ffi::SQLITE_ROW {
             return Err(invalid());
         }
+        let version_number = unsafe { ffi::sqlite3_column_int64(version.0, 0) };
+        // 旧版九表快照没有片段，按空集合导入，仍严格校验原有所有表。
+        let expected_tables = match version_number {
+            1 => &TABLES[..9],
+            2 => TABLES,
+            _ => return Err(invalid()),
+        };
         drop(version);
         unsafe {
             ffi::sqlite3_set_authorizer(db.0, Some(read_authorizer), ptr::null_mut());
@@ -302,7 +307,7 @@ pub(super) fn decode(bytes: Zeroizing<Vec<u8>>) -> Result<Vec<Vec<Vec<Cell>>>> {
                 ffi::SQLITE_DONE => break,
                 ffi::SQLITE_ROW => {
                     let row = cells(&schema, 3)?;
-                    let table = TABLES
+                    let table = expected_tables
                         .iter()
                         .find(|table| row[0].text().ok() == Some(table.name))
                         .ok_or_else(invalid)?;
@@ -316,14 +321,14 @@ pub(super) fn decode(bytes: Zeroizing<Vec<u8>>) -> Result<Vec<Vec<Vec<Cell>>>> {
                 _ => return Err(invalid()),
             }
         }
-        if seen.len() != TABLES.len() {
+        if seen.len() != expected_tables.len() {
             return Err(invalid());
         }
         drop(schema);
         let mut total = 0usize;
         let mut total_bytes = 0usize;
         let mut output = Vec::new();
-        for table in TABLES {
+        for table in expected_tables {
             let stmt = db.prepare(&table.select())?;
             let mut rows = Vec::new();
             loop {
@@ -348,6 +353,7 @@ pub(super) fn decode(bytes: Zeroizing<Vec<u8>>) -> Result<Vec<Vec<Vec<Cell>>>> {
             }
             output.push(rows);
         }
+        output.resize_with(TABLES.len(), Vec::new);
         // 进度回调指针在 budget 离开作用域前撤销。
         unsafe {
             ffi::sqlite3_progress_handler(db.0, 0, None, ptr::null_mut());

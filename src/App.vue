@@ -18,6 +18,7 @@ import WindowControls from "./components/WindowControls.vue";
 import { isMac } from "./services/commands/registry";
 import AppButton from "./components/ui/AppButton.vue";
 import AppInput from "./components/ui/AppInput.vue";
+import AppDialog from "./components/ui/AppDialog.vue";
 import { confirmAction } from "./components/ui/confirmation";
 import {
   computed,
@@ -30,6 +31,7 @@ import {
 import ConfirmationDialog from "./components/ui/ConfirmationDialog.vue";
 import AppTabs from "./modules/workbench/AppTabs.vue";
 import SftpBrowser from "./modules/files/SftpBrowser.vue";
+import SessionLogStage from "./modules/session-logs/SessionLogStage.vue";
 import NewTabDialog from "./modules/hosts/NewTabDialog.vue";
 import SaveWorkspaceDialog from "./modules/workbench/SaveWorkspaceDialog.vue";
 import HostEditor from "./modules/hosts/HostEditor.vue";
@@ -84,6 +86,7 @@ watch(settingsSync.error, (message) => {
   if (message) initError.value = message;
 });
 const vaultReady = ref(false);
+const savingLogs = ref(false);
 useBackupRestored(
   async () => {
     if (vaultReady.value)
@@ -108,7 +111,10 @@ const terminalBackground = computed(() =>
 const { naiveTheme, naiveThemeOverrides } = useAppAppearance();
 let heartbeat: ReturnType<typeof setInterval> | undefined,
   unlisten: (() => void) | undefined,
-  closingWindow = false;
+  unlistenExit: (() => void) | undefined,
+  closingWindow = false,
+  preparingClose = false,
+  exitingApp = false;
 function edit(host?: HostProfile, copy = false, groupId: string | null = null) {
   if (host?.kind === "workspace") return;
   newHostGroup.value = groupId;
@@ -137,9 +143,11 @@ function createHost(kind: HostKind, groupId: string | null) {
 }
 const savingGroupId = ref("");
 function openNewTab() {
+  if (savingLogs.value) return;
   newTabOpen.value = true;
 }
 function quickConnect(kind: HostKind = "ssh") {
+  if (savingLogs.value) return;
   newHostGroup.value = null;
   editing.value = undefined;
   quick.value = true;
@@ -153,15 +161,18 @@ function quickConnect(kind: HostKind = "ssh") {
   }
 }
 function openLocalTerminal() {
+  if (savingLogs.value) return;
   workbench.add("本地终端", { source: "local" });
 }
 function openSerial(config: SerialConfig) {
+  if (savingLogs.value) return;
   workbench.add(config.path, { source: "serial", config });
 }
 function connect(host: HostProfile) {
   connectMany([host], "tabs");
 }
 function connectMany(profiles: HostProfile[], mode: TerminalOpenMode) {
+  if (savingLogs.value) return;
   try {
     workbench.addSavedHosts(profiles, mode);
   } catch (e) {
@@ -169,6 +180,7 @@ function connectMany(profiles: HostProfile[], mode: TerminalOpenMode) {
   }
 }
 function ephemeral(target: OpenTarget, title: string) {
+  if (savingLogs.value) return;
   workbench.add(title, target);
 }
 const { closeTab, closePane } = useTerminalClose();
@@ -219,7 +231,7 @@ function closeFind() {
     terminalRegistry.focus(workbench.activeTerminal.terminalId);
 }
 function globalKey(event: KeyboardEvent) {
-  if (!vaultReady.value) return;
+  if (!vaultReady.value || savingLogs.value) return;
   if ((event.target as HTMLElement).closest(".terminal-host")) return;
   commands.route(event, settings.value.keymap.bindings, false);
 }
@@ -241,12 +253,68 @@ watch(
   () => workbench.activeTerminal?.schemeId,
   () => terminalRegistry.apply(),
 );
+async function closeApplication() {
+  if (preparingClose || closingWindow) return;
+  preparingClose = true;
+  try {
+    if (
+      (workbench.fileTransferring ||
+        workbench.terminals.some((terminal) => terminal.sftpTransferring)) &&
+      !(await confirmAction(t("window.close.confirmTransfers")))
+    )
+      return;
+    const running = workbench.terminals.filter(needsCloseConfirmation);
+    if (
+      (running.length > 0 || portForwards.hasActive) &&
+      settings.value.confirmClose &&
+      !(await confirmAction(
+        [
+          running.length
+            ? t("window.close.runningTerminals", { count: running.length })
+            : "",
+          portForwards.hasActive ? t("window.close.activeForwarding") : "",
+          t("window.close.confirmSessions"),
+        ]
+          .filter(Boolean)
+          .join(" "),
+      ))
+    )
+      return;
+    tabMenu.value.show = false;
+    savingLogs.value = true;
+    // 等待每个日志提交后才删除对应视图；任一失败都阻止窗口/应用退出。
+    const results = await Promise.allSettled(
+      workbench.terminals.map(async (terminal) => {
+        await terminalRegistry.dispose(terminal.terminalId);
+        workbench.dismiss(terminal.sessionId ?? "");
+        workbench.remove(terminal.terminalId);
+      }),
+    );
+    const failure = results.find((result) => result.status === "rejected");
+    if (failure?.status === "rejected") throw failure.reason;
+    if (exitingApp) {
+      await desktop.finishAppExit();
+    } else {
+      closingWindow = true;
+      await desktop.closeWindow();
+    }
+  } catch (cause) {
+    closingWindow = false;
+    initError.value = errorMessage(cause);
+  } finally {
+    savingLogs.value = false;
+    preparingClose = false;
+    exitingApp = false;
+  }
+}
 onMounted(async () => {
   commands.register("workbench.newConnection", openNewTab);
   commands.register("workbench.newTab", openNewTab);
   commands.register("workbench.newLocalTerminal", openLocalTerminal);
   commands.register("workbench.closeTab", () => {
-    if (workbench.activeGroup) void closeTab(workbench.activeGroup.id);
+    if (workbench.activeLogTab)
+      workbench.closeSessionLogTab(workbench.activeLogTab.id);
+    else if (workbench.activeGroup) void closeTab(workbench.activeGroup.id);
   });
   commands.register("workbench.nextTab", () => workbench.cycle(1));
   commands.register("workbench.previousTab", () => workbench.cycle(-1));
@@ -270,43 +338,14 @@ onMounted(async () => {
   });
   document.addEventListener("keydown", globalKey, true);
   try {
-    unlisten = await desktop.onCloseRequested(async (event) => {
+    unlistenExit = await desktop.onAppExitRequested(() => {
+      exitingApp = true;
+      void closeApplication();
+    });
+    unlisten = await desktop.onCloseRequested((event) => {
       if (closingWindow) return;
       event.preventDefault();
-      if (
-        (workbench.fileTransferring ||
-          workbench.terminals.some((terminal) => terminal.sftpTransferring)) &&
-        !(await confirmAction(t("window.close.confirmTransfers")))
-      )
-        return;
-      const running = workbench.terminals.filter(needsCloseConfirmation);
-      if (
-        (running.length > 0 || portForwards.hasActive) &&
-        settings.value.confirmClose &&
-        !(await confirmAction(
-          [
-            running.length
-              ? t("window.close.runningTerminals", { count: running.length })
-              : "",
-            portForwards.hasActive ? t("window.close.activeForwarding") : "",
-            t("window.close.confirmSessions"),
-          ]
-            .filter(Boolean)
-            .join(" "),
-        ))
-      )
-        return;
-      try {
-        await Promise.all(
-          workbench.terminals.map((t) =>
-            terminalRegistry.dispose(t.terminalId),
-          ),
-        );
-        closingWindow = true;
-        await desktop.closeWindow();
-      } catch (e) {
-        initError.value = errorMessage(e);
-      }
+      void closeApplication();
     });
     heartbeat = setInterval(
       () =>
@@ -324,6 +363,7 @@ onBeforeUnmount(() => {
   document.removeEventListener("keydown", globalKey, true);
   if (heartbeat) clearInterval(heartbeat);
   unlisten?.();
+  unlistenExit?.();
 });
 </script>
 <template>
@@ -340,9 +380,15 @@ onBeforeUnmount(() => {
         {{ t("common.actions.retry") }}
       </AppButton>
     </NAlert>
+    <AppDialog
+      :open="savingLogs"
+      :locked="true"
+      :title="t('window.close.savingLogs')"
+    />
     <VaultGate :initialize="loadUnlocked">
       <div
         class="app-shell"
+        :inert="savingLogs || undefined"
         :class="{
           'tabs-left': settings.value.tabPosition === 'left',
           'platform-mac': isMac,
@@ -403,6 +449,7 @@ onBeforeUnmount(() => {
             @edit="edit"
           />
           <SftpBrowser v-show="workbench.activeId === 'sftp'" />
+          <SessionLogStage />
           <!-- 终端宿主始终留在同一组件树内；页面与布局切换仅改变可见性。 -->
           <section
             v-show="!!workbench.activeTerminal"

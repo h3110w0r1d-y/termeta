@@ -2,6 +2,7 @@ import { t } from "../../i18n";
 import { nextTick } from "vue";
 import { applyTerminalTheme } from "./theme";
 import { writeLocalStatus } from "./localStatus";
+import { captureTerminalLog } from "../session-logs/snapshot";
 import {
   resetTerminalActivity,
   updateActivityTitle,
@@ -29,6 +30,7 @@ import { useWorkbenchStore, type TerminalItem } from "../workbench/store";
 import type {
   SessionEvent,
   SessionSnapshot,
+  SessionLogDraft,
 } from "../../services/desktop/types";
 interface Stream {
   generation: number;
@@ -43,6 +45,8 @@ interface Stream {
   inputBytes: number;
   input: Promise<void>;
   ended: boolean;
+  endReceived: boolean;
+  finalization?: Promise<void>;
   finalOffset?: bigint;
   ackTimer?: ReturnType<typeof setTimeout>;
   eventSeq: number;
@@ -55,6 +59,8 @@ interface Entry {
   observer: ResizeObserver;
   stream?: Stream;
   connecting: boolean;
+  closing?: Promise<void>;
+  log: Omit<SessionLogDraft, "content">;
   disposed: boolean;
   lastSize: string;
   canResize: boolean;
@@ -179,6 +185,7 @@ function event(
     workbench.challenges.push(value);
   } else if (value.type === "ended") {
     stream.ended = true;
+    stream.endReceived = true;
     stream.finalOffset = BigInt(value.finalOffset);
     terminal.state = value.finalState;
     terminal.error =
@@ -186,29 +193,29 @@ function event(
       (!value.outputComplete ? t("terminal.state.incompleteOutput") : "");
     useWorkbenchStore().dismiss(value.sessionId);
     // 等待最后一帧解析，控制事件与数据 Channel 没有全局先后顺序。
-    void drain(entry, stream)
-      .then(() => {
-        if (entry.stream === stream) {
-          resetTerminalActivity(terminal);
-          writeLocalStatus(
-            entry.term,
-            [
-              terminal.sshCommand && value.reason === "remoteExit"
-                ? t("terminal.state.commandFinished")
-                : t("terminal.state.ended"),
-              value.exitCode !== undefined && value.exitCode !== null
-                ? t("terminal.exit.code", { exitCode: value.exitCode })
-                : "",
-              value.exitSignal
-                ? t("terminal.exit.signal", { exitSignal: value.exitSignal })
-                : "",
-            ].join(""),
-          );
-        }
-      })
-      .catch((error) => {
-        terminal.error = errorMessage(error);
-      });
+    stream.finalization = drain(entry, stream).then(() => {
+      if (entry.stream === stream && !entry.closing) {
+        resetTerminalActivity(terminal);
+        writeLocalStatus(
+          entry.term,
+          [
+            terminal.sshCommand && value.reason === "remoteExit"
+              ? t("terminal.state.commandFinished")
+              : t("terminal.state.ended"),
+            value.exitCode !== undefined && value.exitCode !== null
+              ? t("terminal.exit.code", { exitCode: value.exitCode })
+              : "",
+            value.exitSignal
+              ? t("terminal.exit.signal", { exitSignal: value.exitSignal })
+              : "",
+          ].join(""),
+        );
+        return new Promise<void>((resolve) => entry.term.write("", resolve));
+      }
+    });
+    void stream.finalization.catch((error) => {
+      terminal.error = errorMessage(error);
+    });
   } else if (value.type === "notice")
     terminal.error = value.details ?? value.messageKey;
 }
@@ -245,6 +252,7 @@ function input(entry: Entry, terminal: TerminalItem, bytes: Uint8Array) {
   const stream = entry.stream;
   if (
     !stream ||
+    entry.closing ||
     stream.ended ||
     terminal.state !== "connected" ||
     !stream.sessionId
@@ -261,6 +269,7 @@ function input(entry: Entry, terminal: TerminalItem, bytes: Uint8Array) {
       try {
         if (
           entry.stream !== stream ||
+          entry.closing ||
           stream.ended ||
           terminal.state !== "connected"
         )
@@ -395,6 +404,73 @@ function fit(entry: Entry, terminal: TerminalItem) {
     });
   }
 }
+function connectionLog(
+  terminal: TerminalItem,
+): Omit<SessionLogDraft, "content"> {
+  const target = terminal.target;
+  const profile =
+    target.source === "saved"
+      ? useHosts().hosts.find((item) => item.id === target.profileId)
+      : undefined;
+  const config =
+    target.source === "ephemeral" || target.source === "telnet"
+      ? target.config
+      : profile;
+  const protocol = terminal.kind === "forwarding" ? "ssh" : terminal.kind;
+  return {
+    id: terminal.terminalId,
+    protocol,
+    name: profile?.name ?? terminal.baseTitle,
+    username:
+      protocol === "ssh" && config && "username" in config
+        ? config.username
+        : null,
+    host:
+      protocol === "serial"
+        ? (terminal.serialConfig?.path ?? null)
+        : protocol === "local"
+          ? null
+          : (config?.address ?? null),
+    port:
+      protocol === "ssh" || protocol === "telnet"
+        ? (config?.port ?? null)
+        : null,
+    startedAt: Date.now(),
+  };
+}
+async function archiveAndDispose(id: string, entry: Entry) {
+  // 连接命令返回后才能可靠取消；超时保留视图和缓冲，允许再次关闭。
+  const deadline = Date.now() + 10000;
+  while (entry.connecting && Date.now() < deadline)
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  if (entry.connecting) throw new Error(t("terminal.errors.sessionClosing"));
+  await terminalRegistry.disconnect(id);
+  const stream = entry.stream;
+  if (stream?.sessionId) {
+    const endDeadline = Date.now() + 5000;
+    while (!stream.endReceived && Date.now() < endDeadline)
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    if (!stream.endReceived)
+      throw new Error(t("terminal.errors.sessionClosing"));
+    // 较早的排空可能因迟到帧超时；本次重新排空成功后仍允许安全重试关闭。
+    await stream.finalization?.catch(() => {});
+    await drain(entry, stream);
+    await acknowledge(entry, stream);
+  } else {
+    await new Promise<void>((resolve) => entry.term.write("", resolve));
+  }
+  // 数据库确认提交之前保留 xterm；同一 terminalId 重试不会重复插入。
+  await desktop.saveSessionLog({
+    ...entry.log,
+    content: captureTerminalLog(entry.term),
+  });
+  entry.disposed = true;
+  entry.observer.disconnect();
+  if (stream?.ackTimer) clearTimeout(stream.ackTimer);
+  entry.inputOrigin?.dispose();
+  entry.term.dispose();
+  entries.delete(id);
+}
 export const terminalRegistry = {
   mount(terminal: TerminalItem, host: HTMLElement) {
     if (entries.has(terminal.terminalId)) return;
@@ -449,6 +525,7 @@ export const terminalRegistry = {
       host,
       observer: new ResizeObserver(() => fit(entry, terminal)),
       connecting: false,
+      log: connectionLog(terminal),
       disposed: false,
       lastSize: "",
       canResize: false,
@@ -517,7 +594,7 @@ export const terminalRegistry = {
   },
   async connect(terminal: TerminalItem) {
     const entry = entries.get(terminal.terminalId);
-    if (!entry || entry.connecting) return;
+    if (!entry || entry.connecting || entry.closing || entry.disposed) return;
     entry.connecting = true;
     try {
       const old = entry.stream;
@@ -575,6 +652,7 @@ export const terminalRegistry = {
         inputBytes: 0,
         input: Promise.resolve(),
         ended: false,
+        endReceived: false,
         eventSeq: 0,
       };
       entry.stream = stream;
@@ -608,22 +686,21 @@ export const terminalRegistry = {
   async disconnect(id: string) {
     const e = entries.get(id),
       terminal = useWorkbenchStore().terminals.find((t) => t.terminalId === id);
-    if (e?.stream?.sessionId && !e.stream.ended) {
+    if (e?.stream?.sessionId && !e.stream.endReceived) {
       if (terminal) terminal.state = "closing";
       const snapshot = await desktop.close(e.stream.sessionId);
       if (terminal) update(terminal, snapshot);
     }
   },
   async dispose(id: string) {
-    const e = entries.get(id);
-    if (!e) return;
-    await this.disconnect(id);
-    e.disposed = true;
-    e.observer.disconnect();
-    if (e.stream?.ackTimer) clearTimeout(e.stream.ackTimer);
-    e.inputOrigin?.dispose();
-    e.term.dispose();
-    entries.delete(id);
+    const entry = entries.get(id);
+    if (!entry) return;
+    if (!entry.closing) {
+      entry.closing = archiveAndDispose(id, entry).finally(() => {
+        entry.closing = undefined;
+      });
+    }
+    await entry.closing;
   },
   apply() {
     for (const terminal of useWorkbenchStore().terminals) {

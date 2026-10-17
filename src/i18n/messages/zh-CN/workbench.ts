@@ -8,9 +8,9 @@ export default {
   "workbench.actions.newLocalTerminal": "新建本地终端",
   "workbench.terminalCount": "{count} 个终端",
   "workbench.close.confirmGroup":
-    "“{title}”中有 {count} 个终端可能正在执行命令。关闭将断开连接并清除终端历史，是否继续？",
+    "“{title}”中有 {count} 个终端可能正在执行命令。关闭将断开连接并保存会话日志，是否继续？",
   "workbench.close.confirmTerminal":
-    "“{title}”可能正在执行命令。关闭将断开连接并清除终端历史，是否继续？",
+    "“{title}”可能正在执行命令。关闭将断开连接并保存会话日志，是否继续？",
   "workbench.layout.swapVertical": "交换上下区域",
   "workbench.layout.swapHorizontal": "交换左右区域",
   "workbench.actions.closeNamed": "关闭 {name}",

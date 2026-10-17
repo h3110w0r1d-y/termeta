@@ -789,57 +789,96 @@ async fn deleting_group_subtree_is_revision_guarded_and_preserves_shared_credent
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn history_keeps_only_latest_twenty_attempts() {
+async fn session_logs_keep_all_protocols_and_content_only_after_explicit_save() {
     let directory = TestDirectory::new();
-    let store = SqliteStore::open(directory.0.join("history.sqlite3"))
-        .await
-        .unwrap();
-    let mut ids = Vec::new();
+    let path = directory.0.join("session-logs.sqlite3");
+    let store = SqliteStore::open(&path).await.unwrap();
+    let host = store.save_host(draft()).await.unwrap();
+    assert!(store.list_session_logs().await.unwrap().is_empty());
+    let mut saved_ids = Vec::new();
     for index in 0..25 {
-        ids.push(
-            store
-                .start_history(None, &format!("连接{index}"), Some("local"))
-                .await
-                .unwrap(),
-        );
+        let protocol = ["ssh", "telnet", "serial", "local"][index % 4];
+        let id = uuid::Uuid::new_v4().to_string();
+        let content = format!("欢迎\n终端 {index}\n");
+        let saved = store
+            .save_session_log(SessionLogDraft {
+                id: id.clone(),
+                protocol: protocol.into(),
+                name: "连接快照".into(),
+                username: (protocol == "ssh").then(|| "root".into()),
+                host: (protocol != "local").then(|| "example.com".into()),
+                port: match protocol {
+                    "ssh" => Some(22),
+                    "telnet" => Some(23),
+                    _ => None,
+                },
+                started_at: 1,
+                content: content.clone(),
+            })
+            .await
+            .unwrap();
+        assert_eq!(saved.byte_length, content.len() as i64);
+        assert_eq!(store.read_session_log(&id).await.unwrap().content, content);
+        let mut retry = SessionLogDraft {
+            id: id.clone(),
+            protocol: protocol.into(),
+            name: "最新连接快照".into(),
+            username: None,
+            host: None,
+            port: None,
+            started_at: 2,
+            content: format!("{content}继续产生的输出\n"),
+        };
+        let repeated = store.save_session_log(retry.clone()).await.unwrap();
+        assert!(repeated.closed_at >= saved.closed_at);
+        assert_eq!(repeated.name, retry.name);
+        assert_eq!(repeated.started_at, retry.started_at);
+        assert_eq!(repeated.byte_length, retry.content.len() as i64);
+        let latest = store.read_session_log(&id).await.unwrap();
+        assert_eq!(latest.content, retry.content);
+        assert_eq!(latest.summary.username, retry.username);
+        assert_eq!(latest.summary.host, retry.host);
+        assert_eq!(latest.summary.port, retry.port);
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM session_logs WHERE id=?")
+            .bind(&id)
+            .fetch_one(&*store.pool().await.unwrap())
+            .await
+            .unwrap();
+        assert_eq!(count, 1);
+        retry.protocol = "workspace".into();
+        assert!(matches!(
+            store.save_session_log(retry).await,
+            Err(StorageError::Validation(_))
+        ));
+        saved_ids.push(id);
     }
-    let history = store.list_history().await.unwrap();
-    assert_eq!(history.len(), 20);
-    assert_eq!(
-        history
-            .iter()
-            .map(|entry| entry.id.as_str())
-            .collect::<Vec<_>>(),
-        ids[5..]
-            .iter()
-            .rev()
-            .map(String::as_str)
-            .collect::<Vec<_>>()
-    );
-    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM session_history")
-        .fetch_one(&*store.pool().await.unwrap())
-        .await
-        .unwrap();
-    assert_eq!(count, 20);
-    // 被裁剪的进行中摘要结束时允许空更新，不影响剩余记录。
-    store.end_history(&ids[0], "closed", None).await.unwrap();
-    assert_eq!(store.list_history().await.unwrap().len(), 20);
+    store.delete_host(&host.id, host.revision).await.unwrap();
+    assert_eq!(store.list_session_logs().await.unwrap().len(), 25);
+    store.pool().await.unwrap().close().await;
+    drop(store);
+    let reopened = SqliteStore::open(&path).await.unwrap();
+    assert_eq!(reopened.list_session_logs().await.unwrap().len(), 25);
+    reopened.delete_session_log(&saved_ids[0]).await.unwrap();
+    assert!(matches!(
+        reopened.read_session_log(&saved_ids[0]).await,
+        Err(StorageError::NotFound)
+    ));
+    reopened.clear_session_logs().await.unwrap();
+    assert!(reopened.list_session_logs().await.unwrap().is_empty());
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn unlock_prunes_existing_history_with_equal_timestamps() {
+async fn unlock_leaves_legacy_connection_history_untouched() {
     let directory = TestDirectory::new();
-    let path = directory.0.join("history.sqlite3");
+    let path = directory.0.join("legacy-history.sqlite3");
     let store = SqliteStore::open(&path).await.unwrap();
-    let timestamp = now();
-    // 模拟旧版本积累的同毫秒历史，绕过新增入口以验证解锁清理。
     for index in 0..25 {
         sqlx::query(
             "INSERT INTO session_history(id,display_name_snapshot,started_at) VALUES(?,?,?)",
         )
         .bind(format!("legacy-{index}"))
-        .bind(format!("连接{index}"))
-        .bind(timestamp)
+        .bind("旧连接")
+        .bind(1_i64)
         .execute(&*store.pool().await.unwrap())
         .await
         .unwrap();
@@ -847,15 +886,13 @@ async fn unlock_prunes_existing_history_with_equal_timestamps() {
     store.pool().await.unwrap().close().await;
     drop(store);
     let reopened = SqliteStore::open(&path).await.unwrap();
-    let history = reopened.list_history().await.unwrap();
-    assert_eq!(history.len(), 20);
-    assert_eq!(history.first().unwrap().id, "legacy-24");
-    assert_eq!(history.last().unwrap().id, "legacy-5");
-    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM session_history")
-        .fetch_one(&*reopened.pool().await.unwrap())
-        .await
-        .unwrap();
-    assert_eq!(count, 20);
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM session_history WHERE ended_at IS NULL")
+            .fetch_one(&*reopened.pool().await.unwrap())
+            .await
+            .unwrap();
+    assert_eq!(count, 25);
+    assert!(reopened.list_session_logs().await.unwrap().is_empty());
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -1110,10 +1147,9 @@ async fn schema_two_upgrade_preserves_profiles_children_and_history_references()
         .await
         .unwrap();
     let serial = old.save_host(serial_draft()).await.unwrap();
-    let history = old
-        .start_history(Some(&ssh.id), &ssh.name, Some("example.com:22"))
-        .await
-        .unwrap();
+    // 旧 schema 的夹具直接写 SQL，产品入口不再读取或维护旧连接历史。
+    sqlx::query("INSERT INTO session_history(id,profile_id,display_name_snapshot,started_at) VALUES('legacy',?,?,1)")
+        .bind(&ssh.id).bind(&ssh.name).execute(&*old.pool().await.unwrap()).await.unwrap();
     old.set_setting("fixture", 1, &serde_json::json!({"preserved":true}))
         .await
         .unwrap();
@@ -1131,14 +1167,12 @@ async fn schema_two_upgrade_preserves_profiles_children_and_history_references()
         matches!(&config.auth_plan[0], AuthStep::Password { credential_id: Some(id) } if id == &secret)
     );
     assert_eq!(store.get_host(&serial.id).await.unwrap().kind, "serial");
-    let entry = store
-        .list_history()
-        .await
-        .unwrap()
-        .into_iter()
-        .find(|item| item.id == history)
-        .unwrap();
-    assert_eq!(entry.profile_id, Some(ssh.id));
+    let profile_id: Option<String> =
+        sqlx::query_scalar("SELECT profile_id FROM session_history WHERE id='legacy'")
+            .fetch_one(&*store.pool().await.unwrap())
+            .await
+            .unwrap();
+    assert_eq!(profile_id, Some(ssh.id));
     assert_eq!(
         store.get_setting("fixture").await.unwrap().unwrap().value["preserved"],
         true

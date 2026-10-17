@@ -22,7 +22,11 @@ import type {
   AuthChallenge,
   CredentialMetadata,
   CredentialDraft,
-  HistoryEntry,
+  Snippet,
+  SnippetDraft,
+  SessionLog,
+  SessionLogDraft,
+  SessionLogSummary,
   HostDraft,
   WorkspaceDraft,
   HostGroup,
@@ -202,6 +206,9 @@ export const desktop = {
     >[0],
   ) => getCurrentWindow().onCloseRequested(callback),
   closeWindow: () => getCurrentWindow().close(),
+  onAppExitRequested: (handler: () => void) =>
+    listen("app-exit-requested", handler),
+  finishAppExit: () => invoke<void>("finish_app_exit"),
   setWindowTitle: (title: string) => getCurrentWindow().setTitle(title),
   setNativeMenuLocale: (locale: Locale) =>
     invoke<void>("set_native_menu_locale", { locale }),
@@ -237,8 +244,18 @@ export const desktop = {
   revokeKnownHost: (id: string) => invoke<void>("revoke_known_host", { id }),
   saveCredential: (payload: CredentialDraft) =>
     invoke<{ id: string }>("save_credential", { ...payload }),
-  listHistory: () => invoke<HistoryEntry[]>("list_history"),
-  clearHistory: () => invoke<void>("clear_history"),
+  listSnippets: () => invoke<Snippet[]>("list_snippets"),
+  saveSnippet: (draft: SnippetDraft) =>
+    invoke<Snippet>("save_snippet", { draft }),
+  deleteSnippet: (id: string, revision: number) =>
+    invoke<void>("delete_snippet", { id, revision }),
+  saveSessionLog: (draft: SessionLogDraft) =>
+    invoke<SessionLogSummary>("save_session_log", { draft }),
+  listSessionLogs: () => invoke<SessionLogSummary[]>("list_session_logs"),
+  readSessionLog: (id: string) =>
+    invoke<SessionLog>("read_session_log", { id }),
+  deleteSessionLog: (id: string) => invoke<void>("delete_session_log", { id }),
+  clearSessionLogs: () => invoke<void>("clear_session_logs"),
   listCredentials: () => invoke<CredentialMetadata[]>("list_credentials"),
   deleteCredential: (id: string) => invoke<void>("delete_credential", { id }),
   openUrl: (url: string) => invoke<void>("open_external_url", { url }),

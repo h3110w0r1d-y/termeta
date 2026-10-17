@@ -215,19 +215,6 @@ pub fn security_error(error: terminal_security::SecurityError) -> SessionError {
 }
 
 #[tauri::command]
-pub async fn list_history(
-    window: WebviewWindow,
-    state: State<'_, AppState>,
-) -> Result<Vec<terminal_storage::HistoryEntry>> {
-    owner(&window)?;
-    state.store.list_history().await.map_err(storage_error)
-}
-#[tauri::command]
-pub async fn clear_history(window: WebviewWindow, state: State<'_, AppState>) -> Result<()> {
-    owner(&window)?;
-    state.store.clear_history().await.map_err(storage_error)
-}
-#[tauri::command]
 pub async fn vault_status(
     window: WebviewWindow,
     state: State<'_, AppState>,

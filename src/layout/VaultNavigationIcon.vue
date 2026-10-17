@@ -7,7 +7,8 @@ const icons = {
   hosts: "hosts",
   credentials: "credentials",
   "known-hosts": "host-trust",
-  history: "connection-history",
+  logs: "session-logs",
+  snippets: "snippets",
 } as const;
 </script>
 <template>

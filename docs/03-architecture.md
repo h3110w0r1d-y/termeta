@@ -34,7 +34,7 @@ sftp → core + files + ssh
 
 每会话 actor 持有驱动，有界队列限制数据，独立取消信号保证输出背压不阻塞关闭。全局表锁只查询或复制轻量句柄，不跨网络、数据库或 Channel 等待。详见 [会话](04-session-model.md) 与 [IPC](06-ipc-and-streaming.md)。
 
-`terminalId` 标识跨重连稳定的视图，`sessionId` 标识一次后端连接。断线、失败和远端退出释放连接，保留终端与历史；用户关闭视图才销毁实例。重连排空旧流、清理未发送输入并隔离迟到回调，然后向同一终端绑定新会话。
+`terminalId` 标识跨重连稳定的视图，`sessionId` 标识一次后端连接。断线、失败和远端退出释放连接，保留终端与历史；用户关闭视图时先排空尾输出并将 xterm 现存文本归档为本机加密会话日志，提交成功才销毁实例。重连排空旧流、清理未发送输入并隔离迟到回调，然后向同一终端绑定新会话。
 
 Workbench 表示整个工作台，TerminalTabGroup 表示运行标签组，Workspace 表示多终端工作区及其显式存档。`useWorkbenchStore()` 分离终端和标签组；TerminalStage 以稳定 terminalId 承载终端，布局树只决定几何位置。标签切换、分屏、交换和迁移不重建终端。存档只保存布局与连接引用，打开创建新会话，不自动恢复退出前标签。详见 [工作台与工作区](18-terminal-workspaces.md)。
 

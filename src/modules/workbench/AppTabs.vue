@@ -2,7 +2,7 @@
 import { t } from "../../i18n";
 import { terminalBaseTitle } from "../terminal/title";
 import ScrollFade from "../../components/ui/ScrollFade.vue";
-import { CloseOutline } from "@vicons/ionicons5";
+import { CloseOutline, DocumentTextOutline } from "@vicons/ionicons5";
 import { computed, nextTick, ref, watch } from "vue";
 import { NIcon, useThemeVars } from "naive-ui";
 import { isMac } from "../../services/commands/registry";
@@ -62,7 +62,8 @@ function selectedElement() {
 }
 function activate(id: string) {
   emit("activate", id);
-  if (props.tabs.some((tab) => tab.id === id)) emit("focusTerminal", id);
+  if (props.tabs.some((tab) => tab.id === id && tab.kind === "terminal"))
+    emit("focusTerminal", id);
 }
 async function onKey(event: KeyboardEvent) {
   const target = event.target as HTMLElement;
@@ -71,7 +72,8 @@ async function onKey(event: KeyboardEvent) {
   const session = props.tabs.some((tab) => tab.id === id);
   if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
     event.preventDefault();
-    if (props.tabs.some((tab) => tab.id === id)) emit("menu", event, id);
+    if (props.tabs.some((tab) => tab.id === id && tab.kind === "terminal"))
+      emit("menu", event, id);
     return;
   }
   if (event.altKey || event.ctrlKey || event.metaKey) return;
@@ -176,10 +178,14 @@ watch(
                 workbench.drag?.source.kind === 'tab' &&
                 workbench.drag.source.tabId === tab.id,
             }"
-            :data-sort-tab="tab.id"
-            @pointerdown="startTabDrag($event, tab.id)"
+            :data-sort-tab="tab.kind === 'terminal' ? tab.id : undefined"
+            @pointerdown="
+              tab.kind === 'terminal' && startTabDrag($event, tab.id)
+            "
             role="presentation"
-            @contextmenu.prevent="emit('menu', $event, tab.id)"
+            @contextmenu.prevent="
+              tab.kind === 'terminal' && emit('menu', $event, tab.id)
+            "
           >
             <button
               type="button"
@@ -191,21 +197,35 @@ watch(
               :tabindex="activeId === tab.id ? 0 : -1"
               :aria-controls="'tab-panel-' + tab.id"
               :aria-label="
-                tab.title +
-                (tab.split
-                  ? ' · ' +
-                    t('workbench.terminalCount', {
-                      count: tab.terminalIds.length,
-                    })
-                  : '') +
-                ' · ' +
-                t(stateLabels[tab.state])
+                tab.kind === 'log'
+                  ? tab.title
+                  : tab.title +
+                    (tab.split
+                      ? ' · ' +
+                        t('workbench.terminalCount', {
+                          count: tab.terminalIds.length,
+                        })
+                      : '') +
+                    ' · ' +
+                    t(stateLabels[tab.state])
               "
-              :title="tab.title + ' · ' + t(stateLabels[tab.state])"
+              :title="
+                tab.kind === 'log'
+                  ? tab.title
+                  : tab.title + ' · ' + t(stateLabels[tab.state])
+              "
               @click="activate(tab.id)"
-              @dblclick="emit('doubleClick', tab.id)"
+              @dblclick="tab.kind === 'terminal' && emit('doubleClick', tab.id)"
             >
-              <i class="status-dot" :class="tab.state" aria-hidden="true" />
+              <NIcon v-if="tab.kind === 'log'" :size="14" aria-hidden="true">
+                <DocumentTextOutline />
+              </NIcon>
+              <i
+                v-else
+                class="status-dot"
+                :class="tab.state"
+                aria-hidden="true"
+              />
               <span class="app-tab-title">{{ tab.title }}</span>
             </button>
             <button

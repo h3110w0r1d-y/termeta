@@ -4,10 +4,6 @@ use sqlx::Row;
 use terminal_core::{HostKey, HostTrustStore, SessionError, TrustStatus};
 use uuid::Uuid;
 
-pub(crate) const HISTORY_LIMIT: i64 = 20;
-// 同毫秒记录按插入顺序裁剪，读取与清理使用相同排序。
-pub(crate) const PRUNE_HISTORY_SQL: &str = "DELETE FROM session_history WHERE rowid IN (SELECT rowid FROM session_history ORDER BY started_at DESC, rowid DESC LIMIT -1 OFFSET ?)";
-
 impl SqliteStore {
     pub async fn list_known_hosts(&self) -> Result<Vec<TrustedHostKey>> {
         sqlx::query("SELECT * FROM known_hosts ORDER BY canonical_host,port")
@@ -133,58 +129,6 @@ impl SqliteStore {
             display_name: row.try_get("display_name")?,
             content_fingerprint: row.try_get("content_fingerprint")?,
         })
-    }
-    pub async fn start_history(
-        &self,
-        profile_id: Option<&str>,
-        name: &str,
-        endpoint: Option<&str>,
-    ) -> Result<String> {
-        let id = Uuid::new_v4().to_string();
-        let mut tx = self.pool().await?.begin_with("BEGIN IMMEDIATE").await?;
-        sqlx::query("INSERT INTO session_history(id,profile_id,display_name_snapshot,endpoint_snapshot,started_at) VALUES(?,?,?,?,?)").bind(&id).bind(profile_id).bind(name).bind(endpoint).bind(now()).execute(&mut *tx).await?;
-        // 插入和裁剪原子提交，并发建立连接也不能突破保留上限。
-        sqlx::query(PRUNE_HISTORY_SQL)
-            .bind(HISTORY_LIMIT)
-            .execute(&mut *tx)
-            .await?;
-        tx.commit().await?;
-        Ok(id)
-    }
-    pub async fn end_history(
-        &self,
-        id: &str,
-        reason: &str,
-        error_code: Option<&str>,
-    ) -> Result<()> {
-        sqlx::query("UPDATE session_history SET ended_at=?,end_reason=?,error_code=? WHERE id=? AND ended_at IS NULL").bind(now()).bind(reason).bind(error_code).bind(id).execute(&*self.pool().await?).await?;
-        Ok(())
-    }
-    pub async fn list_history(&self) -> Result<Vec<HistoryEntry>> {
-        sqlx::query("SELECT * FROM session_history ORDER BY started_at DESC, rowid DESC LIMIT ?")
-            .bind(HISTORY_LIMIT)
-            .fetch_all(&*self.pool().await?)
-            .await?
-            .into_iter()
-            .map(|r| {
-                Ok(HistoryEntry {
-                    id: r.try_get("id")?,
-                    profile_id: r.try_get("profile_id")?,
-                    display_name: r.try_get("display_name_snapshot")?,
-                    endpoint: r.try_get("endpoint_snapshot")?,
-                    started_at: r.try_get("started_at")?,
-                    ended_at: r.try_get("ended_at")?,
-                    end_reason: r.try_get("end_reason")?,
-                    error_code: r.try_get("error_code")?,
-                })
-            })
-            .collect()
-    }
-    pub async fn clear_history(&self) -> Result<()> {
-        sqlx::query("DELETE FROM session_history")
-            .execute(&*self.pool().await?)
-            .await?;
-        Ok(())
     }
 }
 fn trust_error(_: StorageError) -> SessionError {
