@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { t } from "../i18n";
-import { MenuOutline } from "@vicons/ionicons5";
+import { IconMenu2 } from "@tabler/icons-vue";
 import { NDropdown, NButton, NIcon } from "naive-ui";
 import { commands } from "../services/commands/registry";
 </script>
@@ -10,7 +10,7 @@ import { commands } from "../services/commands/registry";
     @select="commands.execute('settings.open')"
   >
     <NButton quaternary :aria-label="t('common.navigation.appMenu')">
-      <NIcon :size="20" aria-hidden="true"><MenuOutline /></NIcon>
+      <NIcon :size="20" aria-hidden="true"><IconMenu2 /></NIcon>
     </NButton>
   </NDropdown>
 </template>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { t } from "../../i18n";
-import { Star } from "@vicons/ionicons5";
+import { IconStarFilled } from "@tabler/icons-vue";
 import { computed, h, ref, watch, type HTMLAttributes } from "vue";
 import {
   NIcon,
@@ -57,7 +57,7 @@ function renderLabel(option: SelectOption) {
         ? h(
             NIcon,
             { size: 16, role: "img", "aria-label": t("hosts.status.favorite") },
-            () => h(Star),
+            () => h(IconStarFilled),
           )
         : null,
       host.name,

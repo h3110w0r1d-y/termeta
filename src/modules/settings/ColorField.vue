@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { t } from "../../i18n";
 import { NIcon } from "naive-ui";
-import { RefreshOutline } from "@vicons/ionicons5";
+import { IconRefresh } from "@tabler/icons-vue";
 import AppColorPicker from "../../components/ui/AppColorPicker.vue";
 import AppButton from "../../components/ui/AppButton.vue";
 import { NFormItem, type FormItemInst, type FormItemRule } from "naive-ui";
@@ -48,7 +48,7 @@ function resetColor() {
         :aria-label="t('themes.actions.resetNamedColor', { name: label })"
         @click="resetColor"
       >
-        <NIcon :size="16" aria-hidden="true"><RefreshOutline /></NIcon>
+        <NIcon :size="16" aria-hidden="true"><IconRefresh /></NIcon>
       </AppButton>
     </div>
   </NFormItem>

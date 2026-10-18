@@ -16,7 +16,7 @@ import {
   type FormInst,
   type FormRules,
 } from "naive-ui";
-import { AddOutline } from "@vicons/ionicons5";
+import { IconPlus } from "@tabler/icons-vue";
 import { t } from "../../i18n";
 import AppButton from "../../components/ui/AppButton.vue";
 import AppDialog from "../../components/ui/AppDialog.vue";
@@ -131,7 +131,7 @@ async function remove(item: Snippet) {
         <NText depth="3">{{ t("snippets.description") }}</NText>
       </div>
       <AppButton class="primary" :disabled="busy" @click="edit()">
-        <NIcon :size="16" aria-hidden="true"><AddOutline /></NIcon>
+        <NIcon :size="16" aria-hidden="true"><IconPlus /></NIcon>
         {{ t("snippets.actions.new") }}
       </AppButton>
     </header>

@@ -68,6 +68,6 @@ macOS 应用菜单及已识别的系统注入固定项随应用语言更新；�
 
 表单校验与控件共享同一响应式 model，rules/path 一致，提交前校验；程序更新通过公开 API 重验字段。快速连接名称、可选秘密和服务器允许的空回答保持可选。弹窗操作区与滚动正文分离；按钮保留可访问名称，终端及可复制内容保留选择能力。
 
-通用图标使用 Ionicons/NIcon；SFTP 文件类型、分组文件夹、系统窗口及品牌资源保留既有形式。用户指定的 28 个 SSH 系统/类型 SVG 为资源例外，采用静态白名单，不接收运行时外部 SVG；来源与发布前许可门槛见 [资源说明](../resources/README.md)。
+通用界面图标使用 Tabler Icons Vue 组件；AssetIcon 负责稳定语义映射。SFTP 文件类型和主机分组文件夹也使用 Tabler 图标。用户指定的 28 个 SSH 系统/类型 SVG 主机标志保留原样，采用静态白名单，不接收运行时外部 SVG；应用品牌资源继续使用项目品牌图稿。来源与发布前许可门槛见 [资源说明](../resources/README.md)。
 
 前端仅保存轻量状态，IPC 统一经过 desktop 门面，秘密、文件正文、网络、设备和加密操作留在 Rust。主要入口为 [App.vue](../src/App.vue)、[设置](../src/modules/settings/SettingsWindow.vue)、[外观](../src/layout/useAppAppearance.ts)、[语言](../src/i18n/index.ts)、[配色](../src/modules/settings/themes.ts) 与 [终端注册表](../src/modules/terminal/registry.ts)。三平台视觉、IME、焦点、原生菜单和跨窗口行为仍需运行验收。

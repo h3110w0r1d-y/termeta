@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { t } from "../i18n";
 import { NIcon } from "naive-ui";
-import { RemoveOutline, SquareOutline, CloseOutline } from "@vicons/ionicons5";
+import { IconMinus, IconSquare, IconX } from "@tabler/icons-vue";
 import ApplicationMenu from "./ApplicationMenu.vue";
 import AppButton from "./ui/AppButton.vue";
 import { isMac } from "../services/commands/registry";
@@ -29,7 +29,7 @@ async function act(action: () => Promise<void>) {
       :title="t('window.controls.minimize')"
       @click="act(desktop.minimizeWindow)"
     >
-      <NIcon :size="16" aria-hidden="true"><RemoveOutline /></NIcon>
+      <NIcon :size="16" aria-hidden="true"><IconMinus /></NIcon>
     </AppButton>
     <AppButton
       class="icon-button"
@@ -37,7 +37,7 @@ async function act(action: () => Promise<void>) {
       :title="t('window.controls.maximize')"
       @click="act(desktop.toggleMaximizeWindow)"
     >
-      <NIcon :size="16" aria-hidden="true"><SquareOutline /></NIcon>
+      <NIcon :size="16" aria-hidden="true"><IconSquare /></NIcon>
     </AppButton>
     <AppButton
       class="icon-button"
@@ -45,7 +45,7 @@ async function act(action: () => Promise<void>) {
       :title="t('window.controls.close')"
       @click="act(desktop.closeWindow)"
     >
-      <NIcon :size="16" aria-hidden="true"><CloseOutline /></NIcon>
+      <NIcon :size="16" aria-hidden="true"><IconX /></NIcon>
     </AppButton>
   </div>
 </template>

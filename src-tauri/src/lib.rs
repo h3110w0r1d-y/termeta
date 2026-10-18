@@ -114,7 +114,7 @@ pub fn run() {
                 .title_bar_style(tauri::TitleBarStyle::Overlay)
                 .hidden_title(true)
                 // 下移原生窗口按钮，匹配 54px 标签栏的垂直居中布局。
-                .traffic_light_position(tauri::LogicalPosition::new(16.0, 25.0));
+                .traffic_light_position(tauri::LogicalPosition::new(16.0, 26.0));
             #[cfg(not(target_os = "macos"))]
             let window = window.decorations(false);
             window

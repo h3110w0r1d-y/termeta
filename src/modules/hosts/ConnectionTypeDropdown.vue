@@ -3,11 +3,11 @@ import { t } from "../../i18n";
 import { computed, h, onBeforeUnmount, onMounted, watch } from "vue";
 import { NButton, NDropdown, NIcon, type DropdownOption } from "naive-ui";
 import {
-  ChevronDownOutline,
-  HardwareChipOutline,
-  TerminalOutline,
-  GlobeOutline,
-} from "@vicons/ionicons5";
+  IconChevronDown,
+  IconCpu,
+  IconTerminal2,
+  IconWorld,
+} from "@tabler/icons-vue";
 import type { HostKind } from "../../services/desktop/types";
 
 const props = withDefaults(
@@ -19,19 +19,19 @@ const props = withDefaults(
 );
 const emit = defineEmits<{ select: [HostKind] }>();
 const shown = defineModel<boolean>("show", { default: false });
-const icon = (component: typeof TerminalOutline) => () =>
+const icon = (component: typeof IconTerminal2) => () =>
   h(NIcon, { size: 18, "aria-hidden": true }, () => h(component));
 const options = computed<DropdownOption[]>(() => [
-  { key: "ssh", label: "SSH", icon: icon(TerminalOutline) },
+  { key: "ssh", label: "SSH", icon: icon(IconTerminal2) },
   {
     key: "telnet",
     label: "Telnet",
-    icon: icon(GlobeOutline),
+    icon: icon(IconWorld),
   },
   {
     key: "serial",
     label: t("common.connection.serial"),
-    icon: icon(HardwareChipOutline),
+    icon: icon(IconCpu),
   },
 ]);
 watch(
@@ -89,7 +89,7 @@ function select(key: string) {
     >
       {{ label }}
       <template #icon>
-        <NIcon :size="16" aria-hidden="true"><ChevronDownOutline /></NIcon>
+        <NIcon :size="16" aria-hidden="true"><IconChevronDown /></NIcon>
       </template>
     </NButton>
   </NDropdown>

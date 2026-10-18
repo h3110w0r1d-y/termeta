@@ -1,29 +1,29 @@
 <script setup lang="ts">
 import { NIcon } from "naive-ui";
 import {
-  AddOutline,
-  SwapHorizontalOutline,
-  FolderOpenOutline,
-  HomeOutline,
-  KeyOutline,
-  LockClosedOutline,
-  ServerOutline,
-  ShieldCheckmarkOutline,
-  DocumentTextOutline,
-  CodeSlashOutline,
-} from "@vicons/ionicons5";
+  IconBraces,
+  IconClock,
+  IconFingerprint,
+  IconFolder,
+  IconHome,
+  IconKey,
+  IconVault,
+  IconPlus,
+  IconServer,
+  IconSwitchHorizontal,
+} from "@tabler/icons-vue";
 
 const icons = {
-  forwarding: SwapHorizontalOutline,
-  sftp: FolderOpenOutline,
-  add: AddOutline,
-  hosts: ServerOutline,
-  vault: LockClosedOutline,
-  credentials: KeyOutline,
-  "local-terminal": HomeOutline,
-  "host-trust": ShieldCheckmarkOutline,
-  "session-logs": DocumentTextOutline,
-  snippets: CodeSlashOutline,
+  add: IconPlus,
+  forwarding: IconSwitchHorizontal,
+  sftp: IconFolder,
+  hosts: IconServer,
+  vault: IconVault,
+  credentials: IconKey,
+  "local-terminal": IconHome,
+  "host-trust": IconFingerprint,
+  "session-logs": IconClock,
+  snippets: IconBraces,
 };
 defineProps<{ name: keyof typeof icons; size?: number }>();
 </script>

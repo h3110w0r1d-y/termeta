@@ -27,7 +27,7 @@ pnpm tauri icon "$ICON_MACOS_SOURCE" --output "$ICON_MACOS_OUTPUT"
 
 ## 界面及 SSH 系统图标
 
-通用界面图标采用 [xicons](https://xicons.org/) 的 @vicons/ionicons5，经 NIcon 渲染；AssetIcon 只做语义映射。SFTP 文件类型和主机分组文件夹保留既有自绘资源。
+通用界面图标采用 [Tabler Icons](https://tabler.io/icons) 的 `@tabler/icons-vue` 3.49.0，MIT 许可；[AssetIcon](../src/components/ui/AssetIcon.vue) 只做语义映射。SFTP 文件类型与主机分组文件夹同样使用 Tabler 组件。
 
 用户指定的 28 个 SSH 系统/类型 SVG 原样复制到 [systems](../src/assets/svg/systems)。原文件名、语义映射、颜色和 SHA-256 见 [host-system-icons.json](host-system-icons.json)：raspbian/pi 复用 pi，suse 对应 suze，默认 ssh 使用用户指定 host 素材。复用仅限用户指定范围，不声明项目拥有这些素材或另行授予开源许可。
 

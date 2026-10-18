@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { t } from "../../i18n";
-import { MoonOutline, SunnyOutline, DesktopOutline } from "@vicons/ionicons5";
+import { IconMoon, IconSun, IconDeviceDesktop } from "@tabler/icons-vue";
 import {
   NColorPicker,
   NButton,
@@ -167,7 +167,7 @@ const rules = computed<FormRules>(() => ({
                     >
                       <span class="appearance-option">
                         <NIcon :size="16" aria-hidden="true">
-                          <MoonOutline />
+                          <IconMoon />
                         </NIcon>
                         <span class="appearance-label">
                           {{ t("settings.appearance.dark") }}
@@ -180,7 +180,7 @@ const rules = computed<FormRules>(() => ({
                     >
                       <span class="appearance-option">
                         <NIcon :size="16" aria-hidden="true">
-                          <SunnyOutline />
+                          <IconSun />
                         </NIcon>
                         <span class="appearance-label">
                           {{ t("settings.appearance.light") }}
@@ -193,7 +193,7 @@ const rules = computed<FormRules>(() => ({
                     >
                       <span class="appearance-option">
                         <NIcon :size="16" aria-hidden="true">
-                          <DesktopOutline />
+                          <IconDeviceDesktop />
                         </NIcon>
                         <span class="appearance-label">
                           {{ t("settings.appearance.system") }}

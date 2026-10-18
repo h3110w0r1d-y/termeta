@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { t } from "./i18n";
 import { naiveLocale, naiveDateLocale } from "./i18n";
-import { CloseOutline } from "@vicons/ionicons5";
+import { IconX } from "@tabler/icons-vue";
 import { closeContextMenuOnOutside } from "./components/ui/contextMenu";
 import {
   NIcon,
@@ -411,6 +411,9 @@ onBeforeUnmount(() => {
           v-if="settings.value.tabPosition === 'left'"
           class="window-titlebar"
           data-tauri-drag-region
+          :style="{
+            background: terminalBackground ?? 'var(--surface)',
+          }"
         >
           <span data-tauri-drag-region>Termeta</span>
           <div class="window-drag-space" data-tauri-drag-region />
@@ -510,7 +513,7 @@ onBeforeUnmount(() => {
                 :aria-label="t('terminal.search.close')"
                 @click="closeFind()"
               >
-                <NIcon :size="16" aria-hidden="true"><CloseOutline /></NIcon>
+                <NIcon :size="16" aria-hidden="true"><IconX /></NIcon>
               </AppButton>
             </div>
             <NAlert v-if="activeTerminalError" type="error">
@@ -673,18 +676,21 @@ onBeforeUnmount(() => {
   gap: 12px;
   padding: 0 12px;
   background: var(--surface);
+  border-top: 1px solid transparent;
   border-bottom: 1px solid var(--border);
   color: var(--muted);
   font-size: 13px;
+  box-sizing: border-box;
 }
 .window-drag-space {
   flex: 1;
   align-self: stretch;
 }
 .tabs-left {
+  --terminal-host-top-margin: 10px;
   display: grid;
   grid-template-columns: 180px minmax(0, 1fr);
-  grid-template-rows: 54px minmax(0, 1fr);
+  grid-template-rows: 48px minmax(0, 1fr);
 }
 .tabs-left > .workbench-content {
   grid-column: 2;

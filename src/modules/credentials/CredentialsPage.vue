@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { t } from "../../i18n";
 import { NIcon } from "naive-ui";
-import { AddOutline } from "@vicons/ionicons5";
+import { IconPlus } from "@tabler/icons-vue";
 import { NEmpty, NList, NListItem, NThing, NSpin, NH1, NText } from "naive-ui";
 import AppInput from "../../components/ui/AppInput.vue";
 import AppButton from "../../components/ui/AppButton.vue";
@@ -80,7 +80,7 @@ async function remove(item: CredentialMetadata) {
         </NText>
       </div>
       <AppButton class="primary" :disabled="busy" @click="add">
-        <NIcon :size="16" aria-hidden="true"><AddOutline /></NIcon>
+        <NIcon aria-hidden="true"><IconPlus /></NIcon>
         {{ t("credentials.actions.new") }}
       </AppButton>
     </header>

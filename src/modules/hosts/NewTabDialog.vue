@@ -3,7 +3,7 @@ import { t } from "../../i18n";
 import ConnectionTypeDropdown from "./ConnectionTypeDropdown.vue";
 import { hostEndpoint, hostKindLabel } from "./presentation";
 import { NIcon } from "naive-ui";
-import { Star } from "@vicons/ionicons5";
+import { IconStarFilled } from "@tabler/icons-vue";
 import { computed, nextTick, ref, watch } from "vue";
 import {
   NButton,
@@ -157,7 +157,7 @@ function enter(event: KeyboardEvent) {
                       role="img"
                       :aria-label="t('hosts.status.favorite')"
                     >
-                      <Star />
+                      <IconStarFilled />
                     </NIcon>
                     {{ host.name }}
                   </NText>

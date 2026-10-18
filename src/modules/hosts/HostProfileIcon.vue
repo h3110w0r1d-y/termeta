@@ -1,9 +1,5 @@
 <script setup lang="ts">
-import {
-  HardwareChipOutline,
-  GlobeOutline,
-  GridOutline,
-} from "@vicons/ionicons5";
+import { IconCpu, IconWorld, IconLayoutGrid } from "@tabler/icons-vue";
 import { NAvatar, NIcon } from "naive-ui";
 import type { HostProfile } from "../../services/desktop/types";
 import HostSystemBadge from "./HostSystemBadge.vue";
@@ -21,10 +17,10 @@ withDefaults(defineProps<{ host: HostProfile; size?: number }>(), { size: 40 });
       :size="size * 0.6"
       :component="
         host.kind === 'workspace'
-          ? GridOutline
+          ? IconLayoutGrid
           : host.kind === 'telnet'
-            ? GlobeOutline
-            : HardwareChipOutline
+            ? IconWorld
+            : IconCpu
       "
     />
   </NAvatar>

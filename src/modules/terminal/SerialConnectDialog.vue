@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { t } from "../../i18n";
 import { computed, reactive, ref, watch } from "vue";
-import { RefreshOutline } from "@vicons/ionicons5";
+import { IconRefresh } from "@tabler/icons-vue";
 import {
   NAlert,
   NAutoComplete,
@@ -336,7 +336,7 @@ async function connect() {
             @click="refresh"
           >
             <template #icon>
-              <NIcon :component="RefreshOutline" aria-hidden="true" />
+              <NIcon :component="IconRefresh" aria-hidden="true" />
             </template>
           </NButton>
         </NFlex>

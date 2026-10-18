@@ -2,7 +2,12 @@
 import { t } from "../../i18n";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { NButton, NIcon, useThemeVars } from "naive-ui";
-import { CaretBack, CaretForward, CaretUp, CaretDown } from "@vicons/ionicons5";
+import {
+  IconChevronLeft,
+  IconChevronRight,
+  IconChevronUp,
+  IconChevronDown,
+} from "@tabler/icons-vue";
 import TerminalPane from "../terminal/TerminalPane.vue";
 import { layoutGeometry, type LayoutRect, type SplitDivider } from "./layout";
 import { useWorkbenchStore } from "./store";
@@ -235,12 +240,12 @@ onBeforeUnmount(() => {
       >
         <span class="swap-triangles" aria-hidden="true">
           <NIcon :size="11">
-            <CaretForward v-if="divider.axis === 'horizontal'" />
-            <CaretDown v-else />
+            <IconChevronRight v-if="divider.axis === 'horizontal'" />
+            <IconChevronDown v-else />
           </NIcon>
           <NIcon :size="11">
-            <CaretBack v-if="divider.axis === 'horizontal'" />
-            <CaretUp v-else />
+            <IconChevronLeft v-if="divider.axis === 'horizontal'" />
+            <IconChevronUp v-else />
           </NIcon>
         </span>
       </NButton>

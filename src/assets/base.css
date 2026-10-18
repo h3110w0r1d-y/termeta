@@ -19,6 +19,7 @@
   --accent: #63e2b7;
   --danger: #e88080;
   --input: #ffffff0f;
+  --tab-overlay-rgb: 255 255 255;
   color-scheme: dark;
 }
 * {
@@ -66,6 +67,7 @@ p {
   --accent: #18a058;
   --danger: #d03050;
   --input: #fafafc;
+  --tab-overlay-rgb: 0 0 0;
   color-scheme: light;
 }
 @media (prefers-color-scheme: light) {
@@ -79,6 +81,7 @@ p {
     --accent: #18a058;
     --danger: #d03050;
     --input: #fafafc;
+    --tab-overlay-rgb: 0 0 0;
     color-scheme: light;
   }
 }

@@ -2,7 +2,7 @@
 import { t } from "../../i18n";
 import { terminalBaseTitle } from "../terminal/title";
 import ScrollFade from "../../components/ui/ScrollFade.vue";
-import { CloseOutline, DocumentTextOutline } from "@vicons/ionicons5";
+import { IconX, IconFileText } from "@tabler/icons-vue";
 import { computed, nextTick, ref, watch } from "vue";
 import { NIcon, useThemeVars } from "naive-ui";
 import { isMac } from "../../services/commands/registry";
@@ -140,8 +140,10 @@ watch(
     :aria-orientation="position === 'left' ? 'vertical' : 'horizontal'"
     @keydown="onKey"
     :style="{
-      '--app-tab-hover': themeVars.buttonColor2,
-      '--app-tab-active': themeVars.buttonColor2Hover,
+      // 黑底下分别呈现 #101010、#202020、#303030；前景色由明暗主题 CSS 切换。
+      '--app-tab-background': 'rgb(var(--tab-overlay-rgb) / 6.27%)',
+      '--app-tab-hover': 'rgb(var(--tab-overlay-rgb) / 12.55%)',
+      '--app-tab-active': 'rgb(var(--tab-overlay-rgb) / 18.82%)',
       '--app-tab-text': themeVars.textColor1,
       '--app-tab-close-hover': themeVars.closeColorHover,
       '--app-tab-radius': themeVars.borderRadius,
@@ -231,8 +233,8 @@ watch(
             @click="activate(tab.id)"
             @dblclick="tab.kind === 'terminal' && emit('doubleClick', tab.id)"
           >
-            <NIcon v-if="tab.kind === 'log'" :size="14" aria-hidden="true">
-              <DocumentTextOutline />
+            <NIcon v-if="tab.kind === 'log'" :size="16" aria-hidden="true">
+              <IconFileText />
             </NIcon>
             <i
               v-else
@@ -250,8 +252,8 @@ watch(
             :title="t('workbench.actions.closeNamed', { name: tab.title })"
             @click="emit('close', tab.id)"
           >
-            <NIcon :size="position === 'top' ? 16 : 14" aria-hidden="true">
-              <CloseOutline />
+            <NIcon :size="16" aria-hidden="true">
+              <IconX />
             </NIcon>
           </button>
         </div>
@@ -264,7 +266,7 @@ watch(
         :title="t('workbench.actions.newTabWithShortcut')"
         @click="emit('create')"
       >
-        <AssetIcon name="add" :size="20" />
+        <AssetIcon name="add" :size="16" />
       </AppButton>
     </div>
     <!-- 所有插入槽共用一条指示线，位置由容器几何计算，不绑定单个标签。 -->
@@ -396,19 +398,17 @@ watch(
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* 顶部未激活标签保留轻微主题色遮罩，只改变底色，不淡化文字与图标。 */
-.app-tabs:not(.tabs-vertical)
-  .fixed-tabs
-  > .app-tab[aria-selected="false"]:not(:hover),
-.app-tabs:not(.tabs-vertical) .app-tab-item:not(.selected):not(:hover) {
-  background: color-mix(in srgb, var(--app-tab-text) 4%, transparent);
+/* 未激活标签保留轻微底色，顶部与侧栏使用同一组状态层级。 */
+.fixed-tabs > .app-tab[aria-selected="false"]:not(:hover),
+.app-tab-item:not(.selected):not(:hover) {
+  background: var(--app-tab-background);
 }
 .fixed-tabs > .app-tab:hover,
 .app-tab-item:hover {
   background: var(--app-tab-hover);
   color: var(--app-tab-text);
 }
-/* 激活态优先于悬停态，颜色跟随 Naive UI 当前主题。 */
+/* 激活态优先于悬停态，并使用更亮的按下层级。 */
 .fixed-tabs > .app-tab[aria-selected="true"],
 .app-tab-item.selected {
   background: var(--app-tab-active);

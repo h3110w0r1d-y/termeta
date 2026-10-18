@@ -6,7 +6,12 @@ import ConnectionTypeDropdown from "./ConnectionTypeDropdown.vue";
 import { hostEndpoint, hostKindLabel } from "./presentation";
 import AssetIcon from "../../components/ui/AssetIcon.vue";
 import { NIcon } from "naive-ui";
-import { GridOutline, ListOutline, Star, StarOutline } from "@vicons/ionicons5";
+import {
+  IconLayoutGrid,
+  IconList,
+  IconStarFilled,
+  IconStar,
+} from "@tabler/icons-vue";
 import { closeContextMenuOnOutside } from "../../components/ui/contextMenu";
 import { confirmAction } from "../../components/ui/confirmation";
 import { computed, nextTick, ref, watch, reactive } from "vue";
@@ -405,14 +410,14 @@ watch(group, () => {
               :title="t('hosts.view.cards')"
               :aria-label="t('hosts.view.cards')"
             >
-              <NIcon :size="18" aria-hidden="true"><GridOutline /></NIcon>
+              <NIcon :size="18" aria-hidden="true"><IconLayoutGrid /></NIcon>
             </NRadioButton>
             <NRadioButton
               value="list"
               :title="t('hosts.view.list')"
               :aria-label="t('hosts.view.list')"
             >
-              <NIcon :size="18" aria-hidden="true"><ListOutline /></NIcon>
+              <NIcon :size="18" aria-hidden="true"><IconList /></NIcon>
             </NRadioButton>
           </NRadioGroup>
         </div>
@@ -479,8 +484,8 @@ watch(group, () => {
                     @click.stop="favorite(host)"
                   >
                     <NIcon :size="18" aria-hidden="true">
-                      <Star v-if="host.favorite" />
-                      <StarOutline v-else />
+                      <IconStarFilled v-if="host.favorite" />
+                      <IconStar v-else />
                     </NIcon>
                   </NButton>
                 </template>
@@ -559,8 +564,8 @@ watch(group, () => {
                     @click.stop="favorite(host)"
                   >
                     <NIcon :size="18" aria-hidden="true">
-                      <Star v-if="host.favorite" />
-                      <StarOutline v-else />
+                      <IconStarFilled v-if="host.favorite" />
+                      <IconStar v-else />
                     </NIcon>
                   </NButton>
                 </template>

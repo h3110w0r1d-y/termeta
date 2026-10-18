@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { t } from "../../i18n";
-import { AddOutline, RefreshOutline, CloseOutline } from "@vicons/ionicons5";
+import { IconPlus, IconRefresh, IconX } from "@tabler/icons-vue";
 import { NIcon, NTabs, NTab } from "naive-ui";
 import AppCheckbox from "../../components/ui/AppCheckbox.vue";
 import AppSelect from "../../components/ui/AppSelect.vue";
@@ -148,21 +148,21 @@ async function importKeys(event: Event) {
           })
         "
       >
-        <NIcon :size="16" aria-hidden="true"><AddOutline /></NIcon>
+        <NIcon :size="16" aria-hidden="true"><IconPlus /></NIcon>
       </AppButton>
       <AppButton
         class="icon-button"
         :title="t('shortcuts.actions.resetCommand')"
         @click="resetBinding(b)"
       >
-        <NIcon :size="16" aria-hidden="true"><RefreshOutline /></NIcon>
+        <NIcon :size="16" aria-hidden="true"><IconRefresh /></NIcon>
       </AppButton>
       <AppButton
         class="icon-button"
         :title="t('shortcuts.actions.deleteBinding')"
         @click="removeBinding(b)"
       >
-        <NIcon :size="16" aria-hidden="true"><CloseOutline /></NIcon>
+        <NIcon :size="16" aria-hidden="true"><IconX /></NIcon>
       </AppButton>
     </div>
     <p v-if="conflict(draft.keymap.bindings)" class="error">

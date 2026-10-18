@@ -7,7 +7,7 @@
 | 领域 | 锁定基线与来源 | 用途与约束 |
 | --- | --- | --- |
 | 桌面 | Tauri 2.11.5 / build 2.6.3 / JS API 2.11.0；[Channel](https://v2.tauri.app/reference/javascript/api/namespacecore/)、[Capabilities](https://v2.tauri.app/security/capabilities/) | Commands + 原始二进制 Channel；自定义命令须 AppManifest/ACL 与资源 owner 双重校验 |
-| 前端 | Vue 3、TypeScript、Pinia 4.1.0、Naive UI 2.45.3、Ionicons 0.13.0 | 通用控件和轻量状态，桌面行为见 [交互](09-desktop-ux.md) |
+| 前端 | Vue 3、TypeScript、Pinia 4.1.0、Naive UI 2.45.3、@tabler/icons-vue 3.49.0 | 通用控件和轻量状态，桌面行为见 [交互](09-desktop-ux.md) |
 | 终端 | xterm 6.0.0 / Fit 0.11.0 / Search 0.16.0 / Serialize 0.14.0 / WebLinks 0.12.0；[API](https://xtermjs.org/docs/api/terminal/classes/terminal/)、[流控](https://xtermjs.org/docs/guides/flowcontrol/)、[安全](https://xtermjs.org/docs/guides/security/) | 原始 Uint8Array；解析回调用于 ACK，不等于 GPU 呈现。无需 addon-attach/WebGL |
 | SSH | [russh 0.64.1](https://docs.rs/russh/0.64.1/russh/)，禁用默认 features，启用 ring/rsa | Apache-2.0，声明 MSRV 1.89；认证/PTY 请求须等待服务器接受，不能将发送成功视为完成 |
 | SFTP | [russh-sftp 3.0.1](https://docs.rs/russh-sftp/3.0.1/russh_sftp/)，禁用默认 features | Apache-2.0，未声明 MSRV；通过 AsyncRead/AsyncWrite 接 SSH subsystem，增量浏览避免全量目录收集 |
@@ -26,6 +26,8 @@
 2026-10-18 新增 `@xterm/addon-serialize 0.14.0`，MIT，包未声明独立 engines/features/MSRV；其与 xterm 6.0.0 的 npm 包均标记源码提交 `f447274f430fd22513f6adbf9862d19524471c04`。已核对该固定 release 的 `serialize({excludeModes,excludeAltBuffer})` 类型与实现，用于关闭时保留缓冲样式；不使用 HTML 导出。包将插件标为 experimental，升级时须验证复杂样式、宽字符及备用屏往返。2026-10-18 npm 生产依赖公告查询未返回公告，不替代完整安全审计。来源：[固定包元数据](https://registry.npmjs.org/@xterm/addon-serialize/0.14.0)、[对应提交 API](https://github.com/xtermjs/xterm.js/blob/f447274f430fd22513f6adbf9862d19524471c04/addons/addon-serialize/typings/addon-serialize.d.ts)。
 
 基础库共用 Tokio/async-trait/serde/uuid/bytes/zeroize 等锁定依赖；`spawn_blocking` 用于短期阻塞工作，长期 PTY/设备 I/O 使用独立线程。表中 MSRV 是直接依赖声明，不是整个传递集合的兼容保证；SQLCipher/OpenSSL、Zstd、rustls 所选 aws-lc 等还涉及原生编译和许可集合。
+
+`@tabler/icons-vue` 固定 3.49.0，MIT；该 release 未声明 Node engines，Vue peer 范围为 `>=3.0.1`，组件提供 `size`、`color`、`stroke`、`title` 属性，并由 `@tabler/icons` 同版本依赖提供图形。来源：[固定包元数据](https://registry.npmjs.org/@tabler/icons-vue/3.49.0)、[该 release 的 Vue 用法](https://github.com/tabler/tabler-icons/blob/v3.49.0/packages/icons-vue/README.md)、[MIT 许可](https://github.com/tabler/tabler-icons/blob/v3.49.0/LICENSE)。
 
 ## 2. 平台适配与资源
 

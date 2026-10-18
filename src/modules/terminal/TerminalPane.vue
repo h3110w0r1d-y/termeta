@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { t } from "../../i18n";
-import { GitNetworkOutline, CloseOutline } from "@vicons/ionicons5";
+import { IconGitBranch, IconX } from "@tabler/icons-vue";
 import { computed, onMounted, ref, watch } from "vue";
 import { NIcon, useThemeVars } from "naive-ui";
 import AppButton from "../../components/ui/AppButton.vue";
@@ -125,7 +125,7 @@ function menuKey(event: KeyboardEvent) {
         @click="terminalRegistry.toggleBroadcast()"
       >
         <NIcon :size="16" aria-hidden="true">
-          <GitNetworkOutline />
+          <IconGitBranch />
         </NIcon>
       </AppButton>
       <AppButton
@@ -143,7 +143,7 @@ function menuKey(event: KeyboardEvent) {
         @click="emit('close')"
       >
         <NIcon :size="14" aria-hidden="true">
-          <CloseOutline />
+          <IconX />
         </NIcon>
       </AppButton>
     </header>
@@ -171,7 +171,8 @@ function menuKey(event: KeyboardEvent) {
 }
 .terminal-host {
   height: auto;
-  margin: 0 8px 10px 14px;
+  margin: 0 8px 10px 10px;
+  margin-top: var(--terminal-host-top-margin, 0);
   overflow: hidden;
   background: var(--terminal-background);
 }
@@ -209,6 +210,7 @@ function menuKey(event: KeyboardEvent) {
 }
 .terminal-pane.split-pane .terminal-host {
   margin: 0 6px 6px;
+  margin-top: var(--terminal-host-top-margin, 0);
 }
 .terminal-pane-heading {
   display: flex;

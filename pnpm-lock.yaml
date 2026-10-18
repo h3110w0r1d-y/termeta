@@ -8,12 +8,12 @@ importers:
 
   .:
     dependencies:
+      '@tabler/icons-vue':
+        specifier: 3.49.0
+        version: 3.49.0(vue@3.5.44(typescript@6.0.3))
       '@tauri-apps/api':
         specifier: 2.11.0
         version: 2.11.0
-      '@vicons/ionicons5':
-        specifier: 0.13.0
-        version: 0.13.0
       '@xterm/addon-fit':
         specifier: 0.11.0
         version: 0.11.0
@@ -192,6 +192,14 @@ packages:
   '@rolldown/pluginutils@1.0.1':
     resolution: {integrity: sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==}
 
+  '@tabler/icons-vue@3.49.0':
+    resolution: {integrity: sha512-p/g2/aVsUTdGaLwgV+X/E3vc+j8XkXWV2NgXAVT31/6sMf/CFAI3uvJ1r6YCi/UT8U2ctaF5fXUWr18bNVVr7g==}
+    peerDependencies:
+      vue: '>=3.0.1'
+
+  '@tabler/icons@3.49.0':
+    resolution: {integrity: sha512-l+GnSkFETx0U26icxv1VUFnxxiTqXfCcVRiRAnyMwibupM2S2L/hSaZ9gmSgz01rkrsH/93NvLsxykqdanc6lw==}
+
   '@tauri-apps/api@2.11.0':
     resolution: {integrity: sha512-7CinYODhky9lmO23xHnUFv0Xt43fbtWMyxZcLcRBlFkcgXKuEirBvHpmtJ89YMhyeGcq20Wuc47Fa4XjyniywA==}
 
@@ -271,9 +279,6 @@ packages:
 
   '@types/lodash@4.17.26':
     resolution: {integrity: sha512-48NWfiY6oNcKOh47Z4h+sIvwcQR91h6KPhaYKgeMIrkT2jV82Gy90SErj60vW8jQbeMSOSbhIv3bZ7JoqPPVhA==}
-
-  '@vicons/ionicons5@0.13.0':
-    resolution: {integrity: sha512-zvZKBPjEXKN7AXNo2Na2uy+nvuv6SP4KAMQxpKL2vfHMj0fSvuw7JZcOPCjQC3e7ayssKnaoFVAhbYcW6v41qQ==}
 
   '@vitejs/plugin-vue@6.0.10':
     resolution: {integrity: sha512-b80aUQh3n+qEzzZm5oQp3rT2QImeCx58K6eFl/RkJ3d65KW0kTuv5lNsLRVAjbW9YRUpo/wzmvzMgV34bTAItA==}
@@ -711,6 +716,13 @@ snapshots:
 
   '@rolldown/pluginutils@1.0.1': {}
 
+  '@tabler/icons-vue@3.49.0(vue@3.5.44(typescript@6.0.3))':
+    dependencies:
+      '@tabler/icons': 3.49.0
+      vue: 3.5.44(typescript@6.0.3)
+
+  '@tabler/icons@3.49.0': {}
+
   '@tauri-apps/api@2.11.0': {}
 
   '@tauri-apps/cli-darwin-arm64@2.12.3':
@@ -765,8 +777,6 @@ snapshots:
       '@types/lodash': 4.17.26
 
   '@types/lodash@4.17.26': {}
-
-  '@vicons/ionicons5@0.13.0': {}
 
   '@vitejs/plugin-vue@6.0.10(vite@8.3.4)(vue@3.5.44(typescript@6.0.3))':
     dependencies:
