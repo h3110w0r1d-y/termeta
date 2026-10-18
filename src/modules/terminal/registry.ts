@@ -27,6 +27,10 @@ import { useSettings } from "../settings/store";
 import { loadTerminalFont, terminalFontFamily } from "../settings/fonts";
 import { builtinSchemes, resolveScheme } from "../settings/themes";
 import { useWorkbenchStore, type TerminalItem } from "../workbench/store";
+import {
+  registerSessionPresence,
+  unregisterSessionPresence,
+} from "../../services/desktop/sessionPresence";
 import type {
   SessionEvent,
   SessionSnapshot,
@@ -70,11 +74,16 @@ interface Entry {
 const entries = new Map<string, Entry>();
 function update(terminal: TerminalItem, snapshot: SessionSnapshot) {
   if (snapshot.stateRevision >= terminal.revision) {
+    if (terminal.sessionId && terminal.sessionId !== snapshot.sessionId)
+      unregisterSessionPresence("terminal", terminal.sessionId);
     terminal.kind = snapshot.kind;
     terminal.sshCommand = snapshot.sshCommand;
     terminal.sessionId = snapshot.sessionId;
     terminal.state = snapshot.state;
     terminal.revision = snapshot.stateRevision;
+    if (["closed", "failed", "disconnected"].includes(snapshot.state))
+      unregisterSessionPresence("terminal", snapshot.sessionId);
+    else registerSessionPresence("terminal", snapshot.sessionId);
   }
 }
 async function acknowledge(entry: Entry, stream: Stream) {
@@ -184,16 +193,22 @@ function event(
     workbench.dismiss(value.sessionId);
     workbench.challenges.push(value);
   } else if (value.type === "ended") {
+    const workbench = useWorkbenchStore();
+    unregisterSessionPresence("terminal", value.sessionId);
     stream.ended = true;
     stream.endReceived = true;
     stream.finalOffset = BigInt(value.finalOffset);
     terminal.state = value.finalState;
-    terminal.error = value.error
-      ? errorMessage(value.error)
-      : !value.outputComplete
-        ? t("terminal.state.incompleteOutput")
-        : "";
-    useWorkbenchStore().dismiss(value.sessionId);
+    // 主动关闭时，取消产生的未完整输出是收尾过程，不应在标签移除前闪成错误。
+    // dispose/日志保存真正失败仍会由关闭协调器写入 error，保留给用户处理。
+    terminal.error = workbench.closingTerminalIds.includes(terminal.terminalId)
+      ? ""
+      : value.error
+        ? errorMessage(value.error)
+        : !value.outputComplete
+          ? t("terminal.state.incompleteOutput")
+          : "";
+    workbench.dismiss(value.sessionId);
     // 等待最后一帧解析，控制事件与数据 Channel 没有全局先后顺序。
     stream.finalization = drain(entry, stream).then(() => {
       if (entry.stream === stream && !entry.closing) {
@@ -216,7 +231,8 @@ function event(
       }
     });
     void stream.finalization.catch((error) => {
-      terminal.error = errorMessage(error);
+      if (!useWorkbenchStore().closingTerminalIds.includes(terminal.terminalId))
+        terminal.error = errorMessage(error);
     });
   } else if (value.type === "notice")
     terminal.error = value.details ?? value.messageKey;

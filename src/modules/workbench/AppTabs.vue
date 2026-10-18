@@ -9,6 +9,7 @@ import { isMac } from "../../services/commands/registry";
 import AssetIcon from "../../components/ui/AssetIcon.vue";
 import WindowControls from "../../components/WindowControls.vue";
 import AppButton from "../../components/ui/AppButton.vue";
+import { schemeForTerminal } from "../terminal/registry";
 import { stateLabels, useWorkbenchStore, type TabBarItem } from "./store";
 import { useTabDrag } from "./useTabDrag";
 import { useTabScroll } from "./useTabScroll";
@@ -30,6 +31,15 @@ const emit = defineEmits<{
 }>();
 const themeVars = useThemeVars();
 const workbench = useWorkbenchStore();
+// 动态终端标签激活时，Header 与终端共用同一主题背景；固定页回退到普通表面色。
+const headerBackground = computed(() => {
+  if (!props.tabs.some((tab) => tab.id === props.activeId))
+    return "var(--surface)";
+  const terminal = workbench.activeTerminal;
+  return terminal
+    ? schemeForTerminal(terminal).colors.background
+    : "var(--surface)";
+});
 const windowDrag = useWindowDrag({
   enabled: () => props.position === "top" && !workbench.drag,
   onError: (message) => emit("windowError", message),
@@ -135,6 +145,9 @@ watch(
       '--app-tab-text': themeVars.textColor1,
       '--app-tab-close-hover': themeVars.closeColorHover,
       '--app-tab-radius': themeVars.borderRadius,
+      '--app-tabs-background': headerBackground,
+      '--app-tabs-border':
+        headerBackground === 'var(--surface)' ? undefined : 'transparent',
     }"
   >
     <!-- 固定页、分隔线与动态滚动区直接参与 Header 的 flex 排列。 -->
@@ -166,7 +179,7 @@ watch(
       class="session-tabs-fade"
       :viewport="sessionTabs"
       :direction="position === 'left' ? 'vertical' : 'horizontal'"
-      background="var(--surface)"
+      :background="headerBackground"
       :size="20"
       role="presentation"
     >
@@ -300,11 +313,13 @@ watch(
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  height: 54px;
+  height: 48px;
   gap: 4px;
   padding: 0 12px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  background: var(--app-tabs-background, var(--surface));
+  border-top: 1px solid transparent;
+  border-bottom: 1px solid var(--app-tabs-border, var(--border));
+  box-sizing: border-box;
 }
 .fixed-tab-icon {
   flex-shrink: 0;

@@ -114,6 +114,15 @@ export interface SessionSnapshot {
   stateRevision: number;
   size: TerminalSize;
 }
+export type SessionPresenceKind = "terminal" | "file" | "forward";
+export interface SessionPresenceRef {
+  kind: SessionPresenceKind;
+  sessionId: string;
+}
+export interface SessionPresenceHeartbeat {
+  protocolVersion: 1;
+  sessions: SessionPresenceRef[];
+}
 export type ForwardMode = "local" | "remote" | "dynamic";
 export interface ForwardRule {
   mode: ForwardMode;

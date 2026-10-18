@@ -1,7 +1,4 @@
-use std::{
-    sync::{Arc, Mutex},
-    time::Instant,
-};
+use std::sync::{Arc, Mutex};
 use tauri::{
     WebviewWindow,
     ipc::{Channel, Response},
@@ -21,7 +18,6 @@ pub struct AppState {
     pub transfers: Arc<tokio::sync::Semaphore>,
     pub store: Arc<SqliteStore>,
     pub vault: Arc<CredentialVault>,
-    pub heartbeat: Mutex<Instant>,
     pub open_gates:
         Mutex<std::collections::HashMap<String, std::sync::Weak<tokio::sync::Mutex<()>>>>,
 }

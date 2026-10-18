@@ -171,7 +171,7 @@ function menuKey(event: KeyboardEvent) {
 }
 .terminal-host {
   height: auto;
-  margin: 14px 8px 10px 14px;
+  margin: 0 8px 10px 14px;
   overflow: hidden;
   background: var(--terminal-background);
 }

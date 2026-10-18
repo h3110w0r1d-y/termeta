@@ -11,6 +11,10 @@ import {
 } from "vue";
 import { NAlert, NButton, NFlex, NTag, NText } from "naive-ui";
 import { desktop, errorMessage } from "../../services/desktop/client";
+import {
+  registerSessionPresence,
+  unregisterSessionPresence,
+} from "../../services/desktop/sessionPresence";
 import type {
   SessionEvent,
   SessionSnapshot,
@@ -48,15 +52,22 @@ const ready = (side: number) =>
   endpoints[side]?.state === "connected" && !!endpoints[side]?.sessionId;
 function update(side: number, snapshot: SessionSnapshot) {
   if (ended[side] || snapshot.stateRevision < revisions[side]) return;
+  const previous = endpoints[side]!.sessionId;
+  if (previous && previous !== snapshot.sessionId)
+    unregisterSessionPresence("file", previous);
   revisions[side] = snapshot.stateRevision;
   workbench.connectionTitles[snapshot.sessionId] = snapshot.title;
   endpoints[side]!.sessionId = snapshot.sessionId;
   endpoints[side]!.state = snapshot.state;
+  if (["closed", "failed", "disconnected"].includes(snapshot.state))
+    unregisterSessionPresence("file", snapshot.sessionId);
+  else registerSessionPresence("file", snapshot.sessionId);
 }
 function control(side: number, generation: number, event: SessionEvent) {
   if (disposed || generations[side] !== generation) return;
   const endpoint = endpoints[side]!;
   endpoint.sessionId = event.sessionId;
+  if (event.type !== "ended") registerSessionPresence("file", event.sessionId);
   if (event.type === "stateChanged") update(side, event.snapshot);
   else if (
     event.type === "authChallenge" ||
@@ -65,6 +76,7 @@ function control(side: number, generation: number, event: SessionEvent) {
     workbench.dismiss(event.sessionId);
     workbench.challenges.push(event);
   } else if (event.type === "ended") {
+    unregisterSessionPresence("file", event.sessionId);
     ended[side] = true;
     releaseDrag();
     endpoint.state = event.finalState;
@@ -107,10 +119,12 @@ async function disconnect(side: number) {
   const endpoint = endpoints[side]!;
   if (!endpoint.sessionId || copying.value) return;
   endpoint.opening = true;
+  const sessionId = endpoint.sessionId;
   try {
-    await desktop.close(endpoint.sessionId);
-    workbench.dismiss(endpoint.sessionId);
-    delete workbench.connectionTitles[endpoint.sessionId];
+    await desktop.close(sessionId);
+    unregisterSessionPresence("file", sessionId);
+    workbench.dismiss(sessionId);
+    delete workbench.connectionTitles[sessionId];
     generations[side]!++;
     endpoint.sessionId = undefined;
     endpoint.state = "closed";
@@ -296,6 +310,7 @@ onBeforeUnmount(() => {
   window.removeEventListener("keydown", keydown);
   for (const endpoint of endpoints)
     if (endpoint.sessionId) {
+      unregisterSessionPresence("file", endpoint.sessionId);
       workbench.dismiss(endpoint.sessionId);
       delete workbench.connectionTitles[endpoint.sessionId];
       void desktop.close(endpoint.sessionId).catch(() => {});

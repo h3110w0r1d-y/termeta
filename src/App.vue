@@ -56,6 +56,7 @@ import {
 import { needsCloseConfirmation } from "./modules/terminal/activity";
 import { commands } from "./services/commands/registry";
 import { desktop, errorMessage } from "./services/desktop/client";
+import { sessionPresenceSnapshot } from "./services/desktop/sessionPresence";
 import type {
   HostKind,
   HostProfile,
@@ -108,8 +109,15 @@ const terminalBackground = computed(() =>
     ? schemeForTerminal(workbench.activeTerminal).colors.background
     : undefined,
 );
+const activeTerminalError = computed(() => {
+  const terminal = workbench.activeTerminal;
+  // 关闭协调完成前，终态事件的收尾信息不应短暂占据工作区顶部。
+  return terminal && !workbench.closingTerminalIds.includes(terminal.terminalId)
+    ? terminal.error
+    : "";
+});
 const { naiveTheme, naiveThemeOverrides } = useAppAppearance();
-let heartbeat: ReturnType<typeof setInterval> | undefined,
+let presenceSync: ReturnType<typeof setInterval> | undefined,
   unlisten: (() => void) | undefined,
   unlistenExit: (() => void) | undefined,
   closingWindow = false,
@@ -347,12 +355,17 @@ onMounted(async () => {
       event.preventDefault();
       void closeApplication();
     });
-    heartbeat = setInterval(
+    presenceSync = setInterval(
       () =>
         vaultReady.value &&
-        void desktop.heartbeat().catch((e) => {
-          initError.value = errorMessage(e);
-        }),
+        void desktop
+          .syncSessionPresence({
+            protocolVersion: 1,
+            sessions: sessionPresenceSnapshot(),
+          })
+          .catch((e) => {
+            initError.value = errorMessage(e);
+          }),
       15000,
     );
   } catch (e) {
@@ -361,7 +374,7 @@ onMounted(async () => {
 });
 onBeforeUnmount(() => {
   document.removeEventListener("keydown", globalKey, true);
-  if (heartbeat) clearInterval(heartbeat);
+  if (presenceSync) clearInterval(presenceSync);
   unlisten?.();
   unlistenExit?.();
 });
@@ -500,8 +513,8 @@ onBeforeUnmount(() => {
                 <NIcon :size="16" aria-hidden="true"><CloseOutline /></NIcon>
               </AppButton>
             </div>
-            <NAlert v-if="workbench.activeTerminal?.error" type="error">
-              {{ workbench.activeTerminal.error }}
+            <NAlert v-if="activeTerminalError" type="error">
+              {{ activeTerminalError }}
             </NAlert>
             <div
               class="terminal-stage"

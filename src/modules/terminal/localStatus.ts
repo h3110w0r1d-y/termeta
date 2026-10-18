@@ -35,7 +35,7 @@ export function writeLocalStatus(term: Terminal, message: string) {
       modes +
         leaveAlternate +
         snapshot +
-        `\r\n\x1b[90m[${new Date().toLocaleTimeString(locale.value)}] ${safe(message)}\x1b[0m\r\n`,
+        `\x1b[90m[${new Date().toLocaleTimeString(locale.value)}] ${safe(message)}\x1b[0m\r\n`,
     ),
   );
 }

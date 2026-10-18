@@ -14,7 +14,7 @@ mod state;
 use state::AppState;
 use std::{
     sync::{Arc, Mutex},
-    time::{Duration, Instant},
+    time::Duration,
 };
 use tauri::Manager;
 use terminal_core::SessionManager;
@@ -85,28 +85,15 @@ pub fn run() {
                 transfers: Arc::new(tokio::sync::Semaphore::new(4)),
                 store,
                 vault,
-                heartbeat: Mutex::new(Instant::now()),
                 open_gates: Mutex::new(std::collections::HashMap::new()),
             });
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 let mut interval = tokio::time::interval(Duration::from_secs(30));
-                let mut last_tick = Instant::now();
                 loop {
                     interval.tick().await;
                     let state = handle.state::<AppState>();
                     state.backup.cleanup();
-                    let now = Instant::now();
-                    let mut heartbeat = state.heartbeat.lock().unwrap();
-                    // 睡眠后的大时间跳跃重新开始失联预算，避免把系统挂起当作前端崩溃。
-                    if now.duration_since(last_tick) > Duration::from_secs(90) {
-                        *heartbeat = now;
-                    }
-                    if heartbeat.elapsed() > Duration::from_secs(300) {
-                        state.sessions.close_owner("main");
-                        state.file_sessions.close_owner("main");
-                        state.forward_sessions.close_owner("main");
-                    }
                     state.sftp.lock().unwrap().retain(|id, browser| {
                         let alive = state
                             .session_manager("main", id)
@@ -117,7 +104,6 @@ pub fn run() {
                         }
                         alive
                     });
-                    last_tick = now;
                 }
             });
             // macOS 保留原生窗口按钮，将 WebView 延伸至标题栏；其余平台由标签栏承载窗口控件。
@@ -128,7 +114,7 @@ pub fn run() {
                 .title_bar_style(tauri::TitleBarStyle::Overlay)
                 .hidden_title(true)
                 // 下移原生窗口按钮，匹配 54px 标签栏的垂直居中布局。
-                .traffic_light_position(tauri::LogicalPosition::new(16.0, 28.0));
+                .traffic_light_position(tauri::LogicalPosition::new(16.0, 25.0));
             #[cfg(not(target_os = "macos"))]
             let window = window.decorations(false);
             window

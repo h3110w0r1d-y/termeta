@@ -25,7 +25,7 @@
 | `resize_session` | 接收并返回有效行列，能力不支持时不发送 |
 | `ack_session_output` | 累计确认已解析输出，offset 用十进制字符串传输 |
 | `respond_host_key`、`respond_auth_challenge`、`cancel_auth_challenge` | 响应当前会话的有效 challenge；认证仅接受 savePolicy=never |
-| `close_session`、快照查询与心跳 | 幂等关闭、状态读取及客户端失联清理 |
+| `close_session`、快照查询与心跳 | 幂等关闭、状态读取及当前 owner 会话集合对账 |
 
 控制 Channel 使用类型化 SessionEvent，信封包含 protocolVersion、requestId、sessionId、eventSeq。事件包括 stateChanged、hostKeyChallenge、authChallenge、hostSystemChanged、notice 和 ended；stateRevision 防止迟到快照覆盖新状态。SessionSnapshot.sshCommand 表示本次实际命令模式，不返回命令正文，前端据此隔离广播和显示关闭提醒。
 
@@ -81,7 +81,7 @@ write 入队即返回 acceptedSeq，不保证远端执行完成；后续驱动�
 
 forwarder 停止后冻结 finalOffset，并在 ended 中返回 outputComplete、退出码/信号和错误。finalOffset 只计成功提交 Channel 的 payload；未发送尾部使 outputComplete=false。true 也不代表 JS 已解析，更不承诺尚未到达应用的远端数据。
 
-终态后保留 3 秒 ACK 排空窗口；会话/幂等摘要最多 1024 项、最长 10 分钟。显式关闭或消费端失效可舍弃未显示尾部并标记不完整。输出信用等待超过五分钟未推进会取消；窗口心跳失联另由壳清理，睡眠时间跳跃会重置心跳失联预算，尚无专门睡眠恢复。
+终态后保留 3 秒 ACK 排空窗口；会话/幂等摘要最多 1024 项、最长 10 分钟。显式关闭或消费端失效可舍弃未显示尾部并标记不完整。输出信用等待超过五分钟未推进会取消。窗口销毁、owner 销毁和 Channel 发送失败负责失联清理；前端心跳仅携带三类活动会话集合，后端关闭当前 owner 中未被报告的非终态会话。
 
 隐藏终端继续解析/ACK。重连复用原 terminalId 和 xterm，先结束旧流并等待有界解析栅栏，再绑定新的 sessionId；旧输出、状态、输入及 ACK 不得混入新流。当前不支持热重载后重新 attach 原 stream。生命周期详见 [会话模型](04-session-model.md)。
 

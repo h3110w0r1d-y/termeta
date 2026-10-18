@@ -1,5 +1,6 @@
 use crate::state::{AppState, DesktopSink, owner, storage_error};
 use serde::Deserialize;
+use std::collections::HashSet;
 use std::sync::Arc;
 use tauri::{
     State, WebviewWindow,
@@ -284,6 +285,7 @@ pub fn close_session(
             | "protocolMismatch"
             | "inputFailed"
             | "disconnect"
+            | "clientReconciled"
     ) {
         return Err(SessionError::new(
             "INVALID_CONFIG",
@@ -317,10 +319,86 @@ pub fn get_session(
     state.sessions.get(&owner(&window)?, &session_id)
 }
 #[tauri::command]
-pub fn session_client_heartbeat(window: WebviewWindow, state: State<'_, AppState>) -> Result<()> {
-    owner(&window)?;
-    *state.heartbeat.lock().unwrap() = std::time::Instant::now();
+pub fn session_client_heartbeat(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    payload: ClientPresenceHeartbeat,
+) -> Result<()> {
+    // 心跳只对账当前 owner 的活动会话，不承担 WebView 存活检测。
+    let owner = owner(&window)?;
+    if payload.protocol_version != 1 {
+        return Err(SessionError::new(
+            "PROTOCOL_MISMATCH",
+            "heartbeat",
+            "不支持的会话对账协议版本",
+        ));
+    }
+    if payload.sessions.len() > 128 {
+        return Err(SessionError::new(
+            "LIMIT_EXCEEDED",
+            "heartbeat",
+            "会话对账数量超过上限",
+        ));
+    }
+    let reported: HashSet<_> = payload
+        .sessions
+        .into_iter()
+        .map(|item| {
+            if uuid::Uuid::parse_str(&item.session_id).is_err() {
+                return Err(SessionError::new(
+                    "INVALID_CONFIG",
+                    "heartbeat",
+                    "会话标识无效",
+                ));
+            }
+            Ok((item.kind, item.session_id))
+        })
+        .collect::<Result<_>>()?;
+    let mut extra = Vec::new();
+    for (kind, sessions) in [
+        (ClientPresenceKind::Terminal, state.sessions.list(&owner)),
+        (ClientPresenceKind::File, state.file_sessions.list(&owner)),
+        (
+            ClientPresenceKind::Forward,
+            state.forward_sessions.list(&owner),
+        ),
+    ] {
+        extra.extend(sessions.into_iter().filter_map(|session| {
+            (!session.state.terminal() && !reported.contains(&(kind, session.session_id.clone())))
+                .then_some((kind, session.session_id))
+        }));
+    }
+    for (kind, session_id) in extra {
+        let manager = match kind {
+            ClientPresenceKind::Terminal => &state.sessions,
+            ClientPresenceKind::File => &state.file_sessions,
+            ClientPresenceKind::Forward => &state.forward_sessions,
+        };
+        manager.close_with_reason(&owner, &session_id, "clientReconciled")?;
+    }
     Ok(())
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ClientPresenceHeartbeat {
+    protocol_version: u8,
+    sessions: Vec<ClientPresenceRef>,
+}
+
+#[derive(Deserialize, Clone, Copy, Eq, Hash, PartialEq)]
+#[serde(rename_all = "camelCase")]
+enum ClientPresenceKind {
+    Terminal,
+    File,
+    Forward,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ClientPresenceRef {
+    kind: ClientPresenceKind,
+    session_id: String,
 }
 
 #[cfg(test)]

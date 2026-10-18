@@ -35,6 +35,7 @@ import type {
   OpenTarget,
   SessionEvent,
   SessionSnapshot,
+  SessionPresenceHeartbeat,
   SerialPortInfo,
   TerminalSize,
 } from "./types";
@@ -307,12 +308,17 @@ export const desktop = {
     }),
   cancelAuth: (sessionId: string, challengeId: string) =>
     invoke<void>("cancel_auth_challenge", { sessionId, challengeId }),
-  heartbeat: () => invoke<void>("session_client_heartbeat"),
+  syncSessionPresence: (payload: SessionPresenceHeartbeat) =>
+    invoke<void>("session_client_heartbeat", { payload }),
 };
 export function errorMessage(error: unknown): string {
   if (typeof error === "string") return error;
   if (error && typeof error === "object") {
-    const value = error as { code?: unknown; message?: unknown; details?: unknown };
+    const value = error as {
+      code?: unknown;
+      message?: unknown;
+      details?: unknown;
+    };
     const localized =
       value.code === "IO_FAILED" || value.code === "CONNECT_FAILED"
         ? t("terminal.errors.tcpConnectFailed")

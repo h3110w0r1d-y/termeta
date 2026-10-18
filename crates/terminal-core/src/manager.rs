@@ -334,6 +334,7 @@ impl SessionManager {
                 | "protocolError"
                 | "protocolMismatch"
                 | "inputFailed"
+                | "clientReconciled"
         ) {
             return Err(SessionError::new(
                 "INVALID_CONFIG",

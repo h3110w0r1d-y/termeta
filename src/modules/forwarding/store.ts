@@ -10,6 +10,10 @@ import type {
   SessionState,
 } from "../../services/desktop/types";
 import { useWorkbenchStore } from "../workbench/store";
+import {
+  registerSessionPresence,
+  unregisterSessionPresence,
+} from "../../services/desktop/sessionPresence";
 
 interface Runtime {
   sessionId?: string;
@@ -65,11 +69,17 @@ export const usePortForwards = defineStore("port-forwards", () => {
       snapshot.stateRevision <= runtime.revision
     )
       return;
+    const previous = runtime.sessionId;
+    if (previous && previous !== snapshot.sessionId)
+      unregisterSessionPresence("forward", previous);
     Object.assign(runtime, {
       sessionId: snapshot.sessionId,
       state: snapshot.state,
       revision: snapshot.stateRevision,
     });
+    if (["closed", "failed", "disconnected"].includes(snapshot.state))
+      unregisterSessionPresence("forward", snapshot.sessionId);
+    else registerSessionPresence("forward", snapshot.sessionId);
     workbench.connectionTitles[snapshot.sessionId] =
       profiles.value.find((p) => p.id === id)?.name ?? snapshot.title;
   }
@@ -89,6 +99,7 @@ export const usePortForwards = defineStore("port-forwards", () => {
       workbench.dismiss(event.sessionId);
       workbench.challenges.push(event);
     } else if (event.type === "ended") {
+      unregisterSessionPresence("forward", event.sessionId);
       Object.assign(runtime, {
         state: event.finalState,
         ended: true,
@@ -126,6 +137,7 @@ export const usePortForwards = defineStore("port-forwards", () => {
         };
       update(id, snapshot);
       if (terminal && runtimes[id]?.sessionId === snapshot.sessionId) {
+        unregisterSessionPresence("forward", snapshot.sessionId);
         runtimes[id]!.ended = true;
         workbench.dismiss(snapshot.sessionId);
         delete workbench.connectionTitles[snapshot.sessionId];
@@ -144,6 +156,9 @@ export const usePortForwards = defineStore("port-forwards", () => {
     await desktop.deletePortForward(profile.id, profile.revision);
     ++loadGeneration;
     profiles.value = profiles.value.filter((p) => p.id !== profile.id);
+    const runtime = runtimes[profile.id];
+    if (runtime?.sessionId)
+      unregisterSessionPresence("forward", runtime.sessionId);
     delete runtimes[profile.id];
     generations.delete(profile.id);
   }
@@ -186,7 +201,10 @@ export const usePortForwards = defineStore("port-forwards", () => {
     try {
       await desktop.stopPortForward(id);
       if (!runtime.ended) runtime.state = "closing";
-      if (runtime.sessionId) workbench.dismiss(runtime.sessionId);
+      if (runtime.sessionId) {
+        unregisterSessionPresence("forward", runtime.sessionId);
+        workbench.dismiss(runtime.sessionId);
+      }
     } catch (cause) {
       runtime.error = errorMessage(cause);
     } finally {
