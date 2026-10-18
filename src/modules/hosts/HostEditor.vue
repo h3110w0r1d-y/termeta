@@ -10,6 +10,7 @@ import {
   NGrid,
   NGi,
   type FormInst,
+  type FormItemInst,
   type FormRules,
 } from "naive-ui";
 import { clone } from "../../services/data/clone";
@@ -41,6 +42,7 @@ import { uniqueHostNameRule } from "./validation";
 import { groupChoices } from "./groups";
 import HostSystemIcon from "./HostSystemIcon.vue";
 import { systemIconOptions } from "./systemIcons";
+import CredentialEditor from "../credentials/CredentialEditor.vue";
 const systemMenuProps = { class: "system-icon-menu", "data-ui-popup-open": "" };
 const renderSystemLabel: SelectRenderLabel = (option) =>
   h(NFlex, { align: "center", size: 8, inline: true, wrap: false }, () => [
@@ -73,7 +75,10 @@ const hosts = useHosts(),
   committedHost = ref<HostProfile | null>(null),
   credentials = ref<CredentialMetadata[]>([]),
   credentialId = ref(""),
-  secret = ref("");
+  secret = ref(""),
+  credentialEditorOpen = ref(false),
+  credentialEditorKind = ref<"password" | "privateKey">("password");
+const createCredentialValue = "__create_credential__";
 const startupType = ref<SshStartup["type"]>("shell");
 const startupCommand = ref("");
 const blank = (): HostDraft => ({
@@ -139,6 +144,7 @@ watch(
         : "";
       secret.value = "";
     } else {
+      credentialEditorOpen.value = false;
       secret.value = "";
     }
   },
@@ -148,12 +154,20 @@ watch(
   () => {
     credentialId.value = "";
     secret.value = "";
+    // 切换认证方式只清除旧反馈，不提前触发新认证方式的校验。
+    credentialItem.value?.restoreValidation();
   },
   { flush: "sync" },
 );
 watch(
   credentialId,
-  () => {
+  (value) => {
+    if (value === createCredentialValue) {
+      credentialId.value = "";
+      credentialEditorKind.value = auth.value;
+      credentialEditorOpen.value = true;
+      return;
+    }
     secret.value = "";
   },
   { flush: "sync" },
@@ -167,16 +181,16 @@ const startupOptions = computed(() => [
   { value: "exec", label: t("hosts.startup.command") },
 ]);
 const credentialOptions = computed(() => [
-  {
-    value: "",
-    label:
-      auth.value === "privateKey"
-        ? t("hosts.validation.privateKeyRequired")
-        : t("hosts.form.useHostPassword"),
-  },
+  ...(auth.value === "password"
+    ? [{ value: "", label: t("hosts.form.useHostPassword") }]
+    : []),
   ...credentials.value
     .filter((item) => item.status === "ready" && item.kind === auth.value)
     .map((item) => ({ value: item.id, label: item.label })),
+  {
+    value: createCredentialValue,
+    label: t("hosts.actions.newCredentialOption"),
+  },
 ]);
 const schemeOptions = computed(() => [
   { value: "", label: t("common.options.globalDefault") },
@@ -196,6 +210,7 @@ const groupId = computed({
   },
 });
 const form = ref<FormInst>();
+const credentialItem = ref<FormItemInst>();
 // 表单与控件共享响应式字段；保留 ref 引用，重置草稿时无需等待重新渲染。
 const formModel = reactive({
   draft,
@@ -208,6 +223,21 @@ const formModel = reactive({
   startupType,
   startupCommand,
 });
+async function onCredentialSaved(id: string) {
+  try {
+    const items = await desktop.listCredentials();
+    credentials.value = items;
+    if (items.some((item) => item.id === id && item.kind === auth.value)) {
+      credentialId.value = id;
+      // 新凭据由弹窗程序写入，主动通过公开 API 重验认证字段。
+      await credentialItem.value
+        ?.validate({ trigger: "change" })
+        .catch(() => undefined);
+    }
+  } catch (e) {
+    error.value = errorMessage(e);
+  }
+}
 const rules = computed<FormRules>(() => ({
   "draft.name": props.quick
     ? []
@@ -433,6 +463,7 @@ async function submit() {
         <NFormItemGi
           v-if="!isTelnet"
           :span="2"
+          ref="credentialItem"
           :label="
             auth === 'privateKey'
               ? t('hosts.form.privateKeyCredential')
@@ -560,5 +591,11 @@ async function submit() {
       </NFlex>
     </template>
   </AppDialog>
+  <CredentialEditor
+    :open="credentialEditorOpen"
+    :initial-kind="credentialEditorKind"
+    @update:open="credentialEditorOpen = $event"
+    @saved="onCredentialSaved"
+  />
 </template>
 <style scoped></style>

@@ -18,8 +18,9 @@ export default {
   "hosts.form.authentication": "Authentication",
   "hosts.form.privateKeyCredential": "Private key credential",
   "hosts.form.privateKeyHint":
-    "Create a private key credential on the Credentials page, then select it here",
+    "Select a private key credential or use “New credential” to create one",
   "hosts.actions.quickConnect": "Quick connect",
+  "hosts.actions.newCredentialOption": "+ New credential",
   "hosts.actions.edit": "Edit host",
   "hosts.actions.new": "New host",
   "hosts.telnet.warning":
@@ -100,7 +101,7 @@ export default {
   "hosts.batch.description": "Choose separate tabs or a split workspace.",
   "hosts.batch.savedWorkspaceHint":
     "Saved workspaces open with their original layout.",
-  "hosts.form.useHostPassword": "Use a password for this host",
+  "hosts.form.useHostPassword": "Use a host-specific password",
   "hosts.errors.themeSave":
     "The host was saved, but its theme was not. Try again: {value1}",
   "hosts.form.description": "Connect using a password or public key.",

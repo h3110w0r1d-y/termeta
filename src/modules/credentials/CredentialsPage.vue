@@ -2,46 +2,23 @@
 import { t } from "../../i18n";
 import { NIcon } from "naive-ui";
 import { AddOutline } from "@vicons/ionicons5";
-import {
-  NForm,
-  NFormItem,
-  type FormInst,
-  type FormItemInst,
-  type FormRules,
-  NEmpty,
-  NList,
-  NListItem,
-  NThing,
-  NSpin,
-  NFlex,
-  NH1,
-  NText,
-} from "naive-ui";
-import AppSelect from "../../components/ui/AppSelect.vue";
+import { NEmpty, NList, NListItem, NThing, NSpin, NH1, NText } from "naive-ui";
 import AppInput from "../../components/ui/AppInput.vue";
-import { requiredText, validateForm } from "../../services/forms/rules";
 import AppButton from "../../components/ui/AppButton.vue";
-import { computed, onMounted, onUnmounted, ref, watch, reactive } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { confirmAction } from "../../components/ui/confirmation";
-import AppDialog from "../../components/ui/AppDialog.vue";
 import { desktop, errorMessage } from "../../services/desktop/client";
 import type { CredentialMetadata } from "../../services/desktop/types";
 import { useHosts } from "../hosts/store";
 import { useBackupRestored } from "../backup/useBackupRestored";
+import CredentialEditor from "./CredentialEditor.vue";
 const hosts = useHosts();
 const items = ref<CredentialMetadata[]>([]),
   error = ref(""),
   loading = ref(true),
   busy = ref(false),
   editorOpen = ref(false),
-  query = ref(""),
-  label = ref(""),
-  secret = ref(""),
-  passphrase = ref(""),
-  keyFileRef = ref(""),
-  keyName = ref(""),
-  kind = ref<"password" | "privateKey">("password");
-watch(kind, clearSecrets, { flush: "sync" });
+  query = ref("");
 const visible = computed(() =>
   items.value.filter((item) =>
     item.label.toLowerCase().includes(query.value.toLowerCase()),
@@ -67,84 +44,9 @@ onMounted(load);
 useBackupRestored(load, (cause) => {
   error.value = errorMessage(cause);
 });
-onUnmounted(() => {
-  clearSecrets();
-});
-const form = ref<FormInst>();
-const keyFileItem = ref<FormItemInst>();
-const formModel = reactive({ label, kind, secret, keyFileRef, passphrase });
-const rules = computed<FormRules>(() => ({
-  label: requiredText("common.fields.name"),
-  kind: requiredText("common.fields.type"),
-  secret:
-    kind.value === "password"
-      ? {
-          required: true,
-          message: t("credentials.validation.passwordRequired"),
-          trigger: ["input", "blur"],
-        }
-      : [],
-  keyFileRef:
-    kind.value === "privateKey"
-      ? requiredText("credentials.form.privateKeyFile")
-      : [],
-}));
-function clearSecrets() {
-  secret.value = "";
-  passphrase.value = "";
-  keyFileRef.value = "";
-  keyName.value = "";
-}
-async function selectKey() {
-  if (busy.value) return;
-  try {
-    const file = await desktop.selectKey();
-    if (file) {
-      keyFileRef.value = file.keyFileRef;
-      keyName.value = file.name;
-      // 系统文件选择没有表单控件的 change 事件，导入后主动重验该字段。
-      await keyFileItem.value
-        ?.validate({ trigger: "change" })
-        .catch(() => undefined);
-    }
-  } catch (e) {
-    error.value = errorMessage(e);
-  }
-}
-function closeEditor(open: boolean) {
-  editorOpen.value = open;
-  if (!open) clearSecrets();
-}
 function add() {
-  label.value = "";
-  clearSecrets();
-  kind.value = "password";
   error.value = "";
   editorOpen.value = true;
-}
-async function save() {
-  if (busy.value || !(await validateForm(form.value))) return;
-  busy.value = true;
-  error.value = "";
-  try {
-    await desktop.saveCredential({
-      kind: kind.value,
-      label: label.value.trim(),
-      ...(kind.value === "password"
-        ? { password: secret.value }
-        : {
-            keyFileRef: keyFileRef.value,
-            passphrase: passphrase.value || undefined,
-          }),
-    });
-    closeEditor(false);
-    await load();
-  } catch (e) {
-    error.value = errorMessage(e);
-  } finally {
-    clearSecrets();
-    busy.value = false;
-  }
 }
 async function remove(item: CredentialMetadata) {
   if (
@@ -263,105 +165,11 @@ async function remove(item: CredentialMetadata) {
     <p class="credential-help muted">
       {{ t("credentials.delete.description") }}
     </p>
-    <AppDialog
+    <CredentialEditor
       :open="editorOpen"
-      :title="t('credentials.actions.new')"
-      :description="t('credentials.form.description')"
-      :locked="busy"
-      @update:open="closeEditor"
-    >
-      <NForm
-        ref="form"
-        :model="formModel"
-        :rules="rules"
-        label-placement="top"
-        novalidate
-        id="credential-editor-form"
-        class="form-grid"
-        @submit.prevent="save"
-      >
-        <NFormItem class="span-2" :label="t('common.fields.name')" path="label">
-          <AppInput
-            v-model="formModel.label"
-            :disabled="busy"
-            maxlength="120"
-            :placeholder="t('credentials.form.namePlaceholder')"
-          />
-        </NFormItem>
-        <NFormItem class="span-2" :label="t('common.fields.type')" path="kind">
-          <AppSelect
-            v-model="formModel.kind"
-            :disabled="busy"
-            :options="[
-              { value: 'password', label: t('credentials.form.sshPassword') },
-              {
-                value: 'privateKey',
-                label: t('credentials.form.sshPrivateKey'),
-              },
-            ]"
-          />
-        </NFormItem>
-        <NFormItem
-          v-if="kind === 'password'"
-          class="span-2"
-          :label="t('credentials.types.password')"
-          path="secret"
-        >
-          <AppInput
-            v-model="formModel.secret"
-            type="password"
-            autocomplete="new-password"
-            :disabled="busy"
-          />
-        </NFormItem>
-        <template v-else>
-          <NFormItem
-            ref="keyFileItem"
-            class="span-2"
-            :label="t('credentials.form.privateKeyFile')"
-            path="keyFileRef"
-          >
-            <AppButton :disabled="busy" @click="selectKey">
-              {{ t("credentials.actions.importKey") }}
-            </AppButton>
-            <span class="muted">
-              {{ keyName || t("credentials.form.keyHint") }}
-            </span>
-          </NFormItem>
-          <NFormItem
-            class="span-2"
-            :label="t('credentials.form.passphrase')"
-            path="passphrase"
-          >
-            <AppInput
-              v-model="formModel.passphrase"
-              type="password"
-              autocomplete="new-password"
-              :disabled="busy"
-              :placeholder="t('credentials.form.passphraseHint')"
-            />
-          </NFormItem>
-        </template>
-        <p v-if="error" class="error span-2" role="alert">{{ error }}</p>
-      </NForm>
-      <template #footer>
-        <NFlex justify="end">
-          <AppButton type="button" :disabled="busy" @click="closeEditor(false)">
-            {{ t("common.actions.cancel") }}
-          </AppButton>
-          <AppButton
-            type="submit"
-            form="credential-editor-form"
-            class="primary"
-            :disabled="busy"
-          >
-            {{
-              busy ? t("common.status.saving") : t("credentials.actions.save")
-            }}
-          </AppButton>
-        </NFlex>
-      </template>
-    </AppDialog>
+      @update:open="editorOpen = $event"
+      @saved="load"
+    />
   </section>
 </template>
 <style scoped>
