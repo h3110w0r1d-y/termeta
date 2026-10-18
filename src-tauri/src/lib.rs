@@ -106,7 +106,7 @@ pub fn run() {
                     });
                 }
             });
-            // macOS 保留原生窗口按钮，将 WebView 延伸至标题栏；其余平台由标签栏承载窗口控件。
+            // macOS 使用 overlay traffic lights；无边框平台由标签栏承载窗口控件。
             let window =
                 tauri::WebviewWindowBuilder::from_config(app, &app.config().app.windows[0])?;
             #[cfg(target_os = "macos")]

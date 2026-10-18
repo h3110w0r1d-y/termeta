@@ -14,6 +14,7 @@ import { useAppAppearance } from "./layout/useAppAppearance";
 import { useNativeMenuLocale } from "./layout/useNativeMenuLocale";
 import VaultLayout from "./layout/VaultLayout.vue";
 import VaultGate from "./components/VaultGate.vue";
+import ApplicationMenu from "./components/ApplicationMenu.vue";
 import WindowControls from "./components/WindowControls.vue";
 import { isMac } from "./services/commands/registry";
 import AppButton from "./components/ui/AppButton.vue";
@@ -415,6 +416,7 @@ onBeforeUnmount(() => {
             background: terminalBackground ?? 'var(--surface)',
           }"
         >
+          <ApplicationMenu v-if="!isMac" />
           <span data-tauri-drag-region>Termeta</span>
           <div class="window-drag-space" data-tauri-drag-region />
           <WindowControls @error="initError = $event" />

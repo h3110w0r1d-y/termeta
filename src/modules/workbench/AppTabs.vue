@@ -6,6 +6,7 @@ import { IconX, IconFileText } from "@tabler/icons-vue";
 import { computed, nextTick, ref, watch } from "vue";
 import { NIcon, useThemeVars } from "naive-ui";
 import { isMac } from "../../services/commands/registry";
+import ApplicationMenu from "../../components/ApplicationMenu.vue";
 import AssetIcon from "../../components/ui/AssetIcon.vue";
 import WindowControls from "../../components/WindowControls.vue";
 import AppButton from "../../components/ui/AppButton.vue";
@@ -153,6 +154,7 @@ watch(
     }"
   >
     <!-- 固定页、分隔线与动态滚动区直接参与 Header 的 flex 排列。 -->
+    <ApplicationMenu v-if="!isMac && position === 'top'" />
     <div class="fixed-tabs" role="presentation" @pointerdown="windowDrag.start">
       <button
         v-for="tab in fixedTabs"
@@ -317,7 +319,7 @@ watch(
   flex-shrink: 0;
   height: 48px;
   gap: 4px;
-  padding: 0 12px;
+  padding: 0 6px 0 8px;
   background: var(--app-tabs-background, var(--surface));
   border-top: 1px solid transparent;
   border-bottom: 1px solid var(--app-tabs-border, var(--border));

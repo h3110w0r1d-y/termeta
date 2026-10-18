@@ -207,6 +207,8 @@ export const desktop = {
     >[0],
   ) => getCurrentWindow().onCloseRequested(callback),
   closeWindow: () => getCurrentWindow().close(),
+  // 关闭请求已完成确认后直接销毁窗口，避免再次触发 close-requested 重入。
+  destroyWindow: () => getCurrentWindow().destroy(),
   onAppExitRequested: (handler: () => void) =>
     listen("app-exit-requested", handler),
   finishAppExit: () => invoke<void>("finish_app_exit"),
@@ -214,6 +216,10 @@ export const desktop = {
   setNativeMenuLocale: (locale: Locale) =>
     invoke<void>("set_native_menu_locale", { locale }),
   minimizeWindow: () => getCurrentWindow().minimize(),
+  isWindowMaximized: () => getCurrentWindow().isMaximized(),
+  onWindowResized: (
+    callback: Parameters<ReturnType<typeof getCurrentWindow>["onResized"]>[0],
+  ) => getCurrentWindow().onResized(callback),
   toggleMaximizeWindow: () => getCurrentWindow().toggleMaximize(),
   startWindowDragging: () => getCurrentWindow().startDragging(),
   listHosts: () => invoke<HostProfile[]>("list_hosts"),

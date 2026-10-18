@@ -17,6 +17,7 @@ import {
   NText,
 } from "naive-ui";
 import { validateForm } from "../services/forms/rules";
+import ApplicationMenu from "./ApplicationMenu.vue";
 import WindowControls from "./WindowControls.vue";
 import { isMac } from "../services/commands/registry";
 import { desktop, errorMessage } from "../services/desktop/client";
@@ -153,6 +154,7 @@ onMounted(inspect);
   </template>
   <div v-else class="vault-gate" :class="{ 'platform-mac': isMac }">
     <header class="vault-titlebar" data-tauri-drag-region>
+      <ApplicationMenu v-if="!isMac" />
       <span data-tauri-drag-region>Termeta</span>
       <div class="vault-drag-space" data-tauri-drag-region />
       <WindowControls @error="error = $event" />
@@ -270,7 +272,7 @@ onMounted(inspect);
   background: var(--bg);
 }
 .vault-titlebar {
-  height: 54px;
+  height: 48px;
   padding: 0 12px;
   display: flex;
   align-items: center;
