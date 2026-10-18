@@ -45,10 +45,23 @@ import { systemIconOptions } from "./systemIcons";
 import CredentialEditor from "../credentials/CredentialEditor.vue";
 const systemMenuProps = { class: "system-icon-menu", "data-ui-popup-open": "" };
 const renderSystemLabel: SelectRenderLabel = (option) =>
-  h(NFlex, { align: "center", size: 8, inline: true, wrap: false }, () => [
-    h(HostSystemIcon, { icon: String(option.value), size: 20 }),
-    h("span", String(option.label)),
-  ]);
+  h(
+    "div",
+    {
+      style: {
+        display: "flex",
+        alignItems: "center",
+      },
+    },
+    [
+      h(HostSystemIcon, {
+        icon: String(option.value),
+        size: 20,
+        style: { marginRight: "8px" },
+      }),
+      h("span", String(option.label)),
+    ],
+  );
 const props = defineProps<{
   open: boolean;
   host?: HostProfile;
@@ -378,9 +391,6 @@ async function submit() {
         value2: isTelnet ? 'Telnet' : 'SSH',
       })
     "
-    :description="
-      isTelnet ? t('hosts.telnet.warning') : t('hosts.form.description')
-    "
     @update:open="emit('update:open', $event)"
   >
     <NForm
@@ -425,7 +435,7 @@ async function submit() {
             id="host-address"
             v-model="formModel.draft.address"
             maxlength="253"
-            placeholder="example.com / IPv6"
+            placeholder="Domain / IP"
           />
         </NFormItemGi>
         <NFormItemGi :label="t('common.fields.port')" path="draft.port">

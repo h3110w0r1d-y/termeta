@@ -1,4 +1,4 @@
-import { onBeforeUnmount, onMounted, watch, type Ref } from "vue";
+import { onBeforeUnmount, watch, type Ref } from "vue";
 
 /** 只将顶部标签的纵向滚轮转换为横向位移；渐隐与边缘测量由ScrollFade共用。 */
 export function useTabScroll(
@@ -7,7 +7,6 @@ export function useTabScroll(
 ) {
   let frame = 0;
   let wheelDelta = 0;
-  let element: HTMLElement | undefined;
   function update() {
     frame = 0;
     if (position() === "top" && viewport.value)
@@ -39,10 +38,14 @@ export function useTabScroll(
     wheelDelta += event.deltaY * unit;
     if (!frame) frame = requestAnimationFrame(update);
   }
-  onMounted(() => {
-    element = viewport.value;
-    element?.addEventListener("wheel", wheel, { passive: false });
-  });
+  watch(
+    viewport,
+    (element, _, onCleanup) => {
+      element?.addEventListener("wheel", wheel, { passive: false });
+      onCleanup(() => element?.removeEventListener("wheel", wheel));
+    },
+    { immediate: true, flush: "post" },
+  );
   // 切换布局时丢弃旧方向的位移，保留同一方向当前帧内合并的滚轮输入。
   watch(
     position,
@@ -53,6 +56,5 @@ export function useTabScroll(
   );
   onBeforeUnmount(() => {
     if (frame) cancelAnimationFrame(frame);
-    element?.removeEventListener("wheel", wheel);
   });
 }

@@ -214,6 +214,7 @@ export const desktop = {
     invoke<void>("set_native_menu_locale", { locale }),
   minimizeWindow: () => getCurrentWindow().minimize(),
   toggleMaximizeWindow: () => getCurrentWindow().toggleMaximize(),
+  startWindowDragging: () => getCurrentWindow().startDragging(),
   listHosts: () => invoke<HostProfile[]>("list_hosts"),
   saveHost: (
     host: HostDraft,

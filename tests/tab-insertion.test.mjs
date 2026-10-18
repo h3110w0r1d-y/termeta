@@ -92,6 +92,18 @@ test("首尾槽与窗格插入不受源标签原位过滤影响", () => {
   });
 });
 
+test("固定标签区指向第一个动态标签之前的槽位", () => {
+  assert.deepEqual(tabInsertionAt(tabs, -Infinity, "d"), {
+    beforeGroupId: "a",
+    position: 0,
+  });
+  assert.deepEqual(tabInsertionAt(tabs, -Infinity, "c"), {
+    beforeGroupId: "a",
+    position: 0,
+  });
+  assert.equal(tabInsertionAt(tabs, -Infinity, "a"), undefined);
+});
+
 test("双向与首尾排序先移除来源，保留标签对象和原数组", () => {
   const cases = [
     ["a", "c", ["b", "a", "c", "d"]],

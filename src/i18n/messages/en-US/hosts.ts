@@ -23,8 +23,6 @@ export default {
   "hosts.actions.newCredentialOption": "+ New credential",
   "hosts.actions.edit": "Edit host",
   "hosts.actions.new": "New host",
-  "hosts.telnet.warning":
-    "Telnet sends data without encryption. Enter your username and password in the terminal. Use only on trusted networks.",
   "hosts.form.namePlaceholder": "e.g. Production · Shanghai",
   "hosts.form.iconLabel": "Host icon",
   "hosts.form.passwordCredential": "Password credential",
@@ -104,7 +102,6 @@ export default {
   "hosts.form.useHostPassword": "Use a host-specific password",
   "hosts.errors.themeSave":
     "The host was saved, but its theme was not. Try again: {value1}",
-  "hosts.form.description": "Connect using a password or public key.",
   "hosts.validation.invalidCommand":
     "Command is too long or contains invalid characters",
   "hosts.validation.nameConflict":

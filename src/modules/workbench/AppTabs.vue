@@ -12,6 +12,7 @@ import AppButton from "../../components/ui/AppButton.vue";
 import { stateLabels, useWorkbenchStore, type TabBarItem } from "./store";
 import { useTabDrag } from "./useTabDrag";
 import { useTabScroll } from "./useTabScroll";
+import { useWindowDrag } from "./useWindowDrag";
 const props = defineProps<{
   tabs: TabBarItem[];
   activeId: string;
@@ -29,6 +30,10 @@ const emit = defineEmits<{
 }>();
 const themeVars = useThemeVars();
 const workbench = useWorkbenchStore();
+const windowDrag = useWindowDrag({
+  enabled: () => props.position === "top" && !workbench.drag,
+  onError: (message) => emit("windowError", message),
+});
 const root = ref<HTMLElement>();
 const sessionTabs = ref<HTMLElement>();
 const tabEnd = ref<HTMLElement>();
@@ -120,7 +125,10 @@ watch(
       'tabs-vertical': position === 'left',
       'titlebar-mac': isMac && position === 'top',
     }"
+    role="tablist"
     :aria-label="t('workbench.tabs.label')"
+    :aria-orientation="position === 'left' ? 'vertical' : 'horizontal'"
+    @keydown="onKey"
     :style="{
       '--app-tab-hover': themeVars.buttonColor2,
       '--app-tab-active': themeVars.buttonColor2Hover,
@@ -129,124 +137,114 @@ watch(
       '--app-tab-radius': themeVars.borderRadius,
     }"
   >
-    <!-- 单一标签列表维持固定页与会话的统一导航，固定区不参与会话滚动。 -->
-    <div
-      class="app-tablist"
-      role="tablist"
-      :aria-label="t('workbench.tabs.label')"
-      :aria-orientation="position === 'left' ? 'vertical' : 'horizontal'"
-      @keydown="onKey"
-    >
-      <div class="fixed-tabs" role="presentation">
-        <button
-          v-for="tab in fixedTabs"
-          :key="tab.id"
-          type="button"
-          role="tab"
-          class="app-tab"
-          :id="'app-tab-' + tab.id"
-          :data-app-tab="tab.id"
-          :aria-selected="activeId === tab.id"
-          :tabindex="activeId === tab.id ? 0 : -1"
-          :aria-controls="tab.panel"
-          @click="activate(tab.id)"
-        >
-          <AssetIcon
-            class="fixed-tab-icon"
-            :name="tab.id === 'home' ? 'vault' : 'sftp'"
-            :size="16"
-          />
-          {{ tab.title }}
-        </button>
-      </div>
-      <ScrollFade
-        class="session-tabs-fade"
-        :viewport="sessionTabs"
-        :direction="position === 'left' ? 'vertical' : 'horizontal'"
-        background="var(--surface)"
-        :size="20"
-        role="presentation"
+    <!-- 固定页、分隔线与动态滚动区直接参与 Header 的 flex 排列。 -->
+    <div class="fixed-tabs" role="presentation" @pointerdown="windowDrag.start">
+      <button
+        v-for="tab in fixedTabs"
+        :key="tab.id"
+        type="button"
+        role="tab"
+        class="app-tab"
+        :id="'app-tab-' + tab.id"
+        :data-app-tab="tab.id"
+        :aria-selected="activeId === tab.id"
+        :tabindex="activeId === tab.id ? 0 : -1"
+        :aria-controls="tab.panel"
+        @click="activate(tab.id)"
       >
-        <div ref="sessionTabs" class="session-tabs" role="presentation">
-          <div
-            v-for="tab in tabs"
-            :key="tab.id"
-            class="app-tab-item"
-            :class="{
-              selected: activeId === tab.id,
-              dragging:
-                workbench.drag?.source.kind === 'tab' &&
-                workbench.drag.source.tabId === tab.id,
-            }"
-            :data-sort-tab="tab.kind === 'terminal' ? tab.id : undefined"
-            @pointerdown="
-              tab.kind === 'terminal' && startTabDrag($event, tab.id)
-            "
-            role="presentation"
-            @contextmenu.prevent="
-              tab.kind === 'terminal' && emit('menu', $event, tab.id)
-            "
-          >
-            <button
-              type="button"
-              role="tab"
-              class="app-tab"
-              :id="'app-tab-' + tab.id"
-              :data-app-tab="tab.id"
-              :aria-selected="activeId === tab.id"
-              :tabindex="activeId === tab.id ? 0 : -1"
-              :aria-controls="'tab-panel-' + tab.id"
-              :aria-label="
-                tab.kind === 'log'
-                  ? tab.title
-                  : tab.title +
-                    (tab.split
-                      ? ' · ' +
-                        t('workbench.terminalCount', {
-                          count: tab.terminalIds.length,
-                        })
-                      : '') +
-                    ' · ' +
-                    t(stateLabels[tab.state])
-              "
-              :title="
-                tab.kind === 'log'
-                  ? tab.title
-                  : tab.title + ' · ' + t(stateLabels[tab.state])
-              "
-              @click="activate(tab.id)"
-              @dblclick="tab.kind === 'terminal' && emit('doubleClick', tab.id)"
-            >
-              <NIcon v-if="tab.kind === 'log'" :size="14" aria-hidden="true">
-                <DocumentTextOutline />
-              </NIcon>
-              <i
-                v-else
-                class="status-dot"
-                :class="tab.state"
-                aria-hidden="true"
-              />
-              <span class="app-tab-title">{{ tab.title }}</span>
-            </button>
-            <button
-              type="button"
-              class="app-tab-close"
-              tabindex="-1"
-              :aria-label="
-                t('workbench.actions.closeNamed', { name: tab.title })
-              "
-              :title="t('workbench.actions.closeNamed', { name: tab.title })"
-              @click="emit('close', tab.id)"
-            >
-              <NIcon :size="position === 'top' ? 16 : 14" aria-hidden="true">
-                <CloseOutline />
-              </NIcon>
-            </button>
-          </div>
-        </div>
-      </ScrollFade>
+        <AssetIcon
+          class="fixed-tab-icon"
+          :name="tab.id === 'home' ? 'vault' : 'sftp'"
+          :size="16"
+        />
+        {{ tab.title }}
+      </button>
     </div>
-    <div ref="tabEnd" class="app-tab-end">
+    <span class="tab-divider" aria-hidden="true" />
+    <ScrollFade
+      v-if="tabs.length"
+      class="session-tabs-fade"
+      :viewport="sessionTabs"
+      :direction="position === 'left' ? 'vertical' : 'horizontal'"
+      background="var(--surface)"
+      :size="20"
+      role="presentation"
+    >
+      <div ref="sessionTabs" class="session-tabs" role="presentation">
+        <div
+          v-for="tab in tabs"
+          :key="tab.id"
+          class="app-tab-item"
+          :class="{
+            selected: activeId === tab.id,
+            dragging:
+              workbench.drag?.source.kind === 'tab' &&
+              workbench.drag.source.tabId === tab.id,
+          }"
+          :data-sort-tab="tab.kind === 'terminal' ? tab.id : undefined"
+          @pointerdown="tab.kind === 'terminal' && startTabDrag($event, tab.id)"
+          role="presentation"
+          @contextmenu.prevent="
+            tab.kind === 'terminal' && emit('menu', $event, tab.id)
+          "
+        >
+          <button
+            type="button"
+            role="tab"
+            class="app-tab"
+            :id="'app-tab-' + tab.id"
+            :data-app-tab="tab.id"
+            :aria-selected="activeId === tab.id"
+            :tabindex="activeId === tab.id ? 0 : -1"
+            :aria-controls="'tab-panel-' + tab.id"
+            :aria-label="
+              tab.kind === 'log'
+                ? tab.title
+                : tab.title +
+                  (tab.split
+                    ? ' · ' +
+                      t('workbench.terminalCount', {
+                        count: tab.terminalIds.length,
+                      })
+                    : '') +
+                  ' · ' +
+                  t(stateLabels[tab.state])
+            "
+            :title="
+              tab.kind === 'log'
+                ? tab.title
+                : tab.title + ' · ' + t(stateLabels[tab.state])
+            "
+            @click="activate(tab.id)"
+            @dblclick="tab.kind === 'terminal' && emit('doubleClick', tab.id)"
+          >
+            <NIcon v-if="tab.kind === 'log'" :size="14" aria-hidden="true">
+              <DocumentTextOutline />
+            </NIcon>
+            <i
+              v-else
+              class="status-dot"
+              :class="tab.state"
+              aria-hidden="true"
+            />
+            <span class="app-tab-title">{{ tab.title }}</span>
+          </button>
+          <button
+            type="button"
+            class="app-tab-close"
+            tabindex="-1"
+            :aria-label="t('workbench.actions.closeNamed', { name: tab.title })"
+            :title="t('workbench.actions.closeNamed', { name: tab.title })"
+            @click="emit('close', tab.id)"
+          >
+            <NIcon :size="position === 'top' ? 16 : 14" aria-hidden="true">
+              <CloseOutline />
+            </NIcon>
+          </button>
+        </div>
+      </div>
+    </ScrollFade>
+    <div ref="tabEnd" class="app-tab-end" @pointerdown="windowDrag.start">
       <AppButton
         class="icon-button new-tab"
         :aria-label="t('workbench.actions.newTab')"
@@ -303,19 +301,10 @@ watch(
   align-items: center;
   flex-shrink: 0;
   height: 54px;
-  gap: 6px;
+  gap: 4px;
   padding: 0 12px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-}
-/* 应用标签使用独立 DOM，固定页与会话共享导航但分开滚动。 */
-.app-tablist {
-  display: flex;
-  align-items: center;
-  flex: 0 1 auto;
-  min-width: 0;
-  min-height: 0;
-  gap: 4px;
 }
 .fixed-tab-icon {
   flex-shrink: 0;
@@ -324,8 +313,12 @@ watch(
   display: flex;
   flex: 0 0 auto;
   gap: 4px;
-  padding-right: 4px;
-  border-right: 1px solid var(--border);
+}
+.tab-divider {
+  flex: 0 0 1px;
+  width: 1px;
+  height: 20px;
+  background: var(--border);
 }
 .session-tabs {
   display: flex;
@@ -458,7 +451,7 @@ watch(
   white-space: nowrap;
 }
 .app-tabs .connection-count {
-  padding: 0 8px;
+  padding: 0;
 }
 .app-tabs.tabs-vertical {
   --tab-height: 36px;
@@ -473,7 +466,6 @@ watch(
   border-bottom: 0;
   border-right: 1px solid var(--border);
 }
-.tabs-vertical .app-tablist,
 .tabs-vertical .fixed-tabs,
 .tabs-vertical .session-tabs-fade,
 .tabs-vertical .session-tabs {
@@ -493,10 +485,10 @@ watch(
 .tabs-vertical .fixed-tabs {
   width: 100%;
   height: auto;
-  padding-right: 0;
-  padding-bottom: 4px;
-  border-right: 0;
-  border-bottom: 1px solid var(--border);
+}
+.tabs-vertical .tab-divider {
+  width: 100%;
+  height: 1px;
 }
 .tabs-vertical .session-tabs-fade,
 .tabs-vertical .session-tabs {
@@ -555,7 +547,6 @@ watch(
   padding-left: 88px;
 }
 .app-tabs > .app-tabs-spacer {
-  min-width: 32px;
   align-self: stretch;
 }
 .app-tabs.tabs-vertical {

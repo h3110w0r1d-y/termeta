@@ -83,7 +83,7 @@ export function useTabDrag(options: TabDragOptions) {
     const strip = options.viewport.value;
     const end = options.end.value;
     if (!bar || !strip || !end || !element || !bar.contains(element)) return {};
-    if (element.closest(".fixed-tabs, .window-controls")) return {};
+    if (element.closest(".window-controls")) return {};
     const bounds = bar.getBoundingClientRect();
     if (
       x < bounds.left ||
@@ -98,7 +98,8 @@ export function useTabDrag(options: TabDragOptions) {
     const point = vertical ? y : x;
     const start = vertical ? visible.top : visible.left;
     const finish = vertical ? visible.bottom : visible.right;
-    if (point < start) return {};
+    const fixedZone = !!element.closest(".fixed-tabs");
+    if (point < start && !fixedZone) return {};
     const controls = bar.querySelector<HTMLElement>(".window-controls");
     if (!vertical && controls && x >= controls.getBoundingClientRect().left)
       return {};
@@ -113,10 +114,10 @@ export function useTabDrag(options: TabDragOptions) {
         };
       },
     );
-    // 可见滚动区内按中点连续命中，区外的新建按钮与后方空白统一指向末尾。
+    // 固定页是动态标签栏的前置插入区；用负无穷取首个动态标签，避免滚动后误指向首个可见标签。
     const slot = tabInsertionAt(
       tabs,
-      point >= finish ? Infinity : point,
+      fixedZone ? -Infinity : point >= finish ? Infinity : point,
       source.kind === "tab" ? source.tabId : undefined,
     );
     const hoverTabId =

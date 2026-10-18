@@ -22,8 +22,6 @@ export default {
   "hosts.actions.newCredentialOption": "+新建凭证",
   "hosts.actions.edit": "编辑主机",
   "hosts.actions.new": "新建主机",
-  "hosts.telnet.warning":
-    "Telnet 以明文传输，用户名和密码在终端内输入；请仅连接可信网络中的设备。",
   "hosts.form.namePlaceholder": "例如：生产环境 · 上海",
   "hosts.form.iconLabel": "主机图标",
   "hosts.form.passwordCredential": "密码凭据",
@@ -97,7 +95,6 @@ export default {
   "hosts.batch.savedWorkspaceHint": "已保存的工作区将按原布局打开。",
   "hosts.form.useHostPassword": "使用主机专属密码",
   "hosts.errors.themeSave": "主机已保存，配色未保存。请重试：{value1}",
-  "hosts.form.description": "使用密码或公钥连接主机。",
   "hosts.validation.invalidCommand": "命令过长或包含无效字符",
   "hosts.validation.nameConflict": "名称已被其他主机或工作区使用",
   "hosts.accessibility.connect":

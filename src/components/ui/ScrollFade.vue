@@ -175,7 +175,7 @@ onBeforeUnmount(() => {
   width: min(var(--scroll-fade-size), 20%);
 }
 .scroll-fade-horizontal::before {
-  left: 0;
+  left: -1px;
   right: auto;
 }
 .scroll-fade-horizontal::after {
