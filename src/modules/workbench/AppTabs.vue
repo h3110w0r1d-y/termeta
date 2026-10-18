@@ -466,6 +466,7 @@ watch(
   color: var(--muted);
   font-size: 11px;
   white-space: nowrap;
+  margin-right: 8px;
 }
 .app-tabs .connection-count {
   padding: 0;
