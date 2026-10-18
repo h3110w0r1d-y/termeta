@@ -84,7 +84,7 @@ const rules = computed<FormRules>(() => ({
     wide
     class="embedded-settings"
   >
-    <div class="home-page">
+    <div class="settings-page">
       <div>
         <fieldset class="settings-body">
           <NTabs v-model:value="tab" type="line" animated>
@@ -366,5 +366,11 @@ fieldset.settings-body {
 .save-success {
   color: var(--accent);
   font-size: 13px;
+}
+.settings-page {
+  width: 100%;
+  padding: 12px 28px;
+  max-width: 1540px;
+  margin: 0 auto;
 }
 </style>
