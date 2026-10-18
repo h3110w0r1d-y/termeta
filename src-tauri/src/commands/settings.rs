@@ -107,8 +107,9 @@ pub async fn save_settings(
 }
 
 #[tauri::command]
-pub fn open_settings_window(window: WebviewWindow) -> Result<()> {
+pub async fn open_settings_window(window: WebviewWindow) -> Result<()> {
     owner(&window)?;
+    // Wry/Windows 创建 WebView 必须在独立线程派发；异步 command 避免阻塞事件循环。
     crate::settings_window::open(window.app_handle())
         .map_err(|_| SessionError::new("WINDOW_FAILED", "desktop", "无法打开设置窗口"))
 }
