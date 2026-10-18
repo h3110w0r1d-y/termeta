@@ -119,7 +119,7 @@ watch(
   <nav
     ref="root"
     class="app-tabs"
-    :data-tauri-drag-region="position === 'top' ? '' : undefined"
+    :data-tauri-drag-region="position === 'top' ? 'deep' : undefined"
     :class="{
       'is-dragging': !!workbench.drag,
       'tabs-vertical': position === 'left',
