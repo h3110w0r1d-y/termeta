@@ -9,6 +9,9 @@ pub struct SessionError {
     pub phase: String,
     pub retryable: bool,
     pub message: String,
+    /// 面向诊断的底层错误；不参与本地化文案。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub details: Option<String>,
 }
 impl SessionError {
     pub fn new(code: &str, phase: &str, message: &str) -> Self {
@@ -17,7 +20,12 @@ impl SessionError {
             phase: phase.into(),
             retryable: false,
             message: message.into(),
+            details: None,
         }
+    }
+    pub fn with_details(mut self, details: impl Into<String>) -> Self {
+        self.details = Some(details.into());
+        self
     }
     pub fn cancelled() -> Self {
         Self::new("CANCELLED", "closing", "连接已取消")

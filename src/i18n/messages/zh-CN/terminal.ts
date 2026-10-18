@@ -48,6 +48,7 @@ export default {
   "terminal.titles.terminal": "终端",
   "terminal.errors.outputPending": "终端仍在处理输出，请稍后重试。历史已保留。",
   "terminal.errors.outputFailure": "终端输出异常，请重新连接。",
+  "terminal.errors.tcpConnectFailed": "无法连接主机地址与端口。",
   "terminal.form.theme": "终端配色",
   "terminal.accessibility.title": "终端：{name}",
   "terminal.state.authenticating": "认证中",

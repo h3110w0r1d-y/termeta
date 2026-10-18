@@ -310,7 +310,17 @@ export const desktop = {
 };
 export function errorMessage(error: unknown): string {
   if (typeof error === "string") return error;
-  if (error && typeof error === "object" && "message" in error)
-    return String(error.message);
+  if (error && typeof error === "object") {
+    const value = error as { code?: unknown; message?: unknown; details?: unknown };
+    const localized =
+      value.code === "IO_FAILED" || value.code === "CONNECT_FAILED"
+        ? t("terminal.errors.tcpConnectFailed")
+        : value.message;
+    if (localized) {
+      return value.details
+        ? `${String(localized)} (${String(value.details)})`
+        : String(localized);
+    }
+  }
   return t("common.errors.operationFailed");
 }

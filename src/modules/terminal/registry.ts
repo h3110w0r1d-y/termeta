@@ -188,9 +188,11 @@ function event(
     stream.endReceived = true;
     stream.finalOffset = BigInt(value.finalOffset);
     terminal.state = value.finalState;
-    terminal.error =
-      value.error?.message ??
-      (!value.outputComplete ? t("terminal.state.incompleteOutput") : "");
+    terminal.error = value.error
+      ? errorMessage(value.error)
+      : !value.outputComplete
+        ? t("terminal.state.incompleteOutput")
+        : "";
     useWorkbenchStore().dismiss(value.sessionId);
     // 等待最后一帧解析，控制事件与数据 Channel 没有全局先后顺序。
     stream.finalization = drain(entry, stream).then(() => {

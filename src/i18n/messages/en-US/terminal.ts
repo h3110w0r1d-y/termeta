@@ -58,6 +58,7 @@ export default {
     "The terminal is still processing output. Try again shortly. Your history has been preserved.",
   "terminal.errors.outputFailure":
     "Terminal output was interrupted. Reconnect to continue.",
+  "terminal.errors.tcpConnectFailed": "Unable to connect to the host and port.",
   "terminal.form.theme": "Terminal color scheme",
   "terminal.accessibility.title": "Terminal: {name}",
   "terminal.state.authenticating": "Authenticating",

@@ -174,7 +174,7 @@ export type SessionEvent =
       outputComplete: boolean;
       exitCode?: number | null;
       exitSignal?: string | null;
-      error?: { message?: string; code?: string };
+      error?: { message?: string; code?: string; details?: string };
     };
 export interface KnownHost {
   id: string;

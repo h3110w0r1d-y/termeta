@@ -37,16 +37,16 @@ pub(crate) async fn connect(
     .map_err(|_| ssh_error("DNS_FAILED", "dns", "无法解析主机地址"))?
     .collect();
     let socket = tokio::time::timeout(Duration::from_secs(15), async {
+        let mut last_error = None;
         for address in addresses.into_iter().take(16) {
-            if let Ok(socket) =
-                tokio::time::timeout(Duration::from_secs(3), TcpStream::connect(address)).await
-            {
-                if let Ok(socket) = socket {
-                    return Ok(socket);
-                }
+            match tokio::time::timeout(Duration::from_secs(3), TcpStream::connect(address)).await {
+                Ok(Ok(socket)) => return Ok(socket),
+                Ok(Err(error)) => last_error = Some(format!("{} ({})", error, error.kind())),
+                Err(_) => last_error = Some("连接尝试超时".into()),
             }
         }
-        Err(ssh_error("IO_FAILED", "tcp", "无法连接主机地址与端口"))
+        let detail = last_error.unwrap_or_else(|| "没有可用的地址".into());
+        Err(ssh_error("IO_FAILED", "tcp", "无法连接主机地址与端口").with_details(detail))
     })
     .await
     .map_err(|_| ssh_error("CONNECT_TIMEOUT", "tcp", "TCP 连接超时"))??;

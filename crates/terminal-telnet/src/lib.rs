@@ -48,7 +48,7 @@ impl SessionFactory for TelnetFactory {
             _ = context.cancel.cancelled() => return Err(SessionError::cancelled()),
             result = tokio::time::timeout(Duration::from_secs(30), TcpStream::connect((config.address.as_str(), config.port))) => {
                 result.map_err(|_| SessionError::new("CONNECT_TIMEOUT", "connecting", "Telnet 连接超时"))?
-                    .map_err(|_| SessionError::new("CONNECT_FAILED", "connecting", "无法连接 Telnet 主机，请检查地址、端口及网络"))?
+                    .map_err(|error| SessionError::new("CONNECT_FAILED", "connecting", "无法连接 Telnet 主机，请检查地址、端口及网络").with_details(format!("{} ({})", error, error.kind())))?
             }
         };
         let _ = stream.set_nodelay(true);

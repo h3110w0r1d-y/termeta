@@ -10,6 +10,7 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
+    "tauri:build": "node scripts/tauri-build.mjs",
     "check:types": "vue-tsc --noEmit",
     "check:structure": "node scripts/check-structure.mjs",
     "check:i18n": "node scripts/check-i18n.mjs"
