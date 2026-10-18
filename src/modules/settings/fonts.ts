@@ -1,4 +1,4 @@
-// 字体名称是持久化契约；资源和版本来源见 public/fonts/manifest.json。
+// 字体名称是持久化契约；资源和版本来源见 resources/fonts/manifest.json。
 export const terminalFonts = [
   "DejaVu Sans Mono",
   "Droid Sans Mono",

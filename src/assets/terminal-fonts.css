@@ -1,4 +1,4 @@
-/* 内置终端字体：保留原始字体文件，来源、版本和许可证见 public/fonts/manifest.json。 */
+/* 内置终端字体：保留原始字体文件，来源、版本和许可证见 resources/fonts/manifest.json。 */
 
 @font-face {
   font-family: "Termeta DejaVu Sans Mono";
@@ -36,7 +36,7 @@
 
 @font-face {
   font-family: "Termeta Droid Sans Mono";
-  src: url("/fonts/droid-sans-mono/DroidSansMono.ttf") format("truetype");
+  src: url("/fonts/droid-sans-mono/DroidSansMono.otf") format("opentype");
   font-weight: 400;
   font-style: normal;
   font-display: block;
@@ -110,14 +110,22 @@
 @font-face {
   font-family: "Termeta Inconsolata";
   src: url("/fonts/inconsolata/inconsolata.ttf") format("truetype");
-  font-weight: 200 900;
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Termeta Inconsolata";
+  src: url("/fonts/inconsolata/inconsolata-bold.ttf") format("truetype");
+  font-weight: 700;
   font-style: normal;
   font-display: block;
 }
 
 @font-face {
   font-family: "Termeta Fira Mono";
-  src: url("/fonts/fira-mono/FiraMono-Regular.ttf") format("truetype");
+  src: url("/fonts/fira-mono/FiraMono-Regular.otf") format("opentype");
   font-weight: 400;
   font-style: normal;
   font-display: block;
@@ -125,7 +133,7 @@
 
 @font-face {
   font-family: "Termeta Fira Mono";
-  src: url("/fonts/fira-mono/FiraMono-Bold.ttf") format("truetype");
+  src: url("/fonts/fira-mono/FiraMono-Bold.otf") format("opentype");
   font-weight: 700;
   font-style: normal;
   font-display: block;
@@ -207,7 +215,7 @@
 
 @font-face {
   font-family: "Termeta Fira Code";
-  src: url("/fonts/fira-code/FiraCode-Regular.woff2") format("woff2");
+  src: url("/fonts/fira-code/FiraCode-Regular.ttf") format("truetype");
   font-weight: 400;
   font-style: normal;
   font-display: block;
@@ -215,7 +223,7 @@
 
 @font-face {
   font-family: "Termeta Fira Code";
-  src: url("/fonts/fira-code/FiraCode-Bold.woff2") format("woff2");
+  src: url("/fonts/fira-code/FiraCode-Bold.ttf") format("truetype");
   font-weight: 700;
   font-style: normal;
   font-display: block;
@@ -223,7 +231,7 @@
 
 @font-face {
   font-family: "Termeta JetBrains Mono";
-  src: url("/fonts/jetbrains-mono/JetBrainsMono-Regular.woff2") format("woff2");
+  src: url("/fonts/jetbrains-mono/JetBrainsMono-Regular.ttf") format("truetype");
   font-weight: 400;
   font-style: normal;
   font-display: block;
@@ -231,7 +239,7 @@
 
 @font-face {
   font-family: "Termeta JetBrains Mono";
-  src: url("/fonts/jetbrains-mono/JetBrainsMono-Bold.woff2") format("woff2");
+  src: url("/fonts/jetbrains-mono/JetBrainsMono-Bold.ttf") format("truetype");
   font-weight: 700;
   font-style: normal;
   font-display: block;
@@ -239,7 +247,7 @@
 
 @font-face {
   font-family: "Termeta JetBrains Mono";
-  src: url("/fonts/jetbrains-mono/JetBrainsMono-Italic.woff2") format("woff2");
+  src: url("/fonts/jetbrains-mono/JetBrainsMono-Italic.ttf") format("truetype");
   font-weight: 400;
   font-style: italic;
   font-display: block;
@@ -247,8 +255,8 @@
 
 @font-face {
   font-family: "Termeta JetBrains Mono";
-  src: url("/fonts/jetbrains-mono/JetBrainsMono-BoldItalic.woff2")
-    format("woff2");
+  src: url("/fonts/jetbrains-mono/JetBrainsMono-BoldItalic.ttf")
+    format("truetype");
   font-weight: 700;
   font-style: italic;
   font-display: block;

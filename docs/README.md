@@ -34,4 +34,4 @@
 - profile/保存项是持久化配置；session 是一次后端连接；terminalId 是跨重连稳定的视图标识。
 - Workbench 是整个工作台，TerminalTabGroup 是运行标签组，Workspace 是多终端工作区及其显式存档。
 - IPC 命令使用 snake_case，JSON 字段使用 camelCase；接口以 Rust/TS 同步类型为准。
-- 字体、许可证与摘要见 [字体清单](../public/fonts/README.md)；其他素材来源见 [资源说明](../resources/README.md)；用例入口与历史局部证据见 [测试说明](../tests/README.md)。
+- 字体、许可证与摘要见 [字体清单](../resources/fonts/README.md)；其他素材来源见 [资源说明](../resources/README.md)；用例入口与历史局部证据见 [测试说明](../tests/README.md)。
