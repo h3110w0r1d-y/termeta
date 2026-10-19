@@ -30,6 +30,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "termeta.io",
     "windows": {
       "wix": {
         "language": ["en-US"]
