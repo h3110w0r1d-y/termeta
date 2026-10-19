@@ -336,3 +336,35 @@ export interface BackupRestorePreview {
   token: string;
   metadata: BackupMetadata;
 }
+
+export type AccountProviderId = "github" | "google";
+export interface AccountUser {
+  id: string;
+  email: string;
+  isAdmin: boolean;
+  hasPassword: boolean;
+  createdAt: string;
+}
+export interface AccountStatus {
+  user: AccountUser | null;
+  expiresAt: string | null;
+}
+export interface AccountProvider {
+  id: AccountProviderId;
+  name: string;
+}
+export interface AccountIdentity {
+  provider: AccountProviderId;
+  createdAt: string;
+}
+export interface AccountOAuthFlow {
+  flowId: string;
+  provider: AccountProviderId;
+  expiresAt: string;
+  pollInterval: number;
+}
+export interface AccountOAuthResult {
+  status: "pending" | "completed" | "denied" | "expired";
+  account: AccountStatus | null;
+  error: string | null;
+}

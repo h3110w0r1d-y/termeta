@@ -91,3 +91,7 @@ Gist 文件名/描述不写设备和备份时间；Secret Gist 的保密依赖�
 真实云服务、跨设备往返、恶意数据库/大包、认证限流/超时、预览失效、初始化/事务中断及三平台恢复仍待验收，见 [路线](10-roadmap.md)。
 
 实现参考 Termora `2.x` 的[统一接口思路](https://github.com/TermoraDev/termora/blob/f0acbb40845c4ab2ddeb588951204ee9a9f727a9/plugins/sync/src/main/kotlin/app/termora/plugins/sync/Syncer.kt)；其[插件许可](https://github.com/TermoraDev/termora/blob/f0acbb40845c4ab2ddeb588951204ee9a9f727a9/plugins/LICENSE)另有限制。本项目按 [GitHub REST](https://docs.github.com/en/rest/gists/gists)、[RFC4918](https://www.rfc-editor.org/rfc/rfc4918) 与 [SQLite serialize](https://www.sqlite.org/c3ref/serialize.html) 独立实现，未复制/翻译插件代码，也不兼容其备份格式。
+
+## 7. 官方备份服务
+
+独立 `termeta.io` 服务端已有账号隔离的密文版本接口，复用本文TMETABK1格式，不接收备份密码和明文；不改变Gist/WebDAV配置。客户端官方provider尚未实现，不能作为当前可选择目标。服务端仅提供全量快照版本交换，不代表自动双向同步，详见[官方服务](24-official-service.md)。

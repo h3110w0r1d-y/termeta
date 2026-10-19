@@ -1,0 +1,19 @@
+# 账号秘密只留在 Rust，受信任窗口仍须通过解锁与资源归属校验。
+
+[[permission]]
+identifier = "allow-official-account"
+description = "允许本地窗口管理官方账号与浏览器第三方登录"
+commands.allow = [
+  "get_account_status",
+  "refresh_account",
+  "list_account_providers",
+  "register_account",
+  "login_account",
+  "logout_account",
+  "start_account_oauth",
+  "confirm_account_oauth",
+  "poll_account_oauth",
+  "cancel_account_oauth",
+  "list_account_identities",
+  "unlink_account_identity",
+]

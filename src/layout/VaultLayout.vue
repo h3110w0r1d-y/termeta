@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { t } from "../i18n";
-import { NMenu } from "naive-ui";
+import { NMenu, NButton } from "naive-ui";
+import { IconUserCircle } from "@tabler/icons-vue";
+import { commands } from "../services/commands/registry";
 import { computed, h } from "vue";
 import VaultNavigationIcon from "./VaultNavigationIcon.vue";
 import AppScrollArea from "../components/ui/AppScrollArea.vue";
@@ -56,6 +58,14 @@ const emit = defineEmits<{
         :options="navigationOptions"
         @update:value="workbench.openVault($event)"
       />
+      <div class="vault-account-entry">
+        <NButton block quaternary @click="commands.execute('settings.open')">
+          <template #icon>
+            <IconUserCircle :size="18" aria-hidden="true" />
+          </template>
+          {{ t("account.actions.openSettings") }}
+        </NButton>
+      </div>
     </aside>
     <div class="vault-content">
       <!-- 显隐挂在原生容器上，避免滚动组件内部的观察器根节点丢失指令。 -->
@@ -130,6 +140,11 @@ const emit = defineEmits<{
   flex-direction: column;
   border-right: 1px solid var(--border);
   background: var(--surface);
+}
+.vault-account-entry {
+  margin-top: auto;
+  padding: 12px 10px;
+  border-top: 1px solid var(--border);
 }
 .vault-content {
   display: flex;

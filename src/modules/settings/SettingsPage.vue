@@ -26,6 +26,7 @@ import ThemeSettings from "./ThemeSettings.vue";
 import ShortcutSettings from "./ShortcutSettings.vue";
 import VaultSecuritySettings from "./VaultSecuritySettings.vue";
 import BackupPanel from "../backup/BackupPanel.vue";
+import AccountPanel from "../account/AccountPanel.vue";
 import { useLiveSettings } from "./useLiveSettings";
 import { terminalFontFamily, terminalFontOptions } from "./fonts";
 // NSelect 同时用此渲染器显示菜单与当前值；字体声明按可见选项自动加载本地资源。
@@ -37,8 +38,10 @@ const form = ref<FormInst>();
 const { draft, flush: flushSettings } = useLiveSettings(form);
 const security = ref<InstanceType<typeof VaultSecuritySettings>>();
 const backup = ref<InstanceType<typeof BackupPanel>>();
+const account = ref<InstanceType<typeof AccountPanel>>();
 async function flush() {
   if (security.value?.busy || backup.value?.busy) return false;
+  if (account.value && !(await account.value.beforeClose())) return false;
   return flushSettings();
 }
 defineExpose({ flush });
@@ -232,6 +235,13 @@ const rules = computed<FormRules>(() => ({
               display-directive="show:lazy"
             >
               <VaultSecuritySettings ref="security" />
+            </NTabPane>
+            <NTabPane
+              name="account"
+              :tab="t('account.title')"
+              display-directive="show:lazy"
+            >
+              <AccountPanel ref="account" />
             </NTabPane>
             <NTabPane
               name="backup"

@@ -26,6 +26,8 @@
 | [端口转发](21-port-forwarding.md) | 三模式、独立连接、监听与取消 |
 | [Snippets 与会话日志](23-snippets-and-session-logs.md) | 片段管理、关闭归档、退出握手与日志回看 |
 | [备份与同步](22-data-backup.md) | 云 provider、加密快照、预览/新增合并及首次初始化 |
+| [官方服务](24-official-service.md) | 独立服务端、账号/密文备份、分发更新与远程协助规划 |
+| [官方账号与第三方登录](25-account-authentication.md) | 邮箱注册登录、GitHub/Google、PKCE轮询、身份绑定与客户端IPC契约 |
 
 文件编号保留空缺，不为连续编号重命名。
 

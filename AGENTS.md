@@ -8,6 +8,8 @@ Termeta 是 Tauri 2 + Rust + Vue 3 + TypeScript 桌面终端客户端，目标 W
 
 开发前阅读本文、目标模块文档及 [路线](docs/10-roadmap.md)。完整索引见 [docs/README.md](docs/README.md)；关键设计取舍见 [架构](docs/03-architecture.md)，本机数据恢复见 [存储](docs/07-storage.md)。
 
+官方服务端为独立项目，协作规则见 服务端 AGENTS.md，功能与接入边界见 [官方服务](docs/24-official-service.md)。服务端使用 Python + FastAPI + Tortoise ORM + 外部 MySQL，Docker Compose 部署；不替代客户端 IPC。管理端前端为独立项目，使用 Vue 3 + Naive UI，协作规则见管理端 AGENTS.md。
+
 ## 2. 执行与数据保护
 
 - **不要主动构建、运行或启动项目。** 未得到用户明确要求时，不执行 `pnpm dev/build/preview`、`pnpm tauri dev/build`、`cargo build/run/check/test/clippy`，不通过 IDE、脚本、测试、CI 或依赖生命周期间接触发编译、启动或打包。`cargo check`、Rust 测试同样会编译。
@@ -28,7 +30,7 @@ Termeta 是 Tauri 2 + Rust + Vue 3 + TypeScript 桌面终端客户端，目标 W
 
 ## 4. 实现规则
 
-- 前端使用 pnpm、Vue 3 Composition API、严格 TypeScript，Rust edition 2024；不切 React，不引入 HTTP/WebSocket 后端。依赖落地或升级须复核具体 release 的 API/features/MSRV/许可/公告，同步锁文件及 [依赖说明](docs/02-library-research.md)，不以 latest 页面锁版本。
+- 前端使用 pnpm、Vue 3 Composition API、严格 TypeScript，Rust edition 2024；不切 React，桌面本地架构不引入 HTTP/WebSocket 后端；独立官方服务端按其协作规则开发。依赖落地或升级须复核具体 release 的 API/features/MSRV/许可/公告，同步锁文件及 [依赖说明](docs/02-library-research.md)，不以 latest 页面锁版本。
 - **新增或修改的代码注释使用中文**，保留标识符/API 和必要术语，说明意图与边界，避免复述代码。
 - 通用控件优先 Naive UI 2.45.3，封装只做薄适配，使用公开 props/themeOverrides，不复制库皮肤；业务 CSS 就近 scoped，动态 DOM 用明确 :deep() 或入口适配。应用标签使用 AppTabs。
 - NForm model、控件 v-model 与 rules/path 必须共享响应式字段，禁止对象字面量/展开/computed 快照作 model。已有 ref 可用 reactive 包装，不能复制 .value 后异步同步；嵌套调整同步 rules/path。程序更新通过 FormItem 公开 validate 重验，保留正常 input/change/blur 及提交校验，不用清错、取消校验或 nextTick 补丁掩盖旧值。可选字段不强制必填，弹窗操作放 AppDialog #footer。
@@ -40,7 +42,7 @@ Termeta 是 Tauri 2 + Rust + Vue 3 + TypeScript 桌面终端客户端，目标 W
 ## 5. 领域行为约束
 
 - 主机分组前后端防环；删除默认保留上移，递归删除独立二次确认，Rust 单事务校验范围/revision，保留公共凭据与已有会话快照。即时偏好串行局部保存，旧设置草稿不能覆盖。搜索不改分组范围，批量打开包含后代。
-- 固定保险箱/SFTP 不可关闭、不创建终端；设置为独立单实例窗口，权限仅限设置、专用改密/JSON 导出及备份，通用 session owner 仍只 main。模态/录制/弹层优先处理快捷键，弹窗 Cmd+W 不关闭标签或主窗口；认证弹窗退出后恢复当前活动终端焦点。
+- 固定保险箱/SFTP 不可关闭、不创建终端；设置为独立单实例窗口，权限仅限设置、专用改密/JSON 导出、备份及官方账号，通用 session owner 仍只 main。模态/录制/弹层优先处理快捷键，弹窗 Cmd+W 不关闭标签或主窗口；认证弹窗退出后恢复当前活动终端焦点。
 - 广播默认关闭、仅内存；成员重组关闭，排序/比例/子树交换保持。排除命令窗格、点击/拖动、设备应答和认证；键盘/粘贴要求焦点，远端滚轮可来自当前组非聚焦窗格，只分发源端最终动作，不合成 wheel 或在目标累积。inputOrigin 集中适配固定 xterm，能力缺失拒绝广播；目标独立编码、限额、代次检查，不重放。
 - 标准粘贴放行系统 paste，由宿主执行大小/多行/广播校验；自定义绑定保留显式剪贴板路径。应用内快捷键与系统后台热键分开。完整路由见 [快捷键](docs/14-shortcuts.md)。
 - SFTP 侧栏仅单 SSH 终端且与分屏互斥，隐藏保留任务，断开/关闭取消，重连不重放。双栏独立连接与对拷，不借原生拖出做内部复制；文件正文仅 Rust 流动，上传确认覆盖/目录合并不承诺回滚，下载拒绝覆盖。

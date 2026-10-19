@@ -1,6 +1,6 @@
 # 系统架构与模块边界
 
-更新：2026-10-18。本文描述当前实现及其设计取舍；功能状态见 [产品需求](01-product-requirements.md#8-当前实现与限制)。
+更新：2026-10-19。本文描述当前实现及其设计取舍；功能状态见 [产品需求](01-product-requirements.md#8-当前实现与限制)。
 
 ## 1. 分层与代码入口
 
@@ -14,6 +14,7 @@
 | 数据与安全 | `terminal-storage`、`terminal-security` | SQLCipher、迁移、凭据、保险库、白名单备份与加密 |
 | 文件 | `terminal-files`、`terminal-sftp`、壳的 `files/` | 文件端口、有界复制、SFTP 浏览与传输编排 |
 | 云备份 | 壳的 `backup/`、`backup_runtime.rs` | Gist/WebDAV provider、操作预算和预览令牌 |
+| 官方账号 | `src/modules/account/`、壳的 `account/` | 账号摘要与表单、固定HTTPS服务访问、加密会话及浏览器授权；不耦合终端核心 |
 
 网络、设备、信任、数据库及保存的秘密均由 Rust 管理。Vue/Pinia 仅保存元数据，不保存终端输出、文件正文、备份数据库正文或转发载荷。xterm 实例和缓冲由终端注册表管理。
 
@@ -42,7 +43,7 @@ Workbench 表示整个工作台，TerminalTabGroup 表示运行标签组，Works
 
 保险库解锁后才允许业务操作；全新 setup 的云端初始化有独立授权，已有 locked 库不能使用。storage 完成迁移与外键检查后发布数据库池。改密通过可切换连接池和数据库生命周期门闩协调加密副本及元数据切换，不重建活动终端。格式与故障恢复见 [存储](07-storage.md)。
 
-设置使用独立单实例窗口。Rust 串行合并局部设置并发出失效通知，各窗口重读后热应用；即时偏好不能被旧设置草稿覆盖。settings 窗口仅获得设置、专用改密、JSON 导出和备份权限，通用会话所有权仍仅 main。ACL、来源和资源归属共同构成授权，见 [安全](08-security.md)。
+设置使用独立单实例窗口。Rust 串行合并局部设置并发出失效通知，各窗口重读后热应用；即时偏好不能被旧设置草稿覆盖。settings 窗口仅获得设置、专用改密、JSON 导出、备份和官方账号权限，通用会话所有权仍仅 main。ACL、来源和资源归属共同构成授权，见 [安全](08-security.md)。
 
 备份分为 storage 的白名单快照/合并、security 的压缩/加密、壳的云 provider/编排三层。provider 只处理不透明包；增加云厂商不改变终端核心。详见 [备份与同步](22-data-backup.md)。
 
@@ -56,7 +57,7 @@ Workbench 表示整个工作台，TerminalTabGroup 表示运行标签组，Works
 
 | 决策 | 理由与代价 |
 | --- | --- |
-| Tauri + Rust + Vue，协议核心独立 | 桌面权限集中于壳，复用会话通路；不引入 HTTP/WebSocket 后端 |
+| Tauri + Rust + Vue，协议核心独立 | 桌面权限集中于壳，复用会话通路；桌面本地不引入 HTTP/WebSocket 后端，官方服务独立部署 |
 | 消费后 ACK 与有界字节队列 | 防止 WebView 无限制积压；满额时允许反压远端输出，取消独立运行 |
 | 稳定终端与布局/连接分离 | 保留历史和视图；需要旧流排空及代次隔离，不能用清屏规避 |
 | 全库加密、OS 仅缓存主密钥 | 数据文件与秘密统一保护；缓存失败用密码恢复，数据库和元数据必须配对 |
@@ -66,3 +67,11 @@ Workbench 表示整个工作台，TerminalTabGroup 表示运行标签组，Works
 | Naive UI 薄适配，应用主题与终端配色独立 | 通用控件沿用库能力，终端布局由应用管理，热应用保留实例 |
 
 前端规则见 [桌面交互](09-desktop-ux.md) 和 [协作指南](../AGENTS.md)；依赖依据见 [依赖说明](02-library-research.md)。
+
+## 7. 可选官方服务
+
+2026-10-19 新增独立Python/FastAPI官方服务项目，账号、密文备份与分发更新控制面不进入桌面IPC或协议核心。客户端接入及服务端部署尚未验收，临时SSH远程协助仅规划，见[官方服务](24-official-service.md)。
+
+官方管理端为独立Vue/Naive UI应用，HTTP服务层与auth/releases领域模块分离，通过同源/api反代接入服务端，管理员权限由后端最终校验；不接入桌面IPC。
+
+官方账号由Vue账号领域、Rust账号运行时与独立accounts/oauth服务端协作。系统浏览器授权使用S256 proof约束的短期轮询兑换；提供方仍回调固定服务端HTTPS地址，身份验证后通过termeta://固定协议自动唤起应用并传回一次性确认码，匹配本机在途授权后才兑换。应用会话保存在本机SQLCipher独立设置中，WebView只读摘要，手动确认码仅作为回跳受阻时的备选。邮箱注册登录、第三方登录及显式身份绑定共享同一应用会话，保持本地保险库和备份密码独立。2026-10-19 采用系统协议改善返回体验，保留设备proof和确认码双重校验、隔离浏览器回调与应用Token。壳account/deep_link模块复用官方协议注册，但通过Rust原生Opened/单实例参数直接消费回跳，避免官方默认event广播原始URI；完整契约见[账号认证](25-account-authentication.md)。
