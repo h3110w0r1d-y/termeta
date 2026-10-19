@@ -32,24 +32,7 @@
     "targets": "all",
     "windows": {
       "wix": {
-        "language": [
-          "en-US",
-          "zh-CN",
-          "zh-TW",
-          "ja-JP",
-          "ko-KR",
-          "fr-FR",
-          "de-DE",
-          "es-ES",
-          "pt-BR",
-          "pt-PT",
-          "it-IT",
-          "ru-RU",
-          "nl-NL",
-          "sv-SE",
-          "tr-TR",
-          "uk-UA"
-        ]
+        "language": ["en-US"]
       },
       "nsis": {
         "installMode": "both",
