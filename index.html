@@ -1,27 +1,30 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="color-scheme" content="dark" />
-    <!-- 在脚本与外部样式加载前提供底色，避免 WebView 首帧使用默认白色。 -->
-    <style>
-      html,
-      body {
-        color-scheme: dark;
-        background: #101014;
-        color: #ffffffd1;
-      }
-      body {
-        margin: 0;
-      }
-    </style>
-    <link rel="icon" type="image/svg+xml" href="/terminal.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Termeta</title>
-  </head>
 
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.ts"></script>
-  </body>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="color-scheme" content="dark" />
+  <!-- 在脚本与外部样式加载前提供底色，避免 WebView 首帧使用默认白色。 -->
+  <style>
+    html,
+    body {
+      color-scheme: dark;
+      background: #101014;
+      color: #ffffffd1;
+    }
+
+    body {
+      margin: 0;
+    }
+  </style>
+  <link rel="icon" type="image/svg+xml" href="/terminal.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Termeta</title>
+</head>
+
+<body>
+  <div id="app"></div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+
 </html>

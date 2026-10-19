@@ -91,7 +91,6 @@ const headerStyle = computed(() => {
   return {
     "--text": foreground,
     "--muted": ui,
-    "--border": colors ? overlay(ui, 20) : themeVars.value.borderColor,
     "--app-header-button-color": ui,
     "--app-tab-background": overlay(colors ? ui : monochrome, colors ? 10 : 5),
     "--app-tab-hover": overlay(colors ? ui : monochrome, colors ? 20 : 10),
