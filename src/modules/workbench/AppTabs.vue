@@ -4,13 +4,24 @@ import { terminalBaseTitle } from "../terminal/title";
 import ScrollFade from "../../components/ui/ScrollFade.vue";
 import { IconX, IconFileText } from "@tabler/icons-vue";
 import { computed, nextTick, ref, watch } from "vue";
-import { NIcon, useThemeVars } from "naive-ui";
+import {
+  NConfigProvider,
+  NIcon,
+  darkTheme,
+  lightTheme,
+  useThemeVars,
+  type GlobalThemeOverrides,
+} from "naive-ui";
 import { isMac } from "../../services/commands/registry";
 import ApplicationMenu from "../../components/ApplicationMenu.vue";
 import AssetIcon from "../../components/ui/AssetIcon.vue";
 import WindowControls from "../../components/WindowControls.vue";
 import AppButton from "../../components/ui/AppButton.vue";
 import { schemeForTerminal } from "../terminal/registry";
+import {
+  colorOverlay as overlay,
+  isLightBackground,
+} from "../terminal/appearance";
 import { stateLabels, useWorkbenchStore, type TabBarItem } from "./store";
 import { useTabDrag } from "./useTabDrag";
 import { useTabScroll } from "./useTabScroll";
@@ -32,14 +43,74 @@ const emit = defineEmits<{
 }>();
 const themeVars = useThemeVars();
 const workbench = useWorkbenchStore();
-// 动态终端标签激活时，Header 与终端共用同一主题背景；固定页回退到普通表面色。
-const headerBackground = computed(() => {
-  if (!props.tabs.some((tab) => tab.id === props.activeId))
-    return "var(--surface)";
+// 固定页使用应用深色外观；终端页按当前聚焦窗格同步背景和前景。
+const headerColors = computed(() => {
+  if (!props.tabs.some((tab) => tab.id === props.activeId)) return undefined;
   const terminal = workbench.activeTerminal;
-  return terminal
-    ? schemeForTerminal(terminal).colors.background
-    : "var(--surface)";
+  return terminal ? schemeForTerminal(terminal).colors : undefined;
+});
+const headerBackground = computed(
+  () => headerColors.value?.background ?? "var(--surface)",
+);
+const headerLight = computed(() => {
+  const background = headerColors.value?.background;
+  if (!background) return false;
+  return isLightBackground(background);
+});
+const headerTheme = computed(() =>
+  headerLight.value ? lightTheme : darkTheme,
+);
+const headerForeground = computed(
+  () => headerColors.value?.foreground ?? themeVars.value.textColor1,
+);
+const headerUi = computed(() =>
+  headerColors.value
+    ? headerColors.value.ui || headerForeground.value
+    : themeVars.value.textColor3,
+);
+const headerThemeOverrides = computed<GlobalThemeOverrides>(() => {
+  if (!headerColors.value) return {};
+  // 公开主题覆盖使用局部变量，按钮悬停时切到前景色，菜单保持库的明暗表面。
+  const color = "var(--app-header-button-color)";
+  return {
+    Button: {
+      textColor: color,
+      textColorHover: color,
+      textColorPressed: color,
+      textColorFocus: color,
+      colorQuaternaryHover: overlay(headerUi.value, 20),
+      colorQuaternaryPressed: overlay(headerUi.value, 20),
+    },
+  };
+});
+const headerStyle = computed(() => {
+  const colors = headerColors.value;
+  const ui = headerUi.value;
+  const foreground = headerForeground.value;
+  const monochrome = headerLight.value ? "#000000" : "#ffffff";
+  return {
+    "--text": foreground,
+    "--muted": ui,
+    "--border": colors ? overlay(ui, 20) : themeVars.value.borderColor,
+    "--app-header-button-color": ui,
+    "--app-tab-background": overlay(colors ? ui : monochrome, colors ? 10 : 5),
+    "--app-tab-hover": overlay(colors ? ui : monochrome, colors ? 20 : 10),
+    "--app-tab-active": overlay(
+      colors ? foreground : monochrome,
+      colors ? 20 : 10,
+    ),
+    "--app-tab-drag": overlay(colors ? ui : monochrome, colors ? 30 : 20),
+    "--app-tab-text": foreground,
+    "--app-tab-close-hover": colors
+      ? overlay(ui, 10)
+      : themeVars.value.closeColorHover,
+    "--app-tab-close-selected-hover": overlay(foreground, 10),
+    "--app-tab-radius": themeVars.value.borderRadius,
+    "--app-tabs-background": headerBackground.value,
+    "--app-tabs-border": colors ? "transparent" : undefined,
+    color: ui,
+    colorScheme: headerLight.value ? "light" : "dark",
+  };
 });
 const windowDrag = useWindowDrag({
   enabled: () => props.position === "top" && !workbench.drag,
@@ -127,185 +198,190 @@ watch(
 );
 </script>
 <template>
-  <nav
-    ref="root"
-    class="app-tabs"
-    :data-tauri-drag-region="position === 'top' ? 'deep' : undefined"
-    :class="{
-      'is-dragging': !!workbench.drag,
-      'tabs-vertical': position === 'left',
-      'titlebar-mac': isMac && position === 'top',
-    }"
-    role="tablist"
-    :aria-label="t('workbench.tabs.label')"
-    :aria-orientation="position === 'left' ? 'vertical' : 'horizontal'"
-    @keydown="onKey"
-    :style="{
-      // 黑底下分别呈现 #101010、#202020、#303030；前景色由明暗主题 CSS 切换。
-      '--app-tab-background': 'rgb(var(--tab-overlay-rgb) / 6.27%)',
-      '--app-tab-hover': 'rgb(var(--tab-overlay-rgb) / 12.55%)',
-      '--app-tab-active': 'rgb(var(--tab-overlay-rgb) / 18.82%)',
-      '--app-tab-text': themeVars.textColor1,
-      '--app-tab-close-hover': themeVars.closeColorHover,
-      '--app-tab-radius': themeVars.borderRadius,
-      '--app-tabs-background': headerBackground,
-      '--app-tabs-border':
-        headerBackground === 'var(--surface)' ? undefined : 'transparent',
-    }"
+  <NConfigProvider
+    abstract
+    :theme="headerTheme"
+    :theme-overrides="headerThemeOverrides"
   >
-    <!-- 固定页、分隔线与动态滚动区直接参与 Header 的 flex 排列。 -->
-    <ApplicationMenu v-if="!isMac && position === 'top'" />
-    <div class="fixed-tabs" role="presentation" @pointerdown="windowDrag.start">
-      <button
-        v-for="tab in fixedTabs"
-        :key="tab.id"
-        type="button"
-        role="tab"
-        class="app-tab"
-        :id="'app-tab-' + tab.id"
-        :data-app-tab="tab.id"
-        :aria-selected="activeId === tab.id"
-        :tabindex="activeId === tab.id ? 0 : -1"
-        :aria-controls="tab.panel"
-        @click="activate(tab.id)"
-      >
-        <AssetIcon
-          class="fixed-tab-icon"
-          :name="tab.id === 'home' ? 'vault' : 'sftp'"
-          :size="16"
-        />
-        {{ tab.title }}
-      </button>
-    </div>
-    <span class="tab-divider" aria-hidden="true" />
-    <ScrollFade
-      v-if="tabs.length"
-      class="session-tabs-fade"
-      :viewport="sessionTabs"
-      :direction="position === 'left' ? 'vertical' : 'horizontal'"
-      :background="headerBackground"
-      :size="20"
-      role="presentation"
-    >
-      <div ref="sessionTabs" class="session-tabs" role="presentation">
-        <div
-          v-for="tab in tabs"
-          :key="tab.id"
-          class="app-tab-item"
-          :class="{
-            selected: activeId === tab.id,
-            dragging:
-              workbench.drag?.source.kind === 'tab' &&
-              workbench.drag.source.tabId === tab.id,
-          }"
-          :data-sort-tab="tab.kind === 'terminal' ? tab.id : undefined"
-          @pointerdown="tab.kind === 'terminal' && startTabDrag($event, tab.id)"
-          role="presentation"
-          @contextmenu.prevent="
-            tab.kind === 'terminal' && emit('menu', $event, tab.id)
-          "
-        >
-          <button
-            type="button"
-            role="tab"
-            class="app-tab"
-            :id="'app-tab-' + tab.id"
-            :data-app-tab="tab.id"
-            :aria-selected="activeId === tab.id"
-            :tabindex="activeId === tab.id ? 0 : -1"
-            :aria-controls="'tab-panel-' + tab.id"
-            :aria-label="
-              tab.kind === 'log'
-                ? tab.title
-                : tab.title +
-                  (tab.split
-                    ? ' · ' +
-                      t('workbench.terminalCount', {
-                        count: tab.terminalIds.length,
-                      })
-                    : '') +
-                  ' · ' +
-                  t(stateLabels[tab.state])
-            "
-            :title="
-              tab.kind === 'log'
-                ? tab.title
-                : tab.title + ' · ' + t(stateLabels[tab.state])
-            "
-            @click="activate(tab.id)"
-            @dblclick="tab.kind === 'terminal' && emit('doubleClick', tab.id)"
-          >
-            <NIcon v-if="tab.kind === 'log'" :size="16" aria-hidden="true">
-              <IconFileText />
-            </NIcon>
-            <i
-              v-else
-              class="status-dot"
-              :class="tab.state"
-              aria-hidden="true"
-            />
-            <span class="app-tab-title">{{ tab.title }}</span>
-          </button>
-          <button
-            type="button"
-            class="app-tab-close"
-            tabindex="-1"
-            :aria-label="t('workbench.actions.closeNamed', { name: tab.title })"
-            :title="t('workbench.actions.closeNamed', { name: tab.title })"
-            @click="emit('close', tab.id)"
-          >
-            <NIcon :size="16" aria-hidden="true">
-              <IconX />
-            </NIcon>
-          </button>
-        </div>
-      </div>
-    </ScrollFade>
-    <div ref="tabEnd" class="app-tab-end" @pointerdown="windowDrag.start">
-      <AppButton
-        class="icon-button new-tab"
-        :aria-label="t('workbench.actions.newTab')"
-        :title="t('workbench.actions.newTabWithShortcut')"
-        @click="emit('create')"
-      >
-        <AssetIcon name="add" :size="16" />
-      </AppButton>
-    </div>
-    <!-- 所有插入槽共用一条指示线，位置由容器几何计算，不绑定单个标签。 -->
-    <div
-      v-if="insertionMarker"
-      class="tab-insertion-marker"
-      :style="insertionMarker"
-      aria-hidden="true"
-    />
-    <div
-      v-if="workbench.drag"
-      class="tab-drag-label"
-      :style="{
-        left: workbench.drag.x + 12 + 'px',
-        top: workbench.drag.y + 12 + 'px',
+    <nav
+      ref="root"
+      class="app-tabs"
+      :data-tauri-drag-region="position === 'top' ? 'deep' : undefined"
+      :class="{
+        'is-dragging': !!workbench.drag,
+        'tabs-vertical': position === 'left',
+        'titlebar-mac': isMac && position === 'top',
       }"
-      aria-hidden="true"
+      role="tablist"
+      :aria-label="t('workbench.tabs.label')"
+      :aria-orientation="position === 'left' ? 'vertical' : 'horizontal'"
+      @keydown="onKey"
+      :style="headerStyle"
     >
-      {{ dragTitle }}
-    </div>
-    <div
-      class="app-tabs-spacer"
-      :data-tauri-drag-region="position === 'top' ? '' : undefined"
-      aria-hidden="true"
-    />
-    <span
-      :data-tauri-drag-region="position === 'top' ? '' : undefined"
-      class="connection-count"
-    >
-      <i class="status-dot" :class="{ connected: connected > 0 }" />
-      {{ t("common.count.connections", { count: connected }) }}
-    </span>
-    <WindowControls
-      v-if="position === 'top'"
-      @error="emit('windowError', $event)"
-    />
-  </nav>
+      <!-- 固定页、分隔线与动态滚动区直接参与 Header 的 flex 排列。 -->
+      <ApplicationMenu v-if="!isMac && position === 'top'" />
+      <div
+        class="fixed-tabs"
+        role="presentation"
+        @pointerdown="windowDrag.start"
+      >
+        <button
+          v-for="tab in fixedTabs"
+          :key="tab.id"
+          type="button"
+          role="tab"
+          class="app-tab"
+          :id="'app-tab-' + tab.id"
+          :data-app-tab="tab.id"
+          :aria-selected="activeId === tab.id"
+          :tabindex="activeId === tab.id ? 0 : -1"
+          :aria-controls="tab.panel"
+          @click="activate(tab.id)"
+        >
+          <AssetIcon
+            class="fixed-tab-icon"
+            :name="tab.id === 'home' ? 'vault' : 'sftp'"
+            :size="16"
+          />
+          {{ tab.title }}
+        </button>
+      </div>
+      <span class="tab-divider" aria-hidden="true" />
+      <ScrollFade
+        v-if="tabs.length"
+        class="session-tabs-fade"
+        :viewport="sessionTabs"
+        :direction="position === 'left' ? 'vertical' : 'horizontal'"
+        :background="headerBackground"
+        :size="20"
+        role="presentation"
+      >
+        <div ref="sessionTabs" class="session-tabs" role="presentation">
+          <div
+            v-for="tab in tabs"
+            :key="tab.id"
+            class="app-tab-item"
+            :class="{
+              selected: activeId === tab.id,
+              dragging:
+                workbench.drag?.source.kind === 'tab' &&
+                workbench.drag.source.tabId === tab.id,
+            }"
+            :data-sort-tab="tab.kind === 'terminal' ? tab.id : undefined"
+            @mousedown.middle.prevent
+            @auxclick.middle.prevent.stop="emit('close', tab.id)"
+            @pointerdown="
+              tab.kind === 'terminal' && startTabDrag($event, tab.id)
+            "
+            role="presentation"
+            @contextmenu.prevent="
+              tab.kind === 'terminal' && emit('menu', $event, tab.id)
+            "
+          >
+            <button
+              type="button"
+              role="tab"
+              class="app-tab"
+              :id="'app-tab-' + tab.id"
+              :data-app-tab="tab.id"
+              :aria-selected="activeId === tab.id"
+              :tabindex="activeId === tab.id ? 0 : -1"
+              :aria-controls="'tab-panel-' + tab.id"
+              :aria-label="
+                tab.kind === 'log'
+                  ? tab.title
+                  : tab.title +
+                    (tab.split
+                      ? ' · ' +
+                        t('workbench.terminalCount', {
+                          count: tab.terminalIds.length,
+                        })
+                      : '') +
+                    ' · ' +
+                    t(stateLabels[tab.state])
+              "
+              :title="
+                tab.kind === 'log'
+                  ? tab.title
+                  : tab.title + ' · ' + t(stateLabels[tab.state])
+              "
+              @click="activate(tab.id)"
+              @dblclick="tab.kind === 'terminal' && emit('doubleClick', tab.id)"
+            >
+              <NIcon v-if="tab.kind === 'log'" :size="16" aria-hidden="true">
+                <IconFileText />
+              </NIcon>
+              <i
+                v-else
+                class="status-dot"
+                :class="tab.state"
+                aria-hidden="true"
+              />
+              <span class="app-tab-title">{{ tab.title }}</span>
+            </button>
+            <button
+              type="button"
+              class="app-tab-close"
+              tabindex="-1"
+              :aria-label="
+                t('workbench.actions.closeNamed', { name: tab.title })
+              "
+              :title="t('workbench.actions.closeNamed', { name: tab.title })"
+              @click="emit('close', tab.id)"
+            >
+              <NIcon :size="16" aria-hidden="true">
+                <IconX />
+              </NIcon>
+            </button>
+          </div>
+        </div>
+      </ScrollFade>
+      <div ref="tabEnd" class="app-tab-end" @pointerdown="windowDrag.start">
+        <AppButton
+          class="icon-button new-tab"
+          :aria-label="t('workbench.actions.newTab')"
+          :title="t('workbench.actions.newTabWithShortcut')"
+          @click="emit('create')"
+        >
+          <AssetIcon name="add" :size="16" />
+        </AppButton>
+      </div>
+      <!-- 所有插入槽共用一条指示线，位置由容器几何计算，不绑定单个标签。 -->
+      <div
+        v-if="insertionMarker"
+        class="tab-insertion-marker"
+        :style="insertionMarker"
+        aria-hidden="true"
+      />
+      <div
+        v-if="workbench.drag"
+        class="tab-drag-label"
+        :style="{
+          left: workbench.drag.x + 12 + 'px',
+          top: workbench.drag.y + 12 + 'px',
+        }"
+        aria-hidden="true"
+      >
+        {{ dragTitle }}
+      </div>
+      <div
+        class="app-tabs-spacer"
+        :data-tauri-drag-region="position === 'top' ? '' : undefined"
+        aria-hidden="true"
+      />
+      <span
+        :data-tauri-drag-region="position === 'top' ? '' : undefined"
+        class="connection-count"
+      >
+        <i class="status-dot" :class="{ connected: connected > 0 }" />
+        {{ t("common.count.connections", { count: connected }) }}
+      </span>
+      <WindowControls
+        v-if="position === 'top'"
+        @error="emit('windowError', $event)"
+      />
+    </nav>
+  </NConfigProvider>
 </template>
 
 <style scoped>
@@ -408,9 +484,9 @@ watch(
 .fixed-tabs > .app-tab:hover,
 .app-tab-item:hover {
   background: var(--app-tab-hover);
-  color: var(--app-tab-text);
+  color: var(--muted);
 }
-/* 激活态优先于悬停态，并使用更亮的按下层级。 */
+/* 激活态优先于悬停态，并使用更明显的状态层。 */
 .fixed-tabs > .app-tab[aria-selected="true"],
 .app-tab-item.selected {
   background: var(--app-tab-active);
@@ -423,7 +499,7 @@ watch(
 }
 .app-tab:focus-visible,
 .app-tab-close:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--app-tab-text);
   outline-offset: -2px;
 }
 .app-tab-close {
@@ -441,6 +517,16 @@ watch(
 
 .app-tab-item .app-tab-close:hover {
   background: var(--app-tab-close-hover);
+  color: var(--app-tab-text);
+}
+.app-tab-item.selected .app-tab-close:hover {
+  background: var(--app-tab-close-selected-hover);
+}
+/* 薄适配按钮公开主题覆盖中的局部变量，不改写 Naive UI 的皮肤。 */
+.app-tabs :deep(.n-button:hover),
+.app-tabs :deep(.n-button:focus-visible),
+.app-tabs :deep(.n-button:active) {
+  --app-header-button-color: var(--app-tab-text);
 }
 
 .app-tab-close .n-icon,
@@ -542,8 +628,10 @@ watch(
   padding: 6px 12px;
   border: 1px solid var(--border);
   border-radius: var(--app-tab-radius);
-  background: var(--surface);
-  color: var(--text);
+  background:
+    linear-gradient(var(--app-tab-drag), var(--app-tab-drag)),
+    var(--app-tabs-background, var(--surface));
+  color: var(--muted);
   pointer-events: none;
 }
 /* 新建按钮独立于滚动区；拖动时不响应悬停或接收点击。 */

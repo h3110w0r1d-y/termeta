@@ -145,8 +145,10 @@ export function useTerminalMenu(options: {
       await nextTick();
       options.openFind();
     } else if (key.startsWith("scheme:")) {
-      terminal.schemeId = key === "scheme:default" ? undefined : key.slice(7);
-      terminalRegistry.apply();
+      workbench.setTerminalScheme(
+        terminal.terminalId,
+        key === "scheme:default" ? undefined : key.slice(7),
+      );
     }
   }
   return {

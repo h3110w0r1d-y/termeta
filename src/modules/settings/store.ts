@@ -53,6 +53,8 @@ export const useSettings = defineStore("settings", () => {
     return {
       ...defaultSettings(),
       ...saved,
+      // 兼容旧版浅色/跟随系统设置，不再影响应用外观。
+      appearance: "dark",
       language: normalizeLanguage(saved.language),
       // 旧版 hostsView 可能存在但缺少新增偏好，按子字段补齐默认值。
       hostsView: { ...defaultSettings().hostsView, ...saved.hostsView },

@@ -1,5 +1,6 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
+  "settings.language.system": "System",
   "settings.actions.open": "Open settings",
   "settings.detection.enabled":
     "Detect the operating system when connecting over SSH",
@@ -11,10 +12,6 @@ export default {
   "settings.general.tabPosition": "Tab bar position",
   "settings.general.tabDoubleClick": "Double-click a tab",
   "settings.general.tabDoubleClickAction": "Tab double-click action",
-  "settings.general.appearance": "Appearance",
-  "settings.appearance.dark": "Dark",
-  "settings.appearance.light": "Light",
-  "settings.appearance.system": "System",
   "settings.general.accentColor": "Accent color",
   "settings.terminal.font": "Terminal font",
   "settings.terminal.fontSize": "Font size",

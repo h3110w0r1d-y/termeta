@@ -176,6 +176,12 @@ pub fn validate(settings: &Value) -> Result<()> {
                 return Err(invalid());
             }
         }
+        // UI 辅助色为可选扩展，兼容未保存该字段的旧配色。
+        if let Some(value) = colors.get("ui") {
+            if !color(value) {
+                return Err(invalid());
+            }
+        }
         if let Some(value) = colors.get("selectionForeground") {
             if !color(value) {
                 return Err(invalid());
@@ -211,6 +217,7 @@ pub fn validate(settings: &Value) -> Result<()> {
             ![
                 "foreground",
                 "background",
+                "ui",
                 "cursor",
                 "cursorAccent",
                 "selectionBackground",

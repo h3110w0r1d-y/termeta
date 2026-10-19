@@ -67,6 +67,7 @@ const scrollbarKeys = ["normal", "hover", "active"] as const;
 const colorLabels = computed(() => ({
   foreground: t("themes.colors.foreground"),
   background: t("themes.colors.background"),
+  ui: t("themes.colors.ui"),
   cursor: t("themes.colors.cursor"),
   cursorAccent: t("themes.colors.cursorAccent"),
   selectionBackground: t("themes.colors.selectionBackground"),
@@ -90,6 +91,7 @@ const contrast = computed(() => {
 const baseKeys = [
   "foreground",
   "background",
+  "ui",
   "cursor",
   "cursorAccent",
   "selectionBackground",
@@ -364,7 +366,8 @@ function confirmImport() {
                   v-model="formModel.editor.colors[key]"
                   :label="colorLabels[key]"
                   :path="`editor.colors.${key}`"
-                  :optional="key === 'selectionForeground'"
+                  :optional="key === 'selectionForeground' || key === 'ui'"
+                  :use-foreground="key === 'ui'"
                   :reset="defaultScheme.colors[key]"
                 />
               </NGridItem>

@@ -19,7 +19,7 @@ pnpm tauri icon "$ICON_MACOS_SOURCE" --output "$ICON_MACOS_OUTPUT"
 
 来源为 `ui-process/assets/reconnectSaga-871ae692.js`，文件与数据数组 SHA-256 见 [来源记录](terminal-palettes.provenance.json)。[提取工具](../scripts/extract-terminal-palettes.mjs) 仅用 TypeScript AST 接受对象/数组/字符串字面量，不运行解包程序或接受表达式。
 
-源 16 色映射 ANSI，backgroundColor/foregroundColor/cursorColor/selectionColor 映射对应主题字段；缺少的光标文字色沿用背景色，失焦选区沿用选区色。旧暗/浅预设分别归一 Nord Dark/Nord Light，Ocean 使用当前提取值；不删除自定义方案。主题与 JSON 行为见 [配色约束](../docs/09-desktop-ux.md#6-应用外观与终端配色)。
+源 16 色映射 ANSI，backgroundColor/foregroundColor/cursorColor/selectionColor 映射对应主题字段，app.terminalUIColor 映射可选的 colors.ui 标签栏辅助色；缺少的光标文字色沿用背景色，失焦选区沿用选区色。旧暗/浅预设分别归一 Nord Dark/Nord Light，Ocean 使用当前提取值；不删除自定义方案。主题与 JSON 行为见 [配色约束](../docs/09-desktop-ux.md#6-应用外观与终端配色)。
 
 ## 主机搜索拼音表
 

@@ -2,13 +2,20 @@
 import { t } from "../../i18n";
 import { IconGitBranch, IconX } from "@tabler/icons-vue";
 import { computed, onMounted, ref, watch } from "vue";
-import { NIcon, useThemeVars } from "naive-ui";
+import {
+  NConfigProvider,
+  NIcon,
+  darkTheme,
+  lightTheme,
+  type GlobalThemeOverrides,
+} from "naive-ui";
 import AppButton from "../../components/ui/AppButton.vue";
 import { useWorkbenchStore, type TerminalItem } from "../workbench/store";
 import { stateLabels } from "../workbench/store";
 import { schemeForTerminal, terminalRegistry } from "./registry";
 import { terminalBaseTitle, terminalDisplayTitle } from "./title";
 import SftpPanel from "../files/SftpPanel.vue";
+import { colorOverlay, isLightBackground } from "./appearance";
 const props = defineProps<{
   terminal: TerminalItem;
   active: boolean;
@@ -21,7 +28,6 @@ const emit = defineEmits<{
   close: [];
   menu: [event: MouseEvent | KeyboardEvent];
 }>();
-const themeVars = useThemeVars();
 const workbench = useWorkbenchStore();
 const broadcastCount = computed(() =>
   workbench.broadcastTargetCount(props.terminal.terminalId),
@@ -42,9 +48,23 @@ const broadcastTitle = computed(() =>
             broadcastCount: broadcastCount.value,
           }),
 );
-const background = computed(
-  () => schemeForTerminal(props.terminal).colors.background,
+const colors = computed(() => schemeForTerminal(props.terminal).colors);
+const uiColor = computed(() => colors.value.ui || colors.value.foreground);
+const headingTheme = computed(() =>
+  isLightBackground(colors.value.background) ? lightTheme : darkTheme,
 );
+const headingThemeOverrides = computed<GlobalThemeOverrides>(() => ({
+  // 只作用于标题栏，正文与 SFTP 不继承局部按钮主题。
+  Button: {
+    textColor: "var(--pane-button-color)",
+    textColorHover: "var(--pane-button-color)",
+    textColorPressed: "var(--pane-button-color)",
+    textColorFocus: "var(--pane-button-color)",
+    colorPrimary: "var(--pane-button-color)",
+    colorQuaternaryHover: colorOverlay(uiColor.value, 20),
+    colorQuaternaryPressed: colorOverlay(uiColor.value, 20),
+  },
+}));
 const displayTitle = computed(() =>
   terminalDisplayTitle(
     terminalBaseTitle(props.terminal),
@@ -92,61 +112,75 @@ function menuKey(event: KeyboardEvent) {
     :data-terminal-pane="terminal.terminalId"
     :aria-label="displayTitle"
     :style="{
-      '--terminal-background': background,
-      '--pane-focus-color': themeVars.primaryColor,
-      '--pane-muted-color': themeVars.textColor3,
+      '--terminal-background': colors.background,
+      '--pane-focus-color': colors.foreground,
+      '--pane-frame-default-color': colorOverlay(uiColor, 20),
+      '--pane-foreground': colors.foreground,
+      '--pane-muted-color': uiColor,
+      '--pane-heading-color': active ? colors.foreground : uiColor,
+      '--pane-button-color': uiColor,
+      '--pane-button-selected-background': colorOverlay(colors.foreground, 10),
     }"
     @pointerdown.capture="emit('focus')"
     @focusin="emit('focus')"
   >
-    <header v-if="split" class="terminal-pane-heading">
-      <button
-        type="button"
-        class="terminal-pane-title"
-        :data-drag-terminal="terminal.terminalId"
-        :title="displayTitle + ' · ' + t(stateLabels[terminal.state])"
-        @click="terminalRegistry.focus(terminal.terminalId)"
-        @contextmenu="emit('menu', $event)"
-        @keydown="menuKey"
-      >
-        <i class="status-dot" :class="terminal.state" aria-hidden="true" />
-        <span class="terminal-pane-title-text">{{ displayTitle }}</span>
-        <span v-if="terminal.sshCommand" class="pane-command-label">
-          {{ t("terminal.titles.command") }}
-        </span>
-      </button>
-      <AppButton
-        class="icon-button pane-broadcast"
-        :variant="participatesInBroadcast ? 'primary' : 'default'"
-        :aria-pressed="participatesInBroadcast"
-        :aria-label="broadcastTitle"
-        :title="broadcastTitle"
-        :disabled="!!terminal.sshCommand || (!broadcast && broadcastCount < 2)"
-        @click="terminalRegistry.toggleBroadcast()"
-      >
-        <NIcon :size="16" aria-hidden="true">
-          <IconGitBranch />
-        </NIcon>
-      </AppButton>
-      <AppButton
-        class="icon-button pane-close"
-        :aria-label="
-          t('terminal.actions.closeNamed', {
-            name: terminalBaseTitle(terminal),
-          })
-        "
-        :title="
-          t('terminal.actions.closeNamed', {
-            name: terminalBaseTitle(terminal),
-          })
-        "
-        @click="emit('close')"
-      >
-        <NIcon :size="14" aria-hidden="true">
-          <IconX />
-        </NIcon>
-      </AppButton>
-    </header>
+    <NConfigProvider
+      v-if="split"
+      abstract
+      :theme="headingTheme"
+      :theme-overrides="headingThemeOverrides"
+    >
+      <header class="terminal-pane-heading">
+        <button
+          type="button"
+          class="terminal-pane-title"
+          :data-drag-terminal="terminal.terminalId"
+          :title="displayTitle + ' · ' + t(stateLabels[terminal.state])"
+          @click="terminalRegistry.focus(terminal.terminalId)"
+          @contextmenu="emit('menu', $event)"
+          @keydown="menuKey"
+        >
+          <i class="status-dot" :class="terminal.state" aria-hidden="true" />
+          <span class="terminal-pane-title-text">{{ displayTitle }}</span>
+          <span v-if="terminal.sshCommand" class="pane-command-label">
+            {{ t("terminal.titles.command") }}
+          </span>
+        </button>
+        <AppButton
+          class="icon-button pane-broadcast"
+          :variant="participatesInBroadcast ? 'primary' : 'default'"
+          :aria-pressed="participatesInBroadcast"
+          :aria-label="broadcastTitle"
+          :title="broadcastTitle"
+          :disabled="
+            !!terminal.sshCommand || (!broadcast && broadcastCount < 2)
+          "
+          @click="terminalRegistry.toggleBroadcast()"
+        >
+          <NIcon :size="16" aria-hidden="true">
+            <IconGitBranch />
+          </NIcon>
+        </AppButton>
+        <AppButton
+          class="icon-button pane-close"
+          :aria-label="
+            t('terminal.actions.closeNamed', {
+              name: terminalBaseTitle(terminal),
+            })
+          "
+          :title="
+            t('terminal.actions.closeNamed', {
+              name: terminalBaseTitle(terminal),
+            })
+          "
+          @click="emit('close')"
+        >
+          <NIcon :size="14" aria-hidden="true">
+            <IconX />
+          </NIcon>
+        </AppButton>
+      </header>
+    </NConfigProvider>
     <div class="terminal-pane-body">
       <div ref="host" class="terminal-host" />
       <SftpPanel
@@ -198,7 +232,7 @@ function menuKey(event: KeyboardEvent) {
   inset: 0;
   z-index: 1;
   border: 1px var(--pane-frame-style, solid)
-    var(--pane-frame-color, var(--border));
+    var(--pane-frame-color, var(--pane-frame-default-color));
   pointer-events: none;
 }
 .terminal-pane.focused-pane {
@@ -232,7 +266,7 @@ function menuKey(event: KeyboardEvent) {
   text-align: left;
   font: inherit;
   font-size: 12px;
-  color: var(--text);
+  color: var(--pane-heading-color);
   background: transparent;
   border: 0;
   cursor: pointer;
@@ -250,6 +284,20 @@ function menuKey(event: KeyboardEvent) {
   width: 24px;
   height: 24px;
   padding: 0;
+}
+
+/* 与 Header 共用三色层级，按钮悬停和广播启用态使用当前终端前景色。 */
+.terminal-pane-title:hover {
+  color: var(--pane-foreground);
+}
+.terminal-pane-heading :deep(.n-button:hover),
+.terminal-pane-heading :deep(.n-button:focus-visible),
+.terminal-pane-heading :deep(.n-button:active),
+.terminal-pane-heading .pane-broadcast[aria-pressed="true"] {
+  --pane-button-color: var(--pane-foreground);
+}
+.terminal-pane-heading .pane-broadcast[aria-pressed="true"] {
+  background: var(--pane-button-selected-background);
 }
 
 /* 窗格仅标题可拖动，终端正文仍保留原生xterm选区与鼠标协议。 */

@@ -77,6 +77,7 @@ for (const p of palettes) {
     p.foregroundColor,
     p.cursorColor,
     p.selectionColor,
+    p.app?.terminalUIColor,
   ])
     if (typeof color !== "string" || !/^#[\da-f]{6}([\da-f]{2})?$/i.test(color))
       throw new Error(`非法颜色：${p.name}`);
@@ -99,6 +100,7 @@ const schemes = palettes.map((p) => {
     colors: {
       foreground: p.foregroundColor,
       background: p.backgroundColor,
+      ui: p.app.terminalUIColor,
       cursor: p.cursorColor,
       // 原数据未给出光标反色与失焦选区，分别沿用背景与原选区色。
       cursorAccent: p.backgroundColor,

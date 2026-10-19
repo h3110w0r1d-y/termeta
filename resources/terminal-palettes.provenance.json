@@ -1,5 +1,5 @@
 {
-  "extractedAt": "2026-10-15",
+  "extractedAt": "2026-10-19",
   "source": "用户提供的 Termius 解包目录",
   "sourceFiles": [
     {
@@ -26,14 +26,14 @@
   "arrayBytes": 21621,
   "arraySha256": "307748f9b6a431d89d9629ef9454ffb26b250c0215d9b09eb49959e845bef584",
   "schemeCount": 64,
-  "method": "仅静态解析数组的对象/数组/字符串字面量，不执行源程序；仅保留终端颜色字段与方案名称。",
+  "method": "仅静态解析数组的对象/数组/字符串字面量，不执行源程序；保留终端颜色、方案名称及配色内的 UI 辅助色。",
   "mapping": {
     "colorPaletteOverrides": "ansi（保留16色原顺序）",
     "backgroundColor": "background + cursorAccent",
     "foregroundColor": "foreground",
     "cursorColor": "cursor",
     "selectionColor": "selectionBackground + selectionInactiveBackground",
-    "app": "不导入应用界面字段"
+    "app.terminalUIColor": "colors.ui（标签栏辅助色）"
   },
   "license": "用户提供的本地应用数据，解包目录未确认独立配色授权；不声明整个配色集合采用 MIT/OFL 等许可证。"
 }

@@ -1,21 +1,12 @@
-import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
-import { darkTheme, lightTheme, type GlobalThemeOverrides } from "naive-ui";
+import { computed, watch } from "vue";
+import { darkTheme, type GlobalThemeOverrides } from "naive-ui";
 import { useSettings } from "../modules/settings/store";
 
 export function useAppAppearance() {
   const settings = useSettings();
-  const systemAppearance = window.matchMedia("(prefers-color-scheme: dark)");
-  const systemDark = ref(systemAppearance.matches);
-  const naiveTheme = computed(() =>
-    settings.value.appearance === "dark" ||
-    (settings.value.appearance === "system" && systemDark.value)
-      ? darkTheme
-      : null,
-  );
+  const naiveTheme = darkTheme;
   const primaryColor = computed(
-    () =>
-      settings.value.primaryColor ||
-      (naiveTheme.value ?? lightTheme).common.primaryColor,
+    () => settings.value.primaryColor || darkTheme.common.primaryColor,
   );
   const naiveThemeOverrides = computed<GlobalThemeOverrides>(() => {
     if (!settings.value.primaryColor) return {};
@@ -46,22 +37,6 @@ export function useAppAppearance() {
       document.documentElement.style.setProperty("--accent", color);
     },
     { immediate: true },
-  );
-  function updateSystemAppearance(event: MediaQueryListEvent) {
-    systemDark.value = event.matches;
-  }
-  watch(
-    () => settings.value.appearance,
-    (value) => {
-      document.documentElement.dataset.appearance = value;
-    },
-    { immediate: true },
-  );
-  onMounted(() =>
-    systemAppearance.addEventListener("change", updateSystemAppearance),
-  );
-  onBeforeUnmount(() =>
-    systemAppearance.removeEventListener("change", updateSystemAppearance),
   );
   return { naiveTheme, naiveThemeOverrides };
 }

@@ -30,6 +30,50 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "windows": {
+      "wix": {
+        "language": [
+          "en-US",
+          "zh-CN",
+          "zh-TW",
+          "ja-JP",
+          "ko-KR",
+          "fr-FR",
+          "de-DE",
+          "es-ES",
+          "pt-BR",
+          "pt-PT",
+          "it-IT",
+          "ru-RU",
+          "nl-NL",
+          "sv-SE",
+          "tr-TR",
+          "uk-UA"
+        ]
+      },
+      "nsis": {
+        "installMode": "both",
+        "languages": [
+          "English",
+          "SimpChinese",
+          "TradChinese",
+          "Japanese",
+          "Korean",
+          "French",
+          "German",
+          "Spanish",
+          "PortugueseBR",
+          "Portuguese",
+          "Italian",
+          "Russian",
+          "Dutch",
+          "Swedish",
+          "Turkish",
+          "Ukrainian"
+        ],
+        "displayLanguageSelector": true
+      }
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

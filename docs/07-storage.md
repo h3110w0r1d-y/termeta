@@ -1,6 +1,6 @@
 # 加密数据保险库与持久化
 
-更新：2026-10-18。本文维护本机持久化、升级与故障恢复契约；云包格式和导入见 [数据备份](22-data-backup.md)。当前为加密格式 2、schema 6，支持同格式 schema 2–5 原位升级，不迁移早期明文库或旧凭据格式。源码实现不代表三平台运行验收完成。
+更新：2026-10-19。本文维护本机持久化、升级与故障恢复契约；云包格式和导入见 [数据备份](22-data-backup.md)。当前为加密格式 2、schema 6，支持同格式 schema 2–5 原位升级，不迁移早期明文库或旧凭据格式。源码实现不代表三平台运行验收完成。
 
 ## 1. 存储边界
 
@@ -10,6 +10,10 @@
 | `termeta-encrypted-v2.vault.json` | 格式、保险库 UUID、固定 KDF 标识、16 字节盐、12 字节 nonce、AES-256-GCM 校验记录和初始化标记；不含密码/主密钥，必须与数据库配对保留 |
 | OS 凭据库 | 只缓存一个 32 字节主密钥：service=`io.termeta`、account=`master-key-v2` |
 | Rust 内存 | 已解锁连接池及短期秘密；秘密不通过公共 DTO 返回，不能保证第三方库内部副本全部擦除 |
+
+数据目录由 Tauri `app_data_dir()` 解析，Windows 为当前运行用户的 `%APPDATA%\io.termeta`，macOS 为 `~/Library/Application Support/io.termeta`，不随程序安装目录或安装范围迁移。macOS 主密钥缓存使用 Keychain；Windows 使用 `keyring 3.6.3` 的 `windows-native` 后端写入当前用户 Windows 凭据管理器的通用凭据，目标名为 `master-key-v2.io.termeta`。OS 库仅缓存主密钥，SSH 密码和私钥正文仍在加密数据库中。
+
+Windows 所有用户安装只共享程序文件，不共享数据库或主密钥；同一 Windows 用户切换安装范围且应用标识不变时仍使用原数据与凭据项。以另一账号启动应用（包括使用另一管理员账号运行）会切换到该账号的数据目录和凭据库，不会自动读取原账号保险库。安装范围切换、不同账号及提权启动的实际行为仍待 Windows 验收。
 
 SQLCipher 由锁定的 `libsqlite3-sys 0.30.1` 内嵌 4.5.7 源码与 vendored OpenSSL 提供。连接先应用 raw key 再读页面，拒绝缺少 SQLCipher 4 的环境，不回退普通 SQLite；禁用 SQL 语句日志。Unix 应用目录 0700、数据库及元数据 0600；Windows ACL 仍待验证。
 

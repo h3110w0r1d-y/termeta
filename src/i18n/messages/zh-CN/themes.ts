@@ -1,5 +1,7 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
+  "themes.actions.useForeground": "使用终端文字色",
+  "themes.colors.ui": "标签栏辅助色（留空使用终端文字色）",
   "themes.confirmDelete":
     "删除此配色？使用它的主机和终端将改用默认配色 {name}。",
   "themes.search.placeholder": "搜索配色…",

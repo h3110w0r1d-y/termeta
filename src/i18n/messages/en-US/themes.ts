@@ -1,5 +1,7 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
+  "themes.actions.useForeground": "Use terminal text color",
+  "themes.colors.ui": "Tab bar UI color (terminal text color when empty)",
   "themes.confirmDelete":
     "Delete this theme? Hosts and terminals using it will switch to the default theme, {name}.",
   "themes.search.placeholder": "Search themes…",

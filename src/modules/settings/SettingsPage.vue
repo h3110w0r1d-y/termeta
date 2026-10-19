@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { t } from "../../i18n";
-import { IconMoon, IconSun, IconDeviceDesktop } from "@tabler/icons-vue";
 import {
   NColorPicker,
   NButton,
@@ -13,7 +12,6 @@ import {
   type FormRules,
   NRadioGroup,
   NRadioButton,
-  NIcon,
   type SelectRenderLabel,
 } from "naive-ui";
 import AppNumberField from "../../components/ui/AppNumberField.vue";
@@ -56,7 +54,6 @@ function resetPrimaryColor() {
 const rules = computed<FormRules>(() => ({
   tabPosition: requiredText("settings.general.tabPosition"),
   tabDoubleClickAction: requiredText("settings.general.tabDoubleClickAction"),
-  appearance: requiredText("settings.general.appearance"),
   primaryColor: {
     trigger: ["change", "blur"],
     validator: (_, value: string) =>
@@ -110,7 +107,7 @@ const rules = computed<FormRules>(() => ({
                     :options="[
                       {
                         value: 'system',
-                        label: t('settings.appearance.system'),
+                        label: t('settings.language.system'),
                       },
                       { value: 'zh-CN', label: '简体中文' },
                       { value: 'en-US', label: 'English' },
@@ -152,55 +149,6 @@ const rules = computed<FormRules>(() => ({
                       { value: 'split', label: t('workbench.actions.split') },
                     ]"
                   />
-                </NFormItem>
-                <NFormItem
-                  :label="t('settings.general.appearance')"
-                  path="appearance"
-                >
-                  <NRadioGroup
-                    v-model:value="draft.appearance"
-                    :aria-label="t('settings.general.appearance')"
-                  >
-                    <NRadioButton
-                      value="dark"
-                      :title="t('settings.appearance.dark')"
-                    >
-                      <span class="appearance-option">
-                        <NIcon :size="16" aria-hidden="true">
-                          <IconMoon />
-                        </NIcon>
-                        <span class="appearance-label">
-                          {{ t("settings.appearance.dark") }}
-                        </span>
-                      </span>
-                    </NRadioButton>
-                    <NRadioButton
-                      value="light"
-                      :title="t('settings.appearance.light')"
-                    >
-                      <span class="appearance-option">
-                        <NIcon :size="16" aria-hidden="true">
-                          <IconSun />
-                        </NIcon>
-                        <span class="appearance-label">
-                          {{ t("settings.appearance.light") }}
-                        </span>
-                      </span>
-                    </NRadioButton>
-                    <NRadioButton
-                      value="system"
-                      :title="t('settings.appearance.system')"
-                    >
-                      <span class="appearance-option">
-                        <NIcon :size="16" aria-hidden="true">
-                          <IconDeviceDesktop />
-                        </NIcon>
-                        <span class="appearance-label">
-                          {{ t("settings.appearance.system") }}
-                        </span>
-                      </span>
-                    </NRadioButton>
-                  </NRadioGroup>
                 </NFormItem>
                 <NFormItem
                   ref="primaryColorItem"
@@ -338,19 +286,6 @@ const rules = computed<FormRules>(() => ({
   margin-top: 20px;
 }
 
-.appearance-option {
-  display: inline-flex;
-  align-items: center;
-}
-.appearance-label {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
 fieldset.settings-body {
   border: 0;
   margin: 0;

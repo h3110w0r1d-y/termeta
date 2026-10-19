@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { t } from "../../i18n";
 import { NIcon } from "naive-ui";
-import { IconRefresh } from "@tabler/icons-vue";
+import { IconRefresh, IconX } from "@tabler/icons-vue";
 import AppColorPicker from "../../components/ui/AppColorPicker.vue";
 import AppButton from "../../components/ui/AppButton.vue";
 import { NFormItem, type FormItemInst, type FormItemRule } from "naive-ui";
@@ -12,6 +12,7 @@ const props = defineProps<{
   reset?: string;
   path: string;
   optional?: boolean;
+  useForeground?: boolean;
 }>();
 const formItem = ref<FormItemInst>();
 const rule = computed<FormItemRule>(() => ({
@@ -30,6 +31,10 @@ function resetColor() {
   // 重置按钮不触发取色器的 change；写入共享 model 后重验字段以清除旧错误。
   void formItem.value?.validate({ trigger: "change" }).catch(() => undefined);
 }
+function useForegroundColor() {
+  emit("update:modelValue", "");
+  void formItem.value?.validate({ trigger: "change" }).catch(() => undefined);
+}
 </script>
 <template>
   <NFormItem ref="formItem" :label="label" :path="path" :rule="rule">
@@ -41,6 +46,14 @@ function resetColor() {
           @update:model-value="emit('update:modelValue', $event)"
         />
       </div>
+      <AppButton
+        v-if="useForeground && modelValue"
+        :title="t('themes.actions.useForeground')"
+        :aria-label="t('themes.actions.useForeground')"
+        @click="useForegroundColor"
+      >
+        <NIcon :size="16" aria-hidden="true"><IconX /></NIcon>
+      </AppButton>
       <AppButton
         class="color-field-reset"
         v-if="reset"

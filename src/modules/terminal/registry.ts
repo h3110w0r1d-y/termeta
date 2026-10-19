@@ -25,7 +25,11 @@ import {
 } from "../../services/commands/registry";
 import { useSettings } from "../settings/store";
 import { loadTerminalFont, terminalFontFamily } from "../settings/fonts";
-import { builtinSchemes, resolveScheme } from "../settings/themes";
+import {
+  builtinSchemes,
+  resolveScheme,
+  resolveTerminalScheme,
+} from "../settings/themes";
 import { useWorkbenchStore, type TerminalItem } from "../workbench/store";
 import {
   registerSessionPresence,
@@ -390,15 +394,7 @@ function settings(entry: Entry, terminal: TerminalItem) {
   entry.term.options.scrollback = s.scrollback;
 }
 export function schemeForTerminal(terminal: TerminalItem) {
-  const s = useSettings().value;
-  return resolveScheme(
-    terminal.schemeId ??
-      (terminal.target.source === "saved"
-        ? s.hostSchemes[terminal.target.profileId]
-        : undefined) ??
-      s.defaultSchemeId,
-    s.customSchemes,
-  );
+  return resolveTerminalScheme(terminal, useSettings().value);
 }
 function fit(entry: Entry, terminal: TerminalItem) {
   if (entry.host.clientWidth < 10 || entry.host.clientHeight < 10) return;
@@ -721,15 +717,23 @@ export const terminalRegistry = {
     await entry.closing;
   },
   apply() {
-    for (const terminal of useWorkbenchStore().terminals) {
+    const workbench = useWorkbenchStore();
+    const saved = useSettings().value;
+    const available = new Set([
+      ...saved.customSchemes.map((s) => s.id),
+      ...builtinSchemes.map((s) => s.id),
+    ]);
+    for (const terminal of workbench.terminals) {
+      if (terminal.schemeId && !available.has(terminal.schemeId)) {
+        const group = workbench.groupForTerminal(terminal.terminalId);
+        // 删除自定义配色后工作区仍统一回退；单终端继续沿用原来的继承规则。
+        terminal.schemeId =
+          group && (group.root.kind === "split" || group.savedProfileId)
+            ? resolveScheme(saved.defaultSchemeId, saved.customSchemes).id
+            : undefined;
+      }
       const e = entries.get(terminal.terminalId);
       if (e) {
-        const available = [
-          ...useSettings().value.customSchemes.map((s) => s.id),
-          ...builtinSchemes.map((s) => s.id),
-        ];
-        if (terminal.schemeId && !available.includes(terminal.schemeId))
-          terminal.schemeId = undefined;
         settings(e, terminal);
         fit(e, terminal);
       }

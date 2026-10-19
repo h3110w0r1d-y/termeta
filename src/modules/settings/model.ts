@@ -9,6 +9,8 @@ export interface Scheme {
   colors: {
     foreground: string;
     background: string;
+    // Header 普通标签与工具按钮的辅助色；旧方案缺失时回退前景色。
+    ui?: string;
     cursor: string;
     cursorAccent: string;
     selectionBackground: string;
@@ -36,7 +38,8 @@ export interface AppSettings {
   schemaVersion: 1;
   language: Language;
   primaryColor: string;
-  appearance: "dark" | "light" | "system";
+  // 保留旧持久化字段，应用外观统一使用深色。
+  appearance: "dark";
   tabPosition: "top" | "left";
   tabDoubleClickAction: "none" | "close" | "duplicate" | "split";
   sftpShowHidden: boolean;

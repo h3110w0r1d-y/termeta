@@ -7,6 +7,7 @@
     "colors": {
       "foreground": "#21b568",
       "background": "#141729",
+      "ui": "#8D91A5",
       "cursor": "#21b568",
       "cursorAccent": "#141729",
       "selectionBackground": "#21b56880",
@@ -39,6 +40,7 @@
     "colors": {
       "foreground": "#32364a",
       "background": "#d5dde0",
+      "ui": "#6C797E",
       "cursor": "#32364a",
       "cursorAccent": "#d5dde0",
       "selectionBackground": "#32364a80",
@@ -71,6 +73,7 @@
     "colors": {
       "foreground": "#cecdc3",
       "background": "#100f0f",
+      "ui": "#888781",
       "cursor": "#cecdc3",
       "cursorAccent": "#100f0f",
       "selectionBackground": "#cecdc380",
@@ -103,6 +106,7 @@
     "colors": {
       "foreground": "#100f0f",
       "background": "#fffcf0",
+      "ui": "#878580",
       "cursor": "#100f0f",
       "cursorAccent": "#fffcf0",
       "selectionBackground": "#100f0f80",
@@ -135,6 +139,7 @@
     "colors": {
       "foreground": "#dcd7ba",
       "background": "#1f1f28",
+      "ui": "#88928a",
       "cursor": "#c8c093",
       "cursorAccent": "#1f1f28",
       "selectionBackground": "#d7ba8080",
@@ -167,6 +172,7 @@
     "colors": {
       "foreground": "#c5c9c5",
       "background": "#181616",
+      "ui": "#88928a",
       "cursor": "#c8c093",
       "cursorAccent": "#181616",
       "selectionBackground": "#c9c58080",
@@ -199,6 +205,7 @@
     "colors": {
       "foreground": "#545464",
       "background": "#f2ecbc",
+      "ui": "#88928a",
       "cursor": "#43436c",
       "cursorAccent": "#f2ecbc",
       "selectionBackground": "#54648080",
@@ -231,6 +238,7 @@
     "colors": {
       "foreground": "#11b7ff",
       "background": "#010515",
+      "ui": "#2c71a4",
       "cursor": "#10b6ff",
       "cursorAccent": "#010515",
       "selectionBackground": "#c1e4ff80",
@@ -263,6 +271,7 @@
     "colors": {
       "foreground": "#16b10e",
       "background": "#020f01",
+      "ui": "#2ca43f",
       "cursor": "#15d00d",
       "cursorAccent": "#020f01",
       "selectionBackground": "#d4ffc180",
@@ -295,6 +304,7 @@
     "colors": {
       "foreground": "#b10e0e",
       "background": "#200000",
+      "ui": "#a42c2c",
       "cursor": "#b00d0d",
       "cursorAccent": "#200000",
       "selectionBackground": "#ebc1ff80",
@@ -327,6 +337,7 @@
     "colors": {
       "foreground": "#d3c6aa",
       "background": "#282e32",
+      "ui": "#88928A",
       "cursor": "#d3c6aa",
       "cursorAccent": "#282e32",
       "selectionBackground": "#d3c6aa80",
@@ -359,6 +370,7 @@
     "colors": {
       "foreground": "#5c6a72",
       "background": "#fefbf1",
+      "ui": "#959F92",
       "cursor": "#5c6a72",
       "cursorAccent": "#fefbf1",
       "selectionBackground": "#5c6a7280",
@@ -391,6 +403,7 @@
     "colors": {
       "foreground": "#d6deeb",
       "background": "#011627",
+      "ui": "#6D90AD",
       "cursor": "#80a4c2",
       "cursorAccent": "#011627",
       "selectionBackground": "#d6deeb80",
@@ -423,6 +436,7 @@
     "colors": {
       "foreground": "#403f53",
       "background": "#fbfbfb",
+      "ui": "#8898A4",
       "cursor": "#90a7b2",
       "cursorAccent": "#fbfbfb",
       "selectionBackground": "#403f5380",
@@ -455,6 +469,7 @@
     "colors": {
       "foreground": "#edecee",
       "background": "#21202e",
+      "ui": "#A6A2D7",
       "cursor": "#edecee",
       "cursorAccent": "#21202e",
       "selectionBackground": "#edecee80",
@@ -487,6 +502,7 @@
     "colors": {
       "foreground": "#e0def4",
       "background": "#191724",
+      "ui": "#858297",
       "cursor": "#e0def4",
       "cursorAccent": "#191724",
       "selectionBackground": "#e0def480",
@@ -519,6 +535,7 @@
     "colors": {
       "foreground": "#e0def4",
       "background": "#232136",
+      "ui": "#858297",
       "cursor": "#e0def4",
       "cursorAccent": "#232136",
       "selectionBackground": "#e0def480",
@@ -551,6 +568,7 @@
     "colors": {
       "foreground": "#575279",
       "background": "#faf4ed",
+      "ui": "#7D776F",
       "cursor": "#575279",
       "cursorAccent": "#faf4ed",
       "selectionBackground": "#57527980",
@@ -583,6 +601,7 @@
     "colors": {
       "foreground": "#ffffff",
       "background": "#132738",
+      "ui": "#8B9CAB",
       "cursor": "#f0cc09",
       "cursorAccent": "#132738",
       "selectionBackground": "#ffffff80",
@@ -615,6 +634,7 @@
     "colors": {
       "foreground": "#8b949e",
       "background": "#101216",
+      "ui": "#626873",
       "cursor": "#c9d1d9",
       "cursorAccent": "#101216",
       "selectionBackground": "#8b949e80",
@@ -647,6 +667,7 @@
     "colors": {
       "foreground": "#3e3e3e",
       "background": "#f4f4f4",
+      "ui": "#A1A1A1",
       "cursor": "#3f3f3f",
       "cursorAccent": "#f4f4f4",
       "selectionBackground": "#3e3e3e80",
@@ -679,6 +700,7 @@
     "colors": {
       "foreground": "#e6e1cf",
       "background": "#0f1419",
+      "ui": "#716F67",
       "cursor": "#f29718",
       "cursorAccent": "#0f1419",
       "selectionBackground": "#e6e1cf80",
@@ -711,6 +733,7 @@
     "colors": {
       "foreground": "#5c6773",
       "background": "#fafafa",
+      "ui": "#A1A1A1",
       "cursor": "#ff6a00",
       "cursorAccent": "#fafafa",
       "selectionBackground": "#5c677380",
@@ -743,6 +766,7 @@
     "colors": {
       "foreground": "#e5e5e5",
       "background": "#332a57",
+      "ui": "#8174B8",
       "cursor": "#21f6bc",
       "cursorAccent": "#332a57",
       "selectionBackground": "#e5e5e580",
@@ -775,6 +799,7 @@
     "colors": {
       "foreground": "#ff0055",
       "background": "#101116",
+      "ui": "#933F5B",
       "cursor": "#00ffc8",
       "cursorAccent": "#101116",
       "selectionBackground": "#ff005580",
@@ -807,6 +832,7 @@
     "colors": {
       "foreground": "#f5f5ea",
       "background": "#0b141f",
+      "ui": "#8092A7",
       "cursor": "#f7d382",
       "cursorAccent": "#0b141f",
       "selectionBackground": "#f5f5ea80",
@@ -839,6 +865,7 @@
     "colors": {
       "foreground": "#632228",
       "background": "#f5e8e7",
+      "ui": "#B29A98",
       "cursor": "#d7b25e",
       "cursorAccent": "#f5e8e7",
       "selectionBackground": "#63222880",
@@ -871,6 +898,7 @@
     "colors": {
       "foreground": "#eeeeec",
       "background": "#2c001e",
+      "ui": "#B385A5",
       "cursor": "#bbbbbb",
       "cursorAccent": "#2c001e",
       "selectionBackground": "#eeeeec80",
@@ -903,6 +931,7 @@
     "colors": {
       "foreground": "#520701",
       "background": "#f5c19e",
+      "ui": "#8A6851",
       "cursor": "#b33a00",
       "cursorAccent": "#f5c19e",
       "selectionBackground": "#e6760180",
@@ -935,6 +964,7 @@
     "colors": {
       "foreground": "#dedee1",
       "background": "#0d1030",
+      "ui": "#767698",
       "cursor": "#dedee1",
       "cursorAccent": "#0d1030",
       "selectionBackground": "#dedee180",
@@ -967,6 +997,7 @@
     "colors": {
       "foreground": "#353247",
       "background": "#e4ecf4",
+      "ui": "#798DA1",
       "cursor": "#353247",
       "cursorAccent": "#e4ecf4",
       "selectionBackground": "#35324780",
@@ -999,6 +1030,7 @@
     "colors": {
       "foreground": "#e4d5cc",
       "background": "#00192c",
+      "ui": "#869CB2",
       "cursor": "#f8cfa6",
       "cursorAccent": "#00192c",
       "selectionBackground": "#e4d5cc80",
@@ -1031,6 +1063,7 @@
     "colors": {
       "foreground": "#1a2720",
       "background": "#ece3d1",
+      "ui": "#887F6A",
       "cursor": "#5c6370",
       "cursorAccent": "#ece3d1",
       "selectionBackground": "#abb2bf80",
@@ -1063,6 +1096,7 @@
     "colors": {
       "foreground": "#cdd6ff",
       "background": "#1a1b26",
+      "ui": "#6E769A",
       "cursor": "#c0caf5",
       "cursorAccent": "#1a1b26",
       "selectionBackground": "#c0caf580",
@@ -1095,6 +1129,7 @@
     "colors": {
       "foreground": "#2f54a8",
       "background": "#e1e2e7",
+      "ui": "#757885",
       "cursor": "#3760bf",
       "cursorAccent": "#e1e2e7",
       "selectionBackground": "#3760bf80",
@@ -1127,6 +1162,7 @@
     "colors": {
       "foreground": "#4c4f69",
       "background": "#eff1f5",
+      "ui": "#858A9C",
       "cursor": "#dc8a78",
       "cursorAccent": "#eff1f5",
       "selectionBackground": "#dc8a7880",
@@ -1159,6 +1195,7 @@
     "colors": {
       "foreground": "#cdd6f4",
       "background": "#1e1e2e",
+      "ui": "#777790",
       "cursor": "#f5e0dc",
       "cursorAccent": "#1e1e2e",
       "selectionBackground": "#f5e0dc80",
@@ -1191,6 +1228,7 @@
     "colors": {
       "foreground": "#fdf6f6",
       "background": "#311652",
+      "ui": "#856EA2",
       "cursor": "#ffa900",
       "cursorAccent": "#311652",
       "selectionBackground": "#ffa90080",
@@ -1223,6 +1261,7 @@
     "colors": {
       "foreground": "#ffe7c3",
       "background": "#1f0900",
+      "ui": "#8C6D5E",
       "cursor": "#e6c03c",
       "cursorAccent": "#1f0900",
       "selectionBackground": "#3b262680",
@@ -1255,6 +1294,7 @@
     "colors": {
       "foreground": "#abb2bf",
       "background": "#1e2127",
+      "ui": "#70798D",
       "cursor": "#5c6370",
       "cursorAccent": "#1e2127",
       "selectionBackground": "#abb2bf80",
@@ -1287,6 +1327,7 @@
     "colors": {
       "foreground": "#383a42",
       "background": "#f9f9f9",
+      "ui": "#9395A3",
       "cursor": "#383a42",
       "cursorAccent": "#f9f9f9",
       "selectionBackground": "#383a4280",
@@ -1319,6 +1360,7 @@
     "colors": {
       "foreground": "#e5e5e5",
       "background": "#22012b",
+      "ui": "#9F84A7",
       "cursor": "#ffa900",
       "cursorAccent": "#22012b",
       "selectionBackground": "#ffa90080",
@@ -1351,6 +1393,7 @@
     "colors": {
       "foreground": "#281f63",
       "background": "#fffdf5",
+      "ui": "#8B8982",
       "cursor": "#b33a00",
       "cursorAccent": "#fffdf5",
       "selectionBackground": "#e6760180",
@@ -1383,6 +1426,7 @@
     "colors": {
       "foreground": "#ebdbb2",
       "background": "#282828",
+      "ui": "#908477",
       "cursor": "#ebdbb2",
       "cursorAccent": "#282828",
       "selectionBackground": "#ebdbb280",
@@ -1415,6 +1459,7 @@
     "colors": {
       "foreground": "#282828",
       "background": "#fbf1c7",
+      "ui": "#857D5F",
       "cursor": "#282828",
       "cursorAccent": "#fbf1c7",
       "selectionBackground": "#28282880",
@@ -1447,6 +1492,7 @@
     "colors": {
       "foreground": "#e5e5e5",
       "background": "#232322",
+      "ui": "#75756E",
       "cursor": "#16afca",
       "cursorAccent": "#232322",
       "selectionBackground": "#e5e5e580",
@@ -1479,6 +1525,7 @@
     "colors": {
       "foreground": "#2f2f2f",
       "background": "#eaeaea",
+      "ui": "#747474",
       "cursor": "#16afca",
       "cursorAccent": "#eaeaea",
       "selectionBackground": "#23232280",
@@ -1511,6 +1558,7 @@
     "colors": {
       "foreground": "#b8b9b4",
       "background": "#0a0a0a",
+      "ui": "#7B7B7B",
       "cursor": "#dfe0db",
       "cursorAccent": "#0a0a0a",
       "selectionBackground": "#b8b9b480",
@@ -1543,6 +1591,7 @@
     "colors": {
       "foreground": "#ffe9da",
       "background": "#ea56c1",
+      "ui": "#FFD9F2",
       "cursor": "#bafc8b",
       "cursorAccent": "#ea56c1",
       "selectionBackground": "#ffe9da80",
@@ -1575,6 +1624,7 @@
     "colors": {
       "foreground": "#000000",
       "background": "#ffffff",
+      "ui": "#808080",
       "cursor": "#7f7f7f",
       "cursorAccent": "#ffffff",
       "selectionBackground": "#00000080",
@@ -1607,6 +1657,7 @@
     "colors": {
       "foreground": "#00ff00",
       "background": "#000000",
+      "ui": "#9D9D9D",
       "cursor": "#23ff18",
       "cursorAccent": "#000000",
       "selectionBackground": "#00ff0080",
@@ -1639,6 +1690,7 @@
     "colors": {
       "foreground": "#fff0a5",
       "background": "#13773d",
+      "ui": "#8ED4AC",
       "cursor": "#8c2800",
       "cursorAccent": "#13773d",
       "selectionBackground": "#fff0a580",
@@ -1671,6 +1723,7 @@
     "colors": {
       "foreground": "#000000",
       "background": "#fef49c",
+      "ui": "#848057",
       "cursor": "#7f7f7f",
       "cursorAccent": "#fef49c",
       "selectionBackground": "#00000080",
@@ -1703,6 +1756,7 @@
     "colors": {
       "foreground": "#3b2322",
       "background": "#dfdbc3",
+      "ui": "#6F6C5A",
       "cursor": "#73635a",
       "cursorAccent": "#dfdbc3",
       "selectionBackground": "#3b232280",
@@ -1735,6 +1789,7 @@
     "colors": {
       "foreground": "#ffffff",
       "background": "#224fbc",
+      "ui": "#9BB4EE",
       "cursor": "#7f7f7f",
       "cursorAccent": "#224fbc",
       "selectionBackground": "#ffffff80",
@@ -1767,6 +1822,7 @@
     "colors": {
       "foreground": "#f2f2f2",
       "background": "#000000",
+      "ui": "#9D9D9D",
       "cursor": "#4d4d4d",
       "cursorAccent": "#000000",
       "selectionBackground": "#f2f2f280",
@@ -1799,6 +1855,7 @@
     "colors": {
       "foreground": "#d7c9a7",
       "background": "#7a251e",
+      "ui": "#CC8984",
       "cursor": "#ffffff",
       "cursorAccent": "#7a251e",
       "selectionBackground": "#d7c9a780",
@@ -1831,6 +1888,7 @@
     "colors": {
       "foreground": "#839496",
       "background": "#002b36",
+      "ui": "#5D838D",
       "cursor": "#657779",
       "cursorAccent": "#002b36",
       "selectionBackground": "#65777980",
@@ -1863,6 +1921,7 @@
     "colors": {
       "foreground": "#657b83",
       "background": "#fdf6e3",
+      "ui": "#9C9686",
       "cursor": "#657b83",
       "cursorAccent": "#fdf6e3",
       "selectionBackground": "#657b8380",
@@ -1895,6 +1954,7 @@
     "colors": {
       "foreground": "#000000",
       "background": "#919191",
+      "ui": "#4D4D4D",
       "cursor": "#d9d9d9",
       "cursorAccent": "#919191",
       "selectionBackground": "#00000080",
@@ -1927,6 +1987,7 @@
     "colors": {
       "foreground": "#f8f8f2",
       "background": "#282a36",
+      "ui": "#7D8197",
       "cursor": "#bbbbbb",
       "cursorAccent": "#282a36",
       "selectionBackground": "#f8f8f280",
@@ -1959,6 +2020,7 @@
     "colors": {
       "foreground": "#d9d9d9",
       "background": "#0c0c0c",
+      "ui": "#86899A",
       "cursor": "#fc971f",
       "cursorAccent": "#0c0c0c",
       "selectionBackground": "#d9d9d980",
@@ -1991,6 +2053,7 @@
     "colors": {
       "foreground": "#414858",
       "background": "#e5e9f0",
+      "ui": "#6F7683",
       "cursor": "#88c0d0",
       "cursorAccent": "#e5e9f0",
       "selectionBackground": "#41485880",
@@ -2023,6 +2086,7 @@
     "colors": {
       "foreground": "#d8dee9",
       "background": "#2e3440",
+      "ui": "#808A9E",
       "cursor": "#eceff4",
       "cursorAccent": "#2e3440",
       "selectionBackground": "#eceff480",

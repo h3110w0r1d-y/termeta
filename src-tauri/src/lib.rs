@@ -10,6 +10,7 @@ mod settings;
 mod settings_window;
 mod shutdown;
 mod state;
+mod window_appearance;
 
 use state::AppState;
 use std::{
@@ -117,7 +118,7 @@ pub fn run() {
                 .traffic_light_position(tauri::LogicalPosition::new(16.0, 26.0));
             #[cfg(not(target_os = "macos"))]
             let window = window.decorations(false);
-            window
+            window_appearance::prepare(window)
                 .on_navigation(local_navigation)
                 .on_new_window(|_, _| tauri::webview::NewWindowResponse::Deny)
                 .build()?;

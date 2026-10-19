@@ -1,5 +1,6 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
+  "settings.language.system": "跟随系统",
   "settings.actions.open": "打开设置",
   "settings.detection.enabled": "连接 SSH 时自动识别系统",
   "settings.detection.description":
@@ -10,10 +11,6 @@ export default {
   "settings.general.tabPosition": "标签栏位置",
   "settings.general.tabDoubleClick": "双击标签页",
   "settings.general.tabDoubleClickAction": "双击标签页动作",
-  "settings.general.appearance": "应用外观",
-  "settings.appearance.dark": "深色",
-  "settings.appearance.light": "浅色",
-  "settings.appearance.system": "跟随系统",
   "settings.general.accentColor": "主题色",
   "settings.terminal.font": "终端字体",
   "settings.terminal.fontSize": "字号",

@@ -3,7 +3,8 @@ import { desktop } from "../../services/desktop/client";
 import { parseJson } from "../../services/data/json";
 import { clone } from "../../services/data/clone";
 import type { ITheme } from "@xterm/xterm";
-import type { Scheme } from "./model";
+import type { AppSettings, Scheme } from "./model";
+import type { OpenTarget } from "../../services/desktop/types";
 import palettes from "../../../resources/terminal-palettes.json";
 // 名称和终端色值由用户提供的配色数组静态提取，映射及摘要见 resources 中的来源记录。
 export const builtinSchemes: Scheme[] = palettes.map((palette): Scheme => ({
@@ -18,6 +19,20 @@ export const defaultScheme = builtinSchemes.find(
 export function resolveScheme(id: string, custom: Scheme[]) {
   return (
     [...builtinSchemes, ...custom].find((s) => s.id === id) ?? defaultScheme
+  );
+}
+/** 合并工作区与终端渲染共用同一配色优先级，不依赖 xterm 实例。 */
+export function resolveTerminalScheme(
+  terminal: { schemeId?: string; target: OpenTarget },
+  settings: AppSettings,
+): Scheme {
+  return resolveScheme(
+    terminal.schemeId ??
+      (terminal.target.source === "saved"
+        ? settings.hostSchemes[terminal.target.profileId]
+        : undefined) ??
+      settings.defaultSchemeId,
+    settings.customSchemes,
   );
 }
 export function toXtermTheme(scheme: Scheme): ITheme {
@@ -89,6 +104,7 @@ export function parseScheme(text: string): Scheme {
       if (k in converted && typeof v === "string") converted[k] = v;
     colors = {
       ...base.colors,
+      ui: undefined,
       ...converted,
       ansi: [
         "black",
@@ -121,6 +137,12 @@ export function parseScheme(text: string): Scheme {
   ] as const)
     if (typeof c[k] !== "string" || !colorPattern.test(c[k]))
       throw new Error(t("themes.validation.colorField", { name: k }));
+  if (
+    c.ui !== undefined &&
+    c.ui !== "" &&
+    (typeof c.ui !== "string" || !colorPattern.test(c.ui))
+  )
+    throw new Error(t("themes.validation.colorField", { name: "ui" }));
   if (c.background.length !== 7)
     throw new Error(t("themes.validation.background"));
   if (
@@ -151,6 +173,7 @@ export function parseScheme(text: string): Scheme {
     colors: {
       foreground: c.foreground,
       background: c.background,
+      ui: c.ui || undefined,
       cursor: c.cursor,
       cursorAccent: c.cursorAccent,
       selectionBackground: c.selectionBackground,

@@ -259,7 +259,7 @@ watch(
   { flush: "post" },
 );
 watch(
-  () => workbench.activeTerminal?.schemeId,
+  () => workbench.terminals.map((terminal) => terminal.schemeId),
   () => terminalRegistry.apply(),
 );
 async function closeApplication() {

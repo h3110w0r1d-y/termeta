@@ -7,6 +7,8 @@ import { terminalBaseTitle, terminalDisplayTitle } from "../terminal/title";
 import type { TerminalActivity } from "../terminal/activity";
 import { moveTabBefore } from "./tabInsertion";
 import { broadcastTargets, type InputKind } from "../terminal/inputRouter";
+import { useSettings } from "../settings/store";
+import { resolveTerminalScheme } from "../settings/themes";
 import {
   terminalIds,
   balancedLayout,
@@ -276,6 +278,7 @@ export const useWorkbenchStore = defineStore("workbench", () => {
       const ids = new Set(created.map((terminal) => terminal.terminalId));
       const group = groups.value.find((item) => item.id === first.terminalId)!;
       group.root = balancedLayout([...ids])!;
+      unifyGroupScheme(group, first);
       // Vue提交前收拢本批新标签，既有标签、宿主与广播成员均不受影响。
       groups.value = groups.value.filter(
         (item) => item === group || !ids.has(item.id),
@@ -357,6 +360,7 @@ export const useWorkbenchStore = defineStore("workbench", () => {
     group.name = host.name;
     group.savedProfileId = host.id;
     group.focusedTerminalId = created[host.workspace!.focusedIndex]!.terminalId;
+    unifyGroupScheme(group, created[host.workspace!.focusedIndex]!);
     groups.value = groups.value.filter((g) => g === group || !ids.has(g.id));
     activeId.value = group.id;
   }
@@ -395,6 +399,22 @@ export const useWorkbenchStore = defineStore("workbench", () => {
   }
   function groupForTerminal(id: string) {
     return groups.value.find((g) => terminalIds(g.root).includes(id));
+  }
+  function unifyGroupScheme(group: TerminalTabGroup, source: TerminalItem) {
+    // 固定本次实际生效的方案，避免成员的主机覆盖不同而在切换焦点时变色。
+    const schemeId = resolveTerminalScheme(source, useSettings().value).id;
+    const ids = new Set(terminalIds(group.root));
+    for (const terminal of terminals.value)
+      if (ids.has(terminal.terminalId)) terminal.schemeId = schemeId;
+  }
+  function setTerminalScheme(id: string, schemeId?: string) {
+    const terminal = terminals.value.find((item) => item.terminalId === id);
+    const group = groupForTerminal(id);
+    if (!terminal || !group) return;
+    if (group.root.kind === "split" || group.savedProfileId) {
+      // “主机默认”取被操作成员的默认配色，再统一到整组，而非逐个清除覆盖。
+      unifyGroupScheme(group, { ...terminal, schemeId });
+    } else terminal.schemeId = schemeId;
   }
   function canDuplicateSession(id: string, split = false) {
     const terminal = terminals.value.find((item) => item.terminalId === id);
@@ -518,6 +538,10 @@ export const useWorkbenchStore = defineStore("workbench", () => {
     if (!canSplit(source, targetTerminalId)) return false;
     const incoming = dragTerminal(source)!;
     const target = activeGroup.value!;
+    const targetTerminal = terminals.value.find(
+      (terminal) => terminal.terminalId === targetTerminalId,
+    );
+    if (!targetTerminal) return false;
     const moved = relocateTerminal(
       incoming.group.root,
       target.root,
@@ -536,6 +560,7 @@ export const useWorkbenchStore = defineStore("workbench", () => {
     } else
       groups.value = groups.value.filter((g) => g.id !== incoming.group.id);
     target.root = moved.targetRoot;
+    unifyGroupScheme(target, targetTerminal);
     target.focusedTerminalId = incoming.terminalId;
     activeId.value = target.id;
     cancelDrag();
@@ -690,6 +715,7 @@ export const useWorkbenchStore = defineStore("workbench", () => {
     duplicateSession,
     remove,
     groupForTerminal,
+    setTerminalScheme,
     focusTerminal,
     activateTab,
     dragTerminal,
