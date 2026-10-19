@@ -1,6 +1,6 @@
 # Termeta 开发协作指南
 
-更新：2026-10-18。适用于整个仓库，文档和代码注释默认中文。功能状态以 [产品需求](docs/01-product-requirements.md) 为准，不在本文重复清单或追加修复日志。
+更新：2026-10-19。适用于整个仓库，文档和代码注释默认中文。功能状态以 [产品需求](docs/01-product-requirements.md) 为准，不在本文重复清单或追加修复日志。
 
 ## 1. 项目与阅读入口
 
@@ -34,7 +34,7 @@ Termeta 是 Tauri 2 + Rust + Vue 3 + TypeScript 桌面终端客户端，目标 W
 - NForm model、控件 v-model 与 rules/path 必须共享响应式字段，禁止对象字面量/展开/computed 快照作 model。已有 ref 可用 reactive 包装，不能复制 .value 后异步同步；嵌套调整同步 rules/path。程序更新通过 FormItem 公开 validate 重验，保留正常 input/change/blur 及提交校验，不用清错、取消校验或 nextTick 补丁掩盖旧值。可选字段不强制必填，弹窗操作放 AppDialog #footer。
 - Vue 沿用仓库 Prettier 配置，htmlWhitespaceSensitivity=ignore 仅限 *.vue；多行正文、闭合标签及相邻组件保持清晰换行。修改 Vue 后执行 `pnpm format:vue`、`pnpm check:format:vue`。精确空格使用显式文本，必要时单节点 prettier-ignore 并说明，保留 pre 内容。
 - 通用 UI 图标使用 @tabler/icons-vue；不新增手写 SVG/字符替代。用户指定的 28 个 SSH 系统 SVG 见 resources/host-system-icons.json，主机系统标志保留原样；原生窗口和品牌资源保留平台/品牌形式。AssetIcon 仅作语义映射。图标按钮有可访问名称，装饰图标 aria-hidden。
-- 界面文案用 src/i18n 稳定语义 key，维护 zh-CN/en-US；动态整句用类型化命名参数，动态 key 用 PlainMessageKey，校验传 key 而非译文，选项/校验保持响应式。用户内容、后端诊断、远端输出保留原文；提示说明操作和后果，不展示内部实现。执行 `pnpm check:i18n`；表单与边界检查用 `pnpm check:structure`。
+- 界面文案用 src/i18n 稳定语义 key，维护 zh-CN/zh-TW/en-US/ja-JP/ko-KR；动态整句用类型化命名参数，动态 key 用 PlainMessageKey，校验传 key 而非译文，选项/校验保持响应式。用户内容、后端诊断、远端输出保留原文；提示说明操作和后果，不展示内部实现。执行 `pnpm check:i18n`；表单与边界检查用 `pnpm check:structure`。
 - 自定义命令须加入 AppManifest::commands、handler 和 capability，并校验本地窗口及资源 owner；只写 capability 不足以保护命令。禁止默认接受 SSH 密钥、明文存秘密、默认弱算法或自动执行远端输出。
 
 ## 5. 领域行为约束

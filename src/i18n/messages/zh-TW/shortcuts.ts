@@ -1,0 +1,33 @@
+// 使用稳定的语义 key，文案修改不改变调用标识。
+export default {
+  "shortcuts.triggers.click": "點選",
+  "shortcuts.validation.conflict": "快捷鍵衝突：{first} 與 {second}",
+  "shortcuts.validation.invalidEntries": "快捷鍵條目無效",
+  "shortcuts.validation.invalidFields": "快捷鍵欄位不合法",
+  "shortcuts.validation.contextMismatch": "快捷鍵上下文與動作不匹配",
+  "shortcuts.validation.linkRequiresMouse": "連結動作需要滑鼠繫結",
+  "shortcuts.validation.unsupportedKey": "不支援的按鍵",
+  "shortcuts.validation.unsupportedTrigger": "不支援的觸發器",
+  "shortcuts.import.confirm": "匯入 {count} 個繫結並替換目前編輯內容？",
+  "shortcuts.categories.label": "快捷鍵分類",
+  "shortcuts.search.placeholder": "搜尋動作或按鍵…",
+  "shortcuts.actions.addBinding": "增加同動作繫結",
+  "shortcuts.actions.resetCommand": "恢復此動作預設",
+  "shortcuts.actions.deleteBinding": "刪除繫結",
+  "shortcuts.categories.application": "全域性快捷鍵",
+  "shortcuts.categories.terminal": "終端快捷鍵",
+  "shortcuts.warning.remoteKeys":
+    "將 Ctrl+C 等組合鍵設為快捷鍵後，它們將不再傳送到遠端。",
+  "shortcuts.hint.nativeSettings":
+    "Cmd+, 固定開啟系統選單中的設定，此組合不受此處繫結影響；可為開啟設定錄製其他組合鍵。",
+  "shortcuts.actions.resetAll": "全部恢復預設",
+  "shortcuts.actions.export": "匯出配置",
+  "shortcuts.actions.import": "匯入配置",
+  "shortcuts.validation.fileTooLarge": "檔案過大",
+  "shortcuts.validation.unsupportedVersion": "快捷鍵版本不支援",
+  "shortcuts.triggers.primaryClick": "Cmd / Ctrl + 點選",
+  "shortcuts.triggers.altClick": "Alt + 點選",
+  "shortcuts.triggers.shiftClick": "Shift + 點選",
+  "shortcuts.recording.hint": "按組合鍵，Esc 取消",
+  "shortcuts.recording.unbound": "未繫結",
+} as const;

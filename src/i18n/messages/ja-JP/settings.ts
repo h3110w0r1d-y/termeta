@@ -1,0 +1,46 @@
+// 使用稳定的语义 key，文案修改不改变调用标识。
+export default {
+  "settings.language.system": "システムに合わせる",
+  "settings.actions.open": "設定を開く",
+  "settings.detection.enabled": "SSH接続時にOSを検出",
+  "settings.detection.description":
+    "保存済みSSHホストのシステムアイコンを自動選択します。手動で選択したアイコンが優先されます。無効にしても検出済みの結果は保持されます。",
+  "settings.title": "設定",
+  "settings.windowTitle": "Termeta 設定",
+  "settings.sections.general": "一般",
+  "settings.general.tabPosition": "タブバーの位置",
+  "settings.general.tabDoubleClick": "タブをダブルクリック",
+  "settings.general.tabDoubleClickAction": "タブのダブルクリック時の動作",
+  "settings.general.accentColor": "アクセントカラー",
+  "settings.terminal.font": "ターミナルフォント",
+  "settings.terminal.fontSize": "フォントサイズ",
+  "settings.terminal.scrollback": "スクロールバック行数",
+  "settings.sections.systemDetection": "SSHシステム検出",
+  "settings.sections.search": "検索",
+  "settings.sections.security": "セキュリティ",
+  "settings.sections.backup": "バックアップ / 同期",
+  "settings.sections.shortcuts": "ショートカット",
+  "settings.tabPosition.top": "上",
+  "settings.tabPosition.left": "左",
+  "settings.security.confirmClose":
+    "コマンドが実行中の可能性があるターミナルを閉じる前に確認",
+  "settings.security.confirmMultilinePaste": "複数行の貼り付けを確認",
+  "settings.security.description":
+    "ターミナル出力はディスクに保存されません。ホストと認証情報はこのデバイスで暗号化されます。",
+  "settings.validation.accentColor": "6桁のHEXカラーを入力してください",
+  "settings.validation.fontSize": "フォントサイズは10から32にしてください",
+  "settings.doubleClick.none": "何もしない",
+  "settings.doubleClick.close": "タブを閉じる",
+  "settings.validation.terminalRange":
+    "フォントサイズは10～32、スクロールバックは1,000～50,000行にしてください",
+  "settings.validation.invalid": "設定を確認して再試行してください",
+  "settings.search.pinyin": "ピンイン検索",
+  "settings.search.description":
+    "変更は自動保存されます。名前は常に検索対象です。",
+  "settings.search.address": "アドレス",
+  "settings.general.language": "言語",
+  "settings.languages.zhCN": "简体中文",
+  "settings.languages.zhTW": "繁體中文",
+  "settings.languages.jaJP": "日本語",
+  "settings.languages.koKR": "한국어",
+} as const;

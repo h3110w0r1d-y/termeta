@@ -1,0 +1,116 @@
+// 使用稳定的语义 key，文案修改不改变调用标识。
+export default {
+  "hosts.batch.title": "여러 호스트 연결",
+  "hosts.batch.confirm":
+    "하위 그룹을 포함하여 “{groupName}”의 호스트 {count}개 모두에 연결할까요?",
+  "hosts.batch.separateTabs": "개별 탭으로 열기",
+  "hosts.batch.workspace": "작업 공간에서 열기",
+  "hosts.auth.password": "비밀번호",
+  "hosts.auth.publicKey": "공개 키",
+  "hosts.startup.shell": "대화형 셸",
+  "hosts.startup.command": "명령 실행",
+  "hosts.validation.privateKeyRequired": "개인 키를 선택하세요",
+  "hosts.groups.ungrouped": "그룹 없음",
+  "hosts.form.address": "호스트 주소",
+  "hosts.form.icon": "아이콘",
+  "hosts.form.startupMode": "시작 모드",
+  "hosts.form.startupCommand": "시작 명령",
+  "hosts.form.authentication": "인증",
+  "hosts.form.privateKeyCredential": "개인 키 자격 증명",
+  "hosts.form.privateKeyHint":
+    "개인 키 자격 증명을 선택하거나 “새 자격 증명”으로 만드세요",
+  "hosts.actions.quickConnect": "빠른 연결",
+  "hosts.actions.newCredentialOption": "+ 새 자격 증명",
+  "hosts.actions.edit": "호스트 편집",
+  "hosts.actions.new": "새 호스트",
+  "hosts.form.namePlaceholder": "예: 프로덕션 · 서울",
+  "hosts.form.iconLabel": "호스트 아이콘",
+  "hosts.form.passwordCredential": "비밀번호 자격 증명",
+  "hosts.form.password": "호스트 비밀번호(선택 사항)",
+  "hosts.form.passwordHint":
+    "이 호스트와 함께 안전하게 저장됩니다. 비워 두면 연결할 때 입력을 요청합니다",
+  "hosts.form.commandPlaceholder": "예: /usr/bin/btop 또는 docker stats",
+  "hosts.form.theme": "호스트 색 구성표",
+  "hosts.form.tagsPlaceholder": "프로덕션, Linux",
+  "hosts.actions.retryTheme": "색 구성표 저장 다시 시도",
+  "hosts.actions.save": "호스트 저장",
+  "hosts.errors.sidebarSave": "사이드바 설정을 저장하지 못했습니다: {value1}",
+  "hosts.errors.expansionSave":
+    "그룹 펼침 상태를 저장하지 못했습니다: {value1}",
+  "hosts.filters.all": "모든 호스트",
+  "hosts.groups.topLevel": "최상위",
+  "hosts.groups.newChild": "새 하위 그룹",
+  "hosts.groups.create": "그룹 만들기",
+  "hosts.groups.editParent": "그룹 편집 / 상위 그룹 변경",
+  "hosts.groups.deleteMenu": "그룹 삭제…",
+  "hosts.groups.topLevelDestination": "최상위(호스트의 그룹이 해제됨)",
+  "hosts.groups.name": "그룹 이름",
+  "hosts.groups.confirmDeleteAll":
+    "“{name}” 및 하위 그룹 {groups}개와 호스트 {hosts}개를 영구 삭제할까요? 호스트 비밀번호도 삭제됩니다. 이 작업은 취소할 수 없습니다. 기존 세션과 공유 자격 증명은 유지됩니다.",
+  "hosts.groups.refreshAfterDeleteFailed":
+    "그룹을 삭제했지만 목록을 새로 고치지 못했습니다: {value1}. 계속하려면 목록을 새로 고침하세요.",
+  "hosts.groups.title": "호스트 그룹",
+  "hosts.groups.new": "새 그룹",
+  "hosts.groups.showHosts": "호스트 표시",
+  "hosts.groups.showHostsInSidebar": "사이드바에 호스트 표시",
+  "hosts.groups.edit": "그룹 편집",
+  "hosts.groups.parent": "상위 그룹",
+  "hosts.groups.delete": "그룹 삭제",
+  "hosts.groups.deletePrompt": "“{name}”의 내용을 처리할 방법을 선택하세요:",
+  "hosts.groups.keepContents": "호스트와 하위 그룹을 유지하고 상위로 이동",
+  "hosts.groups.moveContentsDescription":
+    "직속 호스트 {direct}개와 모든 직속 하위 그룹을 {parent}(으)로 이동합니다. 하위 그룹 내부 내용은 그대로 유지됩니다.",
+  "hosts.groups.deleteContents": "모든 하위 그룹과 호스트 삭제",
+  "hosts.groups.deleteContentsDescription":
+    "하위 그룹 {groups}개와 포함된 모든 호스트 {hosts}개를 삭제합니다. 다시 한번 확인합니다.",
+  "hosts.groups.deleteAndMove": "그룹 삭제 후 내용 이동",
+  "hosts.search.limit":
+    "호스트 {count}개 중 처음 100개를 표시합니다. 검색 조건을 좁히세요.",
+  "hosts.status.favorite": "즐겨찾기",
+  "hosts.search.placeholder": "모든 호스트 검색…",
+  "hosts.search.label": "모든 호스트 검색",
+  "hosts.search.noResults": "일치하는 호스트가 없습니다",
+  "hosts.search.hint": "입력하여 모든 호스트 검색",
+  "hosts.actions.moveToGroup": "그룹으로 이동…",
+  "hosts.validation.invalidGroup": "올바른 그룹을 선택하세요",
+  "hosts.confirmDelete":
+    "호스트 “{name}”을(를) 삭제할까요? 기존 세션과 공유 자격 증명은 유지됩니다.",
+  "hosts.filters.group": "그룹의 호스트",
+  "hosts.count": "호스트 {count}개",
+  "hosts.filters.includeSubgroups": "하위 그룹 포함",
+  "hosts.view.label": "호스트 표시 모드",
+  "hosts.view.cards": "카드 보기",
+  "hosts.view.list": "목록 보기",
+  "hosts.groups.empty":
+    "이 그룹에 호스트가 없습니다. 새로 만들거나 다른 그룹에서 드래그하세요.",
+  "hosts.actions.createHere": "여기에 호스트 만들기",
+  "hosts.actions.favorite": "즐겨찾기에 추가",
+  "hosts.actions.move": "호스트 이동",
+  "hosts.move.prompt": "“{name}” 이동 대상:",
+  "hosts.move.destination": "대상 그룹",
+  "hosts.newTab.description":
+    "저장된 호스트를 선택하거나 빠른 연결을 사용하세요.",
+  "hosts.newTab.searchLabel": "새 탭에 사용할 호스트 검색",
+  "hosts.newTab.available": "사용 가능한 호스트",
+  "hosts.newTab.empty": "저장된 호스트가 없습니다. 빠른 연결로 시작하세요.",
+  "hosts.search.limitDescription":
+    "호스트 {count}개 중 처음 100개를 표시합니다. 검색 조건을 좁히세요.",
+  "hosts.drag.destination": "이동 대상: {target}",
+  "hosts.drag.invalidTarget": "여기에 놓을 수 없습니다",
+  "hosts.batch.description": "개별 탭 또는 분할 작업 공간을 선택하세요.",
+  "hosts.batch.savedWorkspaceHint":
+    "저장된 작업 공간은 원래 레이아웃으로 열립니다.",
+  "hosts.form.useHostPassword": "호스트 전용 비밀번호 사용",
+  "hosts.errors.themeSave":
+    "호스트를 저장했지만 색 구성표를 저장하지 못했습니다. 다시 시도하세요: {value1}",
+  "hosts.validation.invalidCommand":
+    "명령이 너무 길거나 올바르지 않은 문자가 포함되어 있습니다",
+  "hosts.validation.nameConflict":
+    "다른 호스트 또는 작업 공간에서 이미 사용 중인 이름입니다",
+  "hosts.accessibility.connect":
+    "{name}, Enter로 연결하고 마우스 오른쪽 버튼 또는 Shift+F10으로 작업 표시",
+  "hosts.errors.savedWithoutTheme":
+    "호스트를 저장했지만 색 구성표를 저장하지 못했습니다. 다시 시도하세요. {error}",
+  "hosts.selection.sshRequired": "저장된 SSH 호스트를 선택하세요",
+  "hosts.selection.sshPlaceholder": "저장된 SSH 호스트 선택",
+} as const;

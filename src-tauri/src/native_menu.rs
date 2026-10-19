@@ -7,6 +7,12 @@ pub enum NativeMenuLocale {
     ZhCn,
     #[serde(rename = "en-US")]
     EnUs,
+    #[serde(rename = "zh-TW")]
+    ZhTw,
+    #[serde(rename = "ja-JP")]
+    JaJp,
+    #[serde(rename = "ko-KR")]
+    KoKr,
 }
 
 #[cfg(target_os = "macos")]
@@ -16,6 +22,9 @@ impl NativeMenuLocale {
         let source = match self {
             Self::ZhCn => include_str!("../../src/i18n/messages/zh-CN/nativeMenu.json"),
             Self::EnUs => include_str!("../../src/i18n/messages/en-US/nativeMenu.json"),
+            Self::ZhTw => include_str!("../../src/i18n/messages/zh-TW/nativeMenu.json"),
+            Self::JaJp => include_str!("../../src/i18n/messages/ja-JP/nativeMenu.json"),
+            Self::KoKr => include_str!("../../src/i18n/messages/ko-KR/nativeMenu.json"),
         };
         Ok(serde_json::from_str(source)?)
     }

@@ -63,7 +63,7 @@ pub fn validate(settings: &Value) -> Result<()> {
         )
         // 旧设置缺失时跟随系统；拒绝不受支持的语言及非字符串值。
         || object.get("language").is_some_and(|value| {
-            !matches!(value.as_str(), Some("system" | "zh-CN" | "en-US"))
+            !matches!(value.as_str(), Some("system" | "zh-CN" | "zh-TW" | "en-US" | "ja-JP" | "ko-KR"))
         })
         // 缺失或空串沿用库默认主题色；自定义值只接受不透明的六位 HEX。
         || object.get("primaryColor").is_some_and(|value| {

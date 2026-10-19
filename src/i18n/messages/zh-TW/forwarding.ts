@@ -1,0 +1,43 @@
+// 使用稳定的语义 key，文案修改不改变调用标识。
+export default {
+  "forwarding.validation.nameLength": "名稱最多128個字元",
+  "forwarding.form.bindAddress": "監聽 IP 地址",
+  "forwarding.form.bindPort": "監聽埠",
+  "forwarding.form.targetAddress": "目標地址",
+  "forwarding.form.targetPort": "目標埠",
+  "forwarding.actions.edit": "編輯埠轉發",
+  "forwarding.actions.new": "新建埠轉發",
+  "forwarding.form.namePlaceholder": "例如：資料庫、開發服務或代理",
+  "forwarding.form.hostHint": "請先在主機頁建立 SSH 主機，再建立轉發。",
+  "forwarding.form.mode": "轉發模式",
+  "forwarding.modes.local": "本機轉發",
+  "forwarding.modes.remote": "遠端轉發",
+  "forwarding.modes.dynamic": "動態 SOCKS5",
+  "forwarding.form.remoteBindAddress": "遠端監聽 IP",
+  "forwarding.form.localBindAddress": "本機監聽 IP",
+  "forwarding.form.loopbackPlaceholder": "127.0.0.1 或 ::1",
+  "forwarding.form.localTargetAddress": "本機側目標地址",
+  "forwarding.form.remoteTargetAddress": "遠端側目標地址",
+  "forwarding.form.targetPlaceholder": "域名或 IP，IPv6 不帶方括號",
+  "forwarding.confirmDelete": "刪除埠轉發“{name}”？引用的 SSH 主機將保留。",
+  "forwarding.actions.create": "新建轉發",
+  "forwarding.search.placeholder": "搜尋名稱、SSH 主機或轉發地址",
+  "forwarding.search.label": "搜尋埠轉發",
+  "forwarding.search.noResults": "沒有匹配的埠轉發",
+  "forwarding.empty": "還沒有埠轉發",
+  "forwarding.status.stopped": "未啟動",
+  "forwarding.errors.hostDeleted": "引用的 SSH 主機已刪除",
+  "forwarding.endpoints.local": "本機",
+  "forwarding.endpoints.dynamicTarget": "SOCKS5 → 由應用指定目標",
+  "forwarding.endpoints.localSide": "本機側",
+  "forwarding.endpoints.remoteSide": "遠端側",
+  "forwarding.endpoints.target": "→ {value1} {value2}",
+  "forwarding.descriptions.local":
+    "透過本機埠存取遠端目標，目標地址由 SSH 伺服器解析。",
+  "forwarding.descriptions.remote":
+    "透過伺服器埠存取本機側目標，目標地址由本機解析。",
+  "forwarding.descriptions.dynamic":
+    "建立僅本機可用的 SOCKS5 代理，由 SSH 伺服器解析域名。僅支援 TCP，無認證。",
+  "forwarding.warning.publicListener":
+    "監聽 0.0.0.0 或 :: 將允許其他裝置存取。遠端監聽範圍還取決於伺服器設定。",
+} as const;

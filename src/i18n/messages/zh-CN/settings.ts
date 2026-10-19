@@ -37,4 +37,7 @@ export default {
   "settings.search.address": "地址",
   "settings.general.language": "语言",
   "settings.languages.zhCN": "简体中文",
+  "settings.languages.zhTW": "繁體中文",
+  "settings.languages.jaJP": "日本語",
+  "settings.languages.koKR": "한국어",
 } as const;

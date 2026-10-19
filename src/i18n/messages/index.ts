@@ -1,5 +1,8 @@
 import zhCN from "./zh-CN";
 import enUS from "./en-US";
+import zhTW from "./zh-TW";
+import jaJP from "./ja-JP";
+import koKR from "./ko-KR";
 
 export type MessageKey = keyof typeof zhCN;
 type MessageSchema = Record<MessageKey, string>;
@@ -8,6 +11,9 @@ type MessageSchema = Record<MessageKey, string>;
 export const messages = {
   "zh-CN": zhCN,
   "en-US": enUS satisfies MessageSchema,
+  "zh-TW": zhTW satisfies MessageSchema,
+  "ja-JP": jaJP satisfies MessageSchema,
+  "ko-KR": koKR satisfies MessageSchema,
 };
 
 type ParameterNames<Text extends string> =

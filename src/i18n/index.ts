@@ -1,30 +1,68 @@
 import { computed, ref, watch } from "vue";
-import { zhCN, enUS, dateZhCN, dateEnUS } from "naive-ui";
+import {
+  zhCN,
+  zhTW,
+  enUS,
+  jaJP,
+  koKR,
+  dateZhCN,
+  dateZhTW,
+  dateEnUS,
+  dateJaJP,
+  dateKoKR,
+} from "naive-ui";
 import { messages } from "./messages";
 import type { MessageKey, TranslationArguments } from "./messages";
 
 export type { MessageKey, PlainMessageKey } from "./messages";
 
-export type Language = "system" | "zh-CN" | "en-US";
-export type Locale = Exclude<Language, "system">;
+export type Locale = keyof typeof messages;
+export type Language = "system" | Locale;
+const componentLocales = {
+  "zh-CN": zhCN,
+  "zh-TW": zhTW,
+  "en-US": enUS,
+  "ja-JP": jaJP,
+  "ko-KR": koKR,
+};
+const dateLocales = {
+  "zh-CN": dateZhCN,
+  "zh-TW": dateZhTW,
+  "en-US": dateEnUS,
+  "ja-JP": dateJaJP,
+  "ko-KR": dateKoKR,
+};
+
+// 先判断显式字形，再判断地区；繁体地区与通用日/韩语言映射到支持的词典。
+export function resolveSystemLocale(languages: readonly string[]): Locale {
+  for (const language of languages) {
+    const [base, ...subtags] = language.toLowerCase().split("-");
+    if (base === "zh") {
+      if (subtags.includes("hant")) return "zh-TW";
+      if (subtags.includes("hans")) return "zh-CN";
+      return subtags.some((part) => ["tw", "hk", "mo"].includes(part))
+        ? "zh-TW"
+        : "zh-CN";
+    }
+    if (base === "en") return "en-US";
+    if (base === "ja") return "ja-JP";
+    if (base === "ko") return "ko-KR";
+  }
+  return "en-US";
+}
 const preference = ref<Language>("system");
 const systemLanguages = ref([...navigator.languages]);
 export const locale = computed<Locale>(() => {
   if (preference.value !== "system") return preference.value;
-  for (const language of systemLanguages.value) {
-    if (/^zh(?:-|$)/i.test(language)) return "zh-CN";
-    if (/^en(?:-|$)/i.test(language)) return "en-US";
-  }
-  return "en-US";
+  return resolveSystemLocale(systemLanguages.value);
 });
-export const naiveLocale = computed(() =>
-  locale.value === "zh-CN" ? zhCN : enUS,
-);
-export const naiveDateLocale = computed(() =>
-  locale.value === "zh-CN" ? dateZhCN : dateEnUS,
-);
+export const naiveLocale = computed(() => componentLocales[locale.value]);
+export const naiveDateLocale = computed(() => dateLocales[locale.value]);
 export function normalizeLanguage(value: unknown): Language {
-  return value === "zh-CN" || value === "en-US" ? value : "system";
+  return typeof value === "string" &&
+    Object.prototype.hasOwnProperty.call(messages, value)
+    ? (value as Locale)
+    : "system";
 }
 export function setLanguage(value: Language) {
   preference.value = normalizeLanguage(value);

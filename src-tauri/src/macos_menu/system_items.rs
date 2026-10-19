@@ -302,6 +302,9 @@ struct Translation {
     rule: &'static Rule,
     english: String,
     chinese: String,
+    traditional_chinese: String,
+    japanese: String,
+    korean: String,
     aliases: Vec<String>,
 }
 
@@ -310,6 +313,9 @@ impl Translation {
         match locale {
             NativeMenuLocale::ZhCn => &self.chinese,
             NativeMenuLocale::EnUs => &self.english,
+            NativeMenuLocale::ZhTw => &self.traditional_chinese,
+            NativeMenuLocale::JaJp => &self.japanese,
+            NativeMenuLocale::KoKr => &self.korean,
         }
     }
 }
@@ -417,6 +423,9 @@ pub(super) fn install() -> tauri::Result<()> {
         .ok_or_else(|| std::io::Error::other("未找到原生窗口菜单"))?;
     let english = NativeMenuLocale::EnUs.labels()?;
     let chinese = NativeMenuLocale::ZhCn.labels()?;
+    let traditional_chinese = NativeMenuLocale::ZhTw.labels()?;
+    let japanese = NativeMenuLocale::JaJp.labels()?;
+    let korean = NativeMenuLocale::KoKr.labels()?;
     // NSMenu 是有效的 AppKit 类，只读取框架按系统语言选出的固定标签作为识别别名。
     let bundle = unsafe { NSBundle::bundleForClass(NSMenu::class()) };
     let translations = RULES
@@ -425,6 +434,12 @@ pub(super) fn install() -> tauri::Result<()> {
             let missing = || std::io::Error::other(format!("系统菜单缺少词条：{}", rule.key));
             let english = english.get(rule.key).ok_or_else(missing)?.clone();
             let chinese = chinese.get(rule.key).ok_or_else(missing)?.clone();
+            let traditional_chinese = traditional_chinese
+                .get(rule.key)
+                .ok_or_else(missing)?
+                .clone();
+            let japanese = japanese.get(rule.key).ok_or_else(missing)?.clone();
+            let korean = korean.get(rule.key).ok_or_else(missing)?.clone();
             let system = bundle
                 .localizedStringForKey_value_table(
                     &NSString::from_str(rule.system_key),
@@ -432,14 +447,24 @@ pub(super) fn install() -> tauri::Result<()> {
                     Some(&NSString::from_str(rule.table)),
                 )
                 .to_string();
-            let aliases = [&english, &chinese, &system]
-                .into_iter()
-                .map(|title| title.replace("...", "…"))
-                .collect();
+            let aliases = [
+                &english,
+                &chinese,
+                &traditional_chinese,
+                &japanese,
+                &korean,
+                &system,
+            ]
+            .into_iter()
+            .map(|title| title.replace("...", "…"))
+            .collect();
             Ok(Translation {
                 rule,
                 english,
                 chinese,
+                traditional_chinese,
+                japanese,
+                korean,
                 aliases,
             })
         })

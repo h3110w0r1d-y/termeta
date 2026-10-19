@@ -1,0 +1,46 @@
+// 使用稳定的语义 key，文案修改不改变调用标识。
+export default {
+  "settings.language.system": "시스템 설정 따르기",
+  "settings.actions.open": "설정 열기",
+  "settings.detection.enabled": "SSH 연결 시 운영 체제 감지",
+  "settings.detection.description":
+    "저장된 SSH 호스트의 시스템 아이콘을 자동으로 선택합니다. 수동으로 선택한 아이콘이 우선합니다. 꺼도 기존 감지 결과는 유지됩니다.",
+  "settings.title": "설정",
+  "settings.windowTitle": "Termeta 설정",
+  "settings.sections.general": "일반",
+  "settings.general.tabPosition": "탭 표시줄 위치",
+  "settings.general.tabDoubleClick": "탭 두 번 클릭",
+  "settings.general.tabDoubleClickAction": "탭 두 번 클릭 동작",
+  "settings.general.accentColor": "강조 색상",
+  "settings.terminal.font": "터미널 글꼴",
+  "settings.terminal.fontSize": "글꼴 크기",
+  "settings.terminal.scrollback": "스크롤백 줄 수",
+  "settings.sections.systemDetection": "SSH 시스템 감지",
+  "settings.sections.search": "검색",
+  "settings.sections.security": "보안",
+  "settings.sections.backup": "백업 / 동기화",
+  "settings.sections.shortcuts": "단축키",
+  "settings.tabPosition.top": "위쪽",
+  "settings.tabPosition.left": "왼쪽",
+  "settings.security.confirmClose":
+    "명령 실행 중일 수 있는 터미널을 닫기 전에 확인",
+  "settings.security.confirmMultilinePaste": "여러 줄 붙여넣기 확인",
+  "settings.security.description":
+    "터미널 출력은 디스크에 저장되지 않습니다. 호스트와 자격 증명은 이 기기에서 암호화됩니다.",
+  "settings.validation.accentColor": "6자리 HEX 색상을 입력하세요",
+  "settings.validation.fontSize": "글꼴 크기는 10~32여야 합니다",
+  "settings.doubleClick.none": "아무 작업 안 함",
+  "settings.doubleClick.close": "탭 닫기",
+  "settings.validation.terminalRange":
+    "글꼴 크기는 10~32, 스크롤백은 1,000~50,000줄이어야 합니다",
+  "settings.validation.invalid": "설정을 확인하고 다시 시도하세요",
+  "settings.search.pinyin": "병음 검색",
+  "settings.search.description":
+    "변경 사항은 자동으로 저장됩니다. 이름은 항상 검색에 포함됩니다.",
+  "settings.search.address": "주소",
+  "settings.general.language": "언어",
+  "settings.languages.zhCN": "简体中文",
+  "settings.languages.zhTW": "繁體中文",
+  "settings.languages.jaJP": "日本語",
+  "settings.languages.koKR": "한국어",
+} as const;

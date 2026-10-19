@@ -71,15 +71,22 @@ async function readMessages(locale) {
   return messages;
 }
 
-const chinese = await readMessages("zh-CN");
-const english = await readMessages("en-US");
-for (const [key, value] of chinese) {
-  if (!english.has(key)) errors.push(`en-US: 缺少词条 ${key}`);
-  else if (!sameParameters(value, english.get(key)))
-    errors.push(`en-US: 插值参数不一致 ${key}`);
+const locales = ["zh-CN", "en-US", "zh-TW", "ja-JP", "ko-KR"];
+const dictionaries = new Map(
+  await Promise.all(
+    locales.map(async (locale) => [locale, await readMessages(locale)]),
+  ),
+);
+const chinese = dictionaries.get("zh-CN");
+for (const [locale, dictionary] of dictionaries) {
+  for (const [key, value] of chinese) {
+    if (!dictionary.has(key)) errors.push(`${locale}: 缺少词条 ${key}`);
+    else if (!sameParameters(value, dictionary.get(key)))
+      errors.push(`${locale}: 插值参数不一致 ${key}`);
+  }
+  for (const key of dictionary.keys())
+    if (!chinese.has(key)) errors.push(`${locale}: 多余词条 ${key}`);
 }
-for (const key of english.keys())
-  if (!chinese.has(key)) errors.push(`en-US: 多余词条 ${key}`);
 
 // 原生菜单与前端共享 JSON 资源，Rust 固定 key 同样需要覆盖和纯文本约束。
 const nativeSource = (
@@ -96,16 +103,13 @@ const nativeKeys = new Set(
 );
 for (const key of nativeKeys) {
   used.add(key);
-  if (!chinese.has(key) || !english.has(key))
+  if ([...dictionaries.values()].some((dictionary) => !dictionary.has(key)))
     errors.push(`原生菜单: 缺少词条 ${key}`);
 }
 for (const key of chinese.keys()) {
   if (!key.startsWith("nativeMenu.")) continue;
   if (!nativeKeys.has(key)) errors.push(`原生菜单: 未使用的词条 ${key}`);
-  for (const [locale, messages] of [
-    ["zh-CN", chinese],
-    ["en-US", english],
-  ]) {
+  for (const [locale, messages] of dictionaries) {
     const value = messages.get(key);
     if (value && /[{}\u0000-\u001f\u007f]/u.test(value))
       errors.push(`${locale}: 原生菜单只允许无插值的单行文案 ${key}`);
@@ -203,5 +207,5 @@ if (errors.length) {
   process.exitCode = 1;
 } else
   console.log(
-    `多语言静态检查通过：${chinese.size} 个语义 key，${used.size} 个直接引用；双语词条、命名空间、模板文字与插值参数一致。`,
+    `多语言静态检查通过：${chinese.size} 个语义 key，${used.size} 个直接引用；${locales.length} 种语言词条、命名空间、模板文字与插值参数一致。`,
   );
