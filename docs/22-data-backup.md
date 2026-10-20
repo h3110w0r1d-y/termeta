@@ -1,6 +1,6 @@
 # 数据备份与云端恢复
 
-更新：2026-10-19。当前支持本地/离线模式下 Gist / WebDAV 手动上传、解密预览与新增合并。官方模式改用[官方保险库自动同步](26-official-vault-sync.md)，不显示也不允许第三方备份。第三方自动备份、版本清理、双向同步、逐项恢复、本地备份文件入口与主动取消 IPC 尚未实现；本功能尚未完成编译、真实云服务和跨设备运行验收。
+更新：2026-10-20。当前支持本地/离线模式下 Gist / WebDAV 手动上传、解密预览与新增合并。官方模式使用 [官方保险库自动同步](26-official-vault-sync.md)，不显示也不允许第三方备份。第三方自动备份、版本清理、双向同步、逐项恢复、本地备份文件入口与主动取消 IPC 尚未实现；本功能尚未完成编译、真实云服务和跨设备运行验收。
 
 ## 1. 范围与操作语义
 
@@ -73,7 +73,7 @@ Gist 文件名/描述不写设备和备份时间；Secret Gist 的保密依赖�
 
 版本 1 配置可保留认证并补填备份密码后写版本 2，不新增数据库迁移；缺密码时可读配置和测试连接，不能备份或解密。测试可使用配置草稿，实际上传、列表与恢复只使用已保存的配置和密码。
 
-第三方备份一律要求已解锁的本地/离线模式，仅在设置内使用。删除首次启动第三方恢复入口，不能用第三方包绕过既有保险库的解锁；首次官方云初始化由独立官方同步模块负责。
+第三方备份一律要求已解锁的本地/离线模式，仅在设置内使用。不能用第三方包初始化或绕过既有库解锁；首次官方云初始化由独立官方同步模块负责。
 
 七个命令均经 AppManifest、ACL 与本地 main/settings 调用窗口和模式校验，不扩大通用会话 owner。数据库、已存凭据和包正文不经过前端。单操作信号量在忙碌时直接拒绝，不排队积累大数据；短期表锁不跨网络或数据库等待。当前没有逐字节进度或主动取消命令。
 
@@ -84,7 +84,7 @@ Gist 文件名/描述不写设备和备份时间；Secret Gist 的保密依赖�
 | [storage backup.rs](../crates/terminal-storage/src/backup.rs) / [backup_sqlite.rs](../crates/terminal-storage/src/backup_sqlite.rs) | 白名单快照、结构/业务校验、ID 重写与导入事务 |
 | [security backup.rs](../crates/terminal-security/src/backup.rs) | 压缩、密码派生、加密包及凭据门闩 |
 | [壳 backup](../src-tauri/src/backup/) / [backup_runtime.rs](../src-tauri/src/backup_runtime.rs) | Gist/WebDAV、网络限额、配置及恢复令牌 |
-| [commands/backup.rs](../src-tauri/src/commands/backup.rs) | IPC、权限及初始化编排 |
+| [commands/backup.rs](../src-tauri/src/commands/backup.rs) | IPC、权限及备份编排 |
 
 真实云服务、跨设备往返、恶意数据库/大包、认证限流/超时、预览失效、事务中断及三平台恢复仍待验收，见 [路线](10-roadmap.md)。
 

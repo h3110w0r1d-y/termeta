@@ -25,7 +25,7 @@ function sourceFile(path, text, checkSyntax = true) {
 
 async function readMessages(locale) {
   const messages = new Map();
-  const directory = resolve(root, "src/i18n/messages", locale);
+  const directory = resolve(root, "src/i18n", locale);
   for (const name of await readdir(directory)) {
     if (!/\.(ts|json)$/.test(name) || name === "index.ts") continue;
     const path = resolve(directory, name);

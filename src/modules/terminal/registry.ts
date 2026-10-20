@@ -1,321 +1,25 @@
 import { t } from "../../i18n";
 import { nextTick } from "vue";
-import { applyTerminalTheme } from "./theme";
-import { writeLocalStatus } from "./localStatus";
-import { captureTerminalLog } from "../session-logs/snapshot";
-import {
-  resetTerminalActivity,
-  updateActivityTitle,
-  updateShellActivity,
-} from "./activity";
-import { useHosts } from "../hosts/store";
-import { confirmPaste } from "./paste";
-import { observeTerminalInput, sendFinalWheelInput } from "./inputOrigin";
+import { sendFinalWheelInput } from "./inputOrigin";
 import { createInputRouter, type InputKind } from "./inputRouter";
+import { confirmPaste } from "./paste";
 import { terminalIds } from "../workbench/layout";
-import { Terminal } from "@xterm/xterm";
-import { FitAddon } from "@xterm/addon-fit";
-import { SearchAddon } from "@xterm/addon-search";
-import { WebLinksAddon } from "@xterm/addon-web-links";
-import { desktop, errorMessage } from "../../services/desktop/client";
-import {
-  commands,
-  isMac,
-  modifierMatches,
-} from "../../services/commands/registry";
 import { useSettings } from "../settings/store";
-import { loadTerminalFont, terminalFontFamily } from "../settings/fonts";
-import {
-  builtinSchemes,
-  resolveScheme,
-  resolveTerminalScheme,
-} from "../settings/themes";
+import { builtinSchemes, resolveScheme } from "../settings/themes";
 import { useWorkbenchStore, type TerminalItem } from "../workbench/store";
+import type { Entry } from "./runtime/entry";
+import { input } from "./runtime/stream";
+import { connect, disconnect, archiveAndDispose } from "./runtime/session";
 import {
-  registerSessionPresence,
-  unregisterSessionPresence,
-} from "../../services/desktop/sessionPresence";
-import type {
-  SessionEvent,
-  SessionSnapshot,
-  SessionLogDraft,
-} from "../../services/desktop/types";
-interface Stream {
-  generation: number;
-  sessionId?: string;
-  seq: number;
-  received: bigint;
-  consumed: bigint;
-  pending: number;
-  acked: bigint;
-  ack: Promise<void>;
-  inputSeq: number;
-  inputBytes: number;
-  input: Promise<void>;
-  ended: boolean;
-  endReceived: boolean;
-  finalization?: Promise<void>;
-  finalOffset?: bigint;
-  ackTimer?: ReturnType<typeof setTimeout>;
-  eventSeq: number;
-}
-interface Entry {
-  term: Terminal;
-  fit: FitAddon;
-  search: SearchAddon;
-  host: HTMLElement;
-  observer: ResizeObserver;
-  stream?: Stream;
-  connecting: boolean;
-  closing?: Promise<void>;
-  log: Omit<SessionLogDraft, "content">;
-  disposed: boolean;
-  lastSize: string;
-  canResize: boolean;
-  inputOrigin?: ReturnType<typeof observeTerminalInput>;
-  fontRequest?: string;
-}
+  createTerminalEntry,
+  mountTerminalView,
+  remoteWheel,
+  settings,
+  fit,
+} from "./runtime/view";
+export { schemeForTerminal } from "./runtime/view";
+
 const entries = new Map<string, Entry>();
-function update(terminal: TerminalItem, snapshot: SessionSnapshot) {
-  if (snapshot.stateRevision >= terminal.revision) {
-    if (terminal.sessionId && terminal.sessionId !== snapshot.sessionId)
-      unregisterSessionPresence("terminal", terminal.sessionId);
-    terminal.kind = snapshot.kind;
-    terminal.sshCommand = snapshot.sshCommand;
-    terminal.sessionId = snapshot.sessionId;
-    terminal.state = snapshot.state;
-    terminal.revision = snapshot.stateRevision;
-    if (["closed", "failed", "disconnected"].includes(snapshot.state))
-      unregisterSessionPresence("terminal", snapshot.sessionId);
-    else registerSessionPresence("terminal", snapshot.sessionId);
-  }
-}
-async function acknowledge(entry: Entry, stream: Stream) {
-  if (!stream.sessionId || entry.disposed || stream.consumed <= stream.acked)
-    return;
-  const offset = stream.consumed;
-  stream.acked = offset;
-  stream.ack = stream.ack
-    .then(() => desktop.ack(stream.sessionId!, offset.toString()))
-    .catch((error) => {
-      if (!stream.ended) {
-        const terminal = useWorkbenchStore().terminals.find(
-          (t) => t.terminalId === entry.host.dataset.terminalId,
-        );
-        if (terminal) terminal.error = errorMessage(error);
-      }
-    });
-  await stream.ack;
-}
-function receive(entry: Entry, stream: Stream, raw: ArrayBuffer) {
-  if (entry.stream !== stream || entry.disposed) return;
-  try {
-    if (!(raw instanceof ArrayBuffer) || raw.byteLength < 25)
-      throw new Error(t("terminal.errors.outputRead"));
-    const view = new DataView(raw),
-      length = view.getUint32(16, true),
-      seq = view.getUint32(4, true),
-      offset = view.getBigUint64(8, true);
-    if (
-      view.getUint8(0) !== 1 ||
-      view.getUint8(1) !== 0 ||
-      view.getUint16(2, true) !== 0 ||
-      view.getUint32(20, true) !== 0 ||
-      length < 1 ||
-      length > 32768 ||
-      raw.byteLength !== 24 + length ||
-      seq !== stream.seq + 1 ||
-      offset !== stream.received + BigInt(length) ||
-      stream.pending + length > 512 * 1024
-    )
-      throw new Error(t("terminal.errors.outputFailure"));
-    stream.seq = seq;
-    stream.received = offset;
-    stream.pending += length;
-    entry.term.write(new Uint8Array(raw, 24, length), () => {
-      stream.pending -= length;
-      stream.consumed = offset;
-      if (stream.consumed - stream.acked >= BigInt(65536)) {
-        if (stream.ackTimer) clearTimeout(stream.ackTimer);
-        stream.ackTimer = undefined;
-        void acknowledge(entry, stream);
-        return;
-      }
-      if (stream.ackTimer) return;
-      stream.ackTimer = setTimeout(() => {
-        stream.ackTimer = undefined;
-        void acknowledge(entry, stream);
-      }, 16);
-    });
-  } catch (error) {
-    const terminal = useWorkbenchStore().terminals.find(
-      (t) => t.terminalId === entry.host.dataset.terminalId,
-    );
-    if (terminal) {
-      terminal.error = errorMessage(error);
-      terminal.state = "failed";
-    }
-    stream.ended = true;
-    if (stream.sessionId)
-      void desktop.close(stream.sessionId, "protocolMismatch").catch(() => {});
-  }
-}
-function event(
-  entry: Entry,
-  terminal: TerminalItem,
-  stream: Stream,
-  value: SessionEvent,
-) {
-  if (entry.stream !== stream || entry.disposed) return;
-  stream.sessionId = value.sessionId;
-  const seq = (value as SessionEvent & { eventSeq?: number }).eventSeq;
-  if (seq !== undefined) {
-    if (seq <= stream.eventSeq) return;
-    stream.eventSeq = seq;
-  }
-  if (value.type === "hostSystemChanged") {
-    // 后端先提交持久化状态；通知只触发重读，不接受远端自定义图标内容。
-    void useHosts()
-      .load()
-      .catch((error) => {
-        terminal.error = errorMessage(error);
-      });
-  } else if (value.type === "stateChanged") {
-    entry.canResize = value.snapshot.capabilities.resize;
-    const wasConnected = terminal.state === "connected";
-    update(terminal, value.snapshot);
-    if (!wasConnected && terminal.state === "connected") {
-      // 认证期间布局可能已改变；PTY 建立后必须补发当前可见尺寸。
-      entry.lastSize = "";
-      fit(entry, terminal);
-    }
-  } else if (
-    value.type === "hostKeyChallenge" ||
-    value.type === "authChallenge"
-  ) {
-    const workbench = useWorkbenchStore();
-    workbench.dismiss(value.sessionId);
-    workbench.challenges.push(value);
-  } else if (value.type === "ended") {
-    const workbench = useWorkbenchStore();
-    unregisterSessionPresence("terminal", value.sessionId);
-    stream.ended = true;
-    stream.endReceived = true;
-    stream.finalOffset = BigInt(value.finalOffset);
-    terminal.state = value.finalState;
-    // 主动关闭时，取消产生的未完整输出是收尾过程，不应在标签移除前闪成错误。
-    // dispose/日志保存真正失败仍会由关闭协调器写入 error，保留给用户处理。
-    terminal.error = workbench.closingTerminalIds.includes(terminal.terminalId)
-      ? ""
-      : value.error
-        ? errorMessage(value.error)
-        : !value.outputComplete
-          ? t("terminal.state.incompleteOutput")
-          : "";
-    workbench.dismiss(value.sessionId);
-    // 等待最后一帧解析，控制事件与数据 Channel 没有全局先后顺序。
-    stream.finalization = drain(entry, stream).then(() => {
-      if (entry.stream === stream && !entry.closing) {
-        resetTerminalActivity(terminal);
-        writeLocalStatus(
-          entry.term,
-          [
-            terminal.sshCommand && value.reason === "remoteExit"
-              ? t("terminal.state.commandFinished")
-              : t("terminal.state.ended"),
-            value.exitCode !== undefined && value.exitCode !== null
-              ? t("terminal.exit.code", { exitCode: value.exitCode })
-              : "",
-            value.exitSignal
-              ? t("terminal.exit.signal", { exitSignal: value.exitSignal })
-              : "",
-          ].join(""),
-        );
-        return new Promise<void>((resolve) => entry.term.write("", resolve));
-      }
-    });
-    void stream.finalization.catch((error) => {
-      if (!useWorkbenchStore().closingTerminalIds.includes(terminal.terminalId))
-        terminal.error = errorMessage(error);
-    });
-  } else if (value.type === "notice")
-    terminal.error = value.details ?? value.messageKey;
-}
-function drain(entry: Entry, stream: Stream): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const deadline = Date.now() + 3000;
-    const check = () => {
-      if (entry.disposed) return resolve();
-      if (
-        stream.pending === 0 &&
-        (stream.finalOffset === undefined ||
-          stream.consumed >= stream.finalOffset)
-      ) {
-        const timer = setTimeout(
-          () => reject(new Error(t("terminal.errors.outputPending"))),
-          Math.max(1, deadline - Date.now()),
-        );
-        entry.term.write(new Uint8Array([0x18]), () => {
-          clearTimeout(timer);
-          resolve();
-        });
-        return;
-      }
-      if (Date.now() >= deadline) {
-        reject(new Error(t("terminal.errors.outputPending")));
-        return;
-      }
-      setTimeout(check, 20);
-    };
-    check();
-  });
-}
-function input(entry: Entry, terminal: TerminalItem, bytes: Uint8Array) {
-  const stream = entry.stream;
-  if (
-    !stream ||
-    entry.closing ||
-    stream.ended ||
-    terminal.state !== "connected" ||
-    !stream.sessionId
-  )
-    return;
-  if (stream.inputBytes + bytes.length > 65536) {
-    terminal.error = t("terminal.paste.queueFull");
-    return;
-  }
-  stream.inputBytes += bytes.length;
-  for (let at = 0; at < bytes.length; at += 16384) {
-    const chunk = bytes.slice(at, at + 16384);
-    stream.input = stream.input.then(async () => {
-      try {
-        if (
-          entry.stream !== stream ||
-          entry.closing ||
-          stream.ended ||
-          terminal.state !== "connected"
-        )
-          return;
-        if (stream.inputSeq >= 0xffffffff)
-          throw new Error(t("terminal.errors.inputUnavailable"));
-        await desktop.write(
-          stream.sessionId!,
-          ++stream.inputSeq,
-          Array.from(chunk),
-        );
-      } catch (error) {
-        stream.ended = true;
-        terminal.error = t("terminal.errors.unsentInput", {
-          error: errorMessage(error),
-        });
-        if (stream.sessionId)
-          void desktop.close(stream.sessionId, "inputFailed").catch(() => {});
-      } finally {
-        stream.inputBytes -= chunk.length;
-      }
-    });
-  }
-}
 function connectedTargets(sourceId: string, kind: InputKind = "keyboard") {
   const workbench = useWorkbenchStore();
   const source = workbench.terminals.find(
@@ -345,21 +49,11 @@ function connectedTargets(sourceId: string, kind: InputKind = "keyboard") {
     );
   });
 }
-function remoteWheel(term: Terminal) {
-  return (
-    (term.modes.mouseTrackingMode !== "none" &&
-      term.modes.mouseTrackingMode !== "x10") ||
-    term.buffer.active.type === "alternate"
-  );
-}
 const inputRouter = createInputRouter({
   targets: connectedTargets,
   send(id, bytes) {
     const entry = entries.get(id);
-    const terminal = useWorkbenchStore().terminals.find(
-      (item) => item.terminalId === id,
-    );
-    if (entry && terminal && !entry.disposed) input(entry, terminal, bytes);
+    if (entry && !entry.disposed) input(entry, entry.terminal, bytes);
   },
   applicationCursor: (id) =>
     entries.get(id)?.term.modes.applicationCursorKeysMode ?? false,
@@ -370,349 +64,36 @@ const inputRouter = createInputRouter({
     sendFinalWheelInput(target, final, source, event);
   },
 });
-function settings(entry: Entry, terminal: TerminalItem) {
-  const s = useSettings().value;
-  applyTerminalTheme(entry.term, entry.host, schemeForTerminal(terminal));
-  const family = terminalFontFamily(s.fontFamily);
-  const request = `${s.fontSize}px ${family}`;
-  if (entry.fontRequest !== request) {
-    entry.fontRequest = request;
-    void loadTerminalFont(s.fontFamily, s.fontSize)
-      .then(() => {
-        // 迟到的加载不能覆盖较新的选择，也不能访问已关闭的终端。
-        if (entry.disposed || entry.fontRequest !== request) return;
-        entry.term.options.fontFamily = family;
-        fit(entry, terminal);
-      })
-      .catch(() => {
-        if (entry.disposed || entry.fontRequest !== request) return;
-        entry.fontRequest = undefined;
-        terminal.error = t("terminal.errors.fontLoad");
-      });
-  }
-  entry.term.options.fontSize = s.fontSize;
-  entry.term.options.scrollback = s.scrollback;
-}
-export function schemeForTerminal(terminal: TerminalItem) {
-  return resolveTerminalScheme(terminal, useSettings().value);
-}
-function fit(entry: Entry, terminal: TerminalItem) {
-  if (entry.host.clientWidth < 10 || entry.host.clientHeight < 10) return;
-  entry.fit.fit();
-  const size = {
-    cols: Math.min(1000, entry.term.cols),
-    rows: Math.min(1000, entry.term.rows),
-  };
-  terminal.size = size;
-  const key = `${size.cols}:${size.rows}`;
-  if (
-    entry.canResize &&
-    entry.lastSize !== key &&
-    terminal.sessionId &&
-    terminal.state === "connected"
-  ) {
-    entry.lastSize = key;
-    void desktop.resize(terminal.sessionId, size).catch((error) => {
-      entry.lastSize = "";
-      terminal.error = errorMessage(error);
-    });
-  }
-}
-function connectionLog(
-  terminal: TerminalItem,
-): Omit<SessionLogDraft, "content"> {
-  const target = terminal.target;
-  const profile =
-    target.source === "saved"
-      ? useHosts().hosts.find((item) => item.id === target.profileId)
-      : undefined;
-  const config =
-    target.source === "ephemeral" || target.source === "telnet"
-      ? target.config
-      : profile;
-  const protocol = terminal.kind === "forwarding" ? "ssh" : terminal.kind;
-  return {
-    id: terminal.terminalId,
-    protocol,
-    name: profile?.name ?? terminal.baseTitle,
-    username:
-      protocol === "ssh" && config && "username" in config
-        ? config.username
-        : null,
-    host:
-      protocol === "serial"
-        ? (terminal.serialConfig?.path ?? null)
-        : protocol === "local"
-          ? null
-          : (config?.address ?? null),
-    port:
-      protocol === "ssh" || protocol === "telnet"
-        ? (config?.port ?? null)
-        : null,
-    startedAt: Date.now(),
-  };
-}
-async function archiveAndDispose(id: string, entry: Entry) {
-  // 连接命令返回后才能可靠取消；超时保留视图和缓冲，允许再次关闭。
-  const deadline = Date.now() + 10000;
-  while (entry.connecting && Date.now() < deadline)
-    await new Promise((resolve) => setTimeout(resolve, 20));
-  if (entry.connecting) throw new Error(t("terminal.errors.sessionClosing"));
-  await terminalRegistry.disconnect(id);
-  const stream = entry.stream;
-  if (stream?.sessionId) {
-    const endDeadline = Date.now() + 5000;
-    while (!stream.endReceived && Date.now() < endDeadline)
-      await new Promise((resolve) => setTimeout(resolve, 20));
-    if (!stream.endReceived)
-      throw new Error(t("terminal.errors.sessionClosing"));
-    // 较早的排空可能因迟到帧超时；本次重新排空成功后仍允许安全重试关闭。
-    await stream.finalization?.catch(() => {});
-    await drain(entry, stream);
-    await acknowledge(entry, stream);
-  } else {
-    await new Promise<void>((resolve) => entry.term.write("", resolve));
-  }
-  // 数据库确认提交之前保留 xterm；同一 terminalId 重试不会重复插入。
-  await desktop.saveSessionLog({
-    ...entry.log,
-    content: captureTerminalLog(entry.term),
-  });
-  entry.disposed = true;
-  entry.observer.disconnect();
-  if (stream?.ackTimer) clearTimeout(stream.ackTimer);
-  entry.inputOrigin?.dispose();
-  entry.term.dispose();
-  entries.delete(id);
-}
 export const terminalRegistry = {
   mount(terminal: TerminalItem, host: HTMLElement) {
     if (entries.has(terminal.terminalId)) return;
-    const term = new Terminal({
-      // 粗体仅改变字重，避免普通 ANSI 色被自动替换为高亮色。
-      drawBoldTextInBrightColors: false,
-      convertEol: false,
-      cursorBlink: true,
-      allowProposedApi: false,
-      scrollback: 5000,
-      // 通过 xterm 公开选项让滚动增量按两倍累积，广播仍只跟随源端最终输入。
-      scrollSensitivity: 2,
-      screenReaderMode: true,
-    });
-    const fitAddon = new FitAddon(),
-      search = new SearchAddon();
-    // OSC 52 不能让远端程序读取或改写本机剪贴板。
-    term.parser.registerOscHandler(52, () => true);
-    term.loadAddon(fitAddon);
-    term.loadAddon(search);
-    const activate = (e: MouseEvent, url: string) => {
-      const binding = useSettings().value.keymap.bindings.find(
-        (b) =>
-          b.enabled &&
-          b.commandId === "terminal.openLink" &&
-          b.trigger.type === "pointer",
-      );
-      if (
-        binding &&
-        modifierMatches(e, binding.trigger.modifiers) &&
-        e.button === 0 &&
-        /^https?:\/\//i.test(url)
-      ) {
-        e.preventDefault();
-        // 链接在 mouseup 激活，必须继续冒泡，让 xterm 的 document 监听结束拖选。
-        // 下一轮任务再打开浏览器，避免窗口失焦早于鼠标松开事件的清理。
-        setTimeout(() => {
-          if (entry.disposed) return;
-          void desktop.openUrl(url).catch((error) => {
-            terminal.error = errorMessage(error);
-          });
-        }, 0);
-      }
-    };
-    term.loadAddon(new WebLinksAddon(activate));
-    term.options.linkHandler = { activate };
-    host.dataset.terminalId = terminal.terminalId;
-    const entry: Entry = {
-      term,
-      fit: fitAddon,
-      search,
-      host,
-      observer: new ResizeObserver(() => fit(entry, terminal)),
-      connecting: false,
-      log: connectionLog(terminal),
-      disposed: false,
-      lastSize: "",
-      canResize: false,
-    };
+    const entry = createTerminalEntry(terminal, host);
     entries.set(terminal.terminalId, entry);
-    // xterm 统一解析 OSC 0/2；标题仅驻内存展示，不作为真实命令或主机身份。
-    // 订阅随终端实例销毁，标签切换与分屏不重复注册。
-    term.onTitleChange((title) => {
-      if (!entry.disposed) updateActivityTitle(terminal, title);
+    mountTerminalView(entry, terminal, {
+      data: (packet) => inputRouter.data(terminal.terminalId, packet),
+      paste: (text) => this.pasteText(terminal.terminalId, text),
     });
-    // 只读取Shell执行阶段，不从输出猜命令，也不执行远端控制指令。
-    term.parser.registerOscHandler(133, (payload) => {
-      if (!entry.disposed) updateShellActivity(terminal, payload);
-      return true;
-    });
-    settings(entry, terminal);
-    term.open(host);
-    entry.observer.observe(host);
-    term.attachCustomKeyEventHandler((e) => {
-      if (e.type !== "keydown") return true;
-      // 单独按修饰键不应结束输入法组合、清除选区或改变滚屏位置。
-      if (["Meta", "Control", "Alt", "Shift"].includes(e.key)) return false;
-      if (commands.route(e, useSettings().value.keymap.bindings, true))
-        return false;
-      if (
-        isMac &&
-        e.altKey &&
-        !e.ctrlKey &&
-        !e.metaKey &&
-        !e.shiftKey &&
-        !e.isComposing &&
-        !e.defaultPrevented &&
-        !e.getModifierState("AltGraph") &&
-        !document.querySelector("[data-modal-open], [data-ui-popup-open]") &&
-        (e.key === "ArrowLeft" || e.key === "ArrowRight")
-      ) {
-        // macOS 跳词使用 Shell 常见的 Meta-b/f，避免发送未绑定的修饰方向键序列。
-        e.preventDefault();
-        e.stopPropagation();
-        term.input(e.key === "ArrowLeft" ? "\x1bb" : "\x1bf", true);
-        return false;
-      }
-      return true;
-    });
-    entry.inputOrigin = observeTerminalInput(term, (packet) =>
-      inputRouter.data(terminal.terminalId, packet),
-    );
-    term.attachCustomWheelEventHandler((event) => {
-      // 只标记即将编码的来源，等实际 onData/onBinary 生成输入后才广播最终动作。
-      if (remoteWheel(term) && event.deltaY !== 0)
-        entry.inputOrigin?.markWheelInput(event);
-      return true;
-    });
-    host.addEventListener(
-      "paste",
-      (e) => {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        const text = e.clipboardData?.getData("text/plain") ?? "";
-        void terminalRegistry.pasteText(terminal.terminalId, text);
-      },
-      { capture: true },
-    );
-    fit(entry, terminal);
     void this.connect(terminal);
   },
   async connect(terminal: TerminalItem) {
     const entry = entries.get(terminal.terminalId);
-    if (!entry || entry.connecting || entry.closing || entry.disposed) return;
-    entry.connecting = true;
-    try {
-      const old = entry.stream;
-      if (old) {
-        if (old.sessionId && !old.ended) {
-          await desktop.close(old.sessionId, "reconnect");
-          const deadline = Date.now() + 3000;
-          while (!old.ended && Date.now() < deadline)
-            await new Promise((r) => setTimeout(r, 20));
-          if (!old.ended) throw new Error(t("terminal.errors.sessionClosing"));
-        }
-        await drain(entry, old);
-        if (old.ackTimer) clearTimeout(old.ackTimer);
-        await acknowledge(entry, old);
-        useWorkbenchStore().dismiss(old.sessionId ?? "");
-      }
-      if (terminal.target.source === "saved") {
-        const profileId = terminal.target.profileId;
-        const profile = useHosts().hosts.find((host) => host.id === profileId);
-        if (profile?.kind === "workspace")
-          throw new Error(t("workspaces.errors.singleConnection"));
-        if (profile) {
-          terminal.kind = profile.kind;
-          terminal.serialConfig = profile.serialConfig
-            ? { ...profile.serialConfig }
-            : undefined;
-        }
-      }
-      resetTerminalActivity(terminal);
-      writeLocalStatus(
-        entry.term,
-        terminal.kind === "local"
-          ? old
-            ? t("terminal.actions.reopenLocal")
-            : t("terminal.state.startingLocal")
-          : terminal.kind === "serial"
-            ? old
-              ? t("serial.actions.reopen")
-              : t("serial.actions.open")
-            : old
-              ? t("terminal.actions.reconnectWithHistory")
-              : terminal.kind === "telnet"
-                ? t("terminal.state.startingTelnet")
-                : t("terminal.state.startingSsh"),
-      );
-      const stream: Stream = {
-        generation: (old?.generation ?? 0) + 1,
-        seq: 0,
-        received: BigInt(0),
-        consumed: BigInt(0),
-        acked: BigInt(0),
-        ack: Promise.resolve(),
-        pending: 0,
-        inputSeq: 0,
-        inputBytes: 0,
-        input: Promise.resolve(),
-        ended: false,
-        endReceived: false,
-        eventSeq: 0,
-      };
-      entry.stream = stream;
-      terminal.state = "connecting";
-      terminal.error = "";
-      terminal.revision = 0;
-      terminal.sessionId = undefined;
-      const snapshot = await desktop.openSession(
-        terminal.terminalId,
-        terminal.target,
-        terminal.size,
-        (data) => receive(entry, stream, data),
-        (value) => event(entry, terminal, stream, value),
-      );
-      if (entry.disposed) {
-        await desktop.close(snapshot.sessionId, "tabClosed");
-        return;
-      }
-      stream.sessionId = snapshot.sessionId;
-      entry.canResize = snapshot.capabilities.resize;
-      update(terminal, snapshot);
-      await acknowledge(entry, stream);
-    } catch (error) {
-      terminal.error = errorMessage(error);
-      terminal.state = "failed";
-      writeLocalStatus(entry.term, terminal.error);
-    } finally {
-      entry.connecting = false;
-    }
+    if (entry) await connect(entry, terminal);
   },
   async disconnect(id: string) {
-    const e = entries.get(id),
-      terminal = useWorkbenchStore().terminals.find((t) => t.terminalId === id);
-    if (e?.stream?.sessionId && !e.stream.endReceived) {
-      if (terminal) terminal.state = "closing";
-      const snapshot = await desktop.close(e.stream.sessionId);
-      if (terminal) update(terminal, snapshot);
-    }
+    const entry = entries.get(id);
+    if (entry) await disconnect(entry, entry.terminal);
   },
   async dispose(id: string) {
     const entry = entries.get(id);
     if (!entry) return;
     if (!entry.closing) {
-      entry.closing = archiveAndDispose(id, entry).finally(() => {
-        entry.closing = undefined;
-      });
+      entry.closing = archiveAndDispose(entry, entry.terminal)
+        .then(() => {
+          entries.delete(id);
+        })
+        .finally(() => {
+          entry.closing = undefined;
+        });
     }
     await entry.closing;
   },

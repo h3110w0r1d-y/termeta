@@ -1,57 +1,41 @@
 # 官方账号与浏览器登录
 
-更新：2026-10-20。客户端、服务端和用户端已重构为浏览器登录与双模式入口；源码完成不代表真实 OAuth、MySQL 或三平台运行验收通过。
+更新：2026-10-20。本文维护桌面登录、Token、回跳和授权边界；真实 OAuth/MySQL、浏览器与三平台运行验收尚未完成。
 
 ## 范围与模块
 
-软件首次使用选择官方账号模式或本地/离线模式。官方入口提供 termeta.io、GitHub、Google，邮箱注册/登录只在独立用户端处理；桌面不再提供邮箱密码表单或身份绑定管理。未配置的第三方提供方不显示。用户端使用 Vue、Pinia、Vue Router、Naive UI，与管理端分离，浏览器不接收保险库密码或业务明文。
+桌面提供 termeta.io、GitHub、Google 浏览器入口，未配置的提供方不显示。邮箱注册/登录和基础账号管理在 独立用户端，桌面不提供账号密码表单。网页不接收保险库密码或业务明文。
 
-桌面账号 Token 只由 Rust 管理，创建保险库之前仅在进程内暂存，库可用后写入 SQLCipher 的独立账号设置；不返回 WebView、不写普通浏览器存储、不进入云快照。账号密码只用于网站认证，与保险库密码无关。桌面会话没有时间到期，`expires_at=null`；退出、管理员撤销、账号停用仍可使其失效。网页会话保持有限期限，Token 只保存在内存，刷新后重新登录。
+桌面 Token 只由 Rust 管理：保险库创建前暂存在进程内，可用后写入 SQLCipher 独立账号设置；不返回 WebView、不写浏览器存储、不进入云包。桌面会话不按时间到期，退出、管理员撤销或账号停用仍使其失效。网页/管理会话有限期，与桌面会话隔离。
 
-官方模式的密码门禁、主密钥和自动同步见 [官方保险库同步](26-official-vault-sync.md)。本地模式完全不要求账号，第三方备份仅在本地模式设置中提供。退出官方账号保留本机保险库、数据和已运行会话。
+账号认证不等于解锁保险库。官方密码门禁和自动同步见 [官方同步](26-official-vault-sync.md)；本地模式无需账号，退出保留本地保险库、数据和运行会话。
 
 ## 登录协议
 
-采用系统浏览器、S256 proof、一次性确认码和有限期轮询兑换。Rust 生成随机 verifier，只把 challenge 提交服务端；提供方凭据留在服务端。GitHub/Google 仍回调固定 HTTPS 服务，termeta.io 入口打开固定用户端 `/desktop/authorize?flow_id=...`，用户在网页注册/登录后显式确认授权当前桌面请求。
+使用系统浏览器、S256 proof、短期确认码与一次性兑换。Rust 生成随机 verifier，仅向服务端提交 challenge；提供方凭据留在服务端。termeta.io 打开固定用户端 `/desktop/authorize`，用户注册/登录后显式授权；GitHub/Google 回调固定 HTTPS 服务。
 
-服务端完成身份认证后生成固定 `termeta://auth/callback?flow_id=<UUID>&provider=<termeta|github|google>#confirmation_code=<code>`。只携带短期确认码，不携带应用 Token、设备 proof 或提供方秘密；确认码在 URL 片段内。客户端必须匹配本进程已存在的 flow、提供方、发起窗口、代次与期限，再用设备 proof 和确认码共同兑换。新安装的 setup 与已存在的 locked 保险库也可从本地主窗口发起账号授权，登录不等于解锁。
+认证后服务端生成固定 `termeta://auth/callback?flow_id=<UUID>&provider=<termeta|github|google>#confirmation_code=<code>`。URI 只携带短期确认码，不含 Token、设备 proof 或提供方秘密。Rust 必须匹配本进程在途 flow、提供方、发起窗口、代次和期限，再用 proof 与确认码兑换；取消或关闭使旧流程失效。
 
-| 入口 | 用途 |
-| --- | --- |
-| `/api/auth/providers` | 已启用的登录方式 |
-| `/api/auth/oauth/{provider}/start` | 创建短期 PKCE 请求；桌面 audience 为 desktop |
-| `/api/auth/oauth/termeta/authorize` | 网页已登录用户显式批准 termeta.io 桌面 flow |
-| `/api/auth/oauth/{provider}/poll` | proof 与确认码约束的一次性兑换 |
-| `/api/auth/oauth/{provider}/cancel` | proof 约束的取消 |
-| `/api/auth/oauth/{provider}/browser-status` | 独立只读回执，不返回身份或 Token |
-| `/api/auth/register`、`login`、`me`、`logout` | 独立网页账号管理；不再是桌面登录表单契约 |
-
-GitHub/Google 用户端登录使用 audience=web 与固定 `/oauth/callback` 路由，网页自己生成 PKCE proof；提供方回调仅把确认码送回固定网页，Token 仍经 proof 兑换。回跳上下文不得从任意 return_to/URL 构造跳转。详细 HTTP DTO 以服务端认证文档为准。
-
-管理端GitHub/Google登录使用独立audience=admin，固定回跳`TERMETA_OAUTH_ADMIN_BASE_URL/oauth/callback`；只接受已绑定且启用的管理员身份，不创建账号或要求纯第三方账号补设密码。管理会话有限期，每个管理API仍校验管理员权限。管理端仅临时保存自己的PKCE证明，不共享用户端Token或桌面永久会话；部署见管理端说明。
-
-身份仍按提供方不可变 subject 匹配，已验证邮箱不能作为自动合并账号的理由；显式解绑必须至少保留一种可用登录方式。网页支持查看账号及解绑已有身份；新增绑定、找回账号密码、MFA 与忘记保险库密码清空云端尚未实现，不提供伪入口。
+身份按提供方不可变 subject 匹配，不能按相同邮箱自动合并。管理端使用独立 `admin` audience 和固定来源，仅接受已有管理员身份，后端逐请求校验权限。身份管理及 HTTP DTO 以 服务端认证契约 为准；新增绑定、账号密码找回、MFA 和忘记保险库密码清空云端尚未实现。
 
 ## 客户端 IPC 与权限
 
-`src/services/desktop/` 是唯一 IPC 门面。保留账号摘要读取/刷新/退出、提供方查询及 start/confirm/poll/cancel；移除桌面 register/login/identities/unlink 命令，网页承担账号管理。
+账号摘要/刷新/退出、提供方查询及授权 start/confirm/poll/cancel 统一经过 `src/services/desktop/`。`account_owner` 允许本地 main 在 setup/locked/unlocked 发起授权，settings 必须已解锁；账号登录不扩大业务数据或会话权限，官方门禁完成仅 main。
 
-`account_owner` 允许本地 main 在 setup/locked/unlocked 管理登录，settings 仍必须已解锁。官方同步完成/初始化仅 main，设置窗口只展示同步状态和提示回主窗口完成门禁。账号登录代次与窗口代次独立于数据库初始化门闩；窗口关闭、取消和退出使旧 flow 无效，不把“库尚未解锁”当成取消正在进行的启动登录的理由。
-
-固定服务来源默认 `https://termeta.io`，由编译期 `TERMETA_API_BASE_URL` 配置，组件不能传任意 URL。Rust 校验 HTTPS、固定授权域与路径、响应大小和期限，不自动重试账号操作或跟随重定向。跨窗口事件仅通知摘要失效，窗口重新读取，不广播秘密。
+固定服务来源默认 `https://termeta.io`，仅由编译期 `TERMETA_API_BASE_URL` 配置，组件不能提交任意 URL。Rust 校验 HTTPS、授权域/路径、响应大小及期限，禁自动重试与重定向；跨窗口只通知摘要失效，不广播秘密。库尚未解锁不能误取消当前启动登录，迟到结果不能恢复旧账号流程。
 
 ## 系统协议与生命周期
 
-Tauri deep-link 插件只复用初始化和固定 scheme 注册，原始 URI 不广播至 WebView；macOS 原生 Opened、Windows/Linux single-instance 参数直接交给 Rust。协议 parser 拒绝未知/重复字段、非法 UUID、超长 URI 或确认码、不匹配的窗口/flow/提供方。冷启动没有设备 proof 时拒绝兑换，不自动新建 flow、打开终端、导航页面或解锁库。
+Tauri deep-link 仅复用固定 scheme 注册，原始 URI 不广播 WebView。macOS Opened 和 Windows/Linux single-instance 参数直接交给 Rust。parser 拒绝未知/重复字段、非法 UUID、超长 URI/确认码以及不匹配流程；冷启动没有设备 proof 时拒绝兑换，不自动新建授权、导航、打开终端或解锁库。
 
-回跳只向当前流程交接确认码并聚焦窗口，已有轮询负责兑换。自动唤起被浏览器或系统阻止时提供按钮与手动确认码备选。浏览器的失焦/隐藏不代表成功；只有服务端确认 flow 已消费才显示完成并尝试关闭。脚本关闭被拒绝时保留可手动关闭的提示。
+回跳交接确认码并聚焦窗口，由既有轮询兑换；系统阻止唤起时保留按钮和手动确认码。浏览器失焦/隐藏不代表成功，只有服务端确认 flow 已消费才显示完成并尝试关闭，关闭失败则提示手动关闭。
 
-独立回执只读、随机且受原流程期限限制，不可兑换账号；页面 no-store/no-referrer/CSP，禁止嵌入，不加载第三方资源。应用和反向代理日志不得记录确认码、proof、Token、提供方 code/state 或认证正文。既有回执迁移 003 保持原始字节，新模式与永久会话通过新增 004 迁移启用。
+浏览器回执只读、随机、短期且不可兑换账号；页面使用 no-store/no-referrer/CSP，不允许嵌入或第三方资源。应用及代理日志不得记录确认码、proof、Token、提供方 code/state 或认证正文。
 
 ## 部署与验收
 
-用户端与服务端以同源 `/api/` 代理部署，固定 HTTPS 公开来源与 OAuth 应用回调配置保持一致；SPA 路由不能吞掉 API callback。用户端部署示例见用户端 README，服务端运维见服务端认证部署。桌面运行前需由用户显式执行服务端迁移，不自动操作真实数据库。
+用户端与服务端同源部署，公开 HTTPS/OAuth 回调须一致，SPA 路由不能吞掉 API。部署和新增迁移遵循 服务端认证文档，已应用迁移保持原始字节，由用户显式执行真实数据库迁移。
 
-仍需验证：真实提供方配置、邮箱冲突/身份隔离、proof/确认码错误、重复兑换/取消竞态、永久会话撤销、网页刷新/后台/BFCache、三平台协议安装与冷启动、浏览器阻止唤起/关闭、五语言及可访问性。静态检查与新增测试源码不能替代运行验收。
+运行验收覆盖真实提供方与身份隔离、proof/确认码错误、重复兑换/取消竞态、会话撤销、浏览器生命周期和三平台协议安装/唤起，统一见 [验收边界](01-product-requirements.md#11-运行验收边界)。
 
-2026-10-19 决策：以 termeta.io 作为与 GitHub/Google 并列的浏览器登录方式，将账号表单与用户管理移至独立用户端；桌面账号永久可撤销，保险库密码门禁和官方自动同步独立编排，避免账号登录隐式暴露或覆盖本地数据。
+2026-10-19 决策：账号表单与用户管理移至独立用户端，桌面统一浏览器登录及永久可撤销会话；保险库门禁独立，避免账号登录隐式暴露或覆盖本地数据。

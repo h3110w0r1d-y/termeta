@@ -4,7 +4,6 @@ import { computed, ref } from "vue";
 import { useHosts } from "../hosts/store";
 import { clone } from "../../services/data/clone";
 import { terminalBaseTitle, terminalDisplayTitle } from "../terminal/title";
-import type { TerminalActivity } from "../terminal/activity";
 import { moveTabBefore } from "./tabInsertion";
 import { broadcastTargets, type InputKind } from "../terminal/inputRouter";
 import { useSettings } from "../settings/store";
@@ -16,7 +15,6 @@ import {
   setSplitRatio,
   swapSplit,
   relocateTerminal,
-  type LayoutNode,
   type SplitEdge,
 } from "./layout";
 import type {
@@ -24,65 +22,39 @@ import type {
   HostKeyChallenge,
   OpenTarget,
   SessionState,
-  SessionSnapshot,
-  SerialConfig,
   HostProfile,
   HostKind,
-  SavedLayout,
   SavedWorkspace,
   SessionLogSummary,
 } from "../../services/desktop/types";
-export type TerminalOpenMode = "tabs" | "workspace";
-/** 单个终端的轻量运行状态；分屏后也不对应独立标签页。 */
-export interface TerminalItem extends TerminalActivity {
-  terminalId: string;
-  title: string;
-  baseTitle: string;
-  target: OpenTarget;
-  kind: SessionSnapshot["kind"];
-  serialConfig?: SerialConfig;
-  state: SessionState;
-  sessionId?: string;
-  sftpOpen?: boolean;
-  sftpTransferring?: boolean;
-  revision: number;
-  error: string;
-  schemeId?: string;
-  size: { cols: number; rows: number };
-}
-/** 一个动态标签的运行布局，可容纳一个或多个终端；工作区存档另用 SavedWorkspace。 */
-export interface TerminalTabGroup {
-  name?: string;
-  savedProfileId?: string;
-  id: string;
-  root: LayoutNode;
-  focusedTerminalId: string;
-  broadcast: boolean;
-  broadcastRevision: number;
-}
-/** 标签栏的展示投影，不承载终端实例或工作区存档。 */
-export interface TabBarItem {
-  kind: "terminal" | "log";
-  id: string;
-  title: string;
-  state: SessionState;
-  terminalIds: string[];
-  split: boolean;
-}
-/** 日志标签只保存摘要；正文由当前回看组件按需读取。 */
-export interface SessionLogTab {
-  id: string;
-  log: SessionLogSummary;
-}
-export type TabDragSource =
-  { kind: "tab"; tabId: string } | { kind: "pane"; terminalId: string };
-export type TabDropTarget =
-  | { kind: "tab-slot"; beforeGroupId: string | null }
-  | { kind: "pane"; terminalId: string; edge: SplitEdge };
-export type TabBarDropResult =
-  "invalid" | "unchanged" | "reordered" | "detached";
-export type VaultSection =
-  "hosts" | "forwarding" | "credentials" | "snippets" | "known-hosts" | "logs";
+export type {
+  TerminalOpenMode,
+  TerminalItem,
+  TerminalTabGroup,
+  TabBarItem,
+  SessionLogTab,
+  TabDragSource,
+  TabDropTarget,
+  TabBarDropResult,
+  VaultSection,
+} from "./types";
+import type {
+  TerminalOpenMode,
+  TerminalItem,
+  TerminalTabGroup,
+  TabBarItem,
+  SessionLogTab,
+  TabDragSource,
+  TabDropTarget,
+  TabBarDropResult,
+  VaultSection,
+} from "./types";
+import {
+  validateSavedWorkspace,
+  restoreWorkspaceLayout,
+  captureWorkspace,
+} from "./workspace";
+
 export const useWorkbenchStore = defineStore("workbench", () => {
   // terminals 保存终端元数据，groups 独立保存标签顺序与布局；移动布局不增删终端。
   const terminals = ref<TerminalItem[]>([]);
@@ -253,7 +225,8 @@ export const useWorkbenchStore = defineStore("workbench", () => {
     ];
     // 保存工作区独立恢复，不能作为单个后端终端或嵌套引用。
     const savedWorkspaces = unique.filter((host) => host.kind === "workspace");
-    for (const host of savedWorkspaces) validateSavedWorkspace(host);
+    for (const host of savedWorkspaces)
+      validateSavedWorkspace(host, useHosts().hosts);
     const created = unique
       .filter(
         (host): host is HostProfile & { kind: HostKind } =>
@@ -287,80 +260,31 @@ export const useWorkbenchStore = defineStore("workbench", () => {
     savedWorkspaces.forEach(openSavedWorkspace);
     activeId.value = first.terminalId;
   }
-  function validateSavedWorkspace(host: HostProfile) {
-    if (!host.workspace) throw new Error(t("workspaces.errors.missingLayout"));
-    const hosts = useHosts();
-    let count = 0;
-    const visit = (node: SavedLayout, depth: number) => {
-      if (depth > 32 || count >= 64)
-        throw new Error(t("workspaces.errors.layoutLimit"));
-      if (node.kind === "connection") {
-        const profile = hosts.hosts.find(
-          (h) => h.id === node.profileId && h.kind !== "workspace",
-        );
-        if (!profile)
-          throw new Error(
-            t("workspaces.errors.deletedConnection", {
-              name: host.name,
-            }),
-          );
-        count++;
-      } else {
-        if (
-          !["horizontal", "vertical"].includes(node.axis) ||
-          !Number.isFinite(node.ratio) ||
-          node.ratio < 0.1 ||
-          node.ratio > 0.9
-        )
-          throw new Error(t("workspaces.errors.invalidSplit"));
-        visit(node.first, depth + 1);
-        visit(node.second, depth + 1);
-      }
-    };
-    visit(host.workspace.root, 0);
-    if (
-      !Number.isInteger(host.workspace.focusedIndex) ||
-      host.workspace.focusedIndex < 0 ||
-      host.workspace.focusedIndex >= count
-    )
-      throw new Error(t("workspaces.errors.invalidFocus"));
-  }
   function openSavedWorkspace(host: HostProfile) {
-    validateSavedWorkspace(host);
+    const workspace = validateSavedWorkspace(host, useHosts().hosts);
     const created: TerminalItem[] = [];
-    const restore = (node: SavedLayout): LayoutNode => {
-      if (node.kind === "connection") {
-        const profile = useHosts().hosts.find((h) => h.id === node.profileId);
-        if (!profile || profile.kind === "workspace")
-          throw new Error(t("workspaces.errors.invalidConnection"));
-        const terminal = add(
-          profile.name,
-          { source: "saved", profileId: profile.id },
-          {
-            kind: profile.kind,
-            serialConfig: profile.serialConfig ?? undefined,
-          },
-        );
-        created.push(terminal);
-        return { kind: "terminal", terminalId: terminal.terminalId };
-      }
-      return {
-        kind: "split",
-        id: crypto.randomUUID(),
-        axis: node.axis,
-        ratio: node.ratio,
-        first: restore(node.first),
-        second: restore(node.second),
-      };
-    };
-    const root = restore(host.workspace!.root);
+    const root = restoreWorkspaceLayout(workspace.root, (profileId) => {
+      const profile = useHosts().hosts.find((h) => h.id === profileId);
+      if (!profile || profile.kind === "workspace")
+        throw new Error(t("workspaces.errors.invalidConnection"));
+      const terminal = add(
+        profile.name,
+        { source: "saved", profileId: profile.id },
+        {
+          kind: profile.kind,
+          serialConfig: profile.serialConfig ?? undefined,
+        },
+      );
+      created.push(terminal);
+      return terminal.terminalId;
+    });
     const ids = new Set(created.map((t) => t.terminalId));
     const group = groups.value.find((g) => g.id === created[0]!.terminalId)!;
     group.root = root;
     group.name = host.name;
     group.savedProfileId = host.id;
-    group.focusedTerminalId = created[host.workspace!.focusedIndex]!.terminalId;
-    unifyGroupScheme(group, created[host.workspace!.focusedIndex]!);
+    group.focusedTerminalId = created[workspace.focusedIndex]!.terminalId;
+    unifyGroupScheme(group, created[workspace.focusedIndex]!);
     groups.value = groups.value.filter((g) => g === group || !ids.has(g.id));
     activeId.value = group.id;
   }
@@ -368,35 +292,9 @@ export const useWorkbenchStore = defineStore("workbench", () => {
     const group = groups.value.find((g) => g.id === id);
     if (!group || (group.root.kind !== "split" && !group.savedProfileId))
       throw new Error(t("workspaces.errors.workspaceOnly"));
-    const hosts = useHosts();
-    const capture = (node: LayoutNode): SavedLayout => {
-      if (node.kind === "terminal") {
-        const terminal = terminals.value.find(
-          (t) => t.terminalId === node.terminalId,
-        );
-        const target = terminal?.target;
-        if (
-          target?.source !== "saved" ||
-          !hosts.hosts.some(
-            (h) => h.id === target.profileId && h.kind !== "workspace",
-          )
-        )
-          throw new Error(t("workspaces.errors.unsavedConnections"));
-        return { kind: "connection", profileId: target.profileId };
-      }
-      return {
-        kind: "split",
-        axis: node.axis,
-        ratio: node.ratio,
-        first: capture(node.first),
-        second: capture(node.second),
-      };
-    };
-    return {
-      root: capture(group.root),
-      focusedIndex: terminalIds(group.root).indexOf(group.focusedTerminalId),
-    };
+    return captureWorkspace(group, terminals.value, useHosts().hosts);
   }
+
   function groupForTerminal(id: string) {
     return groups.value.find((g) => terminalIds(g.root).includes(id));
   }

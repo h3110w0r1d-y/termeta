@@ -12,6 +12,8 @@ import {
 } from "naive-ui";
 import { useAppAppearance } from "./layout/useAppAppearance";
 import { useNativeMenuLocale } from "./layout/useNativeMenuLocale";
+import { useConnectionActions } from "./layout/useConnectionActions";
+import { useMainWindowLifecycle } from "./layout/useMainWindowLifecycle";
 import VaultLayout from "./layout/VaultLayout.vue";
 import VaultGate from "./components/VaultGate.vue";
 import ApplicationMenu from "./components/ApplicationMenu.vue";
@@ -20,7 +22,6 @@ import { isMac } from "./services/commands/registry";
 import AppButton from "./components/ui/AppButton.vue";
 import AppInput from "./components/ui/AppInput.vue";
 import AppDialog from "./components/ui/AppDialog.vue";
-import { confirmAction } from "./components/ui/confirmation";
 import {
   computed,
   nextTick,
@@ -45,25 +46,13 @@ import ChallengeDialog from "./modules/terminal/ChallengeDialog.vue";
 import { useHosts } from "./modules/hosts/store";
 import { usePortForwards } from "./modules/forwarding/store";
 import { useSettings } from "./modules/settings/store";
-import {
-  useWorkbenchStore,
-  stateLabels,
-  type TerminalOpenMode,
-} from "./modules/workbench/store";
+import { useWorkbenchStore, stateLabels } from "./modules/workbench/store";
 import {
   schemeForTerminal,
   terminalRegistry,
 } from "./modules/terminal/registry";
-import { needsCloseConfirmation } from "./modules/terminal/activity";
 import { commands } from "./services/commands/registry";
 import { desktop, errorMessage } from "./services/desktop/client";
-import { sessionPresenceSnapshot } from "./services/desktop/sessionPresence";
-import type {
-  HostKind,
-  HostProfile,
-  SerialConfig,
-  OpenTarget,
-} from "./services/desktop/types";
 import { useSettingsSync } from "./modules/settings/useSettingsSync";
 import { useBackupRestored } from "./modules/backup/useBackupRestored";
 const settingsSync = useSettingsSync();
@@ -72,24 +61,46 @@ const hosts = useHosts(),
   settings = useSettings(),
   workbench = useWorkbenchStore();
 const portForwards = usePortForwards();
-const newTabOpen = ref(false);
-const serialOpen = ref(false);
-const serialSave = ref(false);
-const editorKind = ref<"ssh" | "telnet">("ssh");
-const editorOpen = ref(false),
-  quick = ref(false),
-  editing = ref<HostProfile>(),
-  duplicate = ref(false),
-  newHostGroup = ref<string | null>(null),
-  initError = ref(""),
-  findOpen = ref(false),
-  query = ref("");
+const initError = ref("");
+const findOpen = ref(false);
+const query = ref("");
 watch(settingsSync.error, (message) => {
   if (message) initError.value = message;
 });
 const vaultReady = ref(false);
 const workbenchAccessible = ref(false);
-const savingLogs = ref(false);
+const { savingLogs } = useMainWindowLifecycle({
+  vaultReady,
+  beforeSave: () => {
+    tabMenu.value.show = false;
+  },
+  reportError: (message) => {
+    initError.value = message;
+  },
+});
+const {
+  newTabOpen,
+  serialOpen,
+  serialSave,
+  editorKind,
+  editorOpen,
+  quick,
+  editing,
+  duplicate,
+  newHostGroup,
+  edit,
+  createHost,
+  openNewTab,
+  quickConnect,
+  openLocalTerminal,
+  openSerial,
+  connect,
+  connectMany,
+  ephemeral,
+} = useConnectionActions(savingLogs, (message) => {
+  initError.value = message;
+});
+const savingGroupId = ref("");
 useBackupRestored(
   async () => {
     if (vaultReady.value)
@@ -119,80 +130,6 @@ const activeTerminalError = computed(() => {
     : "";
 });
 const { naiveTheme, naiveThemeOverrides } = useAppAppearance();
-let presenceSync: ReturnType<typeof setInterval> | undefined,
-  unlisten: (() => void) | undefined,
-  unlistenExit: (() => void) | undefined,
-  closingWindow = false,
-  preparingClose = false,
-  exitingApp = false;
-function edit(host?: HostProfile, copy = false, groupId: string | null = null) {
-  if (host?.kind === "workspace") return;
-  newHostGroup.value = groupId;
-  editing.value = host;
-  duplicate.value = copy;
-  quick.value = false;
-  if (host?.kind === "serial") {
-    serialSave.value = true;
-    serialOpen.value = true;
-  } else {
-    editorKind.value = host?.kind === "telnet" ? "telnet" : "ssh";
-    editorOpen.value = true;
-  }
-}
-function createHost(kind: HostKind, groupId: string | null) {
-  if (kind !== "serial") {
-    edit(undefined, false, groupId);
-    editorKind.value = kind;
-  } else {
-    editing.value = undefined;
-    duplicate.value = false;
-    newHostGroup.value = groupId;
-    serialSave.value = true;
-    serialOpen.value = true;
-  }
-}
-const savingGroupId = ref("");
-function openNewTab() {
-  if (savingLogs.value) return;
-  newTabOpen.value = true;
-}
-function quickConnect(kind: HostKind = "ssh") {
-  if (savingLogs.value) return;
-  newHostGroup.value = null;
-  editing.value = undefined;
-  quick.value = true;
-  duplicate.value = false;
-  if (kind === "serial") {
-    serialSave.value = false;
-    serialOpen.value = true;
-  } else {
-    editorKind.value = kind;
-    editorOpen.value = true;
-  }
-}
-function openLocalTerminal() {
-  if (savingLogs.value) return;
-  workbench.add("本地终端", { source: "local" });
-}
-function openSerial(config: SerialConfig) {
-  if (savingLogs.value) return;
-  workbench.add(config.path, { source: "serial", config });
-}
-function connect(host: HostProfile) {
-  connectMany([host], "tabs");
-}
-function connectMany(profiles: HostProfile[], mode: TerminalOpenMode) {
-  if (savingLogs.value) return;
-  try {
-    workbench.addSavedHosts(profiles, mode);
-  } catch (e) {
-    initError.value = errorMessage(e);
-  }
-}
-function ephemeral(target: OpenTarget, title: string) {
-  if (savingLogs.value) return;
-  workbench.add(title, target);
-}
 const { closeTab, closePane } = useTerminalClose();
 function perform(action: () => void | Promise<void>) {
   try {
@@ -263,61 +200,7 @@ watch(
   () => workbench.terminals.map((terminal) => terminal.schemeId),
   () => terminalRegistry.apply(),
 );
-async function closeApplication() {
-  if (preparingClose || closingWindow) return;
-  preparingClose = true;
-  try {
-    if (
-      (workbench.fileTransferring ||
-        workbench.terminals.some((terminal) => terminal.sftpTransferring)) &&
-      !(await confirmAction(t("window.close.confirmTransfers")))
-    )
-      return;
-    const running = workbench.terminals.filter(needsCloseConfirmation);
-    if (
-      (running.length > 0 || portForwards.hasActive) &&
-      settings.value.confirmClose &&
-      !(await confirmAction(
-        [
-          running.length
-            ? t("window.close.runningTerminals", { count: running.length })
-            : "",
-          portForwards.hasActive ? t("window.close.activeForwarding") : "",
-          t("window.close.confirmSessions"),
-        ]
-          .filter(Boolean)
-          .join(" "),
-      ))
-    )
-      return;
-    tabMenu.value.show = false;
-    savingLogs.value = true;
-    // 等待每个日志提交后才删除对应视图；任一失败都阻止窗口/应用退出。
-    const results = await Promise.allSettled(
-      workbench.terminals.map(async (terminal) => {
-        await terminalRegistry.dispose(terminal.terminalId);
-        workbench.dismiss(terminal.sessionId ?? "");
-        workbench.remove(terminal.terminalId);
-      }),
-    );
-    const failure = results.find((result) => result.status === "rejected");
-    if (failure?.status === "rejected") throw failure.reason;
-    if (exitingApp) {
-      await desktop.finishAppExit();
-    } else {
-      closingWindow = true;
-      await desktop.closeWindow();
-    }
-  } catch (cause) {
-    closingWindow = false;
-    initError.value = errorMessage(cause);
-  } finally {
-    savingLogs.value = false;
-    preparingClose = false;
-    exitingApp = false;
-  }
-}
-onMounted(async () => {
+onMounted(() => {
   commands.register("workbench.newConnection", openNewTab);
   commands.register("workbench.newTab", openNewTab);
   commands.register("workbench.newLocalTerminal", openLocalTerminal);
@@ -347,38 +230,9 @@ onMounted(async () => {
       terminalRegistry.bottom(workbench.activeTerminal.terminalId);
   });
   document.addEventListener("keydown", globalKey, true);
-  try {
-    unlistenExit = await desktop.onAppExitRequested(() => {
-      exitingApp = true;
-      void closeApplication();
-    });
-    unlisten = await desktop.onCloseRequested((event) => {
-      if (closingWindow) return;
-      event.preventDefault();
-      void closeApplication();
-    });
-    presenceSync = setInterval(
-      () =>
-        vaultReady.value &&
-        void desktop
-          .syncSessionPresence({
-            protocolVersion: 1,
-            sessions: sessionPresenceSnapshot(),
-          })
-          .catch((e) => {
-            initError.value = errorMessage(e);
-          }),
-      15000,
-    );
-  } catch (e) {
-    initError.value = errorMessage(e);
-  }
 });
 onBeforeUnmount(() => {
   document.removeEventListener("keydown", globalKey, true);
-  if (presenceSync) clearInterval(presenceSync);
-  unlisten?.();
-  unlistenExit?.();
 });
 </script>
 <template>

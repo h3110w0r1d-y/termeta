@@ -1,6 +1,6 @@
 # 依赖选型与核查边界
 
-更新：2026-10-19。版本和 features 以 manifest、Cargo.lock、pnpm-lock.yaml 为准。本文保留选型依据与升级注意事项，不记录逐轮调研/API 排查过程；静态核对不代表编译、兼容性或安全审计通过。
+更新：2026-10-20。版本和 features 以 manifest、Cargo.lock、pnpm-lock.yaml 为准。本文保留选型依据与升级注意事项，不记录逐轮调研/API 排查过程；静态核对不代表编译、兼容性或安全审计通过。
 
 ## 1. 主要依赖
 
@@ -24,7 +24,7 @@
 | WebDAV | [quick-xml 0.42.0](https://docs.rs/quick-xml/0.42.0/quick_xml/)，禁用默认 features | MIT，声明 MSRV 1.86；受限 UTF-8 DAV 解析，不启用外部实体 |
 | 备份压缩/封装 | [zstd 0.13.3](https://docs.rs/zstd/0.13.3/zstd/)（禁用默认 features）、base64 0.22.1 | MIT / MIT OR Apache-2.0，声明 MSRV 1.64 / 1.48；先压缩再加密，解压窗口和输出受限 |
 
-2026-10-18 新增 `@xterm/addon-serialize 0.14.0`，MIT，包未声明独立 engines/features/MSRV；其与 xterm 6.0.0 的 npm 包均标记源码提交 `f447274f430fd22513f6adbf9862d19524471c04`。已核对该固定 release 的 `serialize({excludeModes,excludeAltBuffer})` 类型与实现，用于关闭时保留缓冲样式；不使用 HTML 导出。包将插件标为 experimental，升级时须验证复杂样式、宽字符及备用屏往返。2026-10-18 npm 生产依赖公告查询未返回公告，不替代完整安全审计。来源：[固定包元数据](https://registry.npmjs.org/@xterm/addon-serialize/0.14.0)、[对应提交 API](https://github.com/xtermjs/xterm.js/blob/f447274f430fd22513f6adbf9862d19524471c04/addons/addon-serialize/typings/addon-serialize.d.ts)。
+SerializeAddon 0.14.0（MIT，未声明独立 engines/features/MSRV）与 xterm 6.0.0 使用同一源码基线。使用固定 release 的 `serialize({excludeModes,excludeAltBuffer})` 保留缓冲样式，不使用 HTML 导出；插件标为 experimental，升级须验证复杂样式、宽字符及备用屏往返。来源：[包元数据](https://registry.npmjs.org/@xterm/addon-serialize/0.14.0)、[固定提交 API](https://github.com/xtermjs/xterm.js/blob/f447274f430fd22513f6adbf9862d19524471c04/addons/addon-serialize/typings/addon-serialize.d.ts)。
 
 基础库共用 Tokio/async-trait/serde/uuid/bytes/zeroize 等锁定依赖；`spawn_blocking` 用于短期阻塞工作，长期 PTY/设备 I/O 使用独立线程。表中 MSRV 是直接依赖声明，不是整个传递集合的兼容保证；SQLCipher/OpenSSL、Zstd、rustls 所选 aws-lc 等还涉及原生编译和许可集合。
 
@@ -49,18 +49,17 @@ Windows/Linux 原生文件拖出没有落地，不将候选库写成已支持。
 
 真实服务、设备、原生拖放/菜单及三平台验证门槛统一见 [运行验收边界](01-product-requirements.md#11-运行验收边界)。
 
-## 4. 独立服务端依赖
+## 4. 账号与独立项目依赖
 
-2026-10-19 新增独立服务端项目，Python依赖由独立的pip/requirements生产与开发清单维护，使用实施时最新稳定FastAPI/Tortoise ORM/asyncmy等，显式包含MySQL SHA-2认证所需cryptography，详见服务端依赖。桌面官方账号复用既有reqwest/opener，不引入JavaScript HTTP或OAuth SDK；updater插件仍待独立接入与release/权限核查。
+桌面账号复用既有 reqwest/opener，不引入 JavaScript HTTP/OAuth SDK。以下直接依赖的版本、feature 和 API 依据保留用于升级复核：
 
-管理端前端为独立项目，使用Naive UI 2.45.3、Tabler Vue 3.49.0，沿用用户初始化Vue/Vite工具链及独立pnpm-lock.yaml。已知开发工具链braces公告及许可/API核查见管理端依赖，不计为桌面Cargo/pnpm依赖变化。
+| 依赖 | 用途与核查 |
+| --- | --- |
+| [base64 0.22.1](https://crates.io/crates/base64/0.22.1)、[sha2 0.10.9](https://crates.io/crates/sha2/0.10.9)、[rand_core 0.6.4](https://crates.io/crates/rand_core/0.6.4)（getrandom） | `URL_SAFE_NO_PAD`、`Sha256::digest`、`OsRng.try_fill_bytes` 用于随机 proof 与 S256；MIT OR Apache-2.0，base64 MSRV 1.48，其余未声明 |
+| [chrono 0.4.45](https://docs.rs/chrono/0.4.45/chrono/)（禁默认 feature，仅 std） | RFC3339/DateTime 与 SystemTime 转换，再换算为 Instant；MIT OR Apache-2.0，MSRV 1.62.0 |
 
-2026-10-19 官方账号PKCE直接依赖复用锁中 base64 0.22.1、sha2 0.10.9、rand_core 0.6.4（getrandom）；均为MIT OR Apache-2.0，base64声明MSRV 1.48，后两者该release未声明MSRV。已核对固定release元数据与源码API：`URL_SAFE_NO_PAD`、`Sha256::digest`、`OsRng.try_fill_bytes`；用于操作系统随机proof和S256，不实现自定义签名或密码存储。Cargo.lock仅补充桌面包对既有版本的直接引用，未升级传递集合。来源：[base64](https://crates.io/crates/base64/0.22.1)、[sha2](https://crates.io/crates/sha2/0.10.9)、[rand_core](https://crates.io/crates/rand_core/0.6.4)。本轮未执行Rust编译或全依赖公告审计，既有风险仍按需求记录处理。
+协议回跳固定 deep-link 2.4.10 与 single-instance 2.4.2。deep-link 2.4.10 依赖 Tauri ^2.10；2026-10-19 核查的 2.5/2.6 release 要求 ^2.12，维持当前桌面框架时不直接升级。仅复用原生注册/Opened/单实例参数，禁止将 URI 全局广播到 WebView，无需 JS 插件或新增 WebView 权限。升级须复核 Plugin.initialize、运行期事件与原生参数语义。来源：[固定 deep-link 源码](https://docs.rs/crate/tauri-plugin-deep-link/2.4.10/source/)、[single-instance 源码](https://docs.rs/crate/tauri-plugin-single-instance/2.4.2/source/)、[官方协议说明](https://v2.tauri.app/plugin/deep-linking/)。
 
-2026-10-19 协议回跳固定deep-link 2.4.10：已复核该release的desktop配置、Plugin初始化/事件实现与 `DeepLinkExt::register`、许可/MSRV和Changelog。它依赖Tauri ^2.10，与本仓库固定2.11.5兼容；更新的稳定2.5/2.6系列要求Tauri ^2.12，本轮不升级整套桌面框架。single-instance继续固定2.4.2，由现有原生参数回调转交URI，不启用会全局广播URI的deep-link feature；官方deep-link运行期事件和JS API同样不转发，适配边界见[认证](25-account-authentication.md#系统协议与生命周期)。无需JavaScript插件依赖或新增WebView权限。
+历史公告查询：2026-10-18 SerializeAddon 的 npm 查询、2026-10-19 deep-link 新增传递集合及 chrono 的 OSV 查询未返回公告。它们只代表当时指定版本的局部结果，不是实时或完整审计；未关闭风险仍见 [需求风险表](01-product-requirements.md#10-依赖与公告核查)。
 
-Cargo锁文件只新增deep-link及其INI/Windows注册传递依赖，未升级既有包版本。对新增的9个精确包版本向OSV查询未返回公告（2026-10-19），不等于全依赖无风险或三平台验证通过。来源：[固定release源码](https://docs.rs/crate/tauri-plugin-deep-link/2.4.10/source/)、[single-instance固定源码](https://docs.rs/crate/tauri-plugin-single-instance/2.4.2/source/)、[官方协议说明](https://v2.tauri.app/plugin/deep-linking/)、[OSV](https://osv.dev/)。升级时需复核Plugin.initialize是否增加运行期事件/JS钩子，以及原生Opened与单实例参数语义。
-
-账号运行时直接复用已锁定的[chrono 0.4.45](https://docs.rs/chrono/0.4.45/chrono/)解析服务端RFC3339到期时间，再转换为Instant；禁用默认features，仅启用std，不新增时区探测需求。已核对该release的DateTime解析/SystemTime转换、MIT OR Apache-2.0许可及声明MSRV 1.62.0；锁中版本不变。对该精确版本的OSV查询未返回公告（2026-10-19），不替代完整安全审计。
-
-独立用户端的依赖锁定与公开API使用见用户端依赖说明，与管理端分别维护；桌面双模式和官方同步复用既有密码学/HTTP依赖，本轮未新增或升级桌面依赖。
+服务端、用户端、管理端分别维护依赖和锁文件，见 服务端依赖、用户端依赖、管理端依赖。这些不计作桌面依赖变化；客户端 updater 插件仍待单独接入和 release/权限核查。
