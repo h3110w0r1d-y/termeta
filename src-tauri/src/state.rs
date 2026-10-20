@@ -8,8 +8,6 @@ use terminal_security::CredentialVault;
 use terminal_storage::SqliteStore;
 
 pub struct AppState {
-    pub official: crate::official_sync::Runtime,
-    pub account: crate::account::runtime::AccountRuntime,
     pub backup: crate::backup_runtime::BackupRuntime,
     pub settings_gate: tokio::sync::Mutex<()>,
     pub sessions: SessionManager,
@@ -143,13 +141,4 @@ pub fn settings_owner(window: &WebviewWindow) -> Result<()> {
         ));
     }
     Ok(())
-}
-
-/// 启动登录只允许本地 main；已解锁设置窗口也可管理账号。
-pub fn account_owner(window: &WebviewWindow) -> Result<()> {
-    if window.label() == "main" {
-        window_owner(window).map(|_| ())
-    } else {
-        settings_owner(window)
-    }
 }

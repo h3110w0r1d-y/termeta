@@ -1,16 +1,5 @@
 // 命令注册与构建期 ACL 共用同一份名单，避免权限契约漂移。
 pub const COMMANDS: &[&str] = &[
-    "get_official_sync_status",
-    "complete_official_sync",
-    "sync_official_vault",
-    "get_account_status",
-    "refresh_account",
-    "list_account_providers",
-    "logout_account",
-    "start_account_oauth",
-    "confirm_account_oauth",
-    "poll_account_oauth",
-    "cancel_account_oauth",
     "get_backup_config",
     "save_backup_config",
     "test_backup_config",

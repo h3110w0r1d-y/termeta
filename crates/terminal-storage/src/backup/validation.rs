@@ -1,4 +1,4 @@
-//! 验证快照类型、资源限额及跨表业务关联，供第三方恢复和官方同步共用。
+//! 验证快照类型、资源限额及跨表业务关联，用于第三方备份恢复。
 use super::{Cell, Data, MAX_ROWS, TABLES, invalid};
 use crate::{Result, canonical_host, validate_name};
 use base64::{Engine, engine::general_purpose::STANDARD_NO_PAD};

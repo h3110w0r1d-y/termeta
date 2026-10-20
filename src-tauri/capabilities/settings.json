@@ -3,7 +3,6 @@
   "description": "独立设置窗口的设置、保险库改密、云备份同步与JSON导出权限",
   "windows": ["settings"],
   "permissions": [
-    "allow-official-account",
     "allow-cloud-backup-settings",
     "core:event:allow-listen",
     "core:event:allow-unlisten",

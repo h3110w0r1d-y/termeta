@@ -244,8 +244,6 @@ pub async fn unlock_vault(
 ) -> Result<terminal_security::VaultStatus> {
     let password = zeroize::Zeroizing::new(password);
     crate::state::window_owner(&window)?;
-    // 普通初始化与云端首次导入互斥，防止两个入口同时创建同一保险库。
-    let _initialization = state.backup.initialization.lock().await;
     state
         .vault
         .unlock_with_password(password, setup)
@@ -263,13 +261,14 @@ pub async fn change_vault_password(
     let new_password = zeroize::Zeroizing::new(new_password);
     crate::state::settings_owner(&window)?;
     let handle = window.app_handle().clone();
-    // 独立任务持有跨云端和本地改密编排，窗口关闭不会取消已开始的文件切换。
+    // 独立任务持有本地改密操作，窗口关闭不会取消已开始的文件切换。
     tauri::async_runtime::spawn(async move {
         let state = handle.state::<AppState>();
-        let result =
-            crate::official_sync::change_password(&state, old_password, new_password).await;
-        let _ = handle.emit("official-sync-changed", ());
-        result
+        state
+            .vault
+            .change_password(old_password, new_password)
+            .await
+            .map_err(security_error)
     })
     .await
     .map_err(|_| {

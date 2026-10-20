@@ -1,4 +1,4 @@
-//! 保险库状态、解锁与主密钥访问；认证元数据和密钥变更分别封装。
+//! 保险库状态与解锁；认证元数据和密码变更分别封装。
 use crate::{CredentialVault, SecurityError};
 use serde::Serialize;
 use std::path::PathBuf;
@@ -10,13 +10,6 @@ mod rotation;
 mod tests;
 
 use metadata::{Header, derive, read_header, write_header};
-
-/// 仅在 Rust 内存持有；不得进入 WebView、云配置或日志。
-#[derive(Clone)]
-pub struct VaultKey {
-    pub key: Zeroizing<[u8; 32]>,
-    pub salt: [u8; 16],
-}
 
 const SERVICE: &str = "io.termeta";
 const ACCOUNT: &str = "master-key-v2";
@@ -143,11 +136,6 @@ impl CredentialVault {
             complete.seal(key)?;
             write_header(&self.header_path(), &complete, true)?;
         }
-        // 数据库和派生元数据均成功发布后，才允许同步模块取得相应主密钥。
-        *self.master.lock().unwrap() = Some(VaultKey {
-            key: Zeroizing::new(*key),
-            salt: header.salt,
-        });
         self.unlocked
             .store(true, std::sync::atomic::Ordering::Release);
         let _ = self.reconcile_deletions().await;
@@ -219,54 +207,4 @@ impl CredentialVault {
         });
         Ok(self.status_value(&boot, true))
     }
-
-    pub fn master_key(&self) -> Result<VaultKey, SecurityError> {
-        // 文件切换可能已重新开池但尚在清理；提交协调结束前不发布旧密钥快照。
-        let _boot = self.boot.try_lock().map_err(|_| SecurityError::NotReady)?;
-        self.cached_master_key()
-    }
-    fn cached_master_key(&self) -> Result<VaultKey, SecurityError> {
-        if !self.is_unlocked() {
-            return Err(SecurityError::NotReady);
-        }
-        self.master
-            .lock()
-            .unwrap()
-            .clone()
-            .ok_or(SecurityError::NotReady)
-    }
-
-    pub async fn verify_password(
-        &self,
-        password: Zeroizing<String>,
-    ) -> Result<VaultKey, SecurityError> {
-        let _boot = self.boot.lock().await;
-        if password.is_empty() || password.len() > 1024 {
-            return Err(SecurityError::Vault("请输入保险库密码，且不超过1024字节"));
-        }
-        let header = read_header(&self.header_path())?.ok_or_else(unavailable)?;
-        tokio::task::spawn_blocking(move || {
-            let key = derive(&password, &header.salt)?;
-            header.verify(&key)?;
-            Ok(VaultKey {
-                key,
-                salt: header.salt,
-            })
-        })
-        .await
-        .map_err(|_| unavailable())?
-    }
-}
-
-/// 官方包和本机保险库使用完全相同的派生参数和主密钥。
-pub fn derive_vault_key(password: &str, salt: [u8; 16]) -> Result<VaultKey, SecurityError> {
-    if password.chars().count() < 12 || password.len() > 1024 {
-        return Err(SecurityError::Vault(
-            "保险库密码至少12个字符，且不超过1024字节",
-        ));
-    }
-    Ok(VaultKey {
-        key: derive(password, &salt)?,
-        salt,
-    })
 }

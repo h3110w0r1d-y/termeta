@@ -346,39 +346,3 @@ export interface BackupRestorePreview {
   token: string;
   metadata: BackupMetadata;
 }
-
-export type AccountProviderId = "termeta" | "github" | "google";
-export interface AccountUser {
-  id: string;
-  email: string;
-  isAdmin: boolean;
-  hasPassword: boolean;
-  createdAt: string;
-}
-export interface AccountStatus {
-  user: AccountUser | null;
-  expiresAt: string | null;
-}
-export interface AccountProvider {
-  id: AccountProviderId;
-  name: string;
-}
-export interface AccountOAuthFlow {
-  flowId: string;
-  provider: AccountProviderId;
-  expiresAt: string;
-  pollInterval: number;
-}
-export interface AccountOAuthResult {
-  status: "pending" | "completed" | "denied" | "expired";
-  account: AccountStatus | null;
-  error: string | null;
-}
-
-// 官方同步只暴露轻量状态，保险库内容和加密密钥始终留在 Rust。
-export interface OfficialSyncStatus {
-  phase: "signedOut" | "needsPassword" | "ready";
-  cloudHasData: boolean;
-  lastSyncedAt: string | null;
-  error: string | null;
-}

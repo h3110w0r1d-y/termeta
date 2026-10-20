@@ -1,4 +1,3 @@
-mod account;
 mod backup;
 mod backup_runtime;
 mod commands;
@@ -7,7 +6,6 @@ mod files;
 #[cfg(target_os = "macos")]
 mod macos_menu;
 mod native_menu;
-mod official_sync;
 mod settings;
 mod settings_window;
 mod shutdown;
@@ -40,18 +38,13 @@ fn local_navigation(url: &url::Url) -> bool {
 pub fn run() {
     tauri::Builder::default()
         .manage(shutdown::ShutdownState::default())
-        .plugin(tauri_plugin_single_instance::init(|app, args, _| {
-            // 直接交给 Rust，不启用会广播原始 URI 的 single-instance deep-link feature。
-            if account::deep_link::second_instance(app, &args) {
-                return;
-            }
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.unminimize();
                 let _ = window.show();
                 let _ = window.set_focus();
             }
         }))
-        .plugin(account::deep_link::registration_plugin())
         .plugin(
             tauri_plugin_opener::Builder::new()
                 .open_js_links_on_click(false)
@@ -89,9 +82,7 @@ pub fn run() {
                 .with_factory(Arc::new(terminal_telnet::TelnetFactory));
             app.manage(file_drag::LocalDropRegistry::default());
             app.manage(AppState {
-                official: official_sync::Runtime::default(),
                 backup: backup_runtime::BackupRuntime::default(),
-                account: account::runtime::AccountRuntime::default(),
                 settings_gate: tokio::sync::Mutex::new(()),
                 sessions,
                 file_sessions,
@@ -103,7 +94,6 @@ pub fn run() {
                 vault,
                 open_gates: Mutex::new(std::collections::HashMap::new()),
             });
-            account::deep_link::register(app.handle());
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 let mut interval = tokio::time::interval(Duration::from_secs(30));
@@ -111,24 +101,6 @@ pub fn run() {
                     interval.tick().await;
                     let state = handle.state::<AppState>();
                     state.backup.cleanup();
-                    state.account.cleanup();
-                    if state.vault.is_unlocked() && state.official.ready() {
-                        // 同步失败保留本地数据，独立循环稍后重试，不阻塞会话清理。
-                        let sync_handle = handle.clone();
-                        tauri::async_runtime::spawn(async move {
-                            let state = sync_handle.state::<AppState>();
-                            let _ = official_sync::sync(&state).await;
-                            use tauri::Emitter;
-                            let _ = sync_handle.emit("official-sync-changed", ());
-                            if state
-                                .official
-                                .changed
-                                .swap(false, std::sync::atomic::Ordering::AcqRel)
-                            {
-                                let _ = sync_handle.emit("backup-restored", ());
-                            }
-                        });
-                    }
                     state.cleanup_sftp();
                 }
             });
@@ -154,7 +126,6 @@ pub fn run() {
             if matches!(event, tauri::WindowEvent::Destroyed) {
                 if let Some(state) = window.try_state::<AppState>() {
                     state.backup.clear_owner(window.label());
-                    state.account.clear_owner(window.label());
                     state.sessions.close_owner(window.label());
                     state.file_sessions.close_owner(window.label());
                     state.forward_sessions.close_owner(window.label());
@@ -169,17 +140,6 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            commands::get_official_sync_status,
-            commands::complete_official_sync,
-            commands::sync_official_vault,
-            commands::get_account_status,
-            commands::refresh_account,
-            commands::list_account_providers,
-            commands::logout_account,
-            commands::start_account_oauth,
-            commands::confirm_account_oauth,
-            commands::poll_account_oauth,
-            commands::cancel_account_oauth,
             commands::get_backup_config,
             commands::save_backup_config,
             commands::test_backup_config,
@@ -248,12 +208,6 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("Termeta 初始化失败；请检查应用数据目录与桌面环境")
         .run(|app, event| {
-            #[cfg(target_os = "macos")]
-            if let tauri::RunEvent::Opened { urls } = &event {
-                for url in urls {
-                    account::deep_link::receive(app, url.as_str());
-                }
-            }
             if let tauri::RunEvent::ExitRequested { api, .. } = event {
                 shutdown::intercept(app, api);
             }

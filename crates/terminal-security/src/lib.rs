@@ -1,6 +1,6 @@
 pub mod backup;
 mod master_key;
-pub use master_key::{PasswordChangeResult, VaultKey, VaultStatus, derive_vault_key};
+pub use master_key::{PasswordChangeResult, VaultStatus};
 mod private_key;
 mod vault;
 

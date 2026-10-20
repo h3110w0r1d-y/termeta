@@ -6,13 +6,10 @@ export default {
   "vault.unlock.title": "보관함 잠금 해제",
   "vault.access.checkingTitle": "보관함 복원 중",
   "vault.access.checkingDescription":
-    "이 기기의 보관함과 계정 상태를 확인하고 있습니다. 잠시 기다려 주세요…",
+    "이 기기의 보관함을 확인하고 있습니다. 잠시 기다려 주세요…",
   "vault.access.failedTitle": "보관함을 열 수 없습니다",
   "vault.access.failedDescription":
     "오류 내용을 확인하고 다시 시도하세요. 기존 데이터는 보존됩니다.",
-  "vault.setup.method": "보관함 만들기",
-  "vault.setup.empty": "빈 보관함 만들기",
-  "vault.setup.cloud": "클라우드 백업 복원",
   "vault.setup.passwordPlaceholder": "비밀번호(12자 이상)",
   "vault.form.password": "보관함 비밀번호",
   "vault.form.confirmPassword": "비밀번호 확인",
@@ -25,7 +22,7 @@ export default {
     "자동 잠금 해제를 시도하고 있습니다. 사용할 수 없는 경우 보관함 비밀번호를 입력하세요.",
   "vault.password.title": "보관함 비밀번호 변경",
   "vault.password.warning":
-    "새 비밀번호를 기억하세요. 공식 클라우드 동기화도 새 비밀번호를 사용합니다. 기존 오프라인 사본에는 이전 비밀번호가 필요하며 타사 백업은 별도의 비밀번호를 유지합니다.",
+    "새 비밀번호를 기억하세요. 기존 오프라인 사본에는 이전 비밀번호가 필요하며 타사 백업은 별도의 비밀번호를 유지합니다.",
   "vault.password.old": "현재 비밀번호",
   "vault.password.new": "새 비밀번호",
   "vault.password.confirm": "새 비밀번호 확인",

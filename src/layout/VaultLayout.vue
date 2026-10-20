@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { t } from "../i18n";
 import { NMenu, NButton } from "naive-ui";
-import { IconUserCircle } from "@tabler/icons-vue";
+import { IconSettings } from "@tabler/icons-vue";
 import { commands } from "../services/commands/registry";
 import { computed, h } from "vue";
 import VaultNavigationIcon from "./VaultNavigationIcon.vue";
@@ -58,12 +58,12 @@ const emit = defineEmits<{
         :options="navigationOptions"
         @update:value="workbench.openVault($event)"
       />
-      <div class="vault-account-entry">
+      <div class="vault-settings-entry">
         <NButton block quaternary @click="commands.execute('settings.open')">
           <template #icon>
-            <IconUserCircle :size="18" aria-hidden="true" />
+            <IconSettings :size="18" aria-hidden="true" />
           </template>
-          {{ t("account.actions.openSettings") }}
+          {{ t("settings.title") }}
         </NButton>
       </div>
     </aside>
@@ -141,7 +141,7 @@ const emit = defineEmits<{
   border-right: 1px solid var(--border);
   background: var(--surface);
 }
-.vault-account-entry {
+.vault-settings-entry {
   margin-top: auto;
   padding: 12px 10px;
   border-top: 1px solid var(--border);

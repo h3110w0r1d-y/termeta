@@ -1,4 +1,4 @@
-# 第三方备份仅允许已解锁的本地/离线模式。
+# 第三方备份仅允许已解锁的本地窗口。
 
 [[permission]]
 identifier = "allow-cloud-backup-settings"

@@ -5,12 +5,6 @@ import { listen } from "@tauri-apps/api/event";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import type { AppSettings, SettingsPatch } from "@/modules/settings/model";
 import type {
-  AccountStatus,
-  AccountProvider,
-  AccountProviderId,
-  OfficialSyncStatus,
-  AccountOAuthFlow,
-  AccountOAuthResult,
   BackupConfigDraft,
   BackupConfigView,
   BackupImportSummary,
@@ -49,27 +43,6 @@ import type {
 
 // 原生交互只通过此门面，组件不能获得通用 invoke 或任意文件读取能力。
 export const desktop = {
-  getAccountStatus: () => invoke<AccountStatus>("get_account_status"),
-  refreshAccount: () => invoke<AccountStatus>("refresh_account"),
-  listAccountProviders: () =>
-    invoke<AccountProvider[]>("list_account_providers"),
-  logoutAccount: () => invoke<void>("logout_account"),
-  startAccountOAuth: (provider: AccountProviderId) =>
-    invoke<AccountOAuthFlow>("start_account_oauth", { provider }),
-  confirmAccountOAuth: (flowId: string, confirmationCode: string) =>
-    invoke<void>("confirm_account_oauth", { flowId, confirmationCode }),
-  pollAccountOAuth: (flowId: string) =>
-    invoke<AccountOAuthResult>("poll_account_oauth", { flowId }),
-  cancelAccountOAuth: (flowId: string) =>
-    invoke<void>("cancel_account_oauth", { flowId }),
-  getOfficialSyncStatus: () =>
-    invoke<OfficialSyncStatus>("get_official_sync_status"),
-  completeOfficialSync: (password: string) =>
-    invoke<OfficialSyncStatus>("complete_official_sync", { password }),
-  syncOfficialVault: () => invoke<OfficialSyncStatus>("sync_official_vault"),
-  onOfficialSyncChanged: (handler: () => void) =>
-    listen("official-sync-changed", handler),
-  onAccountChanged: (handler: () => void) => listen("account-changed", handler),
   getBackupConfig: () => invoke<BackupConfigView | null>("get_backup_config"),
   saveBackupConfig: (config: BackupConfigDraft) =>
     invoke<BackupConfigView>("save_backup_config", { config }),

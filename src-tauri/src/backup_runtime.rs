@@ -116,19 +116,18 @@ pub struct PreparedRestore {
     pub owner: String,
     pub database: Zeroizing<Vec<u8>>,
     created: Instant,
-    mode_generation: u64,
+    pub generation: u64,
 }
 
 struct CompletedRestore {
     owner: String,
     created: Instant,
     summary: BackupImportSummary,
-    mode_generation: u64,
+    generation: u64,
 }
 
 pub struct BackupRuntime {
     operation: Arc<Semaphore>,
-    pub initialization: tokio::sync::Mutex<()>,
     owners: Mutex<HashMap<String, u64>>,
     prepared: Mutex<HashMap<String, PreparedRestore>>,
     completed: Mutex<HashMap<String, CompletedRestore>>,
@@ -138,7 +137,6 @@ impl Default for BackupRuntime {
     fn default() -> Self {
         Self {
             operation: Arc::new(Semaphore::new(1)),
-            initialization: tokio::sync::Mutex::new(()),
             owners: Mutex::new(HashMap::new()),
             prepared: Mutex::new(HashMap::new()),
             completed: Mutex::new(HashMap::new()),
@@ -147,8 +145,12 @@ impl Default for BackupRuntime {
 }
 
 impl BackupRuntime {
-    /// 模式切换已等候活动租约排空，此时可立即清除上一模式的明文预览及重试摘要。
-    pub fn clear_mode(&self) {
+    /// 配置保存持有操作许可，清除全部窗口旧配置对应的预览和重试摘要。
+    pub fn clear_config(&self) {
+        let mut owners = self.owners.lock().unwrap();
+        for generation in owners.values_mut() {
+            *generation = generation.wrapping_add(1);
+        }
         self.prepared.lock().unwrap().clear();
         self.completed.lock().unwrap().clear();
     }
@@ -157,7 +159,7 @@ impl BackupRuntime {
         self.operation
             .clone()
             .try_acquire_owned()
-            .map_err(|_| failure("另一项备份或同步正在进行，请等待完成后重试"))
+            .map_err(|_| failure("另一项备份操作正在进行，请等待完成后重试"))
     }
 
     pub fn cleanup(&self) {
@@ -184,13 +186,16 @@ impl BackupRuntime {
             .lock()
             .unwrap()
             .retain(|_, value| value.owner != owner);
+        self.completed
+            .lock()
+            .unwrap()
+            .retain(|_, value| value.owner != owner);
     }
 
     pub fn prepare(
         &self,
         owner: String,
         generation: u64,
-        mode_generation: u64,
         opened: terminal_security::backup::OpenedBackup,
     ) -> Result<BackupRestorePreview> {
         self.cleanup();
@@ -211,14 +216,15 @@ impl BackupRuntime {
                 owner,
                 database: opened.database,
                 created: Instant::now(),
-                mode_generation,
+                generation,
             },
         );
         Ok(BackupRestorePreview { token, metadata })
     }
 
-    pub fn take(&self, owner: &str, token: &str, mode_generation: u64) -> Result<PreparedRestore> {
+    pub fn take(&self, owner: &str, token: &str) -> Result<PreparedRestore> {
         self.cleanup();
+        let owners = self.owners.lock().unwrap();
         let mut prepared = self.prepared.lock().unwrap();
         let entry = prepared
             .get(token)
@@ -226,27 +232,26 @@ impl BackupRuntime {
         if entry.owner != owner {
             return Err(failure("此窗口无权提交该恢复预览"));
         }
-        if entry.mode_generation != mode_generation {
+        if entry.generation != owners.get(owner).copied().unwrap_or_default() {
             prepared.remove(token);
-            return Err(failure("账号模式已变化，请重新选择云端备份"));
+            return Err(failure("恢复窗口或配置已变化，请重新选择云端备份"));
         }
         prepared
             .remove(token)
             .ok_or_else(|| failure("恢复预览已失效"))
     }
 
-    pub fn completed(
-        &self,
-        owner: &str,
-        token: &str,
-        mode_generation: u64,
-    ) -> Option<BackupImportSummary> {
+    pub fn completed(&self, owner: &str, token: &str) -> Option<BackupImportSummary> {
         self.cleanup();
+        let owners = self.owners.lock().unwrap();
         self.completed
             .lock()
             .unwrap()
             .get(token)
-            .filter(|entry| entry.owner == owner && entry.mode_generation == mode_generation)
+            .filter(|entry| {
+                entry.owner == owner
+                    && entry.generation == owners.get(owner).copied().unwrap_or_default()
+            })
             .map(|entry| entry.summary.clone())
     }
 
@@ -254,10 +259,14 @@ impl BackupRuntime {
         &self,
         owner: String,
         token: String,
-        mode_generation: u64,
+        generation: u64,
         summary: BackupImportSummary,
     ) {
         self.cleanup();
+        let owners = self.owners.lock().unwrap();
+        if owners.get(&owner).copied().unwrap_or_default() != generation {
+            return;
+        }
         let mut completed = self.completed.lock().unwrap();
         // 已完成凭证只保留少量摘要，用于应答丢失后的幂等重试。
         if completed.len() >= 16 {
@@ -269,7 +278,7 @@ impl BackupRuntime {
                 owner,
                 created: Instant::now(),
                 summary,
-                mode_generation,
+                generation,
             },
         );
     }
@@ -460,7 +469,6 @@ mod tests {
         runtime.prepare(
             owner.into(),
             generation,
-            0,
             OpenedBackup {
                 metadata: BackupMetadata {
                     backup_id: uuid::Uuid::new_v4().to_string(),
@@ -478,9 +486,9 @@ mod tests {
     fn restore_token_checks_window_expiry_and_single_use() {
         let runtime = BackupRuntime::default();
         let preview = prepared(&runtime, "settings", runtime.owner_generation("settings")).unwrap();
-        assert!(runtime.take("main", &preview.token, 0).is_err());
-        assert!(runtime.take("settings", &preview.token, 0).is_ok());
-        assert!(runtime.take("settings", &preview.token, 0).is_err());
+        assert!(runtime.take("main", &preview.token).is_err());
+        assert!(runtime.take("settings", &preview.token).is_ok());
+        assert!(runtime.take("settings", &preview.token).is_err());
         let preview = prepared(&runtime, "settings", runtime.owner_generation("settings")).unwrap();
         runtime
             .prepared
@@ -489,41 +497,40 @@ mod tests {
             .get_mut(&preview.token)
             .unwrap()
             .created = Instant::now() - PREVIEW_LIFETIME;
-        assert!(runtime.take("settings", &preview.token, 0).is_err());
+        assert!(runtime.take("settings", &preview.token).is_err());
     }
 
     #[test]
-    fn mode_change_invalidates_preview_and_completed_retry() {
+    fn configuration_change_invalidates_all_window_previews_and_completed_retry() {
         let runtime = BackupRuntime::default();
-        let preview = prepared(&runtime, "settings", 0).unwrap();
-        assert!(runtime.take("settings", &preview.token, 1).is_err());
-        // 失败的跨模式提交同时消费旧凭证，退出账号后也不能复活。
-        assert!(runtime.take("settings", &preview.token, 0).is_err());
-        let preview = prepared(&runtime, "settings", 0).unwrap();
+        let generation = runtime.owner_generation("settings");
+        let settings = prepared(&runtime, "settings", generation).unwrap();
+        let main = prepared(&runtime, "main", runtime.owner_generation("main")).unwrap();
         runtime.finish(
             "settings".into(),
             "completed".into(),
-            0,
+            generation,
             BackupImportSummary {
                 counts: BackupCounts::default(),
                 warnings: vec![],
             },
         );
-        assert!(runtime.completed("settings", "completed", 1).is_none());
-        runtime.clear_mode();
-        assert!(runtime.take("settings", &preview.token, 0).is_err());
-        assert!(runtime.completed("settings", "completed", 0).is_none());
+        runtime.clear_config();
+        assert!(runtime.take("settings", &settings.token).is_err());
+        assert!(runtime.take("main", &main.token).is_err());
+        assert!(runtime.completed("settings", "completed").is_none());
+        assert!(prepared(&runtime, "settings", generation).is_err());
     }
 
     #[test]
     fn consumed_restore_keeps_transaction_input_after_owner_is_destroyed() {
         let runtime = BackupRuntime::default();
         let preview = prepared(&runtime, "settings", 0).unwrap();
-        let restore = runtime.take("settings", &preview.token, 0).unwrap();
+        let restore = runtime.take("settings", &preview.token).unwrap();
         runtime.clear_owner("settings");
         // 确认后正文已交给独立任务，窗口清理只能撤销尚未消费的预览。
         assert_eq!(restore.owner, "settings");
-        assert!(runtime.take("settings", &preview.token, 0).is_err());
+        assert!(runtime.take("settings", &preview.token).is_err());
         drop(restore);
     }
 
@@ -538,17 +545,26 @@ mod tests {
         runtime.finish(
             "settings".into(),
             "completed-token".into(),
-            0,
+            runtime.owner_generation("settings"),
             BackupImportSummary {
                 counts: BackupCounts::default(),
                 warnings: vec![],
             },
         );
-        assert!(
-            runtime
-                .completed("settings", "completed-token", 0)
-                .is_some()
+        assert!(runtime.completed("settings", "completed-token").is_some());
+        assert!(runtime.completed("main", "completed-token").is_none());
+        let generation = runtime.owner_generation("settings");
+        runtime.clear_owner("settings");
+        runtime.finish(
+            "settings".into(),
+            "late-token".into(),
+            generation,
+            BackupImportSummary {
+                counts: BackupCounts::default(),
+                warnings: vec![],
+            },
         );
-        assert!(runtime.completed("main", "completed-token", 0).is_none());
+        assert!(runtime.completed("settings", "completed-token").is_none());
+        assert!(runtime.completed("settings", "late-token").is_none());
     }
 }

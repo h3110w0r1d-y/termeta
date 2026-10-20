@@ -6,13 +6,10 @@ export default {
   "vault.unlock.title": "保管庫をロック解除",
   "vault.access.checkingTitle": "保管庫を復元しています",
   "vault.access.checkingDescription":
-    "このデバイスの保管庫とアカウントの状態を確認しています。お待ちください…",
+    "このデバイスの保管庫を確認しています。お待ちください…",
   "vault.access.failedTitle": "保管庫を開けませんでした",
   "vault.access.failedDescription":
     "エラー内容を確認して再試行してください。既存のデータは保持されます。",
-  "vault.setup.method": "保管庫を作成",
-  "vault.setup.empty": "空の保管庫を作成",
-  "vault.setup.cloud": "クラウドバックアップから復元",
   "vault.setup.passwordPlaceholder": "パスワード（12文字以上）",
   "vault.form.password": "保管庫のパスワード",
   "vault.form.confirmPassword": "パスワードの確認",
@@ -26,7 +23,7 @@ export default {
     "自動ロック解除を試行しています。利用できない場合は保管庫のパスワードを入力してください。",
   "vault.password.title": "保管庫のパスワードを変更",
   "vault.password.warning":
-    "新しいパスワードを忘れないでください。公式クラウド同期も新しいパスワードを使用します。既存のオフラインコピーには古いパスワードが必要で、サードパーティーバックアップの個別パスワードは変わりません。",
+    "新しいパスワードを忘れないでください。既存のオフラインコピーには古いパスワードが必要で、サードパーティーバックアップの個別パスワードは変わりません。",
   "vault.password.old": "現在のパスワード",
   "vault.password.new": "新しいパスワード",
   "vault.password.confirm": "新しいパスワードの確認",

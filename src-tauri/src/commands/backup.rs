@@ -1,5 +1,4 @@
 use crate::{
-    account::runtime::OfflineOperation,
     backup,
     backup_runtime::{
         BackupConfigDraft, BackupConfigView, BackupListEntry, BackupRestorePreview, config_setting,
@@ -12,27 +11,12 @@ use terminal_core::Result;
 use terminal_security::backup::BackupMetadata;
 use terminal_storage::{BackupImportMode, BackupImportSummary};
 
-async fn require_offline(state: &AppState) -> Result<()> {
-    if crate::account::service::status(state).await?.user.is_some() {
-        return Err(failure("官方模式自动同步，请先退出账号再使用第三方备份"));
-    }
-    Ok(())
-}
-
-async fn access(window: &WebviewWindow, state: &AppState) -> Result<OfflineOperation> {
-    settings_owner(window)?;
-    // 先登记再读取账号，切换必须等待这份租约，不能越过检查后的网络/事务操作。
-    let operation = state.account.begin_offline()?;
-    require_offline(state).await?;
-    Ok(operation)
-}
-
 #[tauri::command]
 pub async fn get_backup_config(
     window: WebviewWindow,
     state: State<'_, AppState>,
 ) -> Result<Option<BackupConfigView>> {
-    let _mode = access(&window, &state).await?;
+    settings_owner(&window)?;
     Ok(saved_config(&state)
         .await?
         .as_ref()
@@ -45,7 +29,7 @@ pub async fn save_backup_config(
     state: State<'_, AppState>,
     config: BackupConfigDraft,
 ) -> Result<BackupConfigView> {
-    let _mode = access(&window, &state).await?;
+    settings_owner(&window)?;
     let _operation = state.backup.begin()?;
     let config = resolve_config(&state, Some(config)).await?;
     let setting = config_setting(&config)?;
@@ -54,7 +38,7 @@ pub async fn save_backup_config(
         .set_setting(&setting.key, setting.version, &setting.value)
         .await
         .map_err(storage_error)?;
-    state.backup.clear_owner(window.label());
+    state.backup.clear_config();
     let _ = window.app_handle().emit("backup-config-changed", ());
     Ok(BackupConfigView::from(&config))
 }
@@ -65,7 +49,7 @@ pub async fn test_backup_config(
     state: State<'_, AppState>,
     config: BackupConfigDraft,
 ) -> Result<()> {
-    let _mode = access(&window, &state).await?;
+    settings_owner(&window)?;
     let _operation = state.backup.begin()?;
     let config = resolve_config(&state, Some(config)).await?;
     backup::provider(&config.target)
@@ -82,7 +66,7 @@ pub async fn list_cloud_backups(
     offset: Option<usize>,
     limit: Option<usize>,
 ) -> Result<Vec<BackupListEntry>> {
-    let _mode = access(&window, &state).await?;
+    settings_owner(&window)?;
     let _operation = state.backup.begin()?;
     let config = resolve_config(&state, None).await?;
     let password = config.password()?;
@@ -128,7 +112,7 @@ pub async fn create_cloud_backup(
     state: State<'_, AppState>,
     device_name: Option<String>,
 ) -> Result<BackupListEntry> {
-    let _mode = access(&window, &state).await?;
+    settings_owner(&window)?;
     let _operation = state.backup.begin()?;
     let mut config = resolve_config(&state, None).await?;
     let password = config.password()?;
@@ -182,7 +166,7 @@ pub async fn prepare_cloud_restore(
 ) -> Result<BackupRestorePreview> {
     // 在首次异步等待前捕获窗口代次，销毁期间的迟到结果不能重新登记明文。
     let generation = state.backup.owner_generation(window.label());
-    let mode = access(&window, &state).await?;
+    settings_owner(&window)?;
     let _operation = state.backup.begin()?;
     let config = resolve_config(&state, None).await?;
     let password = config.password()?;
@@ -199,7 +183,7 @@ pub async fn prepare_cloud_restore(
     .map_err(|_| failure("备份验证任务中断"))??;
     state
         .backup
-        .prepare(window.label().into(), generation, mode.generation, opened)
+        .prepare(window.label().into(), generation, opened)
 }
 
 #[tauri::command]
@@ -208,21 +192,19 @@ pub async fn apply_cloud_restore(
     token: String,
 ) -> Result<BackupImportSummary> {
     let state = window.state::<AppState>();
-    let mode = access(&window, &state).await?;
+    settings_owner(&window)?;
     let owner = window.label().to_owned();
     let operation = state.backup.begin()?;
-    if let Some(summary) = state.backup.completed(&owner, &token, mode.generation) {
+    if let Some(summary) = state.backup.completed(&owner, &token) {
         return Ok(summary);
     }
     // 消费令牌与登记操作在独立任务创建前完成，已确认事务不依赖窗口继续存活。
-    let mut prepared = state.backup.take(&owner, &token, mode.generation)?;
+    let mut prepared = state.backup.take(&owner, &token)?;
     let app = window.app_handle().clone();
     // 确认后的事务独立完成，窗口关闭或接收端消失不能造成重复提交。
     tauri::async_runtime::spawn(async move {
         let state = app.state::<AppState>();
         let _operation = operation;
-        // 整份租约移入任务，避免闭包只捕获 generation 字段而提前释放操作期。
-        let mode_lease = mode;
         let summary = state
             .vault
             .import_backup_database(
@@ -233,7 +215,7 @@ pub async fn apply_cloud_restore(
             .map_err(super::data::security_error)?;
         state
             .backup
-            .finish(owner, token, mode_lease.generation, summary.clone());
+            .finish(owner, token, prepared.generation, summary.clone());
         let _ = app.emit("backup-restored", ());
         Ok(summary)
     })

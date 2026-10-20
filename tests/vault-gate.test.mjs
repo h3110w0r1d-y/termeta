@@ -11,18 +11,6 @@ const unlocked = {
   keychainWarning: null,
   cleanupWarning: null,
 };
-const signedOut = { user: null, expiresAt: null };
-const savedAccount = {
-  user: { id: "account-a", email: "a@example.invalid" },
-  expiresAt: null,
-};
-const syncStatus = (phase) => ({
-  phase,
-  cloudHasData: phase !== "signedOut",
-  lastSyncedAt: null,
-  error: null,
-});
-
 function deferred() {
   let resolve, reject;
   const promise = new Promise((yes, no) => {
@@ -66,14 +54,6 @@ function evaluate(source, filename, dependencies) {
   return exports;
 }
 
-function loadModule(path, dependencies) {
-  return evaluate(
-    readFileSync(new URL(path, import.meta.url), "utf8"),
-    path,
-    dependencies,
-  );
-}
-
 const renderer = vue.createRenderer({
   patchProp() {},
   insert() {},
@@ -101,50 +81,26 @@ function mountSetup(setup) {
 
 function fixture(
   t,
-  { account = savedAccount, initialize = async () => {} } = {},
+  {
+    status = async () => unlocked,
+    unlock = async () => unlocked,
+    initialize = async () => {},
+  } = {},
 ) {
-  let localUnlocked = false;
-  let currentAccount = account;
-  let accountChanged, syncChanged;
   let vaultReads = 0;
-  const requests = [];
+  const unlockRequests = [];
   const desktop = {
-    async vaultStatus() {
+    vaultStatus() {
       vaultReads++;
-      localUnlocked = true;
-      return unlocked;
+      return status();
     },
-    async getAccountStatus() {
-      return localUnlocked ? currentAccount : signedOut;
-    },
-    getOfficialSyncStatus() {
-      const request = deferred();
-      requests.push(request);
-      return request.promise;
-    },
-    async onAccountChanged(callback) {
-      accountChanged = callback;
-      return () => {};
-    },
-    async onOfficialSyncChanged(callback) {
-      syncChanged = callback;
-      return () => {};
+    unlockVault(password, setup) {
+      unlockRequests.push({ password, setup });
+      return unlock(password, setup);
     },
   };
   const client = { desktop, errorMessage: (error) => error.message };
   const i18n = { t: (key) => key };
-  const useAccount = loadModule("../src/modules/account/useAccount.ts", {
-    vue,
-    "../../i18n": i18n,
-    "../../services/desktop/client": client,
-  });
-  const useOfficialSync = loadModule(
-    "../src/modules/account/useOfficialSync.ts",
-    {
-      vue,
-      "../../services/desktop/client": client,
-    },
-  );
   const { descriptor } = parse(
     readFileSync(
       new URL("../src/components/VaultGate.vue", import.meta.url),
@@ -161,9 +117,6 @@ function fixture(
     "./WindowControls.vue": {},
     "../services/commands/registry": { isMac: false },
     "../services/desktop/client": client,
-    "../modules/account/useAccount": useAccount,
-    "../modules/account/useOfficialSync": useOfficialSync,
-    "../modules/account/BrowserAccountLogin.vue": {},
   }).default;
   const mounted = mountSetup(() =>
     component.setup({ initialize }, { expose() {}, emit() {} }),
@@ -171,133 +124,140 @@ function fixture(
   t.after(mounted.unmount);
   return {
     gate: mounted.state,
-    requests,
+    unmount: mounted.unmount,
+    unlockRequests,
     vaultReads: () => vaultReads,
-    syncChanged: () => syncChanged(),
-    async switchAccount(account) {
-      currentAccount = account;
-      accountChanged();
-      await flush();
-    },
   };
 }
 
-test("已保存账号自动恢复后直接进入，自身账号更新不重复检查", async (t) => {
+test("自动解锁后等待工作台初始化完成才放行", async (t) => {
+  const initialization = deferred();
   let initialized = 0;
   const f = fixture(t, {
-    initialize: async () => {
+    initialize: () => {
       initialized++;
+      return initialization.promise;
     },
   });
   await flush();
-  assert.equal(f.requests.length, 1);
   assert.equal(f.vaultReads(), 1);
-  assert.equal(f.gate.showPassword.value, false);
-  assert.equal(f.gate.title.value, "vault.access.checkingTitle");
-  assert.equal(f.gate.ready.value, false);
-  f.requests[0].resolve(syncStatus("ready"));
-  await flush();
-  assert.equal(f.gate.ready.value, true);
   assert.equal(initialized, 1);
-  assert.equal(f.vaultReads(), 1);
-});
-
-test("同窗口并发读取共用正在进行的同步状态请求", async (t) => {
-  const f = fixture(t);
-  await flush();
-  const first = f.gate.refreshSync();
-  const second = f.gate.refreshSync();
-  assert.equal(first, second);
-  assert.equal(f.requests.length, 1);
-  f.requests[0].resolve(syncStatus("ready"));
-  await Promise.all([first, second]);
-  await flush();
-  assert.equal(f.gate.ready.value, true);
-});
-
-test("查询期间的状态通知不会丢失，也不会放行已经过期的 ready", async (t) => {
-  const f = fixture(t);
-  await flush();
-  f.syncChanged();
-  f.requests[0].resolve(syncStatus("ready"));
-  await flush();
-  assert.equal(f.requests.length, 2);
+  assert.equal(f.gate.showPassword.value, false);
   assert.equal(f.gate.ready.value, false);
-  f.requests[1].resolve(syncStatus("needsPassword"));
-  await flush();
-  assert.equal(f.gate.showPassword.value, true);
-  assert.equal(f.gate.explanation.value, "account.sync.unlockDescription");
-  assert.equal(f.gate.ready.value, false);
-});
-
-test("恢复期间切换账号后丢弃旧账号的同步结果", async (t) => {
-  const f = fixture(t);
-  await flush();
-  await f.switchAccount({
-    user: { id: "account-b", email: "b@example.invalid" },
-    expiresAt: null,
-  });
-  f.requests[0].resolve(syncStatus("ready"));
-  await flush();
-  assert.equal(f.requests.length, 2);
-  assert.equal(f.gate.ready.value, false);
-  f.requests[1].resolve(syncStatus("needsPassword"));
-  await flush();
-  assert.equal(f.gate.account.value.user.id, "account-b");
-  assert.equal(f.gate.showPassword.value, true);
-  assert.equal(f.gate.ready.value, false);
-});
-
-test("工作台初始化期间重新要求密码，迟到初始化不能放行", async (t) => {
-  const initialization = deferred();
-  const f = fixture(t, { initialize: () => initialization.promise });
-  await flush();
-  f.requests[0].resolve(syncStatus("ready"));
-  await flush();
-  f.syncChanged();
-  f.requests[1].resolve(syncStatus("needsPassword"));
-  await flush();
+  assert.equal(f.gate.busy.value, true);
   initialization.resolve();
   await flush();
-  assert.equal(f.gate.initialized.value, true);
-  assert.equal(f.gate.ready.value, false);
-  assert.equal(f.gate.showPassword.value, true);
-});
-
-test("后续就绪通知会自动重新检查并进入工作台", async (t) => {
-  const f = fixture(t);
-  await flush();
-  f.requests[0].resolve(syncStatus("needsPassword"));
-  await flush();
-  f.syncChanged();
-  f.requests[1].resolve(syncStatus("ready"));
-  await flush();
-  assert.equal(f.requests.length, 3);
-  f.requests[2].resolve(syncStatus("ready"));
-  await flush();
   assert.equal(f.gate.ready.value, true);
+  assert.equal(f.unlockRequests.length, 0);
 });
 
-test("查询失败显示恢复失败，重试后才按明确状态展示密码表单", async (t) => {
-  const f = fixture(t);
+test("全新保险库确认创建后解锁，提交结束清空密码", async (t) => {
+  let mode = "setup";
+  const f = fixture(t, {
+    status: async () => ({ ...unlocked, mode }),
+    unlock: async () => {
+      mode = "unlocked";
+      return unlocked;
+    },
+  });
   await flush();
-  f.requests[0].reject(new Error("模拟读取失败"));
+  assert.equal(f.gate.setup.value, true);
+  assert.equal(f.gate.ready.value, false);
+  f.gate.password.value = "new-vault-password";
+  f.gate.confirmation.value = "new-vault-password";
+  await f.gate.submit();
+  assert.deepEqual(f.unlockRequests, [
+    { password: "new-vault-password", setup: true },
+  ]);
+  assert.equal(f.gate.ready.value, true);
+  assert.equal(f.gate.password.value, "");
+  assert.equal(f.gate.confirmation.value, "");
+});
+
+test("既有锁定库要求本机密码，失败保留门禁并可重试", async (t) => {
+  let mode = "locked";
+  let attempts = 0;
+  const f = fixture(t, {
+    status: async () => ({ ...unlocked, mode }),
+    unlock: async () => {
+      if (++attempts === 1) throw new Error("模拟密码错误");
+      mode = "unlocked";
+      return unlocked;
+    },
+  });
+  await flush();
+  assert.equal(f.gate.setup.value, false);
+  assert.equal(f.gate.showPassword.value, true);
+  f.gate.password.value = "wrong-password";
+  await f.gate.submit();
+  assert.equal(f.gate.ready.value, false);
+  assert.equal(f.gate.error.value, "模拟密码错误");
+  assert.equal(f.gate.password.value, "");
+  assert.equal(f.unlockRequests[0].setup, false);
+  f.gate.password.value = "correct-password";
+  await f.gate.submit();
+  assert.equal(f.gate.ready.value, true);
+  assert.equal(f.gate.error.value, "");
+});
+
+test("状态读取失败不会猜测为空库，重试后恢复明确状态", async (t) => {
+  let reads = 0;
+  const f = fixture(t, {
+    status: async () => {
+      if (++reads === 1) throw new Error("模拟读取失败");
+      return { ...unlocked, mode: "locked" };
+    },
+  });
   await flush();
   assert.equal(f.gate.ready.value, false);
   assert.equal(f.gate.showPassword.value, false);
   assert.equal(f.gate.title.value, "vault.access.failedTitle");
-  assert.equal(f.gate.explanation.value, "vault.access.failedDescription");
-  const retry = f.gate.inspect();
-  await flush();
-  f.requests[1].resolve(syncStatus("needsPassword"));
-  await retry;
+  assert.equal(f.gate.error.value, "模拟读取失败");
+  await f.gate.inspect();
   assert.equal(f.gate.showPassword.value, true);
+  assert.equal(f.gate.setup.value, false);
+});
+
+test("工作台初始化失败不放行，重试重新初始化并保留缓存警告", async (t) => {
+  let attempts = 0;
+  const f = fixture(t, {
+    status: async () => ({ ...unlocked, keychainWarning: "模拟缓存失败" }),
+    initialize: async () => {
+      if (++attempts === 1) throw new Error("模拟初始化失败");
+    },
+  });
+  await flush();
+  assert.equal(f.gate.ready.value, false);
+  assert.equal(f.gate.showPassword.value, false);
+  assert.equal(f.gate.error.value, "模拟初始化失败");
+  await f.gate.inspect();
+  assert.equal(attempts, 2);
+  assert.equal(f.gate.ready.value, true);
+  assert.equal(f.gate.warning.value, "模拟缓存失败");
+});
+
+test("窗口卸载后迟到状态不会再初始化工作台", async (t) => {
+  const status = deferred();
+  let initialized = 0;
+  const f = fixture(t, {
+    status: () => status.promise,
+    initialize: async () => {
+      initialized++;
+    },
+  });
+  f.unmount();
+  status.resolve(unlocked);
+  await flush();
+  assert.equal(initialized, 0);
   assert.equal(f.gate.ready.value, false);
 });
 
-test("本地模式自动解锁后进入工作台，不查询官方同步", async (t) => {
-  const f = fixture(t, { account: signedOut });
+test("窗口卸载后迟到初始化不能放行", async (t) => {
+  const initialization = deferred();
+  const f = fixture(t, { initialize: () => initialization.promise });
   await flush();
-  assert.equal(f.gate.ready.value, true);
-  assert.equal(f.requests.length, 0);
+  f.unmount();
+  initialization.resolve();
+  await flush();
+  assert.equal(f.gate.ready.value, false);
 });

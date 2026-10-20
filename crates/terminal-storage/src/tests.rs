@@ -437,6 +437,65 @@ async fn host_kinds_reject_mixed_configuration_credentials_and_type_changes() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn service_cleanup_preserves_business_data_and_third_party_backup_settings() {
+    let directory = TestDirectory::new();
+    let path = directory.0.join("service-cleanup.sqlite3");
+    let options = SqliteConnectOptions::new()
+        .filename(&path)
+        .create_if_missing(true)
+        .pragma("key", format!("\"x'{}'\"", hex::encode([42u8; 32])))
+        .pragma("cipher_compatibility", "4")
+        .disable_statement_logging();
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(options)
+        .await
+        .unwrap();
+    let mut previous = sqlx::migrate!("./migrations");
+    previous.migrations = std::borrow::Cow::Owned(previous.iter().take(6).cloned().collect());
+    previous.run(&pool).await.unwrap();
+    // 旧应用在全部迁移完成后发布 schema 版本，夹具复现该状态。
+    sqlx::query("PRAGMA user_version = 7")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let old = SqliteStore::locked(&path);
+    *old.pool.write().await = Some(pool);
+    old.unlocked.store(true, Ordering::Release);
+    let host = old.save_host(draft()).await.unwrap();
+    let backup = serde_json::json!({"backupPassword":"retained-backup-password"});
+    old.set_setting("backup", 2, &backup).await.unwrap();
+    old.set_setting(
+        "account",
+        1,
+        &serde_json::json!({"accessToken":"removed-token"}),
+    )
+    .await
+    .unwrap();
+    sqlx::query("INSERT INTO official_sync_state(origin,account_id,revision,baseline) VALUES('https://example.com','removed',1,x'01')")
+        .execute(&*old.pool().await.unwrap())
+        .await
+        .unwrap();
+    old.pool().await.unwrap().close().await;
+
+    let upgraded = SqliteStore::open(&path).await.unwrap();
+    assert_eq!(upgraded.get_host(&host.id).await.unwrap().name, host.name);
+    assert_eq!(
+        upgraded.get_setting("backup").await.unwrap().unwrap().value,
+        backup
+    );
+    assert!(upgraded.get_setting("account").await.unwrap().is_none());
+    let remains: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name='official_sync_state')",
+    )
+    .fetch_one(&*upgraded.pool().await.unwrap())
+    .await
+    .unwrap();
+    assert!(!remains);
+    upgraded.pool().await.unwrap().close().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn initializes_rebuilt_schema_with_password_and_private_key_credentials() {
     let directory = TestDirectory::new();
     let store = SqliteStore::open(directory.0.join("new.sqlite3"))
@@ -447,7 +506,7 @@ async fn initializes_rebuilt_schema_with_password_and_private_key_credentials() 
             .fetch_all(&*store.pool().await.unwrap())
             .await
             .unwrap();
-    assert_eq!(versions, vec![1, 2, 3, 4, 5, 6]);
+    assert_eq!(versions, vec![1, 2, 3, 4, 5, 6, 7]);
     let version: i64 = sqlx::query_scalar("PRAGMA user_version")
         .fetch_one(&*store.pool().await.unwrap())
         .await

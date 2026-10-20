@@ -88,16 +88,6 @@ pub fn seal(
     let mut salt = [0; 16];
     OsRng.try_fill_bytes(&mut salt).map_err(|_| invalid())?;
     let key = derive(password, &salt)?;
-    seal_with_key(&key, &salt, metadata, database)
-}
-
-/// 官方同步使用保险库主密钥与派生盐，第三方备份仍独立派生。
-pub fn seal_with_key(
-    key: &[u8; 32],
-    salt: &[u8; 16],
-    metadata: &BackupMetadata,
-    database: &[u8],
-) -> Result<String, SecurityError> {
     validate_metadata(metadata)?;
     if database.len() > MAX_DATABASE_BYTES || !database.starts_with(b"SQLite format 3\0") {
         return Err(invalid());
@@ -124,8 +114,8 @@ pub fn seal_with_key(
     OsRng
         .try_fill_bytes(&mut header[8..])
         .map_err(|_| invalid())?;
-    header[8..24].copy_from_slice(salt);
-    let cipher = Aes256Gcm::new_from_slice(key).map_err(|_| invalid())?;
+    header[8..24].copy_from_slice(&salt);
+    let cipher = Aes256Gcm::new_from_slice(key.as_ref()).map_err(|_| invalid())?;
     let nonce: &[u8; 12] = header[24..36].try_into().map_err(|_| invalid())?;
     let ciphertext = cipher
         .encrypt(
@@ -147,13 +137,6 @@ pub fn seal_with_key(
 }
 
 pub fn open(password: &str, package: &str) -> Result<OpenedBackup, SecurityError> {
-    let salt = package_salt(package)?;
-    let key = derive(password, &salt)?;
-    open_with_key(&key, package)
-}
-
-/// 只读取未经认证的派生参数；调用方必须完整解密认证后才能采用对应保险库密钥。
-pub fn package_salt(package: &str) -> Result<[u8; 16], SecurityError> {
     if package.len() > MAX_PACKAGE_BYTES || package.len() < 80 {
         return Err(invalid());
     }
@@ -161,19 +144,9 @@ pub fn package_salt(package: &str) -> Result<[u8; 16], SecurityError> {
     if bytes.len() <= HEADER_BYTES + 16 || &bytes[..8] != MAGIC {
         return Err(invalid());
     }
-    bytes[8..24].try_into().map_err(|_| invalid())
-}
-
-pub fn open_with_key(key: &[u8; 32], package: &str) -> Result<OpenedBackup, SecurityError> {
-    if package.len() > MAX_PACKAGE_BYTES || package.len() < 80 {
-        return Err(invalid());
-    }
-    let bytes = STANDARD.decode(package).map_err(|_| invalid())?;
-    if bytes.len() <= HEADER_BYTES + 16 || &bytes[..8] != MAGIC {
-        return Err(invalid());
-    }
+    let key = derive(password, &bytes[8..24])?;
     let header = &bytes[..HEADER_BYTES];
-    let cipher = Aes256Gcm::new_from_slice(key).map_err(|_| invalid())?;
+    let cipher = Aes256Gcm::new_from_slice(key.as_ref()).map_err(|_| invalid())?;
     let nonce: &[u8; 12] = header[24..36].try_into().map_err(|_| invalid())?;
     let clear = Zeroizing::new(
         cipher
@@ -223,22 +196,6 @@ pub fn open_with_key(key: &[u8; 32], package: &str) -> Result<OpenedBackup, Secu
     Ok(OpenedBackup { metadata, database })
 }
 impl CredentialVault {
-    pub async fn merge_official_database(
-        &self,
-        database: Zeroizing<Vec<u8>>,
-        baseline: Option<Zeroizing<Vec<u8>>>,
-        observation: Option<terminal_storage::official_sync::OfficialSyncObservation<'_>>,
-    ) -> Result<Zeroizing<Vec<u8>>, SecurityError> {
-        let _operation = self.operations.lock().await;
-        if !self.is_unlocked() {
-            return Err(SecurityError::NotReady);
-        }
-        Ok(self
-            .store
-            .merge_official_database(database, baseline, observation)
-            .await?)
-    }
-
     /// 与凭据多步写入和改密共用门闩；网络与密码派生必须在返回后进行。
     pub async fn export_backup_database(&self) -> Result<Zeroizing<Vec<u8>>, SecurityError> {
         let _operation = self.operations.lock().await;
@@ -276,55 +233,6 @@ impl CredentialVault {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[tokio::test(flavor = "current_thread")]
-    async fn shared_vault_key_packages_use_fresh_nonce_and_authenticate_the_derivation_salt() {
-        let path = std::env::temp_dir().join(format!(
-            "termeta-official-package-test-{}",
-            uuid::Uuid::new_v4()
-        ));
-        std::fs::create_dir(&path).unwrap();
-        let store = terminal_storage::SqliteStore::locked(path.join("source.sqlite3"));
-        store.unlock(&[17; 32]).await.unwrap();
-        let database = store.export_backup_database().await.unwrap();
-        let metadata = BackupMetadata {
-            backup_id: uuid::Uuid::new_v4().to_string(),
-            created_at: 1_792_186_000_000,
-            device_name: "官方同步测试".into(),
-            app_version: "0.1.0".into(),
-            counts: BackupCounts::default(),
-        };
-        let material = crate::derive_vault_key("shared-vault-password", [71; 16]).unwrap();
-        let first = seal_with_key(&material.key, &material.salt, &metadata, &database).unwrap();
-        let second = seal_with_key(&material.key, &material.salt, &metadata, &database).unwrap();
-        assert_eq!(package_salt(&first).unwrap(), material.salt);
-        assert_eq!(package_salt(&second).unwrap(), material.salt);
-        let mut first_bytes = STANDARD.decode(&first).unwrap();
-        let second_bytes = STANDARD.decode(&second).unwrap();
-        assert_ne!(&first_bytes[24..36], &second_bytes[24..36]);
-        assert_eq!(
-            open_with_key(&material.key, &first)
-                .unwrap()
-                .database
-                .as_slice(),
-            database.as_slice()
-        );
-        assert_eq!(
-            open("shared-vault-password", &first)
-                .unwrap()
-                .database
-                .as_slice(),
-            database.as_slice()
-        );
-        assert!(open_with_key(&[19; 32], &first).is_err());
-        // 盐仅用于选择 KDF 参数；即使直接使用正确主密钥，也必须认证外层盐没有被替换。
-        first_bytes[8] ^= 1;
-        let altered = STANDARD.encode(&first_bytes);
-        assert_ne!(package_salt(&altered).unwrap(), material.salt);
-        assert!(open_with_key(&material.key, &altered).is_err());
-        drop(store);
-        let _ = std::fs::remove_dir_all(path);
-    }
-
     #[tokio::test(flavor = "current_thread")]
     async fn package_hides_metadata_and_rejects_wrong_password_tampering_and_count_mismatch() {
         let path = std::env::temp_dir().join(format!(

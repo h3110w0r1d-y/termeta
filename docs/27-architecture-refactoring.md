@@ -1,22 +1,21 @@
 # 代码结构评估与渐进重构方案
 
-日期：2026-10-20。状态：**A/B/C 批次已落地源码，尚未编译或运行验收；D/E/F 保持后续范围**。本文记录最终职责、仍有效的结构问题和验证门槛；功能完成状态以 [产品需求](01-product-requirements.md) 为准。
+日期：2026-10-21。状态：**A/B/C 批次已落地源码，尚未编译或运行验收；E/F 保持后续范围**。本文记录最终职责、仍有效的结构问题和验证门槛；功能完成状态以 [产品需求](01-product-requirements.md) 为准。
 
 ## 1. 结论与产品边界
 
 Termeta 当前的 Tauri 2 + Rust + Vue 3/TS 分层适合已有功能。Vue 保存交互和轻量投影，Rust 管理连接、秘密、文件与持久化，协议核心独立于桌面壳。优化重点是让状态、资源和事务归属与真实操作期一致，减少重复编排；无需重写技术栈、全面引入依赖注入或机械拆长文件。
 
-本轮覆盖本仓库前端、Tauri 壳及相关 Rust crate；独立 Python 官方服务端、用户端和管理端未修改。保留四协议终端、稳定 xterm/terminalId、三个用途的 SessionManager、独立文件/转发连接、消费后 ACK、SQLCipher 和既有迁移；未添加依赖或改变云包格式。
+本轮覆盖本仓库前端、Tauri 壳及相关 Rust crate。保留四协议终端、稳定 xterm/terminalId、三个用途的 SessionManager、独立文件/转发连接、消费后 ACK、SQLCipher 和既有迁移；未添加依赖或改变云包格式。
 
 | 当前产品事实或近期门槛 | 所需结构 | 本轮范围 |
 | --- | --- | --- |
 | 先验收连接、取消、关闭、重连及历史保留 | 输入/输出独立驱动；单一关闭入口；尾输出与附属资源取消分开 | A/B/C |
-| 主机、分组、识别结果和同步会同时更新列表 | 一致快照与迟到读取隔离 | A |
-| 官方模式严格密码门禁，本地模式手动第三方备份 | 故障分类；模式切换覆盖完整操作期 | A/B |
+| 主机、分组、识别结果和备份恢复会同时更新列表 | 一致快照与迟到读取隔离 | A |
 | 双远端、侧栏、对拷已有源码，本地文件端点待实现 | 显示标题与端点身份分开；连接结束主动撤销任务 | A/C；完整任务执行器留 E |
-| Local 自定义启动、Serial 扩展、同步性能优化仍有余项 | 按实际能力逐步完善类型和用例边界 | D/E/F |
+| Local 自定义启动、Serial 扩展仍有余项 | 按实际能力逐步完善类型和用例边界 | E/F |
 
-依据：[路线](10-roadmap.md)、[架构](03-architecture.md)、[会话](04-session-model.md)、[IPC](06-ipc-and-streaming.md)、[SFTP](16-sftp-workspace.md)、[工作区](18-terminal-workspaces.md)、[存储](07-storage.md)、[备份](22-data-backup.md)、[官方同步](26-official-vault-sync.md)。团队、远程协助、第三方自动双向同步和自动恢复标签不纳入本轮。
+依据：[路线](10-roadmap.md)、[架构](03-architecture.md)、[会话](04-session-model.md)、[IPC](06-ipc-and-streaming.md)、[SFTP](16-sftp-workspace.md)、[工作区](18-terminal-workspaces.md)、[存储](07-storage.md)、[备份](22-data-backup.md)。团队、第三方自动双向同步和自动恢复标签不纳入本轮。
 
 ## 2. A/B/C 的最终实现
 
@@ -28,8 +27,6 @@ Termeta 当前的 Tauri 2 + Rust + Vue 3/TS 分层适合已有功能。Vue 保�
 | R02 / A | 解锁初始化重试叠加设置订阅 | [useSettingsSync](../src/modules/settings/useSettingsSync.ts) 分开监听与加载生命周期；start 单飞，加载失败只重读，订阅失败可重建，卸载后迟到订阅立即释放 |
 | R03 / B | Local 在主调度分支等待输入转交，停止轮询输出/退出/resize | [Local](../crates/terminal-local/src/lib.rs) 顺序输入泵作为独立 future 与其他信号一起驱动；保留有界队列和取消优先级 |
 | R04 / A | SFTP 用省略端口的显示标题判断端点相同 | [SSH channels](../crates/terminal-ssh/src/channels.rs) 保存规范化主机、端口、用户名的 `EndpointIdentity`；[对拷](../src-tauri/src/commands/file_workspace.rs) 用它决定真实路径自复制检查，标题不参与身份判断 |
-| R05 / A | 启动同步 GET 与 PUT/CAS 的同类故障导致不同门禁 | [官方同步服务](../src-tauri/src/official_sync/service.rs) 统一错误分类；只有具备已验证本机资格的暂时网络/服务/限流/CAS 故障保留 ready，撤销、包损坏、密钥变化、存储及未知故障严格门禁 |
-| R06 / B | 第三方操作通过准入后可越过账号模式切换 | [账号 runtime](../src-tauri/src/account/runtime.rs) 在模式读取前登记离线操作租约；切换拒绝新任务并在锁外等待已接受操作，预览/完成令牌绑定模式代次；[恢复提交](../src-tauri/src/commands/backup.rs) 持完整租约进入独立任务 |
 | R07 / B | 公共凭据两步写入留下不可用 pending | [凭据存储](../crates/terminal-storage/src/credentials.rs) 单条 INSERT 原子提交元数据、secret、ready；[vault](../crates/terminal-security/src/vault.rs) 不再分步编排；仅回收历史无引用公共 pending，主机专属恢复状态继续保留 |
 | R08 / C | 标签/窗格关闭与窗口退出分别拥有关闭事实 | [Registry](../src/modules/terminal/registry.ts) 的 `closeAndRemove/closeMany` 统一幂等关闭与成功后移除；共享两份归档并发预算；[runtime](../src/modules/terminal/runtime/session.ts) 使用连接/终态/解析完成信号，移除 20 ms 关闭轮询 |
 | R09 / C | 通用挑战归 Workbench，附属资源清理依赖入口和前端补偿 | [sessions](../src/modules/sessions/control.ts) 统一轻量控制投影，[Store](../src/modules/sessions/store.ts) 负责挑战/标题/presence；[core manager](../crates/terminal-core/src/manager.rs) 幂等撤销资源令牌并通过窄回调通知[壳](../src-tauri/src/state.rs)清理 SFTP |
@@ -43,13 +40,11 @@ Termeta 当前的 Tauri 2 + Rust + Vue 3/TS 分层适合已有功能。Vue 保�
 
 Rust 驱动结束、显式关闭、心跳回收与 owner 销毁共用资源撤销；先取消附属令牌，再在管理器/资源表锁外清理。SFTP 创建和迟到传输登记复核取消，覆盖确认/选择器等待随任务取消；系统选择器本身可能继续显示，迟到结果不再应用。尾输出排空独立，不因文件任务取消而丢失。维护循环只作兜底。
 
-### 2.2 必须维持的数据与模式边界
+### 2.2 必须维持的数据边界
 
 主机读取代次只隔离迟到结果，不代替数据库 revision 和事务。保存成功直接更新轻量摘要，刷新失败不能反报为写失败。公共凭据用同库单语句原子性完成，无须新增事务包装；私钥文件读取/校验仍在写库前完成，不更改秘密格式或任何已应用迁移。
 
-模式协调遵循 `official.operation → 模式过渡/等待离线租约 → account.commit 或 backup.initialization`；短状态锁不跨网络、数据库或等待。已接受第三方操作先完成或取消，切换才继续；切换开始即推进模式代次，取消切换也不复活旧预览。恢复确认后独立事务持有完整操作许可和租约，窗口接收端消失不截断已接受提交。
-
-R05 本轮只统一错误决策，未引入新的 AccessState/SyncState 枚举或重写 VaultGate。状态查询仍可能触发启动同步，完整调度拆分属于 D；不能把本轮故障修正描述成完整同步架构重构。
+备份预览绑定窗口和配置代次；恢复确认后独立任务持有操作许可，窗口接收端消失不截断已接受的事务提交。
 
 ### 2.3 契约守卫的实际边界
 
@@ -92,25 +87,7 @@ TS 的业务模型放在对应领域，wire 契约放 desktop 契约层；Rust �
 
 设置同样需要一个明确边界：[Rust settings validate:32](../src-tauri/src/settings.rs#L32)、[save_settings:41](../src-tauri/src/commands/settings.rs#L41)、[TS normalize:52](../src/modules/settings/store.ts#L52) 各承担当下兼容、局部合并和热应用。保留现有串行局部保存；将 normalize/validate/patch 的兼容规则集中为可复用入口，逐步采用类型化 patch 或共享契约样例。不要改回整份草稿覆盖，也不要求把所有前端主题展示数据搬进 Rust。
 
-回归：旧配置、四种保存项编辑/复制/搜索/分组、损坏类型字段、工作区引用、官方/第三方往返、旧设置归一化与多窗口局部更新。
-
-### R12：同步服务分开“查询、调度、计算、提交”
-
-证据：[official status:25](../src-tauri/src/official_sync/service.rs#L25) 获取整个同步操作锁，并可能发 GET、合并、PUT；[logout 命令](../src-tauri/src/commands/account.rs) 同样与同步协调。因此“读取轻量状态”在行为上可能是长网络用例。操作级串行化有必要，但不应让 UI 普通查询隐式触发完整恢复。
-
-建议区分读取已发布状态、单次启动恢复、请求同步三个用例；同一账号的普通同步由单一调度入口合并触发，携带 origin/accountId/operation epoch，防止切换后迟到提交。退出的取消与远端撤销应有明确阶段。改密/数据库文件切换仍作为独立关键流程，不能简单通过去掉锁或取消所有 future 来提速。
-
-**计算与事务证据：**[sync.rs:55](../src-tauri/src/official_sync/sync.rs#L55) 解包后导出 before、合并，再分别比较 before/merged 与 remote/merged；[envelope.rs:19](../src-tauri/src/official_sync/envelope.rs#L19) 封包又读取数据库信息。[storage official_sync.rs:677](../crates/terminal-storage/src/official_sync.rs#L677) 先开启写事务，再在事务内等待合并/编码。移到 blocking 线程避免占用异步执行器，不等于缩短 SQLite 写锁。当前不能断言已达到性能瓶颈。
-
-建议按成本递进：
-
-1. 合并返回具名结果，包含业务是否变化、与远端是否一致、统计与兼容快照，消除 before 全量导出和重复解析；不改云包格式。
-2. 建立只针对云白名单业务写入的本地 generation，并记录已验证的远端 revision；两者未变化时跳过重算。必须覆盖主机/认证/分组/信任/片段/工作区及同步应用写入，不能用“数据库任何写入”或“前端修改次数”代替；改密与账号变化另作失效条件。未建立完整覆盖前不启用这一快路径。
-3. 测量写锁时间、保存延迟和快照峰值后，再决定是否使用“事务一致快照 → 事务外计算 → 写事务复核 generation → 原子应用差异”。冲突时有界重算，不应用过期计划；本地合并与观察到的远端基线仍同事务提交。
-
-另一个结构问题是 [backup/schema.rs:121](../crates/terminal-storage/src/backup/schema.rs#L121) 的三层 Cell 数组和 [official_sync.rs:11](../crates/terminal-storage/src/official_sync.rs#L11) 的表号/列位置穿透领域合并。建议保持现有 SQL/备份编码，在 codec 边界转成具名 BusinessSnapshot/ProfileBundle/TrustRecord，领域规则只处理具名字段；先迁移同步合并，不重写整套 SQLx Repository，不把敏感全量快照送入前端。
-
-回归：稳定 ID、认证 bundle 原子选取、删除/引用闭包、同名修复、信任冲突拒绝、本地写入与同步交错、409/丢响应、旧包兼容、云先改密及本机切换恢复。第三方新增合并与官方三方同步保留独立策略，不能强行共用一套冲突规则。
+回归：旧配置、四种保存项编辑/复制/搜索/分组、损坏类型字段、工作区引用、第三方备份往返、旧设置归一化与多窗口局部更新。
 
 ### R13：持续契约治理
 
@@ -127,7 +104,7 @@ flowchart TB
   UC --> TL[终端生命周期与稳定注册表]
   UC --> CP[会话控制投影与挑战协调]
   UC --> FT[文件端点与任务摘要]
-  UC --> GT[门禁决策与账号摘要]
+  UC --> GT[本机保险库门禁]
   TL --> IPC[唯一 desktop IPC 门面]
   CP --> IPC
   FT --> IPC
@@ -136,12 +113,12 @@ flowchart TB
   CMD --> APP[按实际用例组织的壳内服务]
   APP --> SM[三种用途的会话管理与资源生命周期]
   APP --> FILE[文件任务与授权资源管理]
-  APP --> SYNC[模式协调与同步调度]
+  APP --> BACKUP[第三方备份编排]
   SM --> CORE[core actor 队列 ACK 取消]
   CORE --> DRIVER[协议端口与适配器]
   FILE --> PORT[terminal-files 计划与流式执行]
   PORT --> PROVIDER[本地与 SFTP 适配]
-  SYNC --> VAULT[security 主密钥与凭据用例]
+  BACKUP --> VAULT[security 主密钥与凭据用例]
   VAULT --> STORE[storage 事务与兼容 codec]
 ```
 
@@ -156,32 +133,31 @@ flowchart TB
 
 - **commands 保留信任边界。** 负责 DTO、调用窗口、资源授权、Channel、原生对话框适配；有真实重复或多资源事务的编排交给壳内应用服务。简单转发命令不必再包装一层无行为 Service。
 - **core 保留协议无关性。** 生命周期通知通过现有端口/窄接口传递，不引入 Tauri、SQLx、SFTP；协议特有 I/O 和平台进程清理留在适配器。
-- **事务按业务原子性划分。** 同库凭据写入收成事务；改密文件切换保留恢复协调；同步计算与提交仅在有一致快照/代次复核时分离。不要把一个全局 Mutex 当作事务替代。
+- **事务按业务原子性划分。** 同库凭据写入收成事务；改密文件切换保留恢复协调；备份快照与网络等待分离。不要把一个全局 Mutex 当作事务替代。
 - **抽象在第二个真实实现到来时补全。** 本地文件端点落地时完善 provider；先统一任务持有/释放再讨论连接复用。当前 security 依赖 storage 有实际协调职责，本轮不为依赖图好看强行反转全部 Repository。
 
 ## 5. 后续批次与验收门槛
 
 | 批次 | 源码状态 | 后续门槛 |
 | --- | --- | --- |
-| A / 小范围行为修正 | R01/R02/R04/R05 与 R13 已落地 | 旧读交错、订阅失败重试、不同端口身份、GET/PUT/CAS/撤销/密钥变化分支 |
-| B / 可靠性边界 | R03/R06/R07 已落地 | Local 真实 PTY 双向背压；切换/上传/恢复屏障；SQLCipher 凭据失败与历史状态恢复 |
+| A / 小范围行为修正 | R01/R02/R04 与 R13 已落地 | 旧读交错、订阅失败重试、不同端口身份 |
+| B / 可靠性边界 | R03/R07 已落地 | Local 真实 PTY 双向背压；备份预览失效与恢复提交；SQLCipher 凭据失败与历史状态恢复 |
 | C / 生命周期统一 | R08/R09 已落地 | 重复关闭、连接中关闭、重连、日志失败重试、尾输出；无前端补偿的 SFTP 终止与迟到登记 |
-| D / 门禁和同步服务 | 未实施 | 分开状态读取、启动恢复、调度；具名合并结果/快照；优化前后测量写锁、内存与延迟 |
 | E / 本地文件端点 | 未实施 | 先一个复制方向，再扩展共享执行；授权、owner、限额、部分失败与取消先于连接池化 |
 | F / 持续治理 | 仅 R13 的必要部分落地 | R11 按域类型适配、设置兼容入口、wire 样例；保留旧数据和云包兼容 |
 
-A/B/C 对应近期连接/保险库/工作台验收。D 不以取消锁或拆文件代替一致性，E 不作为验收现有 SFTP 的前置；通用 TransferManager、SSH 连接池化、持久化队列及跨重启恢复仍未实现。
+A/B/C 对应近期连接/保险库/工作台验收。E 不作为验收现有 SFTP 的前置；通用 TransferManager、SSH 连接池化、持久化队列及跨重启恢复仍未实现。
 
 ### 5.1 回归源码与验证边界
 
 Node 回归源码新增 [状态竞争](../tests/state-races.test.mjs)、[控制投影](../tests/session-control.test.mjs)、[关闭生命周期](../tests/terminal-lifecycle.test.mjs)、[尾输出排空](../tests/terminal-stream.test.mjs)。覆盖延迟快照与成功写入、监听失败/重试/卸载、首事件早于响应、旧流/迟到挑战、重复关闭/保存失败重试/归档预算、控制结束与尾帧跨 Channel 到达。
 
-Rust 回归源码就近覆盖 Local 输入背压、端点身份、core 资源撤销与锁外回调、公共凭据原子失败和历史 pending 清理、模式租约排空/取消、预览代次和独立恢复，以及同步故障分类。源码入口见 [测试说明](../tests/README.md)。
+Rust 回归源码就近覆盖 Local 输入背压、端点身份、core 资源撤销与锁外回调、公共凭据原子失败和历史 pending 清理、预览代次和独立恢复。源码入口见 [测试说明](../tests/README.md)。
 
 本轮未执行项目测试、编译、启动、真实主机/串口/云服务连接；静态检查不能证明上述用例通过。后续经授权分别验证：
 
 1. 纯逻辑/受控异步回归及 Rust 故障注入，明确版本和工具链。
-2. 真实 SSH/PTY/Serial、SQLCipher、OAuth/改密/跨设备合并及原生对话框取消。
+2. 真实 SSH/PTY/Serial、SQLCipher、改密/跨设备备份恢复及原生对话框取消。
 3. 三平台 WebView 的尾输出/焦点/退出握手，20 终端归档压力和峰值内存；测量后再调预算。
 
 ### 5.2 固定不变量
@@ -189,6 +165,5 @@ Rust 回归源码就近覆盖 Local 输入背压、端点身份、core 资源撤
 - terminalId/xterm 不因布局、主题或投影变动重建，新 sessionId 隔离旧流，输入不重放。
 - ACK 只在解析后推进；关闭/KeepAlive/挑战响应不依赖输出信用释放；日志提交前保留视图。
 - 文件正文只流经 Rust，owner-bound 一次性本地授权保持，下载拒绝覆盖，上传合并不承诺回滚。
-- 新账号、锁定库、密钥变化及撤销严格门禁；已验证本机资格只在明确可恢复故障下沿用。
-- 既有迁移字节、加密格式、稳定 ID/认证 bundle/信任冲突/CAS/基线事务不变量保持；不创建真实凭据。
+- 既有迁移字节、加密格式、凭据原子写入和第三方新增合并事务不变量保持；不创建真实凭据。
 - settings 窗口不获得通用会话权限，新增命令同步维护清单、handler、capability、owner 与 TS 契约。

@@ -1,6 +1,6 @@
 # Termeta 开发协作指南
 
-更新：2026-10-20。适用于整个仓库，文档和代码注释默认中文。功能状态以 [产品需求](docs/01-product-requirements.md) 为准，不在本文重复清单或追加修复日志。
+更新：2026-10-21。适用于整个仓库，文档和代码注释默认中文。功能状态以 [产品需求](docs/01-product-requirements.md) 为准，不在本文重复清单或追加修复日志。
 
 ## 1. 项目与阅读入口
 
@@ -8,7 +8,6 @@ Termeta 是 Tauri 2 + Rust + Vue 3 + TypeScript 桌面终端客户端，目标 W
 
 开发前阅读本文、目标模块文档及 [路线](docs/10-roadmap.md)。完整索引见 [docs/README.md](docs/README.md)；关键设计取舍见 [架构](docs/03-architecture.md)，本机数据恢复见 [存储](docs/07-storage.md)。
 
-官方服务端为独立项目，协作规则见 服务端 AGENTS.md，功能与接入边界见 [官方服务](docs/24-official-service.md)。服务端使用 Python + FastAPI + Tortoise ORM + 外部 MySQL，Docker Compose 部署；不替代客户端 IPC。用户端为独立项目，负责网页账号管理和桌面授权，协作规则见用户端 AGENTS.md。管理端前端为独立项目，使用 Vue 3 + Naive UI，协作规则见管理端 AGENTS.md。
 
 ## 2. 执行与数据保护
 
@@ -30,7 +29,7 @@ Termeta 是 Tauri 2 + Rust + Vue 3 + TypeScript 桌面终端客户端，目标 W
 
 ## 4. 实现规则
 
-- 前端使用 pnpm、Vue 3 Composition API、严格 TypeScript，Rust edition 2024；不切 React，桌面本地架构不引入 HTTP/WebSocket 后端；独立官方服务端按其协作规则开发。依赖落地或升级须复核具体 release 的 API/features/MSRV/许可/公告，同步锁文件及 [依赖说明](docs/02-library-research.md)，不以 latest 页面锁版本。
+- 前端使用 pnpm、Vue 3 Composition API、严格 TypeScript，Rust edition 2024；不切 React，桌面本地架构不引入 HTTP/WebSocket 后端。依赖落地或升级须复核具体 release 的 API/features/MSRV/许可/公告，同步锁文件及 [依赖说明](docs/02-library-research.md)，不以 latest 页面锁版本。
 - **新增或修改的代码注释使用中文**，保留标识符/API 和必要术语，说明意图与边界，避免复述代码。
 - Vue/TS 跨越两层及以上的相对导入使用 `@/`（`src/`）别名；仓库根目录的资源清单使用 `@resources/`（`resources/`），同目录与单层父目录可保留相对导入。
 - 通用控件优先 Naive UI 2.45.3，封装只做薄适配，使用公开 props/themeOverrides，不复制库皮肤；业务 CSS 就近 scoped，动态 DOM 用明确 :deep() 或入口适配。应用标签使用 AppTabs。
@@ -43,13 +42,13 @@ Termeta 是 Tauri 2 + Rust + Vue 3 + TypeScript 桌面终端客户端，目标 W
 ## 5. 领域行为约束
 
 - 主机分组前后端防环；删除默认保留上移，递归删除独立二次确认，Rust 单事务校验范围/revision，保留公共凭据与已有会话快照。即时偏好串行局部保存，旧设置草稿不能覆盖。搜索不改分组范围，批量打开包含后代。
-- 固定保险箱/SFTP 不可关闭、不创建终端；设置为独立单实例窗口，权限仅限设置、专用改密/JSON 导出、备份及官方账号，通用 session owner 仍只 main。模态/录制/弹层优先处理快捷键，弹窗 Cmd+W 不关闭标签或主窗口；认证弹窗退出后恢复当前活动终端焦点。
+- 固定保险箱/SFTP 不可关闭、不创建终端；设置为独立单实例窗口，权限仅限设置、专用改密/JSON 导出及备份，通用 session owner 仍只 main。模态/录制/弹层优先处理快捷键，弹窗 Cmd+W 不关闭标签或主窗口；认证弹窗退出后恢复当前活动终端焦点。
 - 广播默认关闭、仅内存；成员重组关闭，排序/比例/子树交换保持。排除命令窗格、点击/拖动、设备应答和认证；键盘/粘贴要求焦点，远端滚轮可来自当前组非聚焦窗格，只分发源端最终动作，不合成 wheel 或在目标累积。inputOrigin 集中适配固定 xterm，能力缺失拒绝广播；目标独立编码、限额、代次检查，不重放。
 - 标准粘贴放行系统 paste，由宿主执行大小/多行/广播校验；自定义绑定保留显式剪贴板路径。应用内快捷键与系统后台热键分开。完整路由见 [快捷键](docs/14-shortcuts.md)。
 - SFTP 侧栏仅单 SSH 终端且与分屏互斥，隐藏保留任务，断开/关闭取消，重连不重放。双栏独立连接与对拷，不借原生拖出做内部复制；文件正文仅 Rust 流动，上传确认覆盖/目录合并不承诺回滚，下载拒绝覆盖。
 - 原生拖入仅消费 owner-bound 一次性 dropId，不接收任意本地路径；macOS 承诺拖出兑现请求后才显示任务，取消清理手势与迟到请求。限额与路径边界见 [SFTP](docs/16-sftp-workspace.md)。
 - SSH 主要认证为密码或公钥，Keyboard-interactive/OTP 依服务器协商且 OTP 不保存；保存的交互 Shell SSH 系统识别仅用固定只读命令、独立 exec，不写 PTY/广播。转发默认回环，SOCKS5 仅回环/TCP CONNECT，独立取消，不持久化运行状态或自动启动。
-- 官方/本地离线双模式：桌面仅通过termeta.io/GitHub/Google浏览器登录，邮箱注册登录在独立用户端；桌面会话永久可撤销。官方模式必须认证云密码后进入，直接使用本地主密钥与派生盐做全量业务同步，稳定ID三方合并与CAS，退出保留数据。第三方Gist/WebDAV仅离线模式设置可用，使用独立备份密码。云包只含白名单业务数据，设置/会话日志/云秘密不导出；既有锁定本地库先解锁，不用云端密码绕过或覆盖。密钥与故障边界见[官方同步](docs/26-official-vault-sync.md)，第三方预览/新增合并见[备份](docs/22-data-backup.md)。
+- 本机保险库独立初始化与解锁；Gist/WebDAV 在已解锁后的设置中使用独立备份密码，上传独立版本、下载预览后新增合并。云包只含白名单业务数据，设置/会话日志/云秘密不导出，不用第三方包绕过既有库解锁。边界见 [备份](docs/22-data-backup.md)。
 - 应用主色与终端配色独立，热应用不清历史、不重连；字体限内置 12 家族。其他界面约束见 [桌面交互](docs/09-desktop-ux.md)，布局/存档契约见 [工作区](docs/18-terminal-workspaces.md)，资源与许可见 public/fonts 和 resources。
 
 ## 6. 文档同步与交付

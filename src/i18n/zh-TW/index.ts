@@ -17,7 +17,6 @@ import snippets from "./snippets";
 import forwarding from "./forwarding";
 import themes from "./themes";
 import backup from "./backup";
-import account from "./account";
 
 import nativeMenu from "./nativeMenu.json";
 
@@ -42,5 +41,4 @@ export default {
   ...forwarding,
   ...themes,
   ...backup,
-  ...account,
 } as const;

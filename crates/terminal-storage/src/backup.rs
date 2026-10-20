@@ -12,10 +12,10 @@ mod schema;
 mod tests;
 mod validation;
 
-pub(super) use database::{insert, read_data, strip_detection_token};
+use database::{insert, read_data, strip_detection_token};
 use merge::remap;
 pub(super) use schema::{Cell, Data, TABLES, Table};
-pub(super) use validation::validate;
+use validation::validate;
 
 pub const MAX_DATABASE_BYTES: usize = 128 * 1024 * 1024;
 pub(super) const MAX_ROWS: usize = 100_000;

@@ -1,6 +1,6 @@
 # Termeta 文档导航
 
-更新：2026-10-20。文档描述当前代码的行为与有效约束，不保留逐轮实现日志。源码完成与运行验收分开记录，当前版本尚未完成完整集成、三平台和发布验收。
+更新：2026-10-21。文档描述当前代码的行为与有效约束，不保留逐轮实现日志。源码完成与运行验收分开记录，当前版本尚未完成完整集成、三平台和发布验收。
 
 ## 阅读入口
 
@@ -25,10 +25,7 @@
 | [Telnet](20-telnet-terminal.md) | 协商、NVT/BINARY 与明文登录边界 |
 | [端口转发](21-port-forwarding.md) | 三模式、独立连接、监听与取消 |
 | [Snippets 与会话日志](23-snippets-and-session-logs.md) | 片段管理、关闭归档、退出握手与日志回看 |
-| [备份与同步](22-data-backup.md) | 本地模式的第三方 provider、独立密码、快照预览与新增合并 |
-| [官方服务](24-official-service.md) | 独立服务端、账号/密文备份、分发更新与远程协助规划 |
-| [官方账号与第三方登录](25-account-authentication.md) | termeta.io/GitHub/Google 浏览器登录、独立用户端、永久会话与协议回跳 |
-| [双模式与官方保险库同步](26-official-vault-sync.md) | 启动门禁、主密钥、稳定 ID 合并、CAS 与改密恢复 |
+| [备份与同步](22-data-backup.md) | 第三方 provider、独立密码、快照预览与新增合并 |
 | [代码结构评估与渐进重构](27-architecture-refactoring.md) | A/B/C 的最终职责与待验收边界，D/E/F 的结构方案与分批门槛 |
 
 文件编号保留空缺，不为连续编号重命名。

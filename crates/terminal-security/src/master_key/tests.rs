@@ -9,11 +9,6 @@ fn vault_command_futures_are_send() {
     // 只构造并丢弃 future，不轮询，不打开数据库或访问系统钥匙串。
     assert_send(vault.status());
     assert_send(vault.unlock_with_password(Zeroizing::new(String::new()), false));
-    assert_send(vault.verify_password(Zeroizing::new(String::new())));
-    assert_send(vault.adopt_master_key(VaultKey {
-        key: Zeroizing::new([0; 32]),
-        salt: [0; 16],
-    }));
     assert_send(
         vault.change_password(Zeroizing::new(String::new()), Zeroizing::new(String::new())),
     );
@@ -89,134 +84,6 @@ impl Drop for TestPath {
     }
 }
 
-#[test]
-fn official_derivation_matches_local_password_and_preserves_whitespace() {
-    let password = "  shared-vault-password  ";
-    let (header, key) = Header::create(password).unwrap();
-    let material = derive_vault_key(password, header.salt).unwrap();
-    assert_eq!(*material.key, *key);
-    assert_eq!(material.salt, header.salt);
-    assert_ne!(
-        *derive_vault_key(password.trim(), header.salt).unwrap().key,
-        *key
-    );
-    assert!(derive_vault_key("too-short", header.salt).is_err());
-    assert!(derive_vault_key(&"密".repeat(342), header.salt).is_err());
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn cloud_adoption_rejects_locked_database_and_interrupted_local_metadata() {
-    use std::sync::{Arc, atomic::Ordering};
-    let backend = Arc::new(FakeKeychain::default());
-    let path = TestPath::new();
-    let original = path.vault(backend.clone());
-    original
-        .unlock_with_password(Zeroizing::new("local-original-password".into()), true)
-        .await
-        .unwrap();
-    let locked = path.vault(backend.clone());
-    let header_before = std::fs::read(locked.header_path()).unwrap();
-    let database_before = std::fs::read(locked.store.path()).unwrap();
-    let material = derive_vault_key("remote-cloud-password", [31; 16]).unwrap();
-    assert!(locked.adopt_master_key(material.clone()).await.is_err());
-    assert_eq!(header_before, std::fs::read(locked.header_path()).unwrap());
-    assert_eq!(database_before, std::fs::read(locked.store.path()).unwrap());
-    assert!(!locked.is_unlocked());
-    assert!(locked.master_key().is_err());
-    assert_eq!(backend.writes.load(Ordering::SeqCst), 1);
-
-    let incomplete_path = TestPath::new();
-    let incomplete = incomplete_path.vault(backend.clone());
-    let (header, _) = Header::create("interrupted-local-password").unwrap();
-    write_header(&incomplete.header_path(), &header, false).unwrap();
-    let before = std::fs::read(incomplete.header_path()).unwrap();
-    assert!(incomplete.adopt_master_key(material).await.is_err());
-    assert_eq!(before, std::fs::read(incomplete.header_path()).unwrap());
-    assert!(!incomplete.store.path().exists());
-    assert_eq!(backend.writes.load(Ordering::SeqCst), 1);
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn fresh_cloud_adoption_initializes_recoverable_metadata_without_keychain() {
-    use std::sync::{Arc, atomic::Ordering};
-    let path = TestPath::new();
-    let backend = Arc::new(FakeKeychain::default());
-    backend.fail_write.store(true, Ordering::SeqCst);
-    let vault = path.vault(backend.clone());
-    let material = derive_vault_key("remote-cloud-password", [37; 16]).unwrap();
-    vault.adopt_master_key(material.clone()).await.unwrap();
-    let cache = vault.master_key().unwrap();
-    assert_eq!(*cache.key, *material.key);
-    assert_eq!(cache.salt, material.salt);
-    let header = read_header(&vault.header_path()).unwrap().unwrap();
-    assert!(header.initialized);
-    assert_eq!(header.salt, material.salt);
-    header.verify(&material.key).unwrap();
-    assert!(vault.status().await.unwrap().keychain_warning.is_some());
-    let recovered = path.vault(backend);
-    assert_eq!(recovered.status().await.unwrap().mode, "locked");
-    recovered
-        .unlock_with_password(Zeroizing::new("remote-cloud-password".into()), false)
-        .await
-        .unwrap();
-    assert_eq!(*recovered.master_key().unwrap().key, *material.key);
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn cloud_adoption_preserves_credentials_and_updates_both_key_caches() {
-    use std::sync::{Arc, atomic::Ordering};
-    let path = TestPath::new();
-    let backend = Arc::new(FakeKeychain::default());
-    let vault = path.vault(backend.clone());
-    vault
-        .unlock_with_password(Zeroizing::new("local-original-password".into()), true)
-        .await
-        .unwrap();
-    let credential = vault
-        .save_password("保留凭据", Zeroizing::new("preserved-secret".into()))
-        .await
-        .unwrap();
-    let before = read_header(&vault.header_path()).unwrap().unwrap();
-    let material = derive_vault_key("remote-cloud-password", [43; 16]).unwrap();
-    vault.adopt_master_key(material.clone()).await.unwrap();
-    let cache = vault.master_key().unwrap();
-    assert_eq!(*cache.key, *material.key);
-    assert_eq!(cache.salt, material.salt);
-    let header = read_header(&vault.header_path()).unwrap().unwrap();
-    assert_eq!(header.id, before.id);
-    assert_eq!(header.salt, material.salt);
-    assert!(header.initialized);
-    header.verify(&material.key).unwrap();
-    assert_eq!(
-        backend.key.lock().unwrap().as_deref(),
-        Some(material.key.as_slice())
-    );
-    assert_eq!(
-        vault.load(&credential).await.unwrap().as_str(),
-        "preserved-secret"
-    );
-    assert_eq!(backend.writes.load(Ordering::SeqCst), 2);
-    vault.adopt_master_key(material).await.unwrap();
-    assert_eq!(backend.writes.load(Ordering::SeqCst), 2);
-
-    *backend.key.lock().unwrap() = None;
-    let recovered = path.vault(backend);
-    assert!(
-        recovered
-            .unlock_with_password(Zeroizing::new("local-original-password".into()), false)
-            .await
-            .is_err()
-    );
-    recovered
-        .unlock_with_password(Zeroizing::new("remote-cloud-password".into()), false)
-        .await
-        .unwrap();
-    assert_eq!(
-        recovered.load(&credential).await.unwrap().as_str(),
-        "preserved-secret"
-    );
-}
-
 #[tokio::test(flavor = "current_thread")]
 async fn canceling_password_change_caller_does_not_interrupt_commit_or_cache_update() {
     use std::sync::{Arc, atomic::Ordering};
@@ -248,7 +115,6 @@ async fn canceling_password_change_caller_does_not_interrupt_commit_or_cache_upd
     })
     .await
     .unwrap();
-    assert!(vault.master_key().is_err());
     caller.abort();
     assert!(caller.await.unwrap_err().is_cancelled());
     drop(operation);
@@ -259,14 +125,11 @@ async fn canceling_password_change_caller_does_not_interrupt_commit_or_cache_upd
         .unwrap();
     assert_eq!(status.mode, "unlocked");
     let header = read_header(&vault.header_path()).unwrap().unwrap();
-    let cache = vault.master_key().unwrap();
-    let expected = derive_vault_key("changed-vault-password", header.salt).unwrap();
-    assert_eq!(*cache.key, *expected.key);
-    assert_eq!(cache.salt, expected.salt);
-    header.verify(&cache.key).unwrap();
+    let expected = derive("changed-vault-password", &header.salt).unwrap();
+    header.verify(&expected).unwrap();
     assert_eq!(
         backend.key.lock().unwrap().as_deref(),
-        Some(cache.key.as_slice())
+        Some(expected.as_slice())
     );
     assert_eq!(backend.writes.load(Ordering::SeqCst), 2);
 }
@@ -387,16 +250,9 @@ async fn changed_password_survives_keychain_write_failure() {
         .unwrap();
     assert!(changed.keychain_warning.is_some());
     assert_eq!(old_cached_key, *backend.key.lock().unwrap());
-    let current = vault.master_key().unwrap();
     let header = read_header(&vault.header_path()).unwrap().unwrap();
-    assert_eq!(current.salt, header.salt);
-    assert_eq!(
-        *current.key,
-        *derive_vault_key("new-password-456", header.salt)
-            .unwrap()
-            .key
-    );
-    header.verify(&current.key).unwrap();
+    let current = derive("new-password-456", &header.salt).unwrap();
+    header.verify(&current).unwrap();
     let recovered = path.vault(backend);
     assert_eq!(recovered.status().await.unwrap().mode, "locked");
     assert!(

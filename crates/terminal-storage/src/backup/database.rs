@@ -31,7 +31,7 @@ pub(crate) fn strip_detection_token(row: &mut [Cell]) -> Result<()> {
     Ok(())
 }
 
-/// 同步和导出共用白名单读取，调用方持有一致的数据库事务。
+/// 按白名单导出业务数据，调用方持有一致的数据库事务。
 pub(crate) async fn read_data(tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>) -> Result<Data> {
     let mut data = Vec::new();
     let mut total = 0;

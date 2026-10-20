@@ -1,20 +1,19 @@
 # 依赖选型与核查边界
 
-更新：2026-10-20。版本和 features 以 manifest、Cargo.lock、pnpm-lock.yaml 为准。本文保留选型依据与升级注意事项，不记录逐轮调研/API 排查过程；静态核对不代表编译、兼容性或安全审计通过。
+更新：2026-10-21。版本和 features 以 manifest、Cargo.lock、pnpm-lock.yaml 为准。本文保留选型依据与升级注意事项，不记录逐轮调研/API 排查过程；静态核对不代表编译、兼容性或安全审计通过。
 
 ## 1. 主要依赖
 
 | 领域 | 锁定基线与来源 | 用途与约束 |
 | --- | --- | --- |
 | 桌面 | Tauri 2.11.5 / build 2.6.3 / JS API 2.11.0；[Channel](https://v2.tauri.app/reference/javascript/api/namespacecore/)、[Capabilities](https://v2.tauri.app/security/capabilities/) | Commands + 原始二进制 Channel；自定义命令须 AppManifest/ACL 与资源 owner 双重校验 |
-| 协议回跳 | [tauri-plugin-deep-link 2.4.10](https://crates.io/crates/tauri-plugin-deep-link/2.4.10)，复用 single-instance 2.4.2，均不新增 feature | Apache-2.0 OR MIT，deep-link 声明 MSRV 1.77.2；desktop scheme 配置及官方 register，Rust 原生接收，WebView 不读回跳 URI |
 | 前端 | Vue 3、TypeScript、Pinia 4.1.0、Naive UI 2.45.3、@tabler/icons-vue 3.49.0 | 通用控件和轻量状态，桌面行为见 [交互](09-desktop-ux.md) |
 | 终端 | xterm 6.0.0 / Fit 0.11.0 / Search 0.16.0 / Serialize 0.14.0 / WebLinks 0.12.0；[API](https://xtermjs.org/docs/api/terminal/classes/terminal/)、[流控](https://xtermjs.org/docs/guides/flowcontrol/)、[安全](https://xtermjs.org/docs/guides/security/) | 原始 Uint8Array；解析回调用于 ACK，不等于 GPU 呈现。无需 addon-attach/WebGL |
 | SSH | [russh 0.64.1](https://docs.rs/russh/0.64.1/russh/)，禁用默认 features，启用 ring/rsa | Apache-2.0，声明 MSRV 1.89；认证/PTY 请求须等待服务器接受，不能将发送成功视为完成 |
 | SFTP | [russh-sftp 3.0.1](https://docs.rs/russh-sftp/3.0.1/russh_sftp/)，禁用默认 features | Apache-2.0，未声明 MSRV；通过 AsyncRead/AsyncWrite 接 SSH subsystem，增量浏览避免全量目录收集 |
 | 数据库 | [SQLx 0.8.6](https://docs.rs/sqlx/0.8.6/sqlx/)，sqlite/runtime-tokio/migrate/macros | MIT OR Apache-2.0；Rust 独占 SQL。迁移事务和父表重建见 [存储](07-storage.md) |
 | SQLCipher | [libsqlite3-sys 0.30.1](https://docs.rs/crate/libsqlite3-sys/0.30.1/source/)，bundled-sqlcipher-vendored-openssl | 内嵌 SQLCipher 4.5.7（BSD）与 OpenSSL；不回退普通 SQLite，三平台原生工具链待验证 |
-| 主密钥/备份加密 | [Argon2 0.6.0](https://docs.rs/argon2/0.6.0/argon2/) alloc/zeroize；[AES-GCM 0.11.1](https://docs.rs/aes-gcm/0.11.1/aes_gcm/) zeroize | MIT OR Apache-2.0，声明 MSRV 1.85；用于主密钥校验、官方同主密钥云包与第三方独立密码云包，不替代 SQLCipher 页加密 |
+| 主密钥/备份加密 | [Argon2 0.6.0](https://docs.rs/argon2/0.6.0/argon2/) alloc/zeroize；[AES-GCM 0.11.1](https://docs.rs/aes-gcm/0.11.1/aes_gcm/) zeroize | MIT OR Apache-2.0，声明 MSRV 1.85；用于主密钥校验与第三方独立密码云包，不替代 SQLCipher 页加密 |
 | OS 缓存 | [keyring 3.6.3](https://docs.rs/keyring/3.6.3/keyring/)，按平台启用 backend | MIT OR Apache-2.0，声明 MSRV 1.75；macOS apple-native、Windows windows-native、Linux sync-secret-service/crypto-rust/vendored，仅缓存主密钥 |
 | Local | [portable-pty 0.9.0](https://crates.io/crates/portable-pty/0.9.0) | MIT，未声明 MSRV；Unix PTY/Windows ConPTY、独立阻塞 I/O，完整进程树回收待完善 |
 | Serial | [serialport 4.10.1](https://docs.rs/serialport/4.10.1/serialport/)，禁用默认 libudev feature | MPL-2.0，声明 MSRV 1.59；None/Software/Hardware 流控及平台独占 |
@@ -48,18 +47,3 @@ Windows/Linux 原生文件拖出没有落地，不将候选库写成已支持。
 - 依赖 release、features、传递 MSRV、原生工具链、许可证及公告须与锁文件一起复核。当前已知公告集中在 [风险记录](01-product-requirements.md#10-依赖与公告核查)，不宣称全依赖审计通过。
 
 真实服务、设备、原生拖放/菜单及三平台验证门槛统一见 [运行验收边界](01-product-requirements.md#11-运行验收边界)。
-
-## 4. 账号与独立项目依赖
-
-桌面账号复用既有 reqwest/opener，不引入 JavaScript HTTP/OAuth SDK。以下直接依赖的版本、feature 和 API 依据保留用于升级复核：
-
-| 依赖 | 用途与核查 |
-| --- | --- |
-| [base64 0.22.1](https://crates.io/crates/base64/0.22.1)、[sha2 0.10.9](https://crates.io/crates/sha2/0.10.9)、[rand_core 0.6.4](https://crates.io/crates/rand_core/0.6.4)（getrandom） | `URL_SAFE_NO_PAD`、`Sha256::digest`、`OsRng.try_fill_bytes` 用于随机 proof 与 S256；MIT OR Apache-2.0，base64 MSRV 1.48，其余未声明 |
-| [chrono 0.4.45](https://docs.rs/chrono/0.4.45/chrono/)（禁默认 feature，仅 std） | RFC3339/DateTime 与 SystemTime 转换，再换算为 Instant；MIT OR Apache-2.0，MSRV 1.62.0 |
-
-协议回跳固定 deep-link 2.4.10 与 single-instance 2.4.2。deep-link 2.4.10 依赖 Tauri ^2.10；2026-10-19 核查的 2.5/2.6 release 要求 ^2.12，维持当前桌面框架时不直接升级。仅复用原生注册/Opened/单实例参数，禁止将 URI 全局广播到 WebView，无需 JS 插件或新增 WebView 权限。升级须复核 Plugin.initialize、运行期事件与原生参数语义。来源：[固定 deep-link 源码](https://docs.rs/crate/tauri-plugin-deep-link/2.4.10/source/)、[single-instance 源码](https://docs.rs/crate/tauri-plugin-single-instance/2.4.2/source/)、[官方协议说明](https://v2.tauri.app/plugin/deep-linking/)。
-
-历史公告查询：2026-10-18 SerializeAddon 的 npm 查询、2026-10-19 deep-link 新增传递集合及 chrono 的 OSV 查询未返回公告。它们只代表当时指定版本的局部结果，不是实时或完整审计；未关闭风险仍见 [需求风险表](01-product-requirements.md#10-依赖与公告核查)。
-
-服务端、用户端、管理端分别维护依赖和锁文件，见 服务端依赖、用户端依赖、管理端依赖。这些不计作桌面依赖变化；客户端 updater 插件仍待单独接入和 release/权限核查。

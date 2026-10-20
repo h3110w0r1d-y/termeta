@@ -5,7 +5,6 @@
   "platforms": ["macOS", "windows", "linux"],
   "windows": ["main"],
   "permissions": [
-    "allow-official-account",
     "allow-cloud-backup-settings",
     "core:event:allow-listen",
     "core:event:allow-unlisten",
