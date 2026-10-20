@@ -337,7 +337,7 @@ export interface BackupRestorePreview {
   metadata: BackupMetadata;
 }
 
-export type AccountProviderId = "github" | "google";
+export type AccountProviderId = "termeta" | "github" | "google";
 export interface AccountUser {
   id: string;
   email: string;
@@ -353,10 +353,6 @@ export interface AccountProvider {
   id: AccountProviderId;
   name: string;
 }
-export interface AccountIdentity {
-  provider: AccountProviderId;
-  createdAt: string;
-}
 export interface AccountOAuthFlow {
   flowId: string;
   provider: AccountProviderId;
@@ -366,5 +362,13 @@ export interface AccountOAuthFlow {
 export interface AccountOAuthResult {
   status: "pending" | "completed" | "denied" | "expired";
   account: AccountStatus | null;
+  error: string | null;
+}
+
+// 官方同步只暴露轻量状态，保险库内容和加密密钥始终留在 Rust。
+export interface OfficialSyncStatus {
+  phase: "signedOut" | "needsPassword" | "ready";
+  cloudHasData: boolean;
+  lastSyncedAt: string | null;
   error: string | null;
 }

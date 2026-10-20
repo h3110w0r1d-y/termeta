@@ -1,6 +1,6 @@
 # 加密数据保险库与持久化
 
-更新：2026-10-19。本文维护本机持久化、升级与故障恢复契约；云包格式和导入见 [数据备份](22-data-backup.md)。当前为加密格式 2、schema 6，支持同格式 schema 2–5 原位升级，不迁移早期明文库或旧凭据格式。源码实现不代表三平台运行验收完成。
+更新：2026-10-19。本文维护本机持久化、升级与故障恢复契约；云包格式和导入见 [数据备份](22-data-backup.md)。当前为加密格式 2、schema 7，支持同格式 schema 2–6 原位升级，不迁移早期明文库或旧凭据格式。源码实现不代表三平台运行验收完成。
 
 ## 1. 存储边界
 
@@ -29,7 +29,7 @@ SQLCipher 由锁定的 `libsqlite3-sys 0.30.1` 内嵌 4.5.7 源码与 vendored O
 
 ### 修改密码与中断恢复
 
-改密要求已解锁并重新验证旧密码；新密码遵守首次设置限制且不能与旧密码相同。保留 UUID，生成新盐和 nonce，格式与 schema 不变。实现见 [主密钥协调](../crates/terminal-security/src/master_key.rs) 与 [文件切换](../crates/terminal-storage/src/password_change.rs)。
+本地模式改密要求已解锁并重新验证旧密码；新密码遵守首次设置限制且不能与旧密码相同。保留 UUID，生成新盐和 nonce，格式与 schema 不变。实现见 [主密钥协调](../crates/terminal-security/src/master_key.rs) 与 [文件切换](../crates/terminal-storage/src/password_change.rs)。
 
 流程与凭据多步写入串行，数据库生命周期门闩暂停新查询并等待原池归还事务。关闭 WAL、切至 DELETE 日志模式后复制完整加密主文件，仅在独占副本执行 SQLCipher `rekey`；验证新密钥、完整性和外键后切换正式数据库及元数据。全程不生成明文库、不改迁移记录；重新开放业务池不重复启动迁移或改写会话日志，终端输出/取消不经此门闩。
 
@@ -65,19 +65,21 @@ SSH `config_json.startup` 使用共享 `SshStartup` 类型：Shell 或 PTY exec�
 
 手工物理备份应在应用退出后保留整个应用数据目录，包括加密数据库、配套 vault.json、可能存在的 WAL/SHM 与改密恢复目录；不能只复制数据库或以普通 `VACUUM INTO` 代替加密备份。密码与 OS 主密钥均丢失，或缺少配套派生元数据时，现有接口无法恢复。
 
-改密只更换当前数据库密钥，既有物理副本仍用原密码；[云备份](22-data-backup.md)使用独立密码及白名单逻辑快照，不包含来源主密钥/vault.json。当前路径不打开或自动清理旧 `termeta.sqlite3`、`termeta-credentials-v1.sqlite3`，旧明文库不会自动加密。
+改密只更换当前数据库密钥，既有物理副本仍用原密码；[第三方云备份](22-data-backup.md)使用独立密码及白名单逻辑快照，不包含来源主密钥/vault.json。当前路径不打开或自动清理旧 `termeta.sqlite3`、`termeta-credentials-v1.sqlite3`，旧明文库不会自动加密。
 
 ## 5. 设置、Snippets 与会话日志
 
 应用设置保存在 `settings.key=app` 的版本化 JSON，最大 256 KiB。Rust 校验版本、白名单、字段及方案引用；main/settings 使用专用串行队列读取最新值并局部合并，hostsView/hostSearch 逐字段合并，旧草稿不能覆盖即时偏好。提交后通知其他窗口重读。字段和默认值以 [settings.rs](../src-tauri/src/settings.rs) 为准；搜索查询与拼音索引只驻内存。
 
-云认证及备份密码另存于 `settings.key=backup`、`value_version=2`，不通过普通设置返回，也不进入云备份。专用读取仅返回秘密存在标记；版本 1 配置可保留认证并补填密码后升级，不改变业务 schema。详见 [备份配置](22-data-backup.md#5-配置初始化与权限)。
+云认证及备份密码另存于 `settings.key=backup`、`value_version=2`，不通过普通设置返回，也不进入云备份。专用读取仅返回秘密存在标记；版本 1 配置可保留认证并补填密码后升级，不改变业务 schema。详见 [备份配置](22-data-backup.md#5-配置与权限)。
 
 `snippets` 保存命令片段；`session_logs` 只在终端视图或软件关闭时保存 xterm 带配色/样式的现存缓冲快照及无主机外键的基础连接副本。连接创建/断开不写日志，日志无自动数量裁剪，正文不进入云备份。旧连接历史运行代码已删除，旧表不再使用，也不转换旧记录。关闭写入以 FULL 同步事务提交成功作为销毁视图/退出的前提；完整契约与异常退出限制见 [Snippets 与会话日志](23-snippets-and-session-logs.md)。
 
+官方账号 Token 独立保存在 SQLCipher 的账号设置，首次初始化前仅暂存于 Rust 内存；密码确认标记用于阻止重启跳过新登录门禁。`official_sync_state` 按服务来源和账号隔离已观测云快照基线，只有本地数据库持有，不进入云业务包。官方云包直接使用当前保险库主密钥和派生盐，导入云端密码成功后复用可恢复改密对齐本地库；官方模式改密与云CAS的非原子边界见[官方同步](26-official-vault-sync.md#改密与恢复)。
+
 ## 6. schema 与迁移
 
-密钥和页面完整性通过后，专用初始化连接接受 `user_version=0` 或同格式 2–6。2026-10-18 新增 Snippets/日志采用迁移后幂等建表，不增加 SQLx 迁移或改变 user_version，不改已有迁移及校验记录。父表重建前在迁移事务外关闭外键，SQLx `Migrator::run_direct` 之后恢复并检查外键，通过才发布业务池；失败保持回滚与校验和检查。
+密钥和页面完整性通过后，专用初始化连接接受 `user_version=0` 或同格式 2–7。2026-10-18 新增 Snippets/日志采用迁移后幂等建表，不增加 SQLx 迁移或改变 user_version，不改已有迁移及校验记录。父表重建前在迁移事务外关闭外键，SQLx `Migrator::run_direct` 之后恢复并检查外键，通过才发布业务池；失败保持回滚与校验和检查。
 
 | 迁移文件 | 结果 schema | 内容 |
 | --- | --- | --- |
@@ -86,6 +88,7 @@ SSH `config_json.startup` 使用共享 `SshStartup` 类型：Shell 或 PTY exec�
 | `0003_forwarding.sql` | 4 | 增加 port_forwards，主机删除时引用置空 |
 | `0004_workspaces.sql` | 5 | 增加 Workspace、处理历史重名并创建名称唯一索引 |
 | `0005_profile_name_index.sql` | 6 | 唯一索引改用 trim(name) |
+| `0006_official_sync.sql` | 7 | 本机账号/来源隔离的官方同步基线 |
 
 新库应用全部迁移，同格式旧库补齐缺少项，文件名、主密钥及元数据不变。**已经应用的迁移必须保持原始字节，后续变更新增迁移，不改 `_sqlx_migrations`。** 升级后不能交回不识别该 schema 的旧应用；回退使用升级前一致备份。
 

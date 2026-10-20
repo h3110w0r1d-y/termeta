@@ -101,10 +101,14 @@ impl Api {
                 _ => failure("ACCOUNT_UNAVAILABLE", "官方服务暂时不可用，请稍后重试"),
             });
         }
-        const LIMIT: usize = 64 * 1024;
+        let limit = if path == "api/sync/vault" {
+            48 * 1024 * 1024
+        } else {
+            64 * 1024
+        };
         if response
             .content_length()
-            .is_some_and(|size| size > LIMIT as u64)
+            .is_some_and(|size| size > limit as u64)
         {
             return Err(failure("ACCOUNT_RESPONSE", "官方服务响应超出限制"));
         }
@@ -114,7 +118,7 @@ impl Api {
             .await
             .map_err(|_| failure("ACCOUNT_NETWORK", "官方服务响应中断"))?
         {
-            if bytes.len().saturating_add(chunk.len()) > LIMIT {
+            if bytes.len().saturating_add(chunk.len()) > limit {
                 return Err(failure("ACCOUNT_RESPONSE", "官方服务响应超出限制"));
             }
             bytes.extend_from_slice(&chunk);
@@ -128,6 +132,10 @@ pub fn authorization_url(value: &str, provider: Provider) -> Result<Url> {
     }
     let url = Url::parse(value).map_err(|_| failure("ACCOUNT_RESPONSE", "提供方授权地址无效"))?;
     let valid_endpoint = match provider {
+        Provider::Termeta => {
+            let api = Api::new()?;
+            url.origin() == api.base.origin() && url.path() == "/desktop/authorize"
+        }
         Provider::Github => {
             url.host_str() == Some("github.com") && url.path() == "/login/oauth/authorize"
         }

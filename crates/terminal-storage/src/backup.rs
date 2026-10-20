@@ -39,7 +39,7 @@ pub struct BackupSettingWrite {
     pub value: serde_json::Value,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub(super) enum Cell {
     Null,
     Integer(i64),
@@ -54,28 +54,28 @@ impl Cell {
             Err(invalid())
         }
     }
-    fn integer(&self) -> Result<i64> {
+    pub(super) fn integer(&self) -> Result<i64> {
         if let Self::Integer(value) = self {
             Ok(*value)
         } else {
             Err(invalid())
         }
     }
-    fn optional_text(&self) -> Result<Option<&str>> {
+    pub(super) fn optional_text(&self) -> Result<Option<&str>> {
         if matches!(self, Self::Null) {
             Ok(None)
         } else {
             self.text().map(Some)
         }
     }
-    fn blob(&self) -> Result<&[u8]> {
+    pub(super) fn blob(&self) -> Result<&[u8]> {
         if let Self::Blob(value) = self {
             Ok(value)
         } else {
             Err(invalid())
         }
     }
-    fn set_text(&mut self, value: String) {
+    pub(super) fn set_text(&mut self, value: String) {
         *self = Self::Text(Zeroizing::new(value));
     }
     pub(super) fn size(&self) -> usize {
@@ -88,7 +88,7 @@ impl Cell {
 }
 pub(super) struct Table {
     pub name: &'static str,
-    definition: &'static str,
+    pub(super) definition: &'static str,
 }
 impl Table {
     pub(super) fn columns(&self) -> Vec<&str> {
@@ -154,7 +154,7 @@ pub(super) static TABLES: &[Table] = &[
         definition: "id TEXT NOT NULL,name TEXT NOT NULL,content TEXT NOT NULL,revision INTEGER NOT NULL,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL",
     },
 ];
-type Data = Vec<Vec<Vec<Cell>>>;
+pub(super) type Data = Vec<Vec<Vec<Cell>>>;
 fn invalid() -> StorageError {
     StorageError::Validation("备份业务数据、类型或关联无效")
 }
@@ -205,49 +205,7 @@ impl SqliteStore {
     pub async fn export_backup_database(&self) -> Result<Zeroizing<Vec<u8>>> {
         let pool = self.pool().await?;
         let mut tx = pool.begin().await?;
-        let mut data = Vec::new();
-        let mut total = 0;
-        let mut total_bytes = 0;
-        for table in TABLES {
-            let filter = match table.name {
-                "connection_profiles" => " WHERE kind IN ('ssh','telnet','serial','workspace')",
-                "credentials" => " WHERE status='ready'",
-                _ => "",
-            };
-            let query = format!("{}{} LIMIT {}", table.select(), filter, MAX_ROWS + 1);
-            let mut stream = sqlx::query(&query).fetch(&mut *tx);
-            let mut rows = Vec::new();
-            use futures_util::TryStreamExt;
-            while let Some(source) = stream.try_next().await? {
-                total += 1;
-                if total > MAX_ROWS {
-                    return Err(StorageError::Validation("备份记录超过十万条限制"));
-                }
-                let mut row = Vec::new();
-                for (index, definition) in table.definition.split(',').enumerate() {
-                    let value = if source.try_get_raw(index)?.is_null() {
-                        Cell::Null
-                    } else if definition.contains(" INTEGER") {
-                        Cell::Integer(source.try_get(index)?)
-                    } else if definition.contains(" BLOB") {
-                        Cell::Blob(Zeroizing::new(source.try_get(index)?))
-                    } else {
-                        Cell::Text(Zeroizing::new(source.try_get(index)?))
-                    };
-                    total_bytes += value.size();
-                    if total_bytes > MAX_DATABASE_BYTES {
-                        return Err(StorageError::Validation("备份数据超过 128 MiB 限制"));
-                    }
-                    row.push(value);
-                }
-                // 不把进行中的设备识别令牌复制到其他设备。
-                if table.name == "connection_profiles" {
-                    strip_detection_token(&mut row)?;
-                }
-                rows.push(row);
-            }
-            data.push(rows);
-        }
+        let data = read_data(&mut tx).await?;
         tx.commit().await?;
         drop(pool);
         tokio::task::spawn_blocking(move || {
@@ -372,7 +330,7 @@ impl SqliteStore {
         Ok(summary)
     }
 }
-async fn insert(
+pub(super) async fn insert(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     table: &Table,
     row: &[Cell],
@@ -390,7 +348,7 @@ async fn insert(
     query.execute(&mut **tx).await?;
     Ok(())
 }
-fn strip_detection_token(row: &mut [Cell]) -> Result<()> {
+pub(super) fn strip_detection_token(row: &mut [Cell]) -> Result<()> {
     let mut config: serde_json::Value = serde_json::from_str(row[6].text()?)?;
     if let Some(object) = config.as_object_mut() {
         object.remove("systemDetectionToken");
@@ -418,7 +376,7 @@ fn optional_secret_text<'de, D: serde::Deserializer<'de>>(
     Option::<String>::deserialize(deserializer).map(|value| value.map(Zeroizing::new))
 }
 
-fn validate(data: &Data) -> Result<()> {
+pub(super) fn validate(data: &Data) -> Result<()> {
     if data.len() != TABLES.len() || data.iter().map(Vec::len).sum::<usize>() > MAX_ROWS {
         return Err(invalid());
     }
@@ -1135,4 +1093,55 @@ mod tests {
         ]);
         assert!(validate(&data).is_err());
     }
+}
+
+/// 同步和导出共用白名单读取，调用方持有一致的数据库事务。
+pub(super) async fn read_data(tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>) -> Result<Data> {
+    let mut data = Vec::new();
+    let mut total = 0;
+    let mut total_bytes = 0;
+    for table in TABLES {
+        let filter = match table.name {
+            "connection_profiles" => " WHERE kind IN ('ssh','telnet','serial','workspace')",
+            "credentials" => " WHERE status='ready'",
+            "ssh_profiles" | "profile_auth_steps" | "profile_tags" => {
+                " WHERE profile_id IN (SELECT id FROM connection_profiles WHERE kind IN ('ssh','telnet','serial','workspace'))"
+            }
+            _ => "",
+        };
+        let query = format!("{}{} LIMIT {}", table.select(), filter, MAX_ROWS + 1);
+        let mut stream = sqlx::query(&query).fetch(&mut **tx);
+        let mut rows = Vec::new();
+        use futures_util::TryStreamExt;
+        while let Some(source) = stream.try_next().await? {
+            total += 1;
+            if total > MAX_ROWS {
+                return Err(StorageError::Validation("备份记录超过十万条限制"));
+            }
+            let mut row = Vec::new();
+            for (index, definition) in table.definition.split(',').enumerate() {
+                let value = if source.try_get_raw(index)?.is_null() {
+                    Cell::Null
+                } else if definition.contains(" INTEGER") {
+                    Cell::Integer(source.try_get(index)?)
+                } else if definition.contains(" BLOB") {
+                    Cell::Blob(Zeroizing::new(source.try_get(index)?))
+                } else {
+                    Cell::Text(Zeroizing::new(source.try_get(index)?))
+                };
+                total_bytes += value.size();
+                if total_bytes > MAX_DATABASE_BYTES {
+                    return Err(StorageError::Validation("备份数据超过 128 MiB 限制"));
+                }
+                row.push(value);
+            }
+            // 不把进行中的设备识别令牌复制到其他设备。
+            if table.name == "connection_profiles" {
+                strip_detection_token(&mut row)?;
+            }
+            rows.push(row);
+        }
+        data.push(rows);
+    }
+    Ok(data)
 }

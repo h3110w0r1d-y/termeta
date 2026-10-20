@@ -37,11 +37,8 @@ export default {
     "バージョンを選び、プレビューしてからインポートを確認してください。",
   "backup.upload.progress": "バックアップを暗号化してアップロード",
   "backup.download.progress": "クラウドバックアップを読み込む",
-  "backup.import.setupDescription":
-    "ローカル保管庫を作成し、選択したバックアップをインポートします。保管庫とバックアップのパスワードは別です。両方を安全に保管してください。",
   "backup.import.mergeDescription":
     "既存のローカルデータと設定を保持して、データを追加します。繰り返すと重複が作成されます。競合するホスト鍵は警告してスキップします。",
-  "backup.actions.setupAndImport": "保管庫を作成してインポート",
   "backup.actions.confirmImport": "新規データとしてインポート",
   "backup.import.counts":
     "ホスト {hosts} · グループ {groups} · 認証情報 {credentials} · 転送 {forwards} · 信頼済み鍵 {knownHosts} · スニペット {snippets}",
@@ -70,8 +67,4 @@ export default {
   "backup.status.connected": "接続に成功しました。",
   "backup.status.uploaded":
     "新しいバックアップをアップロードしました。既存のクラウドバックアップは保持されました。",
-  "backup.errors.setupUnavailable":
-    "初期設定を利用できません。アプリを開き直して再試行してください。",
-  "backup.validation.localPassword":
-    "インポート前に、上でローカル保管庫のパスワードを入力して確認してください。",
 } as const;

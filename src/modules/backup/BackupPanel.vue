@@ -22,7 +22,6 @@ import AppDialog from "../../components/ui/AppDialog.vue";
 import { useCloudBackup, type BackupPanelOptions } from "./useCloudBackup";
 
 const props = withDefaults(defineProps<Partial<BackupPanelOptions>>(), {
-  initializing: false,
   disabled: false,
 });
 const emit = defineEmits<{ "busy-change": [busy: boolean] }>();
@@ -168,7 +167,6 @@ defineExpose({ busy, save, dirty });
         {{ t("backup.actions.test") }}
       </NButton>
       <NButton
-        v-if="!initializing"
         :disabled="operationBusy || !dirty"
         :loading="busy"
         @click="save"
@@ -177,7 +175,6 @@ defineExpose({ busy, save, dirty });
       </NButton>
     </NFlex>
     <NRadioGroup
-      v-if="!initializing"
       v-model:value="action"
       :disabled="operationBusy"
       :aria-label="t('backup.form.operation')"
@@ -271,11 +268,7 @@ defineExpose({ busy, save, dirty });
         </p>
         <p>{{ counts(preview.metadata.counts) }}</p>
         <NAlert type="info">
-          {{
-            initializing
-              ? t("backup.import.setupDescription")
-              : t("backup.import.mergeDescription")
-          }}
+          {{ t("backup.import.mergeDescription") }}
         </NAlert>
         <NAlert v-if="error" type="error" class="backup-error">
           {{ error }}
@@ -292,11 +285,7 @@ defineExpose({ busy, save, dirty });
             :loading="busy"
             @click="apply"
           >
-            {{
-              initializing
-                ? t("backup.actions.setupAndImport")
-                : t("backup.actions.confirmImport")
-            }}
+            {{ t("backup.actions.confirmImport") }}
           </NButton>
         </NFlex>
       </template>

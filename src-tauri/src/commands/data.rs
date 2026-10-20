@@ -1,5 +1,5 @@
 use crate::state::{AppState, owner, storage_error};
-use tauri::{State, WebviewWindow};
+use tauri::{Emitter, Manager, State, WebviewWindow};
 use terminal_core::{Result, SessionError};
 use terminal_storage::{CredentialRecord, GroupDraft, HostDraft, HostGroup, HostProfile};
 
@@ -243,20 +243,20 @@ pub async fn unlock_vault(
 #[tauri::command]
 pub async fn change_vault_password(
     window: WebviewWindow,
-    state: State<'_, AppState>,
     old_password: String,
     new_password: String,
 ) -> Result<terminal_security::PasswordChangeResult> {
     let old_password = zeroize::Zeroizing::new(old_password);
     let new_password = zeroize::Zeroizing::new(new_password);
     crate::state::settings_owner(&window)?;
-    let vault = state.vault.clone();
-    // 独立任务持有改密流程；设置窗口关闭或 IPC 接收端消失不会取消文件切换。
+    let handle = window.app_handle().clone();
+    // 独立任务持有跨云端和本地改密编排，窗口关闭不会取消已开始的文件切换。
     tauri::async_runtime::spawn(async move {
-        vault
-            .change_password(old_password, new_password)
-            .await
-            .map_err(security_error)
+        let state = handle.state::<AppState>();
+        let result =
+            crate::official_sync::change_password(&state, old_password, new_password).await;
+        let _ = handle.emit("official-sync-changed", ());
+        result
     })
     .await
     .map_err(|_| {

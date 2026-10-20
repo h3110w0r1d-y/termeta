@@ -12,48 +12,44 @@ export default {
     "確認碼已提交，正在等待驗證。若尚未完成，請保留此視窗。",
   "account.oauth.validationCode":
     "請輸入瀏覽器顯示的 32 位一次性確認碼，僅包含字母、數字、底線或短橫線。",
-
-  "account.actions.clearLogin": "登出 / 清除本機登入",
   "account.title": "帳號",
   "account.description":
-    "登入官方 Termeta 帳號，可使用電子郵件密碼、GitHub 或 Google。本機終端無需帳號即可使用。",
-  "account.encryptionHint":
-    "帳號登入不會解鎖保險庫，也不會取代保險庫密碼或備份加密密碼。",
-  "account.admin": "管理員",
-  "account.createdAt": "註冊時間：{date}",
-  "account.expiresAt": "工作階段到期：{date}",
-  "account.signedOut": "目前未登入。",
-  "account.actions.refresh": "重新整理帳號狀態",
+    "選擇官方帳號模式後，保險庫會自動完整同步至 termeta.io；本機模式無需帳號。",
   "account.actions.logout": "登出",
-  "account.actions.login": "登入",
-  "account.actions.register": "註冊",
-  "account.actions.retry": "重新讀取帳號",
-  "account.actions.unlink": "解除綁定",
-  "account.actions.linkProvider": "綁定 {provider}",
   "account.actions.loginProvider": "使用 {provider} 登入",
   "account.actions.retryProviders": "重新載入登入方式",
   "account.actions.cancelLogin": "取消等待",
   "account.actions.openSettings": "帳號與設定",
-  "account.identities.title": "登入方式",
-  "account.identities.description":
-    "綁定前請在瀏覽器確認第三方帳號。相同電子郵件不會自動合併帳號。",
-  "account.identities.password": "電子郵件與密碼",
-  "account.identities.lastMethod": "至少需要保留一種登入方式。",
-  "account.unlink.confirm":
-    "確定解除綁定 {provider}？解除後無法再透過該帳號登入 Termeta。",
   "account.logout.confirm":
-    "確定登出官方帳號？本機保險庫和終端工作階段不受影響。",
-  "account.oauth.completed": "授權已完成，帳號狀態已更新。",
-  "account.oauth.cancelled": "已取消本次瀏覽器授權。",
+    "確定登出官方帳號並切換至本機模式？本機資料和終端工作階段將保留，官方自動同步將停止。",
   "account.oauth.waiting":
     "請在系統瀏覽器中完成 {provider} 授權，隨後將自動返回 Termeta 完成驗證。",
   "account.oauth.deadline": "等待截止：{date}",
   "account.errors.expired": "授權已過期，請重新開始。",
   "account.errors.denied": "授權未完成，請重新開始或使用其他方式登入。",
-  "account.form.email": "電子郵件",
-  "account.form.password": "密碼",
-  "account.form.confirmation": "確認密碼",
-  "account.validation.email": "請輸入有效的電子郵件地址。",
-  "account.validation.password": "密碼須為 12–256 個字元。",
-  "account.validation.confirmation": "兩次輸入的密碼不一致。",
+  "account.mode.title": "軟體啟動模式",
+  "account.mode.description":
+    "登入官方帳號，將保險庫自動同步至 termeta.io；或使用本機離線模式，自行管理資料。",
+  "account.mode.official": "官方帳號模式",
+  "account.mode.local": "本機 / 離線模式",
+  "account.mode.logoutLocal": "登出帳號並使用本機模式",
+  "account.browser.description":
+    "帳號註冊、登入及登入方式管理皆在瀏覽器中的 termeta.io 完成。",
+  "account.sync.unlockTitle": "解鎖雲端保險庫",
+  "account.sync.unlockDescription":
+    "雲端已有資料。請輸入其保險庫密碼，驗證成功後合併本機資料並繼續。密碼錯誤時無法進入；可登出帳號保留本機資料，改用本機模式。",
+  "account.sync.setupDescription":
+    "請設定保險庫密碼。此密碼同時保護本機與官方雲端資料，請牢記；帳號登入無法復原遺忘的保險庫密碼。",
+  "account.sync.existingDescription":
+    "請輸入目前本機保險庫密碼，啟用官方自動同步。之後官方雲端與本機保險庫使用相同密碼。",
+  "account.sync.description":
+    "官方雲端自動完整同步已啟用，使用與本機保險庫相同的主金鑰。登出帳號會保留本機資料，並停止官方同步。",
+  "account.sync.mainWindowRequired":
+    "請返回 Termeta 主視窗輸入保險庫密碼，完成雲端解密與合併。驗證完成前無法進入工作台。",
+  "account.sync.lastSynced": "上次同步：{date}",
+  "account.sync.now": "立即同步",
+  "account.sync.continue": "驗證並繼續",
+  "account.sync.localUnlockTitle": "先解鎖本機保險庫",
+  "account.sync.localUnlockDescription":
+    "請輸入目前本機保險庫密碼，以保留並合併本機資料。若雲端密碼已在其他裝置變更，本機舊密碼可能與雲端不同；本機解鎖後再驗證雲端密碼，無需登出帳號。",
 } as const;

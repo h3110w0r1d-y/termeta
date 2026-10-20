@@ -33,11 +33,8 @@ export default {
     "버전을 선택하고 미리 본 후 가져오기를 확인하세요.",
   "backup.upload.progress": "백업 암호화 후 업로드",
   "backup.download.progress": "클라우드 백업 불러오기",
-  "backup.import.setupDescription":
-    "로컬 보관함을 만들고 선택한 백업을 가져옵니다. 보관함 비밀번호와 백업 비밀번호는 별개입니다. 둘 다 안전하게 보관하세요.",
   "backup.import.mergeDescription":
     "기존 로컬 데이터와 설정을 유지하며 데이터를 추가합니다. 다시 가져오면 중복이 생깁니다. 충돌하는 호스트 키는 경고와 함께 건너뜁니다.",
-  "backup.actions.setupAndImport": "보관함 만들기 및 가져오기",
   "backup.actions.confirmImport": "새 데이터로 가져오기",
   "backup.import.counts":
     "호스트 {hosts} · 그룹 {groups} · 자격 증명 {credentials} · 포워딩 {forwards} · 신뢰하는 키 {knownHosts} · 스니펫 {snippets}",
@@ -62,8 +59,4 @@ export default {
   "backup.status.connected": "연결에 성공했습니다.",
   "backup.status.uploaded":
     "새 백업을 업로드했습니다. 기존 클라우드 백업은 유지되었습니다.",
-  "backup.errors.setupUnavailable":
-    "초기 설정을 사용할 수 없습니다. 앱을 다시 열고 시도하세요.",
-  "backup.validation.localPassword":
-    "가져오기 전에 위에서 로컬 보관함 비밀번호를 입력하고 확인하세요.",
 } as const;

@@ -39,13 +39,13 @@ pub struct Flow {
     pub provider: Provider,
     pub verifier: Zeroizing<String>,
     pub confirmation_code: Option<Zeroizing<String>>,
-    pub link: bool,
     pub stamp: Stamp,
     pub deadline: Instant,
     pub last_poll: Option<Instant>,
 }
 #[derive(Default)]
 pub struct AccountRuntime {
+    pub pending: Mutex<Option<super::storage::SavedAccount>>,
     pub operation: tokio::sync::Mutex<()>,
     pub commit: tokio::sync::Mutex<()>,
     epoch: AtomicU64,
@@ -203,11 +203,7 @@ impl AccountRuntime {
             .get(id)
             .is_some_and(|flow| flow.stamp.owner == owner)
     }
-    pub fn cleanup(&self, unlocked: bool) {
-        if !unlocked {
-            self.invalidate();
-            return;
-        }
+    pub fn cleanup(&self) {
         self.flows
             .lock()
             .unwrap()
@@ -224,7 +220,6 @@ mod tests {
             provider: Provider::Github,
             verifier: Zeroizing::new("test-only-verifier".into()),
             confirmation_code: None,
-            link: false,
             stamp: runtime.stamp(owner),
             deadline: Instant::now() + Duration::from_secs(300),
             last_poll: None,
@@ -448,7 +443,7 @@ mod tests {
             .unwrap()
             .get_mut("flow")
             .unwrap()
-            .created = Instant::now() - Duration::from_secs(601);
+            .deadline = Instant::now() - Duration::from_secs(1);
         assert!(
             runtime
                 .confirm("settings", "flow", Zeroizing::new("a".repeat(32)))

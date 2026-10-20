@@ -1,4 +1,4 @@
-# 云备份命令按用途授权；锁定态另由后端限制为首次初始化的 main 窗口。
+# 第三方备份仅允许已解锁的本地/离线模式。
 
 [[permission]]
 identifier = "allow-cloud-backup-settings"
@@ -12,8 +12,3 @@ commands.allow = [
   "prepare_cloud_restore",
   "apply_cloud_restore",
 ]
-
-[[permission]]
-identifier = "allow-initialize-from-cloud-backup"
-description = "允许主窗口在首次初始化时从已验证的云备份创建保险库"
-commands.allow = ["initialize_from_cloud_backup"]

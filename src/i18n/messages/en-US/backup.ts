@@ -35,11 +35,8 @@ export default {
     "Choose a version, preview it, and confirm the import.",
   "backup.upload.progress": "Encrypt and upload backup",
   "backup.download.progress": "Load cloud backups",
-  "backup.import.setupDescription":
-    "A local vault will be created and the selected backup imported. Your vault password and backup password are separate. Keep both safe.",
   "backup.import.mergeDescription":
     "Imported data is added alongside your local data and settings. Importing again creates duplicates. Conflicting host keys are skipped with a warning.",
-  "backup.actions.setupAndImport": "Create vault and import",
   "backup.actions.confirmImport": "Import as new data",
   "backup.import.counts":
     "Hosts {hosts} · Groups {groups} · Credentials {credentials} · Forwards {forwards} · Trusted keys {knownHosts} · Snippets {snippets}",
@@ -64,8 +61,4 @@ export default {
   "backup.status.connected": "Connected successfully.",
   "backup.status.uploaded":
     "New backup uploaded. Existing cloud backups were kept.",
-  "backup.errors.setupUnavailable":
-    "Setup is unavailable. Reopen the app and try again.",
-  "backup.validation.localPassword":
-    "Enter and confirm your local vault password above before importing.",
 } as const;

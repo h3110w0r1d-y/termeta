@@ -88,6 +88,7 @@ watch(settingsSync.error, (message) => {
   if (message) initError.value = message;
 });
 const vaultReady = ref(false);
+const workbenchAccessible = ref(false);
 const savingLogs = ref(false);
 useBackupRestored(
   async () => {
@@ -231,7 +232,7 @@ async function focusTerminal(id: string) {
 }
 function restoreTerminalFocus() {
   // 连接/认证弹窗的焦点陷阱退场后再聚焦，避免库恢复到已经隐藏的保险箱控件。
-  if (!findOpen.value && workbench.activeTerminal)
+  if (workbenchAccessible.value && !findOpen.value && workbench.activeTerminal)
     terminalRegistry.focus(workbench.activeTerminal.terminalId);
 }
 function closeFind() {
@@ -240,7 +241,7 @@ function closeFind() {
     terminalRegistry.focus(workbench.activeTerminal.terminalId);
 }
 function globalKey(event: KeyboardEvent) {
-  if (!vaultReady.value || savingLogs.value) return;
+  if (!workbenchAccessible.value || savingLogs.value) return;
   if ((event.target as HTMLElement).closest(".terminal-host")) return;
   commands.route(event, settings.value.keymap.bindings, false);
 }
@@ -399,7 +400,10 @@ onBeforeUnmount(() => {
       :locked="true"
       :title="t('window.close.savingLogs')"
     />
-    <VaultGate :initialize="loadUnlocked">
+    <VaultGate
+      :initialize="loadUnlocked"
+      @access-change="workbenchAccessible = $event"
+    >
       <div
         class="app-shell"
         :inert="savingLogs || undefined"

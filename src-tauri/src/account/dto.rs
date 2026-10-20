@@ -23,12 +23,14 @@ pub struct AccountStatus {
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Provider {
+    Termeta,
     Github,
     Google,
 }
 impl Provider {
     pub fn id(self) -> &'static str {
         match self {
+            Self::Termeta => "termeta",
             Self::Github => "github",
             Self::Google => "google",
         }
@@ -43,22 +45,11 @@ pub struct AccountProvider {
 pub struct Providers {
     pub providers: Vec<AccountProvider>,
 }
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AccountIdentity {
-    pub provider: Provider,
-    #[serde(alias = "created_at")]
-    pub created_at: String,
-}
-#[derive(Deserialize)]
-pub struct Identities {
-    pub identities: Vec<AccountIdentity>,
-}
 #[derive(Deserialize)]
 pub struct TokenView {
     pub access_token: String,
     pub token_type: String,
-    pub expires_at: String,
+    pub expires_at: Option<String>,
     pub user: AccountUser,
 }
 impl Drop for TokenView {

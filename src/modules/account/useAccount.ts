@@ -2,7 +2,6 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { t } from "../../i18n";
 import { desktop, errorMessage } from "../../services/desktop/client";
 import type {
-  AccountIdentity,
   AccountOAuthFlow,
   AccountProvider,
   AccountProviderId,
@@ -10,17 +9,16 @@ import type {
 } from "../../services/desktop/types";
 
 // WebView 仅持有公开摘要；凭据、浏览器地址和轮询 proof 始终留在 Rust。
-export function useAccount() {
+export function useAccount(options: { loadProviders?: boolean } = {}) {
   const account = ref<AccountStatus>({ user: null, expiresAt: null });
-  const providers = ref<AccountProvider[]>([]);
-  const identities = ref<AccountIdentity[]>([]);
+  const providers = ref<AccountProvider[]>([
+    { id: "termeta", name: "termeta.io" },
+  ]);
   const flow = ref<AccountOAuthFlow | null>(null);
   const loading = ref(true);
   const working = ref(false);
   const error = ref("");
   const providerError = ref("");
-  const identityError = ref("");
-  const notice = ref<"completed" | "cancelled" | null>(null);
   const busy = computed(() => loading.value || working.value);
   const blocked = computed(() => busy.value || flow.value !== null);
   let disposed = false;
@@ -48,23 +46,17 @@ export function useAccount() {
     )
       await cancel();
     if (disposed || request !== readGeneration) return;
-    identities.value = [];
-    identityError.value = "";
-    if (status.user) {
-      try {
-        const result = await desktop.listAccountIdentities();
-        if (!disposed && request === readGeneration) identities.value = result;
-      } catch (cause) {
-        if (!disposed && request === readGeneration)
-          identityError.value = errorMessage(cause);
-      }
-    }
   }
+
   async function loadProviders() {
     providerError.value = "";
     try {
       const result = await desktop.listAccountProviders();
-      if (!disposed) providers.value = result;
+      if (!disposed)
+        providers.value = [
+          { id: "termeta", name: "termeta.io" },
+          ...result.filter((provider) => provider.id !== "termeta"),
+        ];
     } catch (cause) {
       if (!disposed) providerError.value = errorMessage(cause);
     }
@@ -73,7 +65,6 @@ export function useAccount() {
     if (disposed || blocked.value) return false;
     working.value = true;
     error.value = "";
-    notice.value = null;
     ++generation;
     ++readGeneration;
     try {
@@ -104,7 +95,6 @@ export function useAccount() {
     working.value = true;
     try {
       await desktop.cancelAccountOAuth(pending.flowId);
-      if (!disposed) notice.value = "cancelled";
     } catch (cause) {
       if (!disposed) error.value = errorMessage(cause);
     } finally {
@@ -128,7 +118,6 @@ export function useAccount() {
       if (result.status === "completed") {
         working.value = true;
         try {
-          notice.value = "completed";
           await readStatus();
         } finally {
           if (!disposed) working.value = false;
@@ -151,14 +140,13 @@ export function useAccount() {
       void desktop.cancelAccountOAuth(pending.flowId).catch(() => undefined);
     }
   }
-  async function start(provider: AccountProviderId, link = false) {
+  async function start(provider: AccountProviderId) {
     if (disposed || blocked.value) return;
     working.value = true;
     error.value = "";
-    notice.value = null;
     const current = ++generation;
     try {
-      const pending = await desktop.startAccountOAuth(provider, link);
+      const pending = await desktop.startAccountOAuth(provider);
       if (disposed || current !== generation) {
         void desktop.cancelAccountOAuth(pending.flowId).catch(() => undefined);
         return;
@@ -175,7 +163,6 @@ export function useAccount() {
           if (current !== generation) return;
           void cancel().then(() => {
             if (!disposed) {
-              notice.value = null;
               error.value = t("account.errors.expired");
             }
           });
@@ -204,7 +191,8 @@ export function useAccount() {
         return;
       }
       unlisten = stop;
-      await Promise.all([readStatus(), loadProviders()]);
+      await readStatus();
+      if (options.loadProviders) await loadProviders();
     } catch (cause) {
       if (!disposed) error.value = errorMessage(cause);
     } finally {
@@ -224,7 +212,6 @@ export function useAccount() {
   return {
     account,
     providers,
-    identities,
     flow,
     loading,
     working,
@@ -232,8 +219,6 @@ export function useAccount() {
     blocked,
     error,
     providerError,
-    identityError,
-    notice,
     loadProviders,
     perform,
     start,

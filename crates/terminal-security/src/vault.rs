@@ -24,22 +24,25 @@ pub enum SecurityError {
     Forbidden,
 }
 
+#[derive(Clone)]
 pub struct CredentialVault {
     pub(crate) store: Arc<SqliteStore>,
-    pub(crate) unlocked: std::sync::atomic::AtomicBool,
+    pub(crate) unlocked: Arc<std::sync::atomic::AtomicBool>,
     pub(crate) key_backend: Arc<dyn crate::master_key::MasterKeyBackend>,
-    pub(crate) boot: Mutex<crate::master_key::BootState>,
+    pub(crate) boot: Arc<Mutex<crate::master_key::BootState>>,
+    pub(crate) master: Arc<std::sync::Mutex<Option<crate::master_key::VaultKey>>>,
     // 凭据写入与引用替换串行协调；钥匙串仅在主密钥解锁与改密流程使用。
-    pub(crate) operations: Mutex<()>,
+    pub(crate) operations: Arc<Mutex<()>>,
 }
 impl CredentialVault {
     pub fn new(store: Arc<SqliteStore>) -> Self {
         Self {
             store,
-            unlocked: std::sync::atomic::AtomicBool::new(false),
+            unlocked: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             key_backend: Arc::new(crate::master_key::OsMasterKey),
-            boot: Mutex::new(Default::default()),
-            operations: Mutex::new(()),
+            boot: Arc::new(Mutex::new(Default::default())),
+            master: Arc::new(std::sync::Mutex::new(None)),
+            operations: Arc::new(Mutex::new(())),
         }
     }
     pub async fn save_password(

@@ -7,6 +7,7 @@ mod files;
 #[cfg(target_os = "macos")]
 mod macos_menu;
 mod native_menu;
+mod official_sync;
 mod settings;
 mod settings_window;
 mod shutdown;
@@ -83,6 +84,7 @@ pub fn run() {
                 .with_factory(Arc::new(terminal_telnet::TelnetFactory));
             app.manage(file_drag::LocalDropRegistry::default());
             app.manage(AppState {
+                official: official_sync::Runtime::default(),
                 backup: backup_runtime::BackupRuntime::default(),
                 account: account::runtime::AccountRuntime::default(),
                 settings_gate: tokio::sync::Mutex::new(()),
@@ -104,7 +106,24 @@ pub fn run() {
                     interval.tick().await;
                     let state = handle.state::<AppState>();
                     state.backup.cleanup();
-                    state.account.cleanup(state.vault.is_unlocked());
+                    state.account.cleanup();
+                    if state.vault.is_unlocked() && state.official.ready() {
+                        // 同步失败保留本地数据，独立循环稍后重试，不阻塞会话清理。
+                        let sync_handle = handle.clone();
+                        tauri::async_runtime::spawn(async move {
+                            let state = sync_handle.state::<AppState>();
+                            let _ = official_sync::sync(&state).await;
+                            use tauri::Emitter;
+                            let _ = sync_handle.emit("official-sync-changed", ());
+                            if state
+                                .official
+                                .changed
+                                .swap(false, std::sync::atomic::Ordering::AcqRel)
+                            {
+                                let _ = sync_handle.emit("backup-restored", ());
+                            }
+                        });
+                    }
                     state.sftp.lock().unwrap().retain(|id, browser| {
                         let alive = state
                             .session_manager("main", id)
@@ -157,18 +176,17 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            commands::get_official_sync_status,
+            commands::complete_official_sync,
+            commands::sync_official_vault,
             commands::get_account_status,
             commands::refresh_account,
             commands::list_account_providers,
-            commands::register_account,
-            commands::login_account,
             commands::logout_account,
             commands::start_account_oauth,
             commands::confirm_account_oauth,
             commands::poll_account_oauth,
             commands::cancel_account_oauth,
-            commands::list_account_identities,
-            commands::unlink_account_identity,
             commands::get_backup_config,
             commands::save_backup_config,
             commands::test_backup_config,
@@ -176,7 +194,6 @@ pub fn run() {
             commands::create_cloud_backup,
             commands::prepare_cloud_restore,
             commands::apply_cloud_restore,
-            commands::initialize_from_cloud_backup,
             commands::list_port_forwards,
             commands::save_port_forward,
             commands::delete_port_forward,

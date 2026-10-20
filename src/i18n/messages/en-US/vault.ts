@@ -4,6 +4,12 @@ export default {
   "vault.validation.passwordMismatch": "The passwords must match.",
   "vault.setup.title": "Create a vault password",
   "vault.unlock.title": "Unlock your vault",
+  "vault.access.checkingTitle": "Restoring your vault",
+  "vault.access.checkingDescription":
+    "Checking your local vault and account status. Please wait…",
+  "vault.access.failedTitle": "Unable to open your vault",
+  "vault.access.failedDescription":
+    "Review the error and try again. Your existing data will be preserved.",
   "vault.setup.method": "Create vault",
   "vault.setup.empty": "Create an empty vault",
   "vault.setup.cloud": "Restore a cloud backup",
@@ -20,7 +26,7 @@ export default {
     "Trying automatic unlock. If it is unavailable, enter your vault password.",
   "vault.password.title": "Change vault password",
   "vault.password.warning":
-    "Remember your new password. Existing local copies still require the old password. Your cloud backup password stays the same.",
+    "Remember your new password. Official cloud sync will also use it. Existing offline copies still require the old password; third-party backups keep their separate password.",
   "vault.password.old": "Current password",
   "vault.password.new": "New password",
   "vault.password.confirm": "Confirm new password",

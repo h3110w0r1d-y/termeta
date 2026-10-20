@@ -1,3 +1,5 @@
+mod official_sync;
+pub use official_sync::*;
 mod account;
 pub use account::*;
 mod backup;

@@ -31,11 +31,8 @@ export default {
   "backup.download.description": "选择备份版本，预览后确认导入。",
   "backup.upload.progress": "加密并上传新备份",
   "backup.download.progress": "读取并解密云端版本",
-  "backup.import.setupDescription":
-    "将创建本机保险库并导入所选备份。保险库密码与备份密码相互独立，请分别保管。",
   "backup.import.mergeDescription":
     "导入会新增数据，保留本机内容和设置。重复导入会产生副本，主机信任冲突将跳过并提示。",
-  "backup.actions.setupAndImport": "创建保险库并导入",
   "backup.actions.confirmImport": "确认新增导入",
   "backup.import.counts":
     "主机 {hosts} · 分组 {groups} · 凭据 {credentials} · 转发 {forwards} · 主机信任 {knownHosts} · Snippets {snippets}",
@@ -54,7 +51,4 @@ export default {
   "backup.status.configSaved": "云端配置已加密保存在本机。",
   "backup.status.connected": "云端连接成功。",
   "backup.status.uploaded": "已上传新的独立备份，云端已有备份保留。",
-  "backup.errors.setupUnavailable": "初始化入口不可用，请重新打开软件。",
-  "backup.validation.localPassword":
-    "请先完善上方的本机保险库密码与确认密码，再确认导入。",
 } as const;

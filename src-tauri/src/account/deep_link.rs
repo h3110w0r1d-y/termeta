@@ -1,7 +1,7 @@
 //! 系统协议只把一次性确认码交给本机在途授权，不承接通用导航或命令。
 
 use super::dto::Provider;
-use crate::state::{AppState, settings_owner};
+use crate::state::{AppState, account_owner};
 use tauri::{AppHandle, Manager, Runtime, plugin::Plugin};
 #[cfg(any(target_os = "linux", all(debug_assertions, target_os = "windows")))]
 use tauri_plugin_deep_link::DeepLinkExt;
@@ -79,6 +79,7 @@ impl AuthorizationReturn {
                 }
                 "provider" if provider.is_none() => {
                     provider = Some(match value.as_ref() {
+                        "termeta" => Provider::Termeta,
                         "github" => Provider::Github,
                         "google" => Provider::Google,
                         _ => return None,
@@ -111,10 +112,6 @@ pub fn receive(app: &AppHandle, raw: &str) -> bool {
     let Some(state) = app.try_state::<AppState>() else {
         return false;
     };
-    if !state.vault.is_unlocked() {
-        state.account.invalidate();
-        return false;
-    }
     let Ok(owner) = state
         .account
         .callback_owner(&callback.flow_id, callback.provider)
@@ -125,7 +122,7 @@ pub fn receive(app: &AppHandle, raw: &str) -> bool {
         state.account.clear_owner(&owner);
         return false;
     };
-    if settings_owner(&window).is_err()
+    if account_owner(&window).is_err()
         || state
             .account
             .confirm_callback(

@@ -18,20 +18,12 @@ use zeroize::Zeroizing;
 
 fn check(state: &AppState, stamp: &Stamp) -> Result<()> {
     state.account.check(stamp)?;
-    if !state.vault.is_unlocked() {
-        return Err(failure("VAULT_LOCKED", "请先解锁数据保险库"));
-    }
     Ok(())
 }
 async fn revoke(api: &Api, token: &str) -> Result<()> {
     api.send::<()>(Method::POST, "api/auth/logout", Some(token), None)
         .await
         .map(|_| ())
-}
-async fn current(state: &AppState, api: &Api) -> Result<SavedAccount> {
-    storage::load(state, &api.origin)
-        .await?
-        .ok_or_else(|| failure("ACCOUNT_UNAUTHORIZED", "请先登录官方账号"))
 }
 async fn install(
     state: &AppState,
@@ -61,8 +53,9 @@ async fn install(
             storage::save(state, None).await?;
             return Err(failure("ACCOUNT_CANCELLED", "账号操作已取消"));
         }
-        // 会话成功切换后，其他窗口尚未完成的登录或旧账号绑定全部失效。
+        // 会话成功切换后，其他窗口尚未完成的登录全部失效。
         state.account.invalidate();
+        state.official.reset();
         Ok(account.status())
     }
     .await;
@@ -80,64 +73,12 @@ pub async fn status(state: &AppState) -> Result<AccountStatus> {
         .map(SavedAccount::status)
         .unwrap_or_default())
 }
-pub async fn authenticate(
-    state: &AppState,
-    owner: &str,
-    email: String,
-    password: Zeroizing<String>,
-    register: bool,
-) -> Result<AccountStatus> {
-    let _operation = state
-        .account
+pub async fn refresh(state: &AppState, owner: &str) -> Result<AccountStatus> {
+    let _sync = state
+        .official
         .operation
         .try_lock()
-        .map_err(|_| failure("ACCOUNT_BUSY", "账号操作正在进行，请稍后重试"))?;
-    state.account.invalidate();
-    let stamp = state.account.stamp(owner);
-    let email = email.trim();
-    if email.len() > 254
-        || !email.contains('@')
-        || email.chars().any(char::is_control)
-        || !(12..=256).contains(&password.chars().count())
-        || password.len() > 1024
-    {
-        return Err(failure(
-            "ACCOUNT_INVALID",
-            "请输入有效邮箱及 12–256 字符的密码",
-        ));
-    }
-    let api = Api::new()?;
-    check(state, &stamp)?;
-    // 先校验现有存储版本，避免新服务端会话覆盖未知版本设置。
-    if storage::load(state, &api.origin).await?.is_some() {
-        return Err(failure(
-            "ACCOUNT_ALREADY_SIGNED_IN",
-            "请先退出当前账号再登录其他账号",
-        ));
-    }
-    #[derive(serde::Serialize)]
-    struct Credentials<'a> {
-        email: &'a str,
-        password: &'a str,
-    }
-    let token: TokenView = api
-        .request(
-            Method::POST,
-            if register {
-                "api/auth/register"
-            } else {
-                "api/auth/login"
-            },
-            None,
-            Some(&Credentials {
-                email,
-                password: &password,
-            }),
-        )
-        .await?;
-    install(state, &api, &stamp, &token, None).await
-}
-pub async fn refresh(state: &AppState, owner: &str) -> Result<AccountStatus> {
+        .map_err(|_| failure("ACCOUNT_BUSY", "账号或同步操作正在进行"))?;
     let stamp = state.account.stamp(owner);
     let _operation = state
         .account
@@ -202,7 +143,7 @@ pub async fn providers() -> Result<Vec<AccountProvider>> {
     let result: Providers = Api::new()?
         .request::<_, ()>(Method::GET, "api/auth/providers", None, None)
         .await?;
-    if result.providers.len() > 2 {
+    if result.providers.len() > 3 {
         return Err(failure("ACCOUNT_RESPONSE", "登录方式响应无效"));
     }
     Ok(result.providers)
@@ -211,7 +152,6 @@ pub async fn start(
     state: &AppState,
     owner: &str,
     provider: Provider,
-    link: bool,
 ) -> Result<(OAuthStarted, url::Url)> {
     let stamp = state.account.stamp(owner);
     let _operation = state
@@ -220,34 +160,24 @@ pub async fn start(
         .try_lock()
         .map_err(|_| failure("ACCOUNT_BUSY", "账号操作正在进行"))?;
     let api = Api::new()?;
-    let saved = storage::load(state, &api.origin).await?;
-    let account = if link {
-        Some(saved.ok_or_else(|| failure("ACCOUNT_UNAUTHORIZED", "请先登录官方账号"))?)
-    } else {
-        if saved.is_some() {
-            return Err(failure(
-                "ACCOUNT_ALREADY_SIGNED_IN",
-                "请先退出当前账号再登录其他账号",
-            ));
-        }
-        None
-    };
+    if storage::load(state, &api.origin).await?.is_some() {
+        return Err(failure(
+            "ACCOUNT_ALREADY_SIGNED_IN",
+            "请先退出当前账号再登录其他账号",
+        ));
+    }
     let mut random = Zeroizing::new([0_u8; 32]);
     OsRng
         .try_fill_bytes(&mut *random)
         .map_err(|_| failure("ACCOUNT_RANDOM", "无法生成安全登录凭证"))?;
     let verifier = Zeroizing::new(URL_SAFE_NO_PAD.encode(&*random));
     let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
-    let path = format!(
-        "api/auth/oauth/{}/{}",
-        provider.id(),
-        if link { "link/start" } else { "start" }
-    );
+    let path = format!("api/auth/oauth/{}/start", provider.id());
     let response: StartView = api
         .request(
             Method::POST,
             &path,
-            account.as_ref().map(|value| value.access_token.as_str()),
+            None,
             Some(&json!({"code_challenge": challenge, "code_challenge_method": "S256"})),
         )
         .await?;
@@ -256,7 +186,6 @@ pub async fn start(
         provider,
         verifier,
         confirmation_code: None,
-        link,
         stamp: stamp.clone(),
         deadline: deadline
             .as_ref()
@@ -359,19 +288,11 @@ pub async fn poll(state: &AppState, owner: &str, id: &str) -> Result<OAuthPolled
         ));
     }
     let account = if result.status == FlowStatus::Completed {
-        if flow.link {
-            if let Some(token) = &result.token {
-                let _ = revoke(&api, &token.access_token).await;
-                return Err(failure("ACCOUNT_RESPONSE", "绑定响应与登录用途不一致"));
-            }
-            Some(status(state).await?)
-        } else {
-            let token = result
-                .token
-                .as_ref()
-                .ok_or_else(|| failure("ACCOUNT_RESPONSE", "登录响应缺少账号凭证"))?;
-            Some(install(state, &api, &flow.stamp, token, Some((owner, id))).await?)
-        }
+        let token = result
+            .token
+            .as_ref()
+            .ok_or_else(|| failure("ACCOUNT_RESPONSE", "登录响应缺少账号凭证"))?;
+        Some(install(state, &api, &flow.stamp, token, Some((owner, id))).await?)
     } else {
         None
     };
@@ -388,37 +309,4 @@ pub async fn poll(state: &AppState, owner: &str, id: &str) -> Result<OAuthPolled
                 && !message.chars().any(char::is_control)
         }),
     })
-}
-pub async fn identities(state: &AppState, owner: &str) -> Result<Vec<AccountIdentity>> {
-    let stamp = state.account.stamp(owner);
-    let api = Api::new()?;
-    let account = current(state, &api).await?;
-    let result: Identities = api
-        .request::<_, ()>(
-            Method::GET,
-            "api/auth/identities",
-            Some(&account.access_token),
-            None,
-        )
-        .await?;
-    check(state, &stamp)?;
-    Ok(result.identities)
-}
-pub async fn unlink(state: &AppState, owner: &str, provider: Provider) -> Result<()> {
-    let stamp = state.account.stamp(owner);
-    let _operation = state
-        .account
-        .operation
-        .try_lock()
-        .map_err(|_| failure("ACCOUNT_BUSY", "账号操作正在进行"))?;
-    let api = Api::new()?;
-    let account = current(state, &api).await?;
-    api.send::<()>(
-        Method::DELETE,
-        &format!("api/auth/identities/{}", provider.id()),
-        Some(&account.access_token),
-        None,
-    )
-    .await?;
-    check(state, &stamp)
 }

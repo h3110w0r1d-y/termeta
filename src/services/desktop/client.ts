@@ -8,7 +8,7 @@ import type {
   AccountStatus,
   AccountProvider,
   AccountProviderId,
-  AccountIdentity,
+  OfficialSyncStatus,
   AccountOAuthFlow,
   AccountOAuthResult,
   BackupConfigDraft,
@@ -52,57 +52,36 @@ export const desktop = {
   refreshAccount: () => invoke<AccountStatus>("refresh_account"),
   listAccountProviders: () =>
     invoke<AccountProvider[]>("list_account_providers"),
-  registerAccount: (email: string, password: string) =>
-    invoke<AccountStatus>("register_account", { email, password }),
-  loginAccount: (email: string, password: string) =>
-    invoke<AccountStatus>("login_account", { email, password }),
   logoutAccount: () => invoke<void>("logout_account"),
-  startAccountOAuth: (provider: AccountProviderId, link = false) =>
-    invoke<AccountOAuthFlow>("start_account_oauth", { provider, link }),
+  startAccountOAuth: (provider: AccountProviderId) =>
+    invoke<AccountOAuthFlow>("start_account_oauth", { provider }),
   confirmAccountOAuth: (flowId: string, confirmationCode: string) =>
     invoke<void>("confirm_account_oauth", { flowId, confirmationCode }),
   pollAccountOAuth: (flowId: string) =>
     invoke<AccountOAuthResult>("poll_account_oauth", { flowId }),
   cancelAccountOAuth: (flowId: string) =>
     invoke<void>("cancel_account_oauth", { flowId }),
-  listAccountIdentities: () =>
-    invoke<AccountIdentity[]>("list_account_identities"),
-  unlinkAccountIdentity: (provider: AccountProviderId) =>
-    invoke<void>("unlink_account_identity", { provider }),
+  getOfficialSyncStatus: () =>
+    invoke<OfficialSyncStatus>("get_official_sync_status"),
+  completeOfficialSync: (password: string) =>
+    invoke<OfficialSyncStatus>("complete_official_sync", { password }),
+  syncOfficialVault: () => invoke<OfficialSyncStatus>("sync_official_vault"),
+  onOfficialSyncChanged: (handler: () => void) =>
+    listen("official-sync-changed", handler),
   onAccountChanged: (handler: () => void) => listen("account-changed", handler),
   getBackupConfig: () => invoke<BackupConfigView | null>("get_backup_config"),
   saveBackupConfig: (config: BackupConfigDraft) =>
     invoke<BackupConfigView>("save_backup_config", { config }),
-  listCloudBackups: (
-    config?: BackupConfigDraft,
-    initializing = false,
-    offset = 0,
-    limit = 10,
-  ) =>
-    invoke<BackupListEntry[]>("list_cloud_backups", {
-      config,
-      initializing,
-      offset,
-      limit,
-    }),
-  testBackupConfig: (config: BackupConfigDraft, initializing = false) =>
-    invoke<void>("test_backup_config", { config, initializing }),
+  listCloudBackups: (offset = 0, limit = 10) =>
+    invoke<BackupListEntry[]>("list_cloud_backups", { offset, limit }),
+  testBackupConfig: (config: BackupConfigDraft) =>
+    invoke<void>("test_backup_config", { config }),
   createCloudBackup: (deviceName?: string) =>
     invoke<BackupListEntry>("create_cloud_backup", { deviceName }),
-  prepareCloudRestore: (
-    backupId: string,
-    config?: BackupConfigDraft,
-    initializing = false,
-  ) =>
-    invoke<BackupRestorePreview>("prepare_cloud_restore", {
-      config,
-      backupId,
-      initializing,
-    }),
+  prepareCloudRestore: (backupId: string) =>
+    invoke<BackupRestorePreview>("prepare_cloud_restore", { backupId }),
   applyCloudRestore: (token: string) =>
     invoke<BackupImportSummary>("apply_cloud_restore", { token }),
-  initializeFromCloudBackup: (token: string, password: string) =>
-    invoke<VaultStatus>("initialize_from_cloud_backup", { token, password }),
   onBackupRestored: (handler: () => void) => listen("backup-restored", handler),
   saveWorkspace: (draft: WorkspaceDraft) =>
     invoke<HostProfile>("save_workspace", { draft }),

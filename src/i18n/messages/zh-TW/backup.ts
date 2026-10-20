@@ -31,11 +31,8 @@ export default {
   "backup.download.description": "選擇備份版本，預覽後確認匯入。",
   "backup.upload.progress": "加密並上傳新備份",
   "backup.download.progress": "讀取並解密雲端版本",
-  "backup.import.setupDescription":
-    "將建立本機保險庫並匯入所選備份。保險庫密碼與備份密碼相互獨立，請分別保管。",
   "backup.import.mergeDescription":
     "匯入會新增資料，保留本機內容和設定。重複匯入會產生副本，主機信任衝突將跳過並提示。",
-  "backup.actions.setupAndImport": "建立保險庫並匯入",
   "backup.actions.confirmImport": "確認新增匯入",
   "backup.import.counts":
     "主機 {hosts} · 分組 {groups} · 認證資訊 {credentials} · 轉發 {forwards} · 主機信任 {knownHosts} · Snippets {snippets}",
@@ -54,7 +51,4 @@ export default {
   "backup.status.configSaved": "雲端配置已加密儲存在本機。",
   "backup.status.connected": "雲端連線成功。",
   "backup.status.uploaded": "已上傳新的獨立備份，雲端已有備份保留。",
-  "backup.errors.setupUnavailable": "初始化入口不可用，請重新開啟軟體。",
-  "backup.validation.localPassword":
-    "請先完善上方的本機保險庫密碼與確認密碼，再確認匯入。",
 } as const;

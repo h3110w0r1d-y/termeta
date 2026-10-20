@@ -1,18 +1,24 @@
 # Termeta 官方服务与接入边界
 
-更新：2026-10-19。官方服务端是独立项目，入口为 README 和 协作指南。不替代桌面 Rust IPC、会话 actor 或本机保险库，不要求本地功能登录账号。
+更新：2026-10-20。官方服务端是独立项目，入口为 README 和 协作指南。不替代桌面 Rust IPC、会话 actor 或本机保险库，不要求本地功能登录账号。
 
 ## 当前范围
 
 Python 3.14、FastAPI、Tortoise ORM、外部 MySQL，Docker Compose 只部署API。已有账号注册/登录/退出、可撤销Bearer会话、账号隔离加密备份版本与配额、Tauri updater动态响应、公开软件分发和 `/api/admin/releases` 管理接口基础代码。独立Vue + Naive UI管理端已有管理员登录、版本列表/详情及草稿/发布/撤回/删除界面和真实接口接入源码，尚未启动或联调；账号管理、全站备份管理和远程协助管理尚未实现。服务端按accounts/oauth/backups/releases分领域，并分离models/schemas/service/router；ORM生命周期遵循Tortoise官方FastAPI示例，详见服务端架构。依赖默认实施时最新稳定版，使用pip与requirements清单，Docker先安装依赖再复制代码以复用缓存，最新版不等于无漏洞。
 
-目前未运行服务、迁移、测试或Docker构建，未做真实MySQL、客户端联调或发布验收。客户端尚未安装/接入 `tauri-plugin-updater`、`@tauri-apps/plugin-updater`，官方备份provider尚未接入；官方账号的邮箱注册/登录与GitHub/Google登录已有客户端和服务端源码，运行验收仍待完成，见[账号认证](25-account-authentication.md)。
+目前未运行服务、迁移、测试或Docker构建，未做真实MySQL、客户端联调或发布验收。客户端尚未安装/接入 `tauri-plugin-updater`、`@tauri-apps/plugin-updater`，官方自动同步已有客户端和服务端源码；账号注册/登录移至独立用户端，桌面仅通过termeta.io/GitHub/Google浏览器登录，运行验收仍待完成，见[账号认证](25-account-authentication.md)。
 
 ## 官方备份与同步
 
-官方 `termeta.io` 备份和Gist/WebDAV为独立目标，账号登录Token与第三方凭据分开。复用现有[备份加密格式](22-data-backup.md#3-包格式与密码)，客户端继续白名单SQLite快照 → Zstd → Argon2id/AES-256-GCM → Base64 `TMETABK1`。备份密码、主密钥及明文快照不上传，服务器只能做封套结构校验，不能代替密码认证。
+官方账号模式使用 `/api/sync/vault` 单头密文、revision CAS 与客户端稳定 ID 三方合并。官方云包直接使用本地主密钥与派生盐，密码/主密钥/业务明文从不上传；云端只能校验封套，不能替客户端验证密码。首次登录有云数据必须认证云密码后进入，本地退出账号保留数据；改密先CAS云端再切换本地，完整故障边界见[官方保险库同步](26-official-vault-sync.md)。
 
-服务器保留不可变全量快照版本，多设备通过列表和下载交换快照。恢复继续解密预览、用户确认和仅新增合并，不静默覆盖。字段级双向同步、自动备份、冲突合并和客户端首次官方云初始化尚未实现。API契约以服务端备份文档为准。
+Gist/WebDAV 仅在本地/离线模式设置中使用独立备份密码，不与官方自动同步共用配置。历史服务端 `/api/backups` 不可变版本不会自动转成同步头或重新加密，继续受原包密码保护，API契约见服务端备份文档。
+
+独立用户端，负责邮箱注册登录、GitHub/Google网页登录、基础账号管理和显式桌面授权，与管理端分离。桌面会话永久可撤销，网页会话有限期；用户端不得接收保险库密码或解密业务云包。
+
+管理端支持邮箱密码及GitHub/Google登录，纯第三方管理员无需额外设置密码。OAuth采用独立`admin`受众和固定管理端HTTPS回跳来源，服务端仅为已绑定且已授权的管理员签发有限期会话，不在管理端创建账号或按邮箱自动合并身份；每个管理API仍校验管理员权限。配置与运行验收见管理端说明。
+
+用户端和管理端均提供Cloudflare静态部署配置。现有`termeta.io`/`admin.termeta.io`的Tunnel DNS保持不变，Workers Static Assets以Route提供页面，两条更具体的`/api* → None`规则使API继续通过Tunnel到`127.0.0.1:5347`，前端不经过API服务器。另有独立Pages上传配置，但绑定Pages域名不能原样保留现有同域Tunnel链路。完整配置和运行门槛见用户端部署及管理端部署；本轮未构建、发布或修改Cloudflare账户设置。
 
 ## 分发与更新
 

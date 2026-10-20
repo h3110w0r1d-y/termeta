@@ -20,13 +20,14 @@ import AppSelect from "../../components/ui/AppSelect.vue";
 import SystemDetectionSettings from "./SystemDetectionSettings.vue";
 import SearchPreferences from "./SearchPreferences.vue";
 import { requiredText, integerRange } from "../../services/forms/rules";
-import { computed, h, ref } from "vue";
+import { computed, h, ref, watch } from "vue";
 import AppDialog from "../../components/ui/AppDialog.vue";
 import ThemeSettings from "./ThemeSettings.vue";
 import ShortcutSettings from "./ShortcutSettings.vue";
 import VaultSecuritySettings from "./VaultSecuritySettings.vue";
 import BackupPanel from "../backup/BackupPanel.vue";
 import AccountPanel from "../account/AccountPanel.vue";
+import { useAccount } from "../account/useAccount";
 import { useLiveSettings } from "./useLiveSettings";
 import { terminalFontFamily, terminalFontOptions } from "./fonts";
 // NSelect 同时用此渲染器显示菜单与当前值；字体声明按可见选项自动加载本地资源。
@@ -46,6 +47,13 @@ async function flush() {
 }
 defineExpose({ flush });
 const tab = ref("general");
+const { account: modeAccount, loading: modeLoading } = useAccount();
+watch(
+  () => modeAccount.value.user?.id,
+  (id) => {
+    if (id && tab.value === "backup") tab.value = "account";
+  },
+);
 const primaryColorItem = ref<FormItemInst>();
 function resetPrimaryColor() {
   draft.value.primaryColor = "";
@@ -244,6 +252,7 @@ const rules = computed<FormRules>(() => ({
               <AccountPanel ref="account" />
             </NTabPane>
             <NTabPane
+              v-if="!modeLoading && !modeAccount.user"
               name="backup"
               :tab="t('settings.sections.backup')"
               display-directive="show:lazy"

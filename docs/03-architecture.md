@@ -14,7 +14,8 @@
 | 数据与安全 | `terminal-storage`、`terminal-security` | SQLCipher、迁移、凭据、保险库、白名单备份与加密 |
 | 文件 | `terminal-files`、`terminal-sftp`、壳的 `files/` | 文件端口、有界复制、SFTP 浏览与传输编排 |
 | 云备份 | 壳的 `backup/`、`backup_runtime.rs` | Gist/WebDAV provider、操作预算和预览令牌 |
-| 官方账号 | `src/modules/account/`、壳的 `account/` | 账号摘要与表单、固定HTTPS服务访问、加密会话及浏览器授权；不耦合终端核心 |
+| 官方同步 | 壳 `official_sync`、security 主密钥、storage 同步合并 | 双模式门禁、同主密钥整包、账号隔离基线、稳定 ID 三方合并与 CAS |
+| 官方账号 | `src/modules/account/`、壳的 `account/` | 账号摘要与浏览器入口、固定HTTPS服务访问、加密会话及浏览器授权；不耦合终端核心 |
 
 网络、设备、信任、数据库及保存的秘密均由 Rust 管理。Vue/Pinia 仅保存元数据，不保存终端输出、文件正文、备份数据库正文或转发载荷。xterm 实例和缓冲由终端注册表管理。
 
@@ -45,7 +46,7 @@ Workbench 表示整个工作台，TerminalTabGroup 表示运行标签组，Works
 
 设置使用独立单实例窗口。Rust 串行合并局部设置并发出失效通知，各窗口重读后热应用；即时偏好不能被旧设置草稿覆盖。settings 窗口仅获得设置、专用改密、JSON 导出、备份和官方账号权限，通用会话所有权仍仅 main。ACL、来源和资源归属共同构成授权，见 [安全](08-security.md)。
 
-备份分为 storage 的白名单快照/合并、security 的压缩/加密、壳的云 provider/编排三层。provider 只处理不透明包；增加云厂商不改变终端核心。详见 [备份与同步](22-data-backup.md)。
+备份分为 storage 的白名单快照/合并、security 的压缩/加密、壳的云 provider/编排三层。provider 只处理不透明包；增加云厂商不改变终端核心。第三方仅用于离线模式，官方模式采用独立的主密钥/合并编排。详见 [第三方备份](22-data-backup.md) 与[官方同步](26-official-vault-sync.md)。
 
 ## 5. 文件与转发边界
 
@@ -74,4 +75,6 @@ Workbench 表示整个工作台，TerminalTabGroup 表示运行标签组，Works
 
 官方管理端为独立Vue/Naive UI应用，HTTP服务层与auth/releases领域模块分离，通过同源/api反代接入服务端，管理员权限由后端最终校验；不接入桌面IPC。
 
-官方账号由Vue账号领域、Rust账号运行时与独立accounts/oauth服务端协作。系统浏览器授权使用S256 proof约束的短期轮询兑换；提供方仍回调固定服务端HTTPS地址，身份验证后通过termeta://固定协议自动唤起应用并传回一次性确认码，匹配本机在途授权后才兑换。应用会话保存在本机SQLCipher独立设置中，WebView只读摘要，手动确认码仅作为回跳受阻时的备选。邮箱注册登录、第三方登录及显式身份绑定共享同一应用会话，保持本地保险库和备份密码独立。2026-10-19 采用系统协议改善返回体验，保留设备proof和确认码双重校验、隔离浏览器回调与应用Token。壳account/deep_link模块复用官方协议注册，但通过Rust原生Opened/单实例参数直接消费回跳，避免官方默认event广播原始URI；完整契约见[账号认证](25-account-authentication.md)。
+官方账号由 Vue 账号领域、Rust 账号运行时与独立 accounts/oauth 服务端协作，三种登录方式统一系统浏览器、S256 proof 和一次性确认码兑换。邮箱表单与基础账号管理移至独立用户端，桌面会话永久可撤销；setup阶段Token只在Rust内存暂存，保险库可用后写SQLCipher。壳 `account/deep_link` 只复用官方协议注册，原生回跳直接匹配本机在途授权，不广播URI。见[账号认证](25-account-authentication.md)。
+
+2026-10-19 决策：启动区分官方与本地/离线模式。官方云数据先通过保险库密码认证，解锁本地后对齐主密钥；全量白名单快照保留稳定 ID，以已观测云快照为基线做三方合并，CAS防止并发覆盖。本地模式保留独立密码的第三方手动备份，删除其首次启动恢复流程。前端只保留状态，合并/主密钥/云正文均留Rust，协议核心与终端实例不受模式切换影响。完整边界见[官方同步](26-official-vault-sync.md)。

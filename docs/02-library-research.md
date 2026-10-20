@@ -14,7 +14,7 @@
 | SFTP | [russh-sftp 3.0.1](https://docs.rs/russh-sftp/3.0.1/russh_sftp/)，禁用默认 features | Apache-2.0，未声明 MSRV；通过 AsyncRead/AsyncWrite 接 SSH subsystem，增量浏览避免全量目录收集 |
 | 数据库 | [SQLx 0.8.6](https://docs.rs/sqlx/0.8.6/sqlx/)，sqlite/runtime-tokio/migrate/macros | MIT OR Apache-2.0；Rust 独占 SQL。迁移事务和父表重建见 [存储](07-storage.md) |
 | SQLCipher | [libsqlite3-sys 0.30.1](https://docs.rs/crate/libsqlite3-sys/0.30.1/source/)，bundled-sqlcipher-vendored-openssl | 内嵌 SQLCipher 4.5.7（BSD）与 OpenSSL；不回退普通 SQLite，三平台原生工具链待验证 |
-| 主密钥/备份加密 | [Argon2 0.6.0](https://docs.rs/argon2/0.6.0/argon2/) alloc/zeroize；[AES-GCM 0.11.1](https://docs.rs/aes-gcm/0.11.1/aes_gcm/) zeroize | MIT OR Apache-2.0，声明 MSRV 1.85；用于主密钥校验与独立云包加密，不替代 SQLCipher 页加密 |
+| 主密钥/备份加密 | [Argon2 0.6.0](https://docs.rs/argon2/0.6.0/argon2/) alloc/zeroize；[AES-GCM 0.11.1](https://docs.rs/aes-gcm/0.11.1/aes_gcm/) zeroize | MIT OR Apache-2.0，声明 MSRV 1.85；用于主密钥校验、官方同主密钥云包与第三方独立密码云包，不替代 SQLCipher 页加密 |
 | OS 缓存 | [keyring 3.6.3](https://docs.rs/keyring/3.6.3/keyring/)，按平台启用 backend | MIT OR Apache-2.0，声明 MSRV 1.75；macOS apple-native、Windows windows-native、Linux sync-secret-service/crypto-rust/vendored，仅缓存主密钥 |
 | Local | [portable-pty 0.9.0](https://crates.io/crates/portable-pty/0.9.0) | MIT，未声明 MSRV；Unix PTY/Windows ConPTY、独立阻塞 I/O，完整进程树回收待完善 |
 | Serial | [serialport 4.10.1](https://docs.rs/serialport/4.10.1/serialport/)，禁用默认 libudev feature | MPL-2.0，声明 MSRV 1.59；None/Software/Hardware 流控及平台独占 |
@@ -62,3 +62,5 @@ Windows/Linux 原生文件拖出没有落地，不将候选库写成已支持。
 Cargo锁文件只新增deep-link及其INI/Windows注册传递依赖，未升级既有包版本。对新增的9个精确包版本向OSV查询未返回公告（2026-10-19），不等于全依赖无风险或三平台验证通过。来源：[固定release源码](https://docs.rs/crate/tauri-plugin-deep-link/2.4.10/source/)、[single-instance固定源码](https://docs.rs/crate/tauri-plugin-single-instance/2.4.2/source/)、[官方协议说明](https://v2.tauri.app/plugin/deep-linking/)、[OSV](https://osv.dev/)。升级时需复核Plugin.initialize是否增加运行期事件/JS钩子，以及原生Opened与单实例参数语义。
 
 账号运行时直接复用已锁定的[chrono 0.4.45](https://docs.rs/chrono/0.4.45/chrono/)解析服务端RFC3339到期时间，再转换为Instant；禁用默认features，仅启用std，不新增时区探测需求。已核对该release的DateTime解析/SystemTime转换、MIT OR Apache-2.0许可及声明MSRV 1.62.0；锁中版本不变。对该精确版本的OSV查询未返回公告（2026-10-19），不替代完整安全审计。
+
+独立用户端的依赖锁定与公开API使用见用户端依赖说明，与管理端分别维护；桌面双模式和官方同步复用既有密码学/HTTP依赖，本轮未新增或升级桌面依赖。

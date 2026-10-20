@@ -2,7 +2,7 @@
 
 基于 Tauri 2、Rust、Vue 3 和 TypeScript 的桌面终端客户端，目标平台为 Windows、macOS、Linux。
 
-当前源码覆盖 SSH、Telnet、基础本地 PTY 与串口文本终端，以及主机/分组/凭据管理、加密保险库、多标签/分屏广播、显式工作区存档、SFTP、SSH 端口转发和 Gist/WebDAV 手动加密备份。**尚未完成当前版本的完整集成、三平台与发布验收。** 功能完成标记与限制统一见 [产品需求](docs/01-product-requirements.md)。
+当前源码覆盖 SSH、Telnet、基础本地 PTY 与串口文本终端，以及主机/分组/凭据管理、加密保险库、多标签/分屏广播、显式工作区存档、SFTP 和 SSH 端口转发。启动可选官方账号模式或本地/离线模式：官方模式通过浏览器使用 Termeta、GitHub、Google 登录，以保险库主密钥自动加密同步业务数据；本地模式可在设置中使用独立备份密码进行 Gist/WebDAV 手动备份。切换模式保留本地数据，登录已有云端保险库时先验证密码再合并。**尚未完成当前版本的完整集成、三平台与发布验收。** 功能完成标记与限制统一见 [产品需求](docs/01-product-requirements.md)。
 
 ## 开发入口
 
@@ -12,7 +12,7 @@
 
 Rust 领域核心位于 `crates/`，桌面装配与权限位于 `src-tauri/`，Vue 业务模块位于 `src/modules/`，唯一 IPC 门面位于 `src/services/desktop/`。
 
-数据库采用 SQLCipher 加密格式 2、schema 6，可升级同格式 schema 2–5。物理备份必须配套保留 vault 元数据；云备份使用独立密码的白名单快照。升级、改密和中断恢复见 [存储](docs/07-storage.md)。
+数据库采用 SQLCipher 加密格式 2、schema 7，可升级同格式 schema 2–6。物理备份必须配套保留 vault 元数据；官方同步与第三方备份均仅导出白名单业务快照。升级、改密和中断恢复见 [存储](docs/07-storage.md)，账号门禁、同步与合并边界见 [官方保险库同步](docs/26-official-vault-sync.md)。
 
 ## 静态检查
 

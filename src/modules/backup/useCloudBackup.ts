@@ -20,9 +20,7 @@ import type {
 } from "../../services/desktop/types";
 
 export interface BackupPanelOptions {
-  initializing: boolean;
   disabled: boolean;
-  initialize?: (token: string) => Promise<boolean>;
 }
 
 // 云端操作和确认令牌由此管理，界面只保留配置、元数据与计数，不接收备份正文。
@@ -58,7 +56,7 @@ export function useCloudBackup(
     },
   );
   const importWarnings = ref<string[]>([]);
-  const action = ref<"backup" | "sync">(props.initializing ? "sync" : "backup");
+  const action = ref<"backup" | "sync">("backup");
   const entries = ref<BackupListEntry[]>([]);
   const listed = ref(false);
   const hasMore = ref(false);
@@ -244,7 +242,7 @@ export function useCloudBackup(
     success.value = "";
     try {
       if (!(await validateForm(configForm.value))) return;
-      await desktop.testBackupConfig(draft(), props.initializing);
+      await desktop.testBackupConfig(draft());
       success.value = t("backup.status.connected");
     } catch (cause) {
       error.value = errorMessage(cause);
@@ -253,12 +251,7 @@ export function useCloudBackup(
     }
   }
   async function loadPage() {
-    const page = await desktop.listCloudBackups(
-      props.initializing ? draft() : undefined,
-      props.initializing,
-      pageOffset,
-      pageSize,
-    );
+    const page = await desktop.listCloudBackups(pageOffset, pageSize);
     pageOffset += page.length;
     entries.value = [
       ...new Map(
@@ -287,7 +280,7 @@ export function useCloudBackup(
     success.value = "";
     try {
       if (!(await validateForm(configForm.value))) return;
-      if (!props.initializing && (!saved.value || dirty.value)) await persist();
+      if (!saved.value || dirty.value) await persist();
       if (action.value === "backup") {
         const entry = await desktop.createCloudBackup(config.deviceName.trim());
         entries.value = [entry];
@@ -311,11 +304,7 @@ export function useCloudBackup(
     error.value = "";
     try {
       if (!(await validateForm(configForm.value))) return;
-      preview.value = await desktop.prepareCloudRestore(
-        entry.id,
-        props.initializing ? draft() : undefined,
-        props.initializing,
-      );
+      preview.value = await desktop.prepareCloudRestore(entry.id);
       previewOpen.value = true;
     } catch (cause) {
       error.value = errorMessage(cause);
@@ -334,20 +323,11 @@ export function useCloudBackup(
     busy.value = true;
     error.value = "";
     try {
-      if (props.initializing) {
-        if (!props.initialize)
-          throw new Error(t("backup.errors.setupUnavailable"));
-        if (!(await props.initialize(preview.value.token))) {
-          error.value = t("backup.validation.localPassword");
-          return;
-        }
-      } else {
-        const result = await desktop.applyCloudRestore(preview.value.token);
-        success.value = t("backup.import.success", {
-          counts: counts(result.counts),
-        });
-        importWarnings.value = result.warnings;
-      }
+      const result = await desktop.applyCloudRestore(preview.value.token);
+      success.value = t("backup.import.success", {
+        counts: counts(result.counts),
+      });
+      importWarnings.value = result.warnings;
       previewOpen.value = false;
       preview.value = undefined;
       config.backupPassword = "";
@@ -360,7 +340,6 @@ export function useCloudBackup(
     }
   }
   onMounted(async () => {
-    if (props.initializing) return;
     busy.value = true;
     try {
       const value = await desktop.getBackupConfig();

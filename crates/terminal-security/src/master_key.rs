@@ -13,6 +13,13 @@ use std::{
 };
 use zeroize::Zeroizing;
 
+/// 仅在 Rust 内存持有；不得进入 WebView、云配置或日志。
+#[derive(Clone)]
+pub struct VaultKey {
+    pub key: Zeroizing<[u8; 32]>,
+    pub salt: [u8; 16],
+}
+
 const SERVICE: &str = "io.termeta";
 const ACCOUNT: &str = "master-key-v2";
 const KDF: &str = "argon2id-v19-m65536-t3-p1";
@@ -216,7 +223,7 @@ impl CredentialVault {
         }
     }
     pub fn is_unlocked(&self) -> bool {
-        self.unlocked.load(std::sync::atomic::Ordering::Acquire)
+        self.unlocked.load(std::sync::atomic::Ordering::Acquire) && self.store.is_unlocked()
     }
     /// 每个进程最多自动读取一次主密钥，拒绝授权后由用户通过密码恢复。
     pub async fn status(&self) -> Result<VaultStatus, SecurityError> {
@@ -274,6 +281,11 @@ impl CredentialVault {
             complete.seal(key)?;
             write_header(&self.header_path(), &complete, true)?;
         }
+        // 数据库和派生元数据均成功发布后，才允许同步模块取得相应主密钥。
+        *self.master.lock().unwrap() = Some(VaultKey {
+            key: Zeroizing::new(*key),
+            salt: header.salt,
+        });
         self.unlocked
             .store(true, std::sync::atomic::Ordering::Release);
         let _ = self.reconcile_deletions().await;
@@ -285,6 +297,17 @@ impl CredentialVault {
     }
     /// 首次设置或密码恢复均在 Rust 内派生密钥；密码、密钥不进入返回 DTO。
     pub async fn unlock_with_password(
+        &self,
+        password: Zeroizing<String>,
+        setup: bool,
+    ) -> Result<VaultStatus, SecurityError> {
+        let vault = self.clone();
+        // UI 或 IPC 请求取消后仍完成已开始的文件与缓存提交；进程退出由改密日志恢复。
+        tokio::spawn(async move { vault.unlock_with_password_inner(password, setup).await })
+            .await
+            .map_err(|_| unavailable())?
+    }
+    async fn unlock_with_password_inner(
         &self,
         password: Zeroizing<String>,
         setup: bool,
@@ -335,8 +358,152 @@ impl CredentialVault {
         Ok(self.status_value(&boot, true))
     }
 
+    pub fn master_key(&self) -> Result<VaultKey, SecurityError> {
+        // 文件切换可能已重新开池但尚在清理；提交协调结束前不发布旧密钥快照。
+        let _boot = self.boot.try_lock().map_err(|_| SecurityError::NotReady)?;
+        self.cached_master_key()
+    }
+    fn cached_master_key(&self) -> Result<VaultKey, SecurityError> {
+        if !self.is_unlocked() {
+            return Err(SecurityError::NotReady);
+        }
+        self.master
+            .lock()
+            .unwrap()
+            .clone()
+            .ok_or(SecurityError::NotReady)
+    }
+
+    pub async fn verify_password(
+        &self,
+        password: Zeroizing<String>,
+    ) -> Result<VaultKey, SecurityError> {
+        let _boot = self.boot.lock().await;
+        if password.is_empty() || password.len() > 1024 {
+            return Err(SecurityError::Vault("请输入保险库密码，且不超过1024字节"));
+        }
+        let header = read_header(&self.header_path())?.ok_or_else(unavailable)?;
+        tokio::task::spawn_blocking(move || {
+            let key = derive(&password, &header.salt)?;
+            header.verify(&key)?;
+            Ok(VaultKey {
+                key,
+                salt: header.salt,
+            })
+        })
+        .await
+        .map_err(|_| unavailable())?
+    }
+
+    /// 仅可传入已经完整认证云包的材料；既有本地库必须先用本地密码解锁。
+    pub async fn adopt_master_key(&self, material: VaultKey) -> Result<(), SecurityError> {
+        let vault = self.clone();
+        tokio::spawn(async move { vault.adopt_master_key_inner(material).await })
+            .await
+            .map_err(|_| unavailable())?
+    }
+    async fn adopt_master_key_inner(&self, material: VaultKey) -> Result<(), SecurityError> {
+        let mut boot = self.boot.lock().await;
+        self.store.recover_password_change().await?;
+        let existing = read_header(&self.header_path())?;
+        let unlocked = self.is_unlocked();
+        // 元数据单独存在也属于既有保险库；中断初始化只能凭原密码恢复。
+        if !unlocked && (existing.is_some() || self.store.path().exists()) {
+            return Err(SecurityError::Vault("请先解锁本地保险库后再合并官方云数据"));
+        }
+        let mut header = if let Some(header) = existing {
+            if !header.initialized {
+                return Err(SecurityError::Vault(
+                    "保险库初始化尚未完成，请重新启动后重试",
+                ));
+            }
+            header
+        } else {
+            if unlocked {
+                return Err(unavailable());
+            }
+            Header {
+                format: 2,
+                id: uuid::Uuid::new_v4().to_string(),
+                kdf: KDF.into(),
+                salt: material.salt,
+                nonce: [0; 12],
+                verifier: Vec::new(),
+                initialized: false,
+            }
+        };
+        if unlocked {
+            let current = self.cached_master_key()?;
+            if current.salt != header.salt {
+                return Err(unavailable());
+            }
+            // 不因云端认证成功而重新签封已被篡改的本地元数据。
+            header.verify(&current.key)?;
+        }
+        header.salt = material.salt;
+        header.seal(&material.key)?;
+        if unlocked {
+            let old = self.cached_master_key()?;
+            if old.salt == material.salt && *old.key == *material.key {
+                return Ok(());
+            }
+            let _operation = self.operations.lock().await;
+            let metadata = serde_json::to_vec(&header).map_err(|_| unavailable())?;
+            let changed = match self
+                .store
+                .change_key(&old.key, &material.key, metadata)
+                .await
+            {
+                Ok(changed) => changed,
+                Err(error) => {
+                    self.reconcile_key_change_failure();
+                    return Err(error.into());
+                }
+            };
+            // 不在文件提交后重新读取元数据，避免读盘错误留下已失效的旧缓存。
+            *self.master.lock().unwrap() = Some(material.clone());
+            boot.cleanup_warning = cleanup_warning(changed.cleanup_pending);
+        } else {
+            write_header(&self.header_path(), &header, false)?;
+            boot.cleanup_warning =
+                cleanup_warning(self.open_database(&header, &material.key).await?);
+        }
+        boot.attempted = true;
+        let backend = self.key_backend.clone();
+        boot.warning = tokio::task::spawn_blocking(move || backend.save(material.key.as_ref()))
+            .await
+            .unwrap_or(Err(SecurityError::Unavailable))
+            .err()
+            .map(|_| "主密钥未能保存到系统钥匙串，下次需输入保险库密码。".into());
+        Ok(())
+    }
+
+    fn reconcile_key_change_failure(&self) {
+        let available = self.store.is_unlocked();
+        self.unlocked
+            .store(available, std::sync::atomic::Ordering::Release);
+        if !available {
+            // 恢复失败时保留磁盘恢复材料，但不向同步模块暴露无法确认对应库的密钥。
+            *self.master.lock().unwrap() = None;
+        }
+    }
+
     /// 已自动解锁也必须独立验证旧密码；密码变更不复用解锁接口的快速成功分支。
     pub async fn change_password(
+        &self,
+        old_password: Zeroizing<String>,
+        new_password: Zeroizing<String>,
+    ) -> Result<PasswordChangeResult, SecurityError> {
+        let vault = self.clone();
+        tokio::spawn(async move {
+            vault
+                .change_password_inner(old_password, new_password)
+                .await
+        })
+        .await
+        .map_err(|_| unavailable())?
+    }
+    async fn change_password_inner(
         &self,
         old_password: Zeroizing<String>,
         new_password: Zeroizing<String>,
@@ -360,7 +527,7 @@ impl CredentialVault {
                 "保险库初始化尚未完成，请重新启动后重试",
             ));
         }
-        let (old_key, new_key, metadata) = tokio::task::spawn_blocking(move || {
+        let (old_key, new_material, metadata) = tokio::task::spawn_blocking(move || {
             let old_key = derive(&old_password, &header.salt)?;
             header
                 .verify(&old_key)
@@ -372,27 +539,37 @@ impl CredentialVault {
             let new_key = derive(&new_password, &next.salt)?;
             next.seal(&new_key)?;
             let metadata = serde_json::to_vec(&next).map_err(|_| unavailable())?;
-            Ok::<_, SecurityError>((old_key, new_key, metadata))
+            Ok::<_, SecurityError>((
+                old_key,
+                VaultKey {
+                    key: new_key,
+                    salt: next.salt,
+                },
+                metadata,
+            ))
         })
         .await
         .map_err(|_| unavailable())??;
         // 与凭据的多步写入串行，数据库内部另有生命周期门闩等待已有事务结束。
         let _operation = self.operations.lock().await;
-        let changed = match self.store.change_key(&old_key, &new_key, metadata).await {
+        let changed = match self
+            .store
+            .change_key(&old_key, &new_material.key, metadata)
+            .await
+        {
             Ok(changed) => changed,
             Err(error) => {
-                self.unlocked.store(
-                    self.store.is_unlocked(),
-                    std::sync::atomic::Ordering::Release,
-                );
+                self.reconcile_key_change_failure();
                 return Err(error.into());
             }
         };
         // 只有新的加密文件组合提交成功后，才更新唯一的 OS 密钥缓存。
+        *self.master.lock().unwrap() = Some(new_material.clone());
         let backend = self.key_backend.clone();
-        let remembered = tokio::task::spawn_blocking(move || backend.save(new_key.as_ref()))
-            .await
-            .unwrap_or(Err(SecurityError::Unavailable));
+        let remembered =
+            tokio::task::spawn_blocking(move || backend.save(new_material.key.as_ref()))
+                .await
+                .unwrap_or(Err(SecurityError::Unavailable));
         boot.warning = remembered
             .err()
             .map(|_| "密码已修改，但新密钥未能保存到系统钥匙串；下次启动需输入新密码。".into());
@@ -417,6 +594,11 @@ mod tests {
         // 只构造并丢弃 future，不轮询，不打开数据库或访问系统钥匙串。
         assert_send(vault.status());
         assert_send(vault.unlock_with_password(Zeroizing::new(String::new()), false));
+        assert_send(vault.verify_password(Zeroizing::new(String::new())));
+        assert_send(vault.adopt_master_key(VaultKey {
+            key: Zeroizing::new([0; 32]),
+            salt: [0; 16],
+        }));
         assert_send(
             vault.change_password(Zeroizing::new(String::new()), Zeroizing::new(String::new())),
         );
@@ -490,6 +672,188 @@ mod tests {
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.0);
         }
+    }
+
+    #[test]
+    fn official_derivation_matches_local_password_and_preserves_whitespace() {
+        let password = "  shared-vault-password  ";
+        let (header, key) = Header::create(password).unwrap();
+        let material = derive_vault_key(password, header.salt).unwrap();
+        assert_eq!(*material.key, *key);
+        assert_eq!(material.salt, header.salt);
+        assert_ne!(
+            *derive_vault_key(password.trim(), header.salt).unwrap().key,
+            *key
+        );
+        assert!(derive_vault_key("too-short", header.salt).is_err());
+        assert!(derive_vault_key(&"密".repeat(342), header.salt).is_err());
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn cloud_adoption_rejects_locked_database_and_interrupted_local_metadata() {
+        use std::sync::{Arc, atomic::Ordering};
+        let backend = Arc::new(FakeKeychain::default());
+        let path = TestPath::new();
+        let original = path.vault(backend.clone());
+        original
+            .unlock_with_password(Zeroizing::new("local-original-password".into()), true)
+            .await
+            .unwrap();
+        let locked = path.vault(backend.clone());
+        let header_before = std::fs::read(locked.header_path()).unwrap();
+        let database_before = std::fs::read(locked.store.path()).unwrap();
+        let material = derive_vault_key("remote-cloud-password", [31; 16]).unwrap();
+        assert!(locked.adopt_master_key(material.clone()).await.is_err());
+        assert_eq!(header_before, std::fs::read(locked.header_path()).unwrap());
+        assert_eq!(database_before, std::fs::read(locked.store.path()).unwrap());
+        assert!(!locked.is_unlocked());
+        assert!(locked.master_key().is_err());
+        assert_eq!(backend.writes.load(Ordering::SeqCst), 1);
+
+        let incomplete_path = TestPath::new();
+        let incomplete = incomplete_path.vault(backend.clone());
+        let (header, _) = Header::create("interrupted-local-password").unwrap();
+        write_header(&incomplete.header_path(), &header, false).unwrap();
+        let before = std::fs::read(incomplete.header_path()).unwrap();
+        assert!(incomplete.adopt_master_key(material).await.is_err());
+        assert_eq!(before, std::fs::read(incomplete.header_path()).unwrap());
+        assert!(!incomplete.store.path().exists());
+        assert_eq!(backend.writes.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn fresh_cloud_adoption_initializes_recoverable_metadata_without_keychain() {
+        use std::sync::{Arc, atomic::Ordering};
+        let path = TestPath::new();
+        let backend = Arc::new(FakeKeychain::default());
+        backend.fail_write.store(true, Ordering::SeqCst);
+        let vault = path.vault(backend.clone());
+        let material = derive_vault_key("remote-cloud-password", [37; 16]).unwrap();
+        vault.adopt_master_key(material.clone()).await.unwrap();
+        let cache = vault.master_key().unwrap();
+        assert_eq!(*cache.key, *material.key);
+        assert_eq!(cache.salt, material.salt);
+        let header = read_header(&vault.header_path()).unwrap().unwrap();
+        assert!(header.initialized);
+        assert_eq!(header.salt, material.salt);
+        header.verify(&material.key).unwrap();
+        assert!(vault.status().await.unwrap().keychain_warning.is_some());
+        let recovered = path.vault(backend);
+        assert_eq!(recovered.status().await.unwrap().mode, "locked");
+        recovered
+            .unlock_with_password(Zeroizing::new("remote-cloud-password".into()), false)
+            .await
+            .unwrap();
+        assert_eq!(*recovered.master_key().unwrap().key, *material.key);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn cloud_adoption_preserves_credentials_and_updates_both_key_caches() {
+        use std::sync::{Arc, atomic::Ordering};
+        let path = TestPath::new();
+        let backend = Arc::new(FakeKeychain::default());
+        let vault = path.vault(backend.clone());
+        vault
+            .unlock_with_password(Zeroizing::new("local-original-password".into()), true)
+            .await
+            .unwrap();
+        let credential = vault
+            .save_password("保留凭据", Zeroizing::new("preserved-secret".into()))
+            .await
+            .unwrap();
+        let before = read_header(&vault.header_path()).unwrap().unwrap();
+        let material = derive_vault_key("remote-cloud-password", [43; 16]).unwrap();
+        vault.adopt_master_key(material.clone()).await.unwrap();
+        let cache = vault.master_key().unwrap();
+        assert_eq!(*cache.key, *material.key);
+        assert_eq!(cache.salt, material.salt);
+        let header = read_header(&vault.header_path()).unwrap().unwrap();
+        assert_eq!(header.id, before.id);
+        assert_eq!(header.salt, material.salt);
+        assert!(header.initialized);
+        header.verify(&material.key).unwrap();
+        assert_eq!(
+            backend.key.lock().unwrap().as_deref(),
+            Some(material.key.as_slice())
+        );
+        assert_eq!(
+            vault.load(&credential).await.unwrap().as_str(),
+            "preserved-secret"
+        );
+        assert_eq!(backend.writes.load(Ordering::SeqCst), 2);
+        vault.adopt_master_key(material).await.unwrap();
+        assert_eq!(backend.writes.load(Ordering::SeqCst), 2);
+
+        *backend.key.lock().unwrap() = None;
+        let recovered = path.vault(backend);
+        assert!(
+            recovered
+                .unlock_with_password(Zeroizing::new("local-original-password".into()), false)
+                .await
+                .is_err()
+        );
+        recovered
+            .unlock_with_password(Zeroizing::new("remote-cloud-password".into()), false)
+            .await
+            .unwrap();
+        assert_eq!(
+            recovered.load(&credential).await.unwrap().as_str(),
+            "preserved-secret"
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn canceling_password_change_caller_does_not_interrupt_commit_or_cache_update() {
+        use std::sync::{Arc, atomic::Ordering};
+        let path = TestPath::new();
+        let backend = Arc::new(FakeKeychain::default());
+        let vault = path.vault(backend.clone());
+        vault
+            .unlock_with_password(Zeroizing::new("local-original-password".into()), true)
+            .await
+            .unwrap();
+        // 阻塞实际文件切换，让调用方取消发生在后台任务已接管且提交尚未开始时。
+        let operation = vault.operations.lock().await;
+        let worker = vault.clone();
+        let caller = tokio::spawn(async move {
+            worker
+                .change_password(
+                    Zeroizing::new("local-original-password".into()),
+                    Zeroizing::new("changed-vault-password".into()),
+                )
+                .await
+        });
+        tokio::time::timeout(std::time::Duration::from_secs(30), async {
+            loop {
+                if vault.boot.try_lock().is_err() {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        assert!(vault.master_key().is_err());
+        caller.abort();
+        assert!(caller.await.unwrap_err().is_cancelled());
+        drop(operation);
+        // status 等待同一个协调锁，成功返回证明后台任务完成新密钥提交及缓存写入。
+        let status = tokio::time::timeout(std::time::Duration::from_secs(30), vault.status())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(status.mode, "unlocked");
+        let header = read_header(&vault.header_path()).unwrap().unwrap();
+        let cache = vault.master_key().unwrap();
+        let expected = derive_vault_key("changed-vault-password", header.salt).unwrap();
+        assert_eq!(*cache.key, *expected.key);
+        assert_eq!(cache.salt, expected.salt);
+        header.verify(&cache.key).unwrap();
+        assert_eq!(
+            backend.key.lock().unwrap().as_deref(),
+            Some(cache.key.as_slice())
+        );
+        assert_eq!(backend.writes.load(Ordering::SeqCst), 2);
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -608,6 +972,16 @@ mod tests {
             .unwrap();
         assert!(changed.keychain_warning.is_some());
         assert_eq!(old_cached_key, *backend.key.lock().unwrap());
+        let current = vault.master_key().unwrap();
+        let header = read_header(&vault.header_path()).unwrap().unwrap();
+        assert_eq!(current.salt, header.salt);
+        assert_eq!(
+            *current.key,
+            *derive_vault_key("new-password-456", header.salt)
+                .unwrap()
+                .key
+        );
+        header.verify(&current.key).unwrap();
         let recovered = path.vault(backend);
         assert_eq!(recovered.status().await.unwrap().mode, "locked");
         assert!(
@@ -762,4 +1136,17 @@ mod tests {
         assert!(!next.is_unlocked());
         assert_eq!(std::fs::metadata(next.store.path()).unwrap().len(), 0);
     }
+}
+
+/// 官方包和本机保险库使用完全相同的派生参数和主密钥。
+pub fn derive_vault_key(password: &str, salt: [u8; 16]) -> Result<VaultKey, SecurityError> {
+    if password.chars().count() < 12 || password.len() > 1024 {
+        return Err(SecurityError::Vault(
+            "保险库密码至少12个字符，且不超过1024字节",
+        ));
+    }
+    Ok(VaultKey {
+        key: derive(password, &salt)?,
+        salt,
+    })
 }

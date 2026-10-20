@@ -375,7 +375,7 @@ async fn initializes_rebuilt_schema_with_password_and_private_key_credentials() 
             .fetch_all(&*store.pool().await.unwrap())
             .await
             .unwrap();
-    assert_eq!(versions, vec![1, 2, 3, 4, 5]);
+    assert_eq!(versions, vec![1, 2, 3, 4, 5, 6]);
     let version: i64 = sqlx::query_scalar("PRAGMA user_version")
         .fetch_one(&*store.pool().await.unwrap())
         .await
@@ -1458,7 +1458,7 @@ async fn applied_workspace_migration_upgrades_without_rewriting_history_or_profi
         .fetch_one(&*store.pool().await.unwrap())
         .await
         .unwrap();
-    assert_eq!(version, 6);
+    assert_eq!(version, SCHEMA_VERSION);
     let index: String =
         sqlx::query_scalar("SELECT sql FROM sqlite_master WHERE name='profiles_unique_name'")
             .fetch_one(&*store.pool().await.unwrap())

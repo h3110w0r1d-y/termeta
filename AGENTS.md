@@ -8,7 +8,7 @@ Termeta 是 Tauri 2 + Rust + Vue 3 + TypeScript 桌面终端客户端，目标 W
 
 开发前阅读本文、目标模块文档及 [路线](docs/10-roadmap.md)。完整索引见 [docs/README.md](docs/README.md)；关键设计取舍见 [架构](docs/03-architecture.md)，本机数据恢复见 [存储](docs/07-storage.md)。
 
-官方服务端为独立项目，协作规则见 服务端 AGENTS.md，功能与接入边界见 [官方服务](docs/24-official-service.md)。服务端使用 Python + FastAPI + Tortoise ORM + 外部 MySQL，Docker Compose 部署；不替代客户端 IPC。管理端前端为独立项目，使用 Vue 3 + Naive UI，协作规则见管理端 AGENTS.md。
+官方服务端为独立项目，协作规则见 服务端 AGENTS.md，功能与接入边界见 [官方服务](docs/24-official-service.md)。服务端使用 Python + FastAPI + Tortoise ORM + 外部 MySQL，Docker Compose 部署；不替代客户端 IPC。用户端为独立项目，负责网页账号管理和桌面授权，协作规则见用户端 AGENTS.md。管理端前端为独立项目，使用 Vue 3 + Naive UI，协作规则见管理端 AGENTS.md。
 
 ## 2. 执行与数据保护
 
@@ -48,7 +48,7 @@ Termeta 是 Tauri 2 + Rust + Vue 3 + TypeScript 桌面终端客户端，目标 W
 - SFTP 侧栏仅单 SSH 终端且与分屏互斥，隐藏保留任务，断开/关闭取消，重连不重放。双栏独立连接与对拷，不借原生拖出做内部复制；文件正文仅 Rust 流动，上传确认覆盖/目录合并不承诺回滚，下载拒绝覆盖。
 - 原生拖入仅消费 owner-bound 一次性 dropId，不接收任意本地路径；macOS 承诺拖出兑现请求后才显示任务，取消清理手势与迟到请求。限额与路径边界见 [SFTP](docs/16-sftp-workspace.md)。
 - SSH 主要认证为密码或公钥，Keyboard-interactive/OTP 依服务器协商且 OTP 不保存；保存的交互 Shell SSH 系统识别仅用固定只读命令、独立 exec，不写 PTY/广播。转发默认回环，SOCKS5 仅回环/TCP CONNECT，独立取消，不持久化运行状态或自动启动。
-- 云备份仅白名单业务快照，本机设置/会话日志/云秘密不导出，Snippets 进入白名单。备份密码与 Token 存本机加密 settings.backup，读回只给存在标记。先压缩后连同元数据认证加密，上传新版本，预览后仅新增合并；首次初始化仅全新库，导入与本机云配置同事务，现有锁定库不得绕过解锁。详见 [备份](docs/22-data-backup.md)。
+- 官方/本地离线双模式：桌面仅通过termeta.io/GitHub/Google浏览器登录，邮箱注册登录在独立用户端；桌面会话永久可撤销。官方模式必须认证云密码后进入，直接使用本地主密钥与派生盐做全量业务同步，稳定ID三方合并与CAS，退出保留数据。第三方Gist/WebDAV仅离线模式设置可用，使用独立备份密码。云包只含白名单业务数据，设置/会话日志/云秘密不导出；既有锁定本地库先解锁，不用云端密码绕过或覆盖。密钥与故障边界见[官方同步](docs/26-official-vault-sync.md)，第三方预览/新增合并见[备份](docs/22-data-backup.md)。
 - 应用主色与终端配色独立，热应用不清历史、不重连；字体限内置 12 家族。其他界面约束见 [桌面交互](docs/09-desktop-ux.md)，布局/存档契约见 [工作区](docs/18-terminal-workspaces.md)，资源与许可见 public/fonts 和 resources。
 
 ## 6. 文档同步与交付

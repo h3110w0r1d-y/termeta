@@ -1,5 +1,6 @@
 pub mod backup;
 mod backup_sqlite;
+pub mod official_sync;
 pub use backup::{
     BackupCounts, BackupImportMode, BackupImportSummary, BackupSettingWrite, MAX_DATABASE_BYTES,
     inspect_backup_database,
@@ -35,7 +36,7 @@ use std::{
 };
 use thiserror::Error;
 
-const SCHEMA_VERSION: i64 = 6;
+const SCHEMA_VERSION: i64 = 7;
 
 #[derive(Debug, Error)]
 pub enum StorageError {
@@ -167,9 +168,9 @@ impl SqliteStore {
         let version: i64 = sqlx::query_scalar("PRAGMA user_version")
             .fetch_one(pool)
             .await?;
-        if ![0, 2, 3, 4, 5, SCHEMA_VERSION].contains(&version) {
+        if ![0, 2, 3, 4, 5, 6, SCHEMA_VERSION].contains(&version) {
             return Err(StorageError::Validation(
-                "数据库格式不兼容，仅支持当前加密格式及 schema 2/3/4/5 升级",
+                "数据库格式不兼容，仅支持当前加密格式及 schema 2/3/4/5/6 升级",
             ));
         }
         private_file(path)?;

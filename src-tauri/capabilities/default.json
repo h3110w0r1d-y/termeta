@@ -7,7 +7,6 @@
   "permissions": [
     "allow-official-account",
     "allow-cloud-backup-settings",
-    "allow-initialize-from-cloud-backup",
     "core:event:allow-listen",
     "core:event:allow-unlisten",
     "core:window:allow-close",

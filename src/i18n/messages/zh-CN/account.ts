@@ -12,47 +12,44 @@ export default {
     "确认码已提交，正在等待验证。若未完成，请保留此窗口。",
   "account.oauth.validationCode":
     "请输入浏览器显示的 32 位一次性确认码，仅包含字母、数字、下划线或短横线。",
-
-  "account.actions.clearLogin": "退出 / 清除本机登录",
   "account.title": "账号",
   "account.description":
-    "登录官方 Termeta 账号，可使用邮箱密码、GitHub 或 Google。本地终端无需账号即可使用。",
-  "account.encryptionHint":
-    "账号登录不会解锁保险库，也不会替代保险库密码或备份加密密码。",
-  "account.admin": "管理员",
-  "account.createdAt": "注册时间：{date}",
-  "account.expiresAt": "会话到期：{date}",
-  "account.signedOut": "当前未登录。",
-  "account.actions.refresh": "刷新账号状态",
+    "选择官方账号模式后，保险库会自动全量同步到 termeta.io；本地模式无需账号。",
   "account.actions.logout": "退出登录",
-  "account.actions.login": "登录",
-  "account.actions.register": "注册",
-  "account.actions.retry": "重新读取账号",
-  "account.actions.unlink": "解绑",
-  "account.actions.linkProvider": "绑定 {provider}",
   "account.actions.loginProvider": "使用 {provider} 登录",
   "account.actions.retryProviders": "重新加载登录方式",
   "account.actions.cancelLogin": "取消等待",
   "account.actions.openSettings": "账号与设置",
-  "account.identities.title": "登录方式",
-  "account.identities.description":
-    "绑定前请在浏览器确认第三方账号。相同邮箱不会自动合并账号。",
-  "account.identities.password": "邮箱与密码",
-  "account.identities.lastMethod": "至少需要保留一种登录方式。",
-  "account.unlink.confirm":
-    "确定解绑 {provider}？解绑后无法再通过该账号登录 Termeta。",
-  "account.logout.confirm": "确定退出官方账号？本机保险库和终端会话不受影响。",
-  "account.oauth.completed": "授权已完成，账号状态已更新。",
-  "account.oauth.cancelled": "已取消本次浏览器授权。",
+  "account.logout.confirm":
+    "确定退出官方账号并切换到本地模式？本机数据和终端会话将保留，官方自动同步将停止。",
   "account.oauth.waiting":
     "请在系统浏览器中完成 {provider} 授权，随后将自动返回 Termeta 完成验证。",
   "account.oauth.deadline": "等待截止：{date}",
   "account.errors.expired": "授权已过期，请重新发起。",
   "account.errors.denied": "授权未完成，请重新发起或使用其他方式登录。",
-  "account.form.email": "邮箱",
-  "account.form.password": "密码",
-  "account.form.confirmation": "确认密码",
-  "account.validation.email": "请输入有效的邮箱地址。",
-  "account.validation.password": "密码需为 12–256 个字符。",
-  "account.validation.confirmation": "两次输入的密码不一致。",
+  "account.mode.title": "软件启动模式",
+  "account.mode.description":
+    "登录官方账号，将保险库自动同步到 termeta.io；或使用本地离线模式，自行管理数据。",
+  "account.mode.official": "官方账号模式",
+  "account.mode.local": "本地 / 离线模式",
+  "account.mode.logoutLocal": "退出账号并使用本地模式",
+  "account.browser.description":
+    "账号注册、登录及登录方式管理均在浏览器中的 termeta.io 完成。",
+  "account.sync.unlockTitle": "解锁云端保险库",
+  "account.sync.unlockDescription":
+    "云端已有数据。请输入其保险库密码，验证成功后合并本机数据并继续。密码错误时无法进入；可退出账号保留本机数据，改用本地模式。",
+  "account.sync.setupDescription":
+    "请设置保险库密码。此密码同时保护本机与官方云端数据，请牢记；账号登录无法恢复遗忘的保险库密码。",
+  "account.sync.existingDescription":
+    "请输入当前本机保险库密码，启用官方自动同步。后续官方云端与本机保险库使用同一个密码。",
+  "account.sync.description":
+    "官方云端自动全量同步已开启，使用与本机保险库相同的主密钥。退出账号会保留本机数据，并停止官方同步。",
+  "account.sync.mainWindowRequired":
+    "请回到 Termeta 主窗口输入保险库密码，完成云端解密与合并。验证完成前无法进入工作台。",
+  "account.sync.lastSynced": "上次同步：{date}",
+  "account.sync.now": "立即同步",
+  "account.sync.continue": "验证并继续",
+  "account.sync.localUnlockTitle": "先解锁本机保险库",
+  "account.sync.localUnlockDescription":
+    "请输入当前本机保险库密码，以便保留并合并本机数据。若云端密码已在其他设备更改，本机旧密码可能与云端不同；本机解锁后再验证云端密码，无需退出账号。",
 } as const;

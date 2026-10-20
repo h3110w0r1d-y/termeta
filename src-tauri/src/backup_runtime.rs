@@ -114,8 +114,6 @@ pub struct BackupRestorePreview {
 
 pub struct PreparedRestore {
     pub owner: String,
-    pub initializing: bool,
-    pub config: BackupConfiguration,
     pub database: Zeroizing<Vec<u8>>,
     created: Instant,
 }
@@ -184,8 +182,6 @@ impl BackupRuntime {
         &self,
         owner: String,
         generation: u64,
-        initializing: bool,
-        config: BackupConfiguration,
         opened: terminal_security::backup::OpenedBackup,
     ) -> Result<BackupRestorePreview> {
         self.cleanup();
@@ -204,8 +200,6 @@ impl BackupRuntime {
             token.clone(),
             PreparedRestore {
                 owner,
-                initializing,
-                config,
                 database: opened.database,
                 created: Instant::now(),
             },
@@ -213,13 +207,13 @@ impl BackupRuntime {
         Ok(BackupRestorePreview { token, metadata })
     }
 
-    pub fn take(&self, owner: &str, token: &str, initializing: bool) -> Result<PreparedRestore> {
+    pub fn take(&self, owner: &str, token: &str) -> Result<PreparedRestore> {
         self.cleanup();
         let mut prepared = self.prepared.lock().unwrap();
         let entry = prepared
             .get(token)
             .ok_or_else(|| failure("恢复预览已失效，请重新选择云端备份"))?;
-        if entry.owner != owner || entry.initializing != initializing {
+        if entry.owner != owner {
             return Err(failure("此窗口无权提交该恢复预览"));
         }
         prepared
@@ -292,14 +286,8 @@ fn decode_setting(version: i64, value: serde_json::Value) -> Result<BackupConfig
 pub async fn resolve_config(
     state: &AppState,
     draft: Option<BackupConfigDraft>,
-    initializing: bool,
 ) -> Result<BackupConfiguration> {
-    let saved = if initializing {
-        None
-    } else {
-        saved_config(state).await?
-    };
-    merge_config(saved, draft)
+    merge_config(saved_config(state).await?, draft)
 }
 
 fn merge_config(
@@ -446,17 +434,6 @@ mod tests {
         runtime.prepare(
             owner.into(),
             generation,
-            false,
-            BackupConfiguration {
-                target: BackupTarget {
-                    provider: BackupProviderKind::Gist,
-                    endpoint: None,
-                    username: None,
-                    secret: "仅测试使用的占位内容".into(),
-                    device_name: "测试设备".into(),
-                },
-                backup_password: "仅测试使用的备份密码占位内容".into(),
-            },
             OpenedBackup {
                 metadata: BackupMetadata {
                     backup_id: uuid::Uuid::new_v4().to_string(),
@@ -471,13 +448,12 @@ mod tests {
     }
 
     #[test]
-    fn restore_token_checks_window_mode_expiry_and_single_use() {
+    fn restore_token_checks_window_expiry_and_single_use() {
         let runtime = BackupRuntime::default();
         let preview = prepared(&runtime, "settings", runtime.owner_generation("settings")).unwrap();
-        assert!(runtime.take("main", &preview.token, false).is_err());
-        assert!(runtime.take("settings", &preview.token, true).is_err());
-        assert!(runtime.take("settings", &preview.token, false).is_ok());
-        assert!(runtime.take("settings", &preview.token, false).is_err());
+        assert!(runtime.take("main", &preview.token).is_err());
+        assert!(runtime.take("settings", &preview.token).is_ok());
+        assert!(runtime.take("settings", &preview.token).is_err());
         let preview = prepared(&runtime, "settings", runtime.owner_generation("settings")).unwrap();
         runtime
             .prepared
@@ -486,7 +462,7 @@ mod tests {
             .get_mut(&preview.token)
             .unwrap()
             .created = Instant::now() - PREVIEW_LIFETIME;
-        assert!(runtime.take("settings", &preview.token, false).is_err());
+        assert!(runtime.take("settings", &preview.token).is_err());
     }
 
     #[test]
