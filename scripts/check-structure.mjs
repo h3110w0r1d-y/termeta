@@ -82,6 +82,81 @@ for (const path of (await walk("src-tauri/src/commands")).filter((path) =>
     errors.push(`${path}: 文件命令共用实现应位于壳内 files 模块`);
   }
 }
+// 检查显式命令清单，不能替代 Rust/TS 序列化契约及运行时 owner 校验。
+const namesSource = await readFile(
+  join(root, "src-tauri/src/command_names.rs"),
+  "utf8",
+);
+const commandNames = [...namesSource.matchAll(/"([a-z][a-z0-9_]+)"/g)].map(
+  (match) => match[1],
+);
+const commands = new Set(commandNames);
+const shellSource = await readFile(join(root, "src-tauri/src/lib.rs"), "utf8");
+const handlerSource =
+  shellSource.match(/tauri::generate_handler!\[([\s\S]*?)\]/)?.[1] ?? "";
+const handlerNames = handlerSource
+  .split(",")
+  .map((path) => path.trim().split("::").at(-1))
+  .filter(Boolean);
+const handlers = new Set(handlerNames);
+if (
+  commands.size !== commandNames.length ||
+  handlers.size !== handlerNames.length
+) {
+  errors.push("IPC: 命令清单或 handler 存在重复项");
+}
+for (const name of new Set([...commands, ...handlers])) {
+  if (!commands.has(name) || !handlers.has(name)) {
+    errors.push(`IPC: ${name} 必须同时登记 AppManifest 命令清单与 handler`);
+  }
+}
+for (const path of (await walk("src/services/desktop")).filter((path) =>
+  path.endsWith(".ts"),
+)) {
+  const source = await readFile(join(root, path), "utf8");
+  for (const match of source.matchAll(
+    /\binvoke(?:<[^;]*?>)?\s*\(\s*["']([^"']+)["']/g,
+  )) {
+    if (!match[1].includes(":") && !commands.has(match[1])) {
+      errors.push(`${path}: invoke 命令 ${match[1]} 未登记`);
+    }
+  }
+}
+// 自定义权限组与自动生成的 allow-command 均计入，避免只检查新增命令的特例。
+const permissionGroups = new Map();
+for (const path of (await walk("src-tauri/permissions")).filter((path) =>
+  path.endsWith(".toml"),
+)) {
+  const source = await readFile(join(root, path), "utf8");
+  for (const section of source.split("[[permission]]").slice(1)) {
+    const identifier = section.match(/identifier\s*=\s*"([^"]+)"/)?.[1];
+    const allowed =
+      section.match(/commands\.allow\s*=\s*\[([\s\S]*?)\]/)?.[1] ?? "";
+    if (identifier)
+      permissionGroups.set(
+        identifier,
+        [...allowed.matchAll(/"([^"]+)"/g)].map((match) => match[1]),
+      );
+  }
+}
+const exposed = new Set();
+for (const path of (await walk("src-tauri/capabilities")).filter((path) =>
+  path.endsWith(".json"),
+)) {
+  const capability = JSON.parse(await readFile(join(root, path), "utf8"));
+  for (const permission of capability.permissions ?? []) {
+    if (typeof permission !== "string") continue;
+    for (const name of permissionGroups.get(permission) ?? [])
+      exposed.add(name);
+    if (permission.startsWith("allow-")) {
+      const name = permission.slice(6).replaceAll("-", "_");
+      if (commands.has(name)) exposed.add(name);
+    }
+  }
+}
+for (const name of commands) {
+  if (!exposed.has(name)) errors.push(`IPC: ${name} 缺少 capability 授权入口`);
+}
 for (const message of large) console.log(`提示: ${message}`);
 for (const message of errors) console.error(`错误: ${message}`);
 if (errors.length) process.exitCode = 1;

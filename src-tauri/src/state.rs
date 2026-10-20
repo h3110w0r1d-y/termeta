@@ -16,12 +16,26 @@ pub struct AppState {
     pub file_sessions: SessionManager,
     pub forward_sessions: SessionManager,
     pub ssh_channels: terminal_ssh::SshChannels,
-    pub sftp: Mutex<std::collections::HashMap<String, Arc<terminal_sftp::SftpBrowser>>>,
+    pub sftp: SftpBrowsers,
     pub transfers: Arc<tokio::sync::Semaphore>,
     pub store: Arc<SqliteStore>,
     pub vault: Arc<CredentialVault>,
     pub open_gates:
         Mutex<std::collections::HashMap<String, std::sync::Weak<tokio::sync::Mutex<()>>>>,
+}
+
+pub type SftpBrowsers =
+    Arc<Mutex<std::collections::HashMap<String, Arc<terminal_sftp::SftpBrowser>>>>;
+
+/// 三类 manager 共用资源撤销入口，但仍各自校验 owner、用途与会话预算。
+pub fn sftp_resource_cleanup(browsers: SftpBrowsers) -> Arc<terminal_core::SessionResourceCleanup> {
+    Arc::new(move |_owner, id| {
+        let browser = browsers.lock().unwrap().remove(id);
+        // 网络关闭与任务取消在全局资源表锁外执行。
+        if let Some(browser) = browser {
+            browser.cancel();
+        }
+    })
 }
 
 pub fn window_owner(window: &WebviewWindow) -> Result<String> {
@@ -75,6 +89,20 @@ impl SessionSink for DesktopSink {
 }
 
 impl AppState {
+    /// 定时扫描仅兜底；正常结束、显式关闭与 owner 销毁均由 core 同步通知撤销。
+    pub fn cleanup_sftp(&self) {
+        let ids: Vec<_> = self.sftp.lock().unwrap().keys().cloned().collect();
+        let cleanup = sftp_resource_cleanup(self.sftp.clone());
+        for id in ids {
+            let alive = self
+                .session_manager("main", &id)
+                .and_then(|manager| manager.resource_cancellation("main", &id))
+                .is_ok_and(|cancel| !cancel.is_cancelled());
+            if !alive {
+                cleanup("main", &id);
+            }
+        }
+    }
     /// 资源归属仍由各会话表校验，文件连接与终端连接共用认证响应入口。
     pub fn session_manager(&self, owner: &str, id: &str) -> Result<&SessionManager> {
         if self.sessions.get(owner, id).is_ok() {

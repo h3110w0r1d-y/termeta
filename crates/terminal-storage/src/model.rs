@@ -63,6 +63,14 @@ pub struct HostGroup {
     pub revision: i64,
 }
 
+/// 主机与分组必须属于同一读取快照，避免前端组合出已失效的关联。
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HostInventory {
+    pub hosts: Vec<HostProfile>,
+    pub groups: Vec<HostGroup>,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupDraft {

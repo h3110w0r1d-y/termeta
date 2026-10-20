@@ -16,16 +16,32 @@ fn ssh_startup(config: &serde_json::Value) -> Result<SshStartup> {
 }
 impl SqliteStore {
     pub async fn list_hosts(&self, search: &str) -> Result<Vec<HostProfile>> {
+        let mut tx = self.pool().await?.begin().await?;
+        let hosts = Self::list_hosts_from(&mut tx, search).await?;
+        tx.commit().await?;
+        Ok(hosts)
+    }
+    pub async fn list_host_inventory(&self) -> Result<HostInventory> {
+        let mut tx = self.pool().await?.begin().await?;
+        let hosts = Self::list_hosts_from(&mut tx, "").await?;
+        let groups = Self::list_groups_from(&mut tx).await?;
+        tx.commit().await?;
+        Ok(HostInventory { hosts, groups })
+    }
+    async fn list_hosts_from(
+        connection: &mut sqlx::SqliteConnection,
+        search: &str,
+    ) -> Result<Vec<HostProfile>> {
         let rows = sqlx::query("SELECT p.*,s.address,s.port,s.username FROM connection_profiles p LEFT JOIN ssh_profiles s ON s.profile_id=p.id WHERE p.kind IN ('ssh','serial','telnet','workspace') ORDER BY p.favorite DESC,p.name COLLATE NOCASE")
-            .fetch_all(&*self.pool().await?).await?;
+            .fetch_all(&mut *connection).await?;
         let mut profiles = Vec::with_capacity(rows.len());
         let search = search.to_lowercase();
         for row in rows {
             let id: String = row.try_get("id")?;
             let tags = sqlx::query_scalar::<_, String>("SELECT t.name FROM tags t JOIN profile_tags p ON p.tag_id=t.id WHERE p.profile_id=? ORDER BY t.name")
-                .bind(&id).fetch_all(&*self.pool().await?).await?;
+                .bind(&id).fetch_all(&mut *connection).await?;
             let auth = sqlx::query("SELECT a.method,a.credential_id,c.owner_profile_id FROM profile_auth_steps a LEFT JOIN credentials c ON c.id=a.credential_id WHERE a.profile_id=? ORDER BY a.sort_order")
-                .bind(&id).fetch_all(&*self.pool().await?).await?;
+                .bind(&id).fetch_all(&mut *connection).await?;
             let mut has_password = false;
             let mut auth_plan = Vec::with_capacity(auth.len());
             for step in auth {

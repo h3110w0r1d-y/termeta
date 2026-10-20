@@ -1,7 +1,8 @@
 import { t } from "@/i18n";
 import { desktop, errorMessage } from "@/services/desktop/client";
 import { useHosts } from "@/modules/hosts/store";
-import { useWorkbenchStore, type TerminalItem } from "@/modules/workbench/store";
+import type { TerminalItem } from "@/modules/workbench/store";
+import { useSessions } from "@/modules/sessions/store";
 import { captureTerminalLog } from "@/modules/session-logs/snapshot";
 import { resetTerminalActivity } from "../activity";
 import { writeLocalStatus } from "../localStatus";
@@ -9,24 +10,54 @@ import type { Entry } from "./entry";
 import { update, event } from "./events";
 import { createStream, receive, acknowledge, drain } from "./stream";
 
-export async function connect(entry: Entry, terminal: TerminalItem) {
-  if (entry.connecting || entry.closing || entry.disposed) return;
-  entry.connecting = true;
+/** 连接和关闭都由 Registry 持有的 Entry 合并，布局变化不创建第二套生命周期。 */
+export function connect(entry: Entry, terminal: TerminalItem) {
+  if (entry.connection) return entry.connection;
+  if (entry.closing || entry.disposed) return Promise.resolve();
+  const connection = Promise.resolve()
+    .then(() => open(entry, terminal))
+    .finally(() => {
+      if (entry.connection === connection) entry.connection = undefined;
+    });
+  entry.connection = connection;
+  return connection;
+}
+
+async function waitFor<T>(promise: Promise<T>, timeout: number) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(t("terminal.errors.sessionClosing"))),
+          timeout,
+        );
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function open(entry: Entry, terminal: TerminalItem) {
+  if (entry.closing || entry.disposed) return;
   try {
     const old = entry.stream;
     if (old) {
-      if (old.sessionId && !old.ended) {
-        await desktop.close(old.sessionId, "reconnect");
-        const deadline = Date.now() + 3000;
-        while (!old.ended && Date.now() < deadline)
-          await new Promise((r) => setTimeout(r, 20));
-        if (!old.ended) throw new Error(t("terminal.errors.sessionClosing"));
+      if (old.control.sessionId && !old.control.ended) {
+        await desktop.close(old.control.sessionId, "reconnect");
+        await waitFor(old.whenEnded, 3000);
       }
+      await old.finalization?.catch(() => {});
       await drain(entry, old);
       if (old.ackTimer) clearTimeout(old.ackTimer);
       await acknowledge(entry, terminal, old);
-      useWorkbenchStore().dismiss(old.sessionId ?? "");
+      if (old.control.sessionId)
+        useSessions().release("terminal", old.control.sessionId);
     }
+    // 旧流收尾期间用户可能已关闭视图，此时不再创建下一次连接。
+    if (entry.closing || entry.disposed) return;
     if (terminal.target.source === "saved") {
       const profileId = terminal.target.profileId;
       const profile = useHosts().hosts.find((host) => host.id === profileId);
@@ -63,6 +94,7 @@ export async function connect(entry: Entry, terminal: TerminalItem) {
     terminal.revision = 0;
     terminal.sessionId = undefined;
     const snapshot = await desktop.openSession(
+      stream.control.requestId,
       terminal.terminalId,
       terminal.target,
       terminal.size,
@@ -73,41 +105,40 @@ export async function connect(entry: Entry, terminal: TerminalItem) {
       await desktop.close(snapshot.sessionId, "tabClosed");
       return;
     }
-    stream.sessionId = snapshot.sessionId;
-    entry.canResize = snapshot.capabilities.resize;
-    update(terminal, snapshot);
+    if (
+      snapshot.requestId !== stream.control.requestId ||
+      (stream.control.sessionId &&
+        stream.control.sessionId !== snapshot.sessionId)
+    )
+      throw new Error(t("terminal.errors.outputFailure"));
+    if (update(terminal, stream, snapshot))
+      entry.canResize = snapshot.capabilities.resize;
     await acknowledge(entry, terminal, stream);
   } catch (error) {
+    // 控制事件先报告终态时，命令响应丢失不能再把已结束状态改为连接失败。
+    if (entry.stream?.control.ended) return;
     terminal.error = errorMessage(error);
     terminal.state = "failed";
     writeLocalStatus(entry.term, terminal.error);
-  } finally {
-    entry.connecting = false;
   }
 }
 export async function disconnect(entry: Entry, terminal?: TerminalItem) {
+  if (entry.connection) await waitFor(entry.connection, 10000);
   const stream = entry.stream;
-  if (stream?.sessionId && !stream.endReceived) {
+  if (stream?.control.sessionId && !stream.control.ended) {
     if (terminal) terminal.state = "closing";
-    const snapshot = await desktop.close(stream.sessionId);
+    const snapshot = await desktop.close(stream.control.sessionId);
     if (terminal && entry.stream === stream && !entry.disposed)
-      update(terminal, snapshot);
+      update(terminal, stream, snapshot);
   }
 }
 export async function archiveAndDispose(entry: Entry, terminal: TerminalItem) {
-  // 连接命令返回后才能可靠取消；超时保留视图和缓冲，允许再次关闭。
-  const deadline = Date.now() + 10000;
-  while (entry.connecting && Date.now() < deadline)
-    await new Promise((resolve) => setTimeout(resolve, 20));
-  if (entry.connecting) throw new Error(t("terminal.errors.sessionClosing"));
+  // 等待在途打开的完成信号；超时仍保留视图，允许命令返回后再次关闭。
+  if (entry.connection) await waitFor(entry.connection, 10000);
   await disconnect(entry, terminal);
   const stream = entry.stream;
-  if (stream?.sessionId) {
-    const endDeadline = Date.now() + 5000;
-    while (!stream.endReceived && Date.now() < endDeadline)
-      await new Promise((resolve) => setTimeout(resolve, 20));
-    if (!stream.endReceived)
-      throw new Error(t("terminal.errors.sessionClosing"));
+  if (stream?.control.sessionId) {
+    await waitFor(stream.whenEnded, 5000);
     // 较早的排空可能因迟到帧超时；本次重新排空成功后仍允许安全重试关闭。
     await stream.finalization?.catch(() => {});
     await drain(entry, stream);
@@ -120,6 +151,8 @@ export async function archiveAndDispose(entry: Entry, terminal: TerminalItem) {
     ...entry.log,
     content: captureTerminalLog(entry.term),
   });
+  if (stream?.control.sessionId)
+    useSessions().release("terminal", stream.control.sessionId);
   entry.disposed = true;
   entry.observer.disconnect();
   if (stream?.ackTimer) clearTimeout(stream.ackTimer);

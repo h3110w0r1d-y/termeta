@@ -18,8 +18,6 @@ import {
   type SplitEdge,
 } from "./layout";
 import type {
-  AuthChallenge,
-  HostKeyChallenge,
   OpenTarget,
   SessionState,
   HostProfile,
@@ -63,8 +61,6 @@ export const useWorkbenchStore = defineStore("workbench", () => {
   const activeId = ref("home");
   const vaultSection = ref<VaultSection>("hosts");
   const fileTransferring = ref(false);
-  const connectionTitles = ref<Record<string, string>>({});
-  const challenges = ref<(AuthChallenge | HostKeyChallenge)[]>([]);
   const closingTerminalIds = ref<string[]>([]);
   const drag = ref<{ source: TabDragSource; x: number; y: number }>();
   const dropTarget = ref<TabDropTarget>();
@@ -578,13 +574,6 @@ export const useWorkbenchStore = defineStore("workbench", () => {
     vaultSection.value = section;
     activeId.value = "home";
   }
-  function dismiss(sessionId: string, challengeId?: string) {
-    challenges.value = challenges.value.filter(
-      (c) =>
-        c.sessionId !== sessionId ||
-        (challengeId !== undefined && c.challengeId !== challengeId),
-    );
-  }
   return {
     terminals,
     groups,
@@ -600,9 +589,7 @@ export const useWorkbenchStore = defineStore("workbench", () => {
     vaultSection,
     activeGroup,
     activeTerminal,
-    challenges,
     fileTransferring,
-    connectionTitles,
     closingTerminalIds,
     drag,
     dropTarget,
@@ -629,7 +616,6 @@ export const useWorkbenchStore = defineStore("workbench", () => {
     cancelDrag,
     cycle,
     openVault,
-    dismiss,
   };
 });
 export const stateLabels = {

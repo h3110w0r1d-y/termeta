@@ -14,14 +14,11 @@ export const useHosts = defineStore("hosts", () => {
   let loadRevision = 0;
   async function load() {
     const revision = ++loadRevision;
-    const [nextHosts, nextGroups] = await Promise.all([
-      desktop.listHosts(),
-      desktop.listGroups(),
-    ]);
-    // 系统检测通知可能连续到达，迟到的旧读取不能覆盖最新主机图标和revision。
+    const inventory = await desktop.listHostInventory();
+    // 主机与分组来自同一数据库快照；提交成功的写操作也会使更早的读取失效。
     if (revision !== loadRevision) return;
-    hosts.value = nextHosts;
-    groups.value = nextGroups;
+    hosts.value = inventory.hosts;
+    groups.value = inventory.groups;
   }
   async function save(
     host: HostDraft,
@@ -29,6 +26,7 @@ export const useHosts = defineStore("hosts", () => {
     password?: string,
   ) {
     const saved = await desktop.saveHost(host, revision, password);
+    loadRevision++;
     // 提交成功后直接更新轻量列表，避免后续读取失败被误判为保存失败。
     hosts.value = [
       ...hosts.value.filter((item) => item.id !== saved.id),
@@ -41,6 +39,7 @@ export const useHosts = defineStore("hosts", () => {
   }
   async function saveWorkspace(draft: WorkspaceDraft) {
     const saved = await desktop.saveWorkspace(draft);
+    loadRevision++;
     hosts.value = [
       ...hosts.value.filter((item) => item.id !== saved.id),
       saved,
@@ -52,6 +51,7 @@ export const useHosts = defineStore("hosts", () => {
   }
   async function remove(host: HostProfile) {
     await desktop.deleteHost(host.id, host.revision);
+    loadRevision++;
     // 删除已提交，直接更新列表，避免重读失败被误报为删除失败。
     hosts.value = hosts.value.filter((item) => item.id !== host.id);
   }
@@ -70,6 +70,7 @@ export const useHosts = defineStore("hosts", () => {
     revision: number | null,
   ) {
     const saved = await desktop.saveGroup(group, revision);
+    loadRevision++;
     groups.value = [
       ...groups.value.filter((item) => item.id !== saved.id),
       saved,

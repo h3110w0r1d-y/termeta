@@ -12,17 +12,14 @@ import AppInput from "@/components/ui/AppInput.vue";
 import { validateForm } from "@/services/forms/rules";
 import { computed, nextTick, ref, watch } from "vue";
 import AppDialog from "@/components/ui/AppDialog.vue";
-import { useWorkbenchStore } from "../workbench/store";
+import { useSessions } from "../sessions/store";
 import { desktop, errorMessage } from "@/services/desktop/client";
 const emit = defineEmits<{ "after-leave": [] }>();
-const workbench = useWorkbenchStore(),
-  current = computed(() => workbench.challenges[0]),
-  targetTitle = computed(
-    () =>
-      workbench.terminals.find(
-        (tab) => tab.sessionId === current.value?.sessionId,
-      )?.title ?? workbench.connectionTitles[current.value?.sessionId ?? ""],
-  );
+const sessions = useSessions();
+const current = computed(() => sessions.challenges[0]);
+const targetTitle = computed(
+  () => sessions.titles[current.value?.sessionId ?? ""],
+);
 const answers = ref<string[]>([]),
   authForm = ref<FormInst>(),
   busy = ref(false),
@@ -60,7 +57,7 @@ async function hostKey(decision: "reject" | "allowOnce" | "trustAndSave") {
   try {
     await desktop.hostKey(c.sessionId, c.challengeId, decision);
     // 只消费本次提示，避免迟到的提交响应删除服务器刚发来的下一轮认证。
-    workbench.dismiss(c.sessionId, c.challengeId);
+    sessions.dismiss(c.sessionId, c.challengeId);
   } catch (e) {
     if (current.value?.challengeId === c.challengeId)
       error.value = errorMessage(e);
@@ -79,7 +76,7 @@ async function auth(cancel = false) {
   try {
     if (cancel) await desktop.cancelAuth(c.sessionId, c.challengeId);
     else await desktop.auth(c, secrets, "never");
-    workbench.dismiss(c.sessionId, c.challengeId);
+    sessions.dismiss(c.sessionId, c.challengeId);
   } catch (e) {
     if (current.value?.challengeId === c.challengeId)
       error.value = errorMessage(e);

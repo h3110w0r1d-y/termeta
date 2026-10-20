@@ -11,10 +11,8 @@ import {
 } from "vue";
 import { NAlert, NButton, NFlex, NTag, NText } from "naive-ui";
 import { desktop, errorMessage } from "@/services/desktop/client";
-import {
-  registerSessionPresence,
-  unregisterSessionPresence,
-} from "@/services/desktop/sessionPresence";
+import { useSessions } from "../sessions/store";
+import { createSessionControl } from "../sessions/control";
 import type {
   SessionEvent,
   SessionSnapshot,
@@ -26,6 +24,7 @@ import type { SftpEndpoint, SftpSelection } from "./types";
 import { formatFileSize } from "./format";
 
 const workbench = useWorkbenchStore();
+const sessions = useSessions();
 const endpoints = reactive<SftpEndpoint[]>(
   [0, 1].map(() => ({
     profileId: null,
@@ -44,45 +43,30 @@ const message = ref<PlainMessageKey | "">("");
 const error = ref("");
 let disposed = false;
 const generations = [0, 0];
-const revisions = [-1, -1];
-const ended = [false, false];
+const controls = [createSessionControl(""), createSessionControl("")];
 let cancelRequested = false;
 let currentCopy: { sessionId: string; id: string } | undefined;
 const ready = (side: number) =>
   endpoints[side]?.state === "connected" && !!endpoints[side]?.sessionId;
 function update(side: number, snapshot: SessionSnapshot) {
-  if (ended[side] || snapshot.stateRevision < revisions[side]) return;
-  const previous = endpoints[side]!.sessionId;
-  if (previous && previous !== snapshot.sessionId)
-    unregisterSessionPresence("file", previous);
-  revisions[side] = snapshot.stateRevision;
-  workbench.connectionTitles[snapshot.sessionId] = snapshot.title;
+  if (!sessions.snapshot(controls[side]!, snapshot, "file")) return;
   endpoints[side]!.sessionId = snapshot.sessionId;
   endpoints[side]!.state = snapshot.state;
-  if (["closed", "failed", "disconnected"].includes(snapshot.state))
-    unregisterSessionPresence("file", snapshot.sessionId);
-  else registerSessionPresence("file", snapshot.sessionId);
 }
 function control(side: number, generation: number, event: SessionEvent) {
   if (disposed || generations[side] !== generation) return;
+  const projection = controls[side]!;
+  const title =
+    event.type === "stateChanged"
+      ? event.snapshot.title
+      : (sessions.titles[event.sessionId] ?? t("files.browser.title"));
+  if (!sessions.event(projection, event, "file", title)) return;
   const endpoint = endpoints[side]!;
-  endpoint.sessionId = event.sessionId;
-  if (event.type !== "ended") registerSessionPresence("file", event.sessionId);
-  if (event.type === "stateChanged") update(side, event.snapshot);
-  else if (
-    event.type === "authChallenge" ||
-    event.type === "hostKeyChallenge"
-  ) {
-    workbench.dismiss(event.sessionId);
-    workbench.challenges.push(event);
-  } else if (event.type === "ended") {
-    unregisterSessionPresence("file", event.sessionId);
-    ended[side] = true;
+  endpoint.sessionId = projection.sessionId;
+  endpoint.state = projection.state;
+  if (event.type === "ended") {
     releaseDrag();
-    endpoint.state = event.finalState;
-    endpoint.error = event.error?.message ?? "";
-    workbench.dismiss(event.sessionId);
-    delete workbench.connectionTitles[event.sessionId];
+    endpoint.error = event.error ? errorMessage(event.error) : "";
     if (currentCopy)
       void desktop
         .sftpCancel(currentCopy.sessionId, currentCopy.id)
@@ -96,12 +80,13 @@ async function connect(side: number, profileId: string) {
   endpoint.profileId = profileId;
   endpoint.opening = true;
   endpoint.error = "";
-  ended[side] = false;
-  revisions[side] = -1;
+  const projection = (controls[side] = createSessionControl(
+    crypto.randomUUID(),
+  ));
   try {
     const snapshot = await desktop.sftpConnect(
       profileId,
-      crypto.randomUUID(),
+      projection.requestId,
       (event) => control(side, generation, event),
     );
     if (disposed || generations[side] !== generation) {
@@ -110,7 +95,7 @@ async function connect(side: number, profileId: string) {
     }
     update(side, snapshot);
   } catch (cause) {
-    endpoint.error = errorMessage(cause);
+    if (!projection.ended) endpoint.error = errorMessage(cause);
   } finally {
     endpoint.opening = false;
   }
@@ -122,9 +107,7 @@ async function disconnect(side: number) {
   const sessionId = endpoint.sessionId;
   try {
     await desktop.close(sessionId);
-    unregisterSessionPresence("file", sessionId);
-    workbench.dismiss(sessionId);
-    delete workbench.connectionTitles[sessionId];
+    sessions.release("file", sessionId);
     generations[side]!++;
     endpoint.sessionId = undefined;
     endpoint.state = "closed";
@@ -310,9 +293,7 @@ onBeforeUnmount(() => {
   window.removeEventListener("keydown", keydown);
   for (const endpoint of endpoints)
     if (endpoint.sessionId) {
-      unregisterSessionPresence("file", endpoint.sessionId);
-      workbench.dismiss(endpoint.sessionId);
-      delete workbench.connectionTitles[endpoint.sessionId];
+      sessions.release("file", endpoint.sessionId);
       void desktop.close(endpoint.sessionId).catch(() => {});
     }
 });

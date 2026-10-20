@@ -3,7 +3,7 @@ use super::{dto::Provider, failure};
 use std::{
     collections::HashMap,
     sync::{
-        Mutex,
+        Arc, Mutex,
         atomic::{AtomicU64, Ordering},
     },
     time::{Duration, Instant, SystemTime},
@@ -48,11 +48,92 @@ pub struct AccountRuntime {
     pub pending: Mutex<Option<super::storage::SavedAccount>>,
     pub operation: tokio::sync::Mutex<()>,
     pub commit: tokio::sync::Mutex<()>,
+    modes: Arc<ModeOperations>,
     epoch: AtomicU64,
     owners: Mutex<HashMap<String, u64>>,
     flows: Mutex<HashMap<String, Flow>>,
 }
+
+#[derive(Default)]
+struct ModeState {
+    changing: bool,
+    active: usize,
+    generation: u64,
+}
+
+#[derive(Default)]
+struct ModeOperations {
+    state: Mutex<ModeState>,
+    drained: tokio::sync::Notify,
+}
+
+/// 租约只登记操作期，不持锁跨网络或数据库等待；可移入独立恢复任务。
+pub struct OfflineOperation {
+    modes: Arc<ModeOperations>,
+    pub generation: u64,
+}
+
+impl Drop for OfflineOperation {
+    fn drop(&mut self) {
+        let drained = {
+            let mut state = self.modes.state.lock().unwrap();
+            state.active -= 1;
+            state.active == 0
+        };
+        if drained {
+            self.modes.drained.notify_one();
+        }
+    }
+}
+
+/// 进入过渡态即拒绝新任务；失败或取消等待时也会恢复准入。
+pub struct ModeChange {
+    modes: Arc<ModeOperations>,
+}
+
+impl Drop for ModeChange {
+    fn drop(&mut self) {
+        self.modes.state.lock().unwrap().changing = false;
+    }
+}
+
 impl AccountRuntime {
+    pub fn begin_offline(&self) -> Result<OfflineOperation> {
+        let mut state = self.modes.state.lock().unwrap();
+        if state.changing {
+            return Err(failure("ACCOUNT_BUSY", "账号模式正在切换，请稍后重试"));
+        }
+        state.active += 1;
+        Ok(OfflineOperation {
+            modes: self.modes.clone(),
+            generation: state.generation,
+        })
+    }
+
+    /// 调用方先取得 official.operation，再等待租约排空，最后取得 commit/initialization。
+    /// 此顺序允许已接受的离线操作完成，同时不占住其账号读取所需的提交锁。
+    pub async fn begin_mode_change(&self) -> Result<ModeChange> {
+        {
+            let mut state = self.modes.state.lock().unwrap();
+            if state.changing {
+                return Err(failure("ACCOUNT_BUSY", "账号模式正在切换，请稍后重试"));
+            }
+            state.changing = true;
+            state.generation = state.generation.wrapping_add(1);
+        }
+        let change = ModeChange {
+            modes: self.modes.clone(),
+        };
+        loop {
+            // Notify 留存最后一个释放通知，检查与等待之间释放也不会丢失唤醒。
+            let drained = self.modes.drained.notified();
+            if self.modes.state.lock().unwrap().active == 0 {
+                return Ok(change);
+            }
+            drained.await;
+        }
+    }
+
     pub fn stamp(&self, owner: &str) -> Stamp {
         Stamp {
             epoch: self.epoch.load(Ordering::Acquire),
@@ -214,6 +295,50 @@ impl AccountRuntime {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{
+        future::Future,
+        task::{Context, Poll, Waker},
+    };
+
+    #[test]
+    fn mode_change_waits_for_accepted_backup_and_rejects_new_admission() {
+        let runtime = AccountRuntime::default();
+        let backup = runtime.begin_offline().unwrap();
+        let old_generation = backup.generation;
+        let mut change = Box::pin(runtime.begin_mode_change());
+        let mut context = Context::from_waker(Waker::noop());
+        assert!(change.as_mut().poll(&mut context).is_pending());
+        assert!(runtime.begin_offline().is_err());
+
+        // 网络、预览或独立恢复事务持有同一种租约；释放之前账号不能提交切换。
+        drop(backup);
+        let guard = match change.as_mut().poll(&mut context) {
+            Poll::Ready(Ok(guard)) => guard,
+            _ => panic!("离线任务排空后应允许模式切换"),
+        };
+        assert!(runtime.begin_offline().is_err());
+        drop(guard);
+        assert_ne!(runtime.begin_offline().unwrap().generation, old_generation);
+    }
+
+    #[test]
+    fn cancelled_mode_wait_reopens_admission_without_reviving_previous_generation() {
+        let runtime = AccountRuntime::default();
+        let backup = runtime.begin_offline().unwrap();
+        let mut change = Box::pin(runtime.begin_mode_change());
+        let mut context = Context::from_waker(Waker::noop());
+        assert!(change.as_mut().poll(&mut context).is_pending());
+        drop(change);
+        let next = runtime.begin_offline().unwrap();
+        assert_ne!(backup.generation, next.generation);
+        drop(backup);
+        drop(next);
+        let mut change = Box::pin(runtime.begin_mode_change());
+        assert!(matches!(
+            change.as_mut().poll(&mut context),
+            Poll::Ready(Ok(_))
+        ));
+    }
 
     fn pending(runtime: &AccountRuntime, owner: &str) -> Flow {
         Flow {

@@ -527,3 +527,99 @@ async fn local_factory_uses_shared_registry_and_owner_boundary() {
         })
         .await;
 }
+
+struct EndWithoutClientClose;
+#[async_trait]
+impl SessionFactory for EndWithoutClientClose {
+    fn kind(&self) -> &'static str {
+        "ssh"
+    }
+    fn capabilities(&self) -> SessionCapabilities {
+        SessionCapabilities::ssh()
+    }
+    fn validate(&self, config: &SessionConfig) -> Result<()> {
+        config.validate()
+    }
+    async fn run(&self, _config: SessionConfig, context: DriverContext) -> Result<SessionEnd> {
+        context.events.state(SessionState::Connected)?;
+        Ok(SessionEnd::default())
+    }
+}
+
+#[tokio::test]
+async fn remote_end_revokes_resources_without_frontend_close() {
+    let capture = Arc::new(Capture::default());
+    let manager = SessionManager::new(Arc::new(EndWithoutClientClose));
+    let observer = Arc::new(Mutex::new(std::sync::Weak::<SessionManager>::new()));
+    let query = observer.clone();
+    let notifications = Arc::new(AtomicUsize::new(0));
+    let count = notifications.clone();
+    let changed = capture.clone();
+    let manager = Arc::new(manager.with_resource_cleanup(Arc::new(move |owner, id| {
+        // 回调内重新查询同一 manager，验证撤销入口不占用全局会话表锁。
+        assert!(
+            query
+                .lock()
+                .unwrap()
+                .upgrade()
+                .unwrap()
+                .get(owner, id)
+                .is_ok()
+        );
+        count.fetch_add(1, Ordering::SeqCst);
+        changed.changed.notify_one();
+    })));
+    *observer.lock().unwrap() = Arc::downgrade(&manager);
+    let snapshot = manager
+        .open("main", id(), id(), config(), size(), capture.clone())
+        .unwrap();
+    let resources = manager
+        .resource_cancellation("main", &snapshot.session_id)
+        .unwrap();
+    capture
+        .wait_for(|| notifications.load(Ordering::SeqCst) == 1)
+        .await;
+    assert!(resources.is_cancelled());
+    manager.close("main", &snapshot.session_id).unwrap();
+    manager.close_owner("main");
+    assert_eq!(notifications.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn close_and_owner_destruction_revoke_resources_immediately_once() {
+    let notifications = Arc::new(AtomicUsize::new(0));
+    let count = notifications.clone();
+    let manager = SessionManager::new(Arc::new(FakeFactory {
+        attempts: AtomicUsize::new(0),
+        trust: false,
+    }))
+    .with_resource_cleanup(Arc::new(move |_, _| {
+        count.fetch_add(1, Ordering::SeqCst);
+    }));
+    for by_owner in [false, true] {
+        let snapshot = manager
+            .open(
+                "main",
+                id(),
+                id(),
+                config(),
+                size(),
+                Arc::new(Capture::default()),
+            )
+            .unwrap();
+        let resources = manager
+            .resource_cancellation("main", &snapshot.session_id)
+            .unwrap();
+        assert!(!resources.is_cancelled());
+        if by_owner {
+            manager.close_owner("main");
+        } else {
+            manager.close("main", &snapshot.session_id).unwrap();
+        }
+        assert!(resources.is_cancelled());
+        // 撤销后才登记的任务必须继承取消，不得留在选择器/文件承诺等待中。
+        assert!(resources.child_token().is_cancelled());
+        manager.close("main", &snapshot.session_id).unwrap();
+    }
+    assert_eq!(notifications.load(Ordering::SeqCst), 2);
+}

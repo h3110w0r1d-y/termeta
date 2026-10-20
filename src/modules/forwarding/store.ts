@@ -7,24 +7,16 @@ import type {
   ForwardProfile,
   SessionEvent,
   SessionSnapshot,
-  SessionState,
 } from "@/services/desktop/types";
-import { useWorkbenchStore } from "../workbench/store";
-import {
-  registerSessionPresence,
-  unregisterSessionPresence,
-} from "@/services/desktop/sessionPresence";
+import { useSessions } from "../sessions/store";
+import { createSessionControl, type SessionControl } from "../sessions/control";
 
-interface Runtime {
-  sessionId?: string;
-  state: SessionState;
-  revision: number;
+interface Runtime extends SessionControl {
   error: string;
   busy: boolean;
-  ended: boolean;
 }
 export const usePortForwards = defineStore("port-forwards", () => {
-  const workbench = useWorkbenchStore();
+  const sessions = useSessions();
   const profiles = ref<ForwardProfile[]>([]);
   const runtimes = reactive<Record<string, Runtime>>({});
   const generations = new Map<string, number>();
@@ -60,54 +52,22 @@ export const usePortForwards = defineStore("port-forwards", () => {
     if (polling) clearInterval(polling);
   });
   let loadGeneration = 0;
+  const title = (id: string) =>
+    profiles.value.find((profile) => profile.id === id)?.name ??
+    t("common.navigation.forwarding");
   function update(id: string, snapshot: SessionSnapshot) {
     const runtime = runtimes[id];
-    if (
-      !runtime ||
-      runtime.ended ||
-      (runtime.sessionId && runtime.sessionId !== snapshot.sessionId) ||
-      snapshot.stateRevision <= runtime.revision
-    )
-      return;
-    const previous = runtime.sessionId;
-    if (previous && previous !== snapshot.sessionId)
-      unregisterSessionPresence("forward", previous);
-    Object.assign(runtime, {
-      sessionId: snapshot.sessionId,
-      state: snapshot.state,
-      revision: snapshot.stateRevision,
-    });
-    if (["closed", "failed", "disconnected"].includes(snapshot.state))
-      unregisterSessionPresence("forward", snapshot.sessionId);
-    else registerSessionPresence("forward", snapshot.sessionId);
-    workbench.connectionTitles[snapshot.sessionId] =
-      profiles.value.find((p) => p.id === id)?.name ?? snapshot.title;
+    return runtime
+      ? sessions.snapshot(runtime, snapshot, "forward", title(id))
+      : false;
   }
   function control(id: string, generation: number, event: SessionEvent) {
     if (generations.get(id) !== generation) return;
     const runtime = runtimes[id];
-    if (!runtime || (runtime.ended && event.type !== "ended")) return;
-    runtime.sessionId = event.sessionId;
-    workbench.connectionTitles[event.sessionId] =
-      profiles.value.find((p) => p.id === id)?.name ??
-      t("common.navigation.forwarding");
-    if (event.type === "stateChanged") update(id, event.snapshot);
-    else if (
-      event.type === "hostKeyChallenge" ||
-      event.type === "authChallenge"
-    ) {
-      workbench.dismiss(event.sessionId);
-      workbench.challenges.push(event);
-    } else if (event.type === "ended") {
-      unregisterSessionPresence("forward", event.sessionId);
-      Object.assign(runtime, {
-        state: event.finalState,
-        ended: true,
-        error: event.error?.message ?? "",
-      });
-      workbench.dismiss(event.sessionId);
-      delete workbench.connectionTitles[event.sessionId];
-    }
+    if (!runtime || !sessions.event(runtime, event, "forward", title(id)))
+      return;
+    if (event.type === "ended")
+      runtime.error = event.error ? errorMessage(event.error) : "";
   }
   async function load() {
     const generation = ++loadGeneration;
@@ -129,18 +89,14 @@ export const usePortForwards = defineStore("port-forwards", () => {
           runtimes[id]!.sessionId !== snapshot.sessionId)
       )
         runtimes[id] = {
-          state: snapshot.state,
-          revision: -1,
+          ...createSessionControl(snapshot.requestId),
           error: "",
           busy: false,
-          ended: false,
         };
-      update(id, snapshot);
+      if (!update(id, snapshot)) continue;
       if (terminal && runtimes[id]?.sessionId === snapshot.sessionId) {
-        unregisterSessionPresence("forward", snapshot.sessionId);
         runtimes[id]!.ended = true;
-        workbench.dismiss(snapshot.sessionId);
-        delete workbench.connectionTitles[snapshot.sessionId];
+        sessions.release("forward", snapshot.sessionId);
       }
     }
   }
@@ -157,8 +113,7 @@ export const usePortForwards = defineStore("port-forwards", () => {
     ++loadGeneration;
     profiles.value = profiles.value.filter((p) => p.id !== profile.id);
     const runtime = runtimes[profile.id];
-    if (runtime?.sessionId)
-      unregisterSessionPresence("forward", runtime.sessionId);
+    if (runtime?.sessionId) sessions.release("forward", runtime.sessionId);
     delete runtimes[profile.id];
     generations.delete(profile.id);
   }
@@ -167,31 +122,31 @@ export const usePortForwards = defineStore("port-forwards", () => {
     const generation = (generations.get(id) ?? 0) + 1;
     generations.set(id, generation);
     runtimes[id] = {
-      state: "created",
-      revision: -1,
+      ...createSessionControl(crypto.randomUUID()),
       error: "",
       busy: true,
-      ended: false,
     };
     const runtime = runtimes[id]!;
     try {
       update(
         id,
-        await desktop.startPortForward(id, crypto.randomUUID(), (event) =>
+        await desktop.startPortForward(id, runtime.requestId, (event) =>
           control(id, generation, event),
         ),
       );
     } catch (cause) {
       // IPC响应丢失时重新读取后端，防止实际已启动却被界面遗忘。
-      runtime.state = "failed";
-      runtime.error = errorMessage(cause);
+      if (!runtime.ended) {
+        runtime.state = "failed";
+        runtime.error = errorMessage(cause);
+      }
       try {
         await load();
       } catch {
         /* 原错误保留，可手动刷新 */
       }
     } finally {
-      runtimes[id]!.busy = false;
+      runtime.busy = false;
     }
   }
   async function stop(id: string) {
@@ -202,8 +157,7 @@ export const usePortForwards = defineStore("port-forwards", () => {
       await desktop.stopPortForward(id);
       if (!runtime.ended) runtime.state = "closing";
       if (runtime.sessionId) {
-        unregisterSessionPresence("forward", runtime.sessionId);
-        workbench.dismiss(runtime.sessionId);
+        sessions.dismiss(runtime.sessionId);
       }
     } catch (cause) {
       runtime.error = errorMessage(cause);

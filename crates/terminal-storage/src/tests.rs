@@ -2,6 +2,78 @@ use super::*;
 use std::path::PathBuf;
 use terminal_core::AuthStep;
 
+#[tokio::test(flavor = "current_thread")]
+async fn public_credential_failure_does_not_leave_pending_metadata() {
+    let directory = TestDirectory::new();
+    let store = SqliteStore::open(directory.0.join("credential-atomic.sqlite3"))
+        .await
+        .unwrap();
+    let existing = store
+        .save_public_credential("password", "已有凭据", "已有测试秘密")
+        .await
+        .unwrap();
+    // 在语句执行后注入失败，验证 SQLite 会回滚元数据、secret 和 ready 的整个写入。
+    sqlx::query("CREATE TRIGGER fail_public_credential AFTER INSERT ON credentials WHEN NEW.label='模拟中断' BEGIN SELECT RAISE(ABORT,'模拟写入失败'); END")
+        .execute(&*store.pool().await.unwrap()).await.unwrap();
+    assert!(
+        store
+            .save_public_credential("password", "模拟中断", "新测试秘密")
+            .await
+            .is_err()
+    );
+    let credentials = store.list_credentials().await.unwrap();
+    assert_eq!(credentials.len(), 1);
+    assert_eq!(credentials[0].id, existing);
+    assert_eq!(credentials[0].status, "ready");
+    assert_eq!(
+        &*store.credential_secret(&existing).await.unwrap(),
+        "已有测试秘密"
+    );
+    store.pool().await.unwrap().close().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn legacy_public_pending_cleanup_preserves_ready_and_referenced_credentials() {
+    let directory = TestDirectory::new();
+    let store = SqliteStore::open(directory.0.join("credential-recovery.sqlite3"))
+        .await
+        .unwrap();
+    let pending = store
+        .begin_credential("password", "中断的旧凭据")
+        .await
+        .unwrap();
+    let ready = store
+        .save_public_credential("password", "未引用的正常凭据", "正常测试秘密")
+        .await
+        .unwrap();
+    let referenced = store
+        .save_public_credential("password", "已引用的凭据", "引用测试秘密")
+        .await
+        .unwrap();
+    let mut host = draft();
+    host.auth_plan = vec![AuthStep::Password {
+        credential_id: Some(referenced.clone()),
+    }];
+    store.save_host(host).await.unwrap();
+    // 即使历史库存在异常状态，也不能自动删除仍被引用的凭据。
+    sqlx::query("UPDATE credentials SET status='pending' WHERE id=?")
+        .bind(&referenced)
+        .execute(&*store.pool().await.unwrap())
+        .await
+        .unwrap();
+    store.mark_orphaned_credentials_deleting().await.unwrap();
+    assert_eq!(
+        store.get_credential(&pending).await.unwrap().status,
+        "deleting"
+    );
+    assert_eq!(store.get_credential(&ready).await.unwrap().status, "ready");
+    assert_eq!(
+        store.get_credential(&referenced).await.unwrap().status,
+        "pending"
+    );
+    store.pool().await.unwrap().close().await;
+}
+
 struct TestDirectory(PathBuf);
 impl TestDirectory {
     fn new() -> Self {
@@ -537,10 +609,7 @@ async fn replacing_and_deleting_host_marks_only_owned_password_for_cleanup() {
         .set_credential_secret(&orphan, "测试秘密")
         .await
         .unwrap();
-    store
-        .mark_orphaned_host_credentials_deleting()
-        .await
-        .unwrap();
+    store.mark_orphaned_credentials_deleting().await.unwrap();
     assert_eq!(
         store.get_credential(&orphan).await.unwrap().status,
         "deleting"

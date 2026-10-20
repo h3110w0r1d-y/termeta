@@ -297,10 +297,6 @@ pub fn close_session(
     let snapshot = state
         .session_manager(&owner, &session_id)?
         .close_with_reason(&owner, &session_id, &reason)?;
-    // 关闭SSH时立即取消等待选择器/覆盖确认/原生文件承诺，不等待维护周期。
-    if let Some(browser) = state.sftp.lock().unwrap().remove(&session_id) {
-        browser.cancel();
-    }
     Ok(snapshot)
 }
 #[tauri::command]

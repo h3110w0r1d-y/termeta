@@ -36,6 +36,7 @@ import type {
   HostDraft,
   WorkspaceDraft,
   HostGroup,
+  HostInventory,
   HostProfile,
   KnownHost,
   OpenTarget,
@@ -230,6 +231,7 @@ export const desktop = {
   toggleMaximizeWindow: () => getCurrentWindow().toggleMaximize(),
   startWindowDragging: () => getCurrentWindow().startDragging(),
   listHosts: () => invoke<HostProfile[]>("list_hosts"),
+  listHostInventory: () => invoke<HostInventory>("list_host_inventory"),
   saveHost: (
     host: HostDraft,
     expectedRevision: number | null,
@@ -275,6 +277,7 @@ export const desktop = {
   deleteCredential: (id: string) => invoke<void>("delete_credential", { id }),
   openUrl: (url: string) => invoke<void>("open_external_url", { url }),
   openSession(
+    requestId: string,
     terminalId: string,
     target: OpenTarget,
     size: TerminalSize,
@@ -287,7 +290,7 @@ export const desktop = {
     control.onmessage = onControl;
     return invoke<SessionSnapshot>("open_session", {
       protocolVersion: 1,
-      requestId: crypto.randomUUID(),
+      requestId,
       terminalId,
       target,
       size,
@@ -296,9 +299,13 @@ export const desktop = {
     });
   },
   write: (sessionId: string, inputSeq: number, bytes: number[]) =>
-    invoke("write_session", { sessionId, inputSeq, bytes }),
+    invoke<{ acceptedSeq: number }>("write_session", {
+      sessionId,
+      inputSeq,
+      bytes,
+    }),
   resize: (sessionId: string, size: TerminalSize) =>
-    invoke("resize_session", { sessionId, size }),
+    invoke<TerminalSize>("resize_session", { sessionId, size }),
   ack: (sessionId: string, consumedOffset: string) =>
     invoke<void>("ack_session_output", { sessionId, consumedOffset }),
   close: (sessionId: string, reason = "user") =>
@@ -308,11 +315,7 @@ export const desktop = {
     challengeId: string,
     decision: "reject" | "allowOnce" | "trustAndSave",
   ) => invoke<void>("respond_host_key", { sessionId, challengeId, decision }),
-  auth: (
-    challenge: AuthChallenge,
-    answers: string[],
-    savePolicy: "never" | "save",
-  ) =>
+  auth: (challenge: AuthChallenge, answers: string[], savePolicy: "never") =>
     invoke<void>("respond_auth_challenge", {
       sessionId: challenge.sessionId,
       challengeId: challenge.challengeId,
@@ -320,7 +323,10 @@ export const desktop = {
       savePolicy,
     }),
   cancelAuth: (sessionId: string, challengeId: string) =>
-    invoke<void>("cancel_auth_challenge", { sessionId, challengeId }),
+    invoke<SessionSnapshot>("cancel_auth_challenge", {
+      sessionId,
+      challengeId,
+    }),
   syncSessionPresence: (payload: SessionPresenceHeartbeat) =>
     invoke<void>("session_client_heartbeat", { payload }),
 };
@@ -329,11 +335,13 @@ export function errorMessage(error: unknown): string {
   if (error && typeof error === "object") {
     const value = error as {
       code?: unknown;
+      phase?: unknown;
       message?: unknown;
       details?: unknown;
     };
     const localized =
-      value.code === "IO_FAILED" || value.code === "CONNECT_FAILED"
+      value.code === "CONNECT_FAILED" ||
+      (value.code === "IO_FAILED" && value.phase === "tcp")
         ? t("terminal.errors.tcpConnectFailed")
         : value.message;
     if (localized) {

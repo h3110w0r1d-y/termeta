@@ -56,8 +56,8 @@ pub async fn sftp_start_drag(
         .clone()
         .try_acquire_owned()
         .map_err(|_| file_error("传输队列已满，请稍后重试"))?;
-    let cancel = CancellationToken::new();
-    *browser.transfer.lock().unwrap() = Some((transfer_id.clone(), cancel.clone()));
+    let cancel = browser.transfer_cancellation();
+    browser.register_transfer(&transfer_id, cancel.clone());
     let _transfer = DragTransfer {
         browser: browser.clone(),
         id: transfer_id,

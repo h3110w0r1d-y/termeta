@@ -1,7 +1,10 @@
 use crate::*;
 use std::{
     collections::{HashMap, VecDeque},
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant},
 };
 use tokio::sync::{Semaphore, mpsc, watch};
@@ -13,6 +16,9 @@ struct InputHistory {
 }
 struct SessionRecord {
     owner: String,
+    resources: CancellationToken,
+    resources_revoked: AtomicBool,
+    resource_cleanup: Option<Arc<SessionResourceCleanup>>,
     events: Arc<SessionEvents>,
     cancel: CancellationToken,
     challenges: Arc<ChallengeBroker>,
@@ -24,6 +30,18 @@ struct SessionRecord {
     ended: Mutex<Option<Instant>>,
     close_reason: Mutex<Option<String>>,
 }
+impl SessionRecord {
+    fn revoke_resources(&self) {
+        if self.resources_revoked.swap(true, Ordering::AcqRel) {
+            return;
+        }
+        // 先禁止迟到的登记，再通知壳移除已登记资源；回调不持有 manager 或记录锁。
+        self.resources.cancel();
+        if let Some(cleanup) = &self.resource_cleanup {
+            cleanup(&self.owner, &self.events.snapshot().session_id);
+        }
+    }
+}
 struct Registry {
     sessions: HashMap<String, Arc<SessionRecord>>,
     requests: HashMap<(String, String), String>,
@@ -34,6 +52,7 @@ pub struct SessionManager {
     additional: Vec<Arc<dyn SessionFactory>>,
     registry: Arc<Mutex<Registry>>,
     connecting: Arc<Semaphore>,
+    resource_cleanup: Option<Arc<SessionResourceCleanup>>,
 }
 impl SessionManager {
     pub fn new(factory: Arc<dyn SessionFactory>) -> Self {
@@ -45,7 +64,12 @@ impl SessionManager {
                 requests: HashMap::new(),
             })),
             connecting: Arc::new(Semaphore::new(4)),
+            resource_cleanup: None,
         }
+    }
+    pub fn with_resource_cleanup(mut self, cleanup: Arc<SessionResourceCleanup>) -> Self {
+        self.resource_cleanup = Some(cleanup);
+        self
     }
     pub fn with_factory(mut self, factory: Arc<dyn SessionFactory>) -> Self {
         self.additional.push(factory);
@@ -130,6 +154,9 @@ impl SessionManager {
         let (resize, resize_rx) = watch::channel(size);
         let record = Arc::new(SessionRecord {
             owner: owner.into(),
+            resources: CancellationToken::new(),
+            resources_revoked: AtomicBool::new(false),
+            resource_cleanup: self.resource_cleanup.clone(),
             events: events.clone(),
             cancel: cancel.clone(),
             challenges: challenges.clone(),
@@ -182,6 +209,8 @@ impl SessionManager {
                     Err(_) => Err(SessionError::cancelled()),
                 },
             };
+            // 驱动结束即撤销文件/原生等待，不必等待终端尾输出排空或前端补偿关闭。
+            record.revoke_resources();
             if result.is_ok() {
                 let _ = events.state(SessionState::Closing);
             }
@@ -305,6 +334,10 @@ impl SessionManager {
     pub fn get(&self, owner: &str, id: &str) -> Result<SessionSnapshot> {
         Ok(self.owned(owner, id)?.events.snapshot())
     }
+    /// 附属任务跟随连接尝试，正常结束时取消它不会打断终端尾输出排空。
+    pub fn resource_cancellation(&self, owner: &str, id: &str) -> Result<CancellationToken> {
+        Ok(self.owned(owner, id)?.resources.clone())
+    }
     pub fn list(&self, owner: &str) -> Vec<SessionSnapshot> {
         let mut registry = self.registry.lock().unwrap();
         Self::prune(&mut registry);
@@ -355,7 +388,10 @@ impl SessionManager {
         close_reason.get_or_insert_with(|| reason.to_owned());
         record.cancel.cancel();
         record.challenges.revoke();
-        record.events.state(SessionState::Closing)
+        let result = record.events.state(SessionState::Closing);
+        drop(close_reason);
+        record.revoke_resources();
+        result
     }
     pub fn close_owner(&self, owner: &str) {
         let records: Vec<_> = self

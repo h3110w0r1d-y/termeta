@@ -4,8 +4,14 @@ use uuid::Uuid;
 
 impl SqliteStore {
     pub async fn list_groups(&self) -> Result<Vec<HostGroup>> {
+        let mut connection = self.pool().await?.acquire().await?;
+        Self::list_groups_from(&mut connection).await
+    }
+    pub(crate) async fn list_groups_from(
+        connection: &mut sqlx::SqliteConnection,
+    ) -> Result<Vec<HostGroup>> {
         sqlx::query("SELECT * FROM host_groups ORDER BY sort_order,name COLLATE NOCASE")
-            .fetch_all(&*self.pool().await?)
+            .fetch_all(connection)
             .await?
             .into_iter()
             .map(|r| {

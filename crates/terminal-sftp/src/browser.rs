@@ -17,6 +17,8 @@ struct Listing {
 }
 pub struct SftpBrowser {
     raw: Arc<RawSftpSession>,
+    identity: terminal_ssh::EndpointIdentity,
+    lifetime: terminal_core::CancellationToken,
     listing: Mutex<Option<Listing>>,
     // 壳使用此门限序列化每个浏览器的操作，不阻塞终端 actor。
     pub operation: Mutex<()>,
@@ -35,7 +37,9 @@ impl SftpBrowser {
         channels: &terminal_ssh::SshChannels,
         owner: &str,
         session_id: &str,
+        lifetime: terminal_core::CancellationToken,
     ) -> Result<Self> {
+        let identity = channels.endpoint_identity(owner, session_id)?;
         let stream = channels.open_sftp(owner, session_id).await?;
         let raw = RawSftpSession::new_with_config(
             stream,
@@ -50,15 +54,33 @@ impl SftpBrowser {
         raw.init().await.map_err(protocol_error)?;
         Ok(Self {
             raw: Arc::new(raw),
+            identity,
+            lifetime,
             listing: Mutex::new(None),
             operation: Mutex::new(()),
             transfer: std::sync::Mutex::new(None),
         })
     }
+    pub fn identity(&self) -> &terminal_ssh::EndpointIdentity {
+        &self.identity
+    }
+    /// 迟到的传输登记也继承已取消状态，避免断线清理与登记交错后遗留原生等待。
+    pub fn transfer_cancellation(&self) -> terminal_core::CancellationToken {
+        self.lifetime.child_token()
+    }
+    pub fn register_transfer(&self, id: &str, cancel: terminal_core::CancellationToken) {
+        let mut transfer = self.transfer.lock().unwrap();
+        if self.lifetime.is_cancelled() {
+            cancel.cancel();
+        }
+        *transfer = Some((id.into(), cancel));
+    }
     pub fn cancel(&self) {
+        self.lifetime.cancel();
         if let Some((_, cancel)) = self.transfer.lock().unwrap().as_ref() {
             cancel.cancel();
         }
+        let _ = self.raw.close_session();
     }
     pub fn cancel_transfer(&self, transfer_id: &str) {
         if let Some((id, cancel)) = self.transfer.lock().unwrap().as_ref() {

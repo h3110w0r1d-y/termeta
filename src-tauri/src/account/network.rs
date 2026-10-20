@@ -98,7 +98,11 @@ impl Api {
                 StatusCode::BAD_REQUEST | StatusCode::UNPROCESSABLE_ENTITY => {
                     failure("ACCOUNT_INVALID", "账号信息或登录方式无效，请检查后重试")
                 }
-                _ => failure("ACCOUNT_UNAVAILABLE", "官方服务暂时不可用，请稍后重试"),
+                _ if status.is_server_error() => {
+                    failure("ACCOUNT_UNAVAILABLE", "官方服务暂时不可用，请稍后重试")
+                }
+                // 重定向等协议异常不能被当作可恢复离线资格的服务暂不可用。
+                _ => failure("ACCOUNT_RESPONSE", "官方服务返回了不受支持的响应状态"),
             });
         }
         let limit = if path == "api/sync/vault" {

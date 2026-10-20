@@ -1,6 +1,6 @@
 # Termeta 开发协作指南
 
-更新：2026-10-19。适用于整个仓库，文档和代码注释默认中文。功能状态以 [产品需求](docs/01-product-requirements.md) 为准，不在本文重复清单或追加修复日志。
+更新：2026-10-20。适用于整个仓库，文档和代码注释默认中文。功能状态以 [产品需求](docs/01-product-requirements.md) 为准，不在本文重复清单或追加修复日志。
 
 ## 1. 项目与阅读入口
 
@@ -20,7 +20,7 @@ Termeta 是 Tauri 2 + Rust + Vue 3 + TypeScript 桌面终端客户端，目标 W
 
 ## 3. 架构约束
 
-- `src/layout/` 装配保险箱与外观，App 保留根布局和稳定终端宿主，设置由独立 SettingsWindow 装配；公共基础样式在 `src/assets/base.css`。`src/modules/` 按业务分责，Vue/Pinia 只保存轻量状态，不保存终端输出、文件/备份正文或转发载荷。
+- `src/layout/` 装配保险箱与外观，App 保留根布局和稳定终端宿主，设置由独立 SettingsWindow 装配；公共基础样式在 `src/assets/base.css`。`src/modules/` 按业务分责，Vue/Pinia 只保存轻量状态，不保存终端输出、文件/备份正文或转发载荷。sessions 模块拥有通用控制投影/挑战，Workbench 只管布局/焦点；关闭归档统一走 TerminalRegistry。
 - `src/services/desktop/` 是唯一 Tauri IPC 门面，组件不能直接 invoke；CommandRegistry 统一按钮/菜单/快捷键。KeymapService/TerminalThemeService 是设计职责名，不假定有同名类。
 - 壳的 `commands/` 负责 DTO、窗口/资源所有权、Channel 和编排，`files/` 负责文件服务，协议核心留在 crate。九个领域 crate 为 core、ssh、telnet、local、serial、storage、security、files、sftp；core 不依赖 Tauri/Vue/具体协议库。security 当前直接依赖 storage，云 provider 位于壳的 backup 模块。
 - 每会话 actor、有界字节队列和独立取消；输出二进制 Channel、控制类型化 Channel，消费后 ACK。全局锁不跨网络/数据库/Channel 等待，ACK 不得阻塞关闭、KeepAlive 或信任响应。凭据、信任、网络与设备由 Rust 管理。

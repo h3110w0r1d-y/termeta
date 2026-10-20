@@ -4,11 +4,7 @@ import { SearchAddon } from "@xterm/addon-search";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { t } from "@/i18n";
 import { desktop, errorMessage } from "@/services/desktop/client";
-import {
-  commands,
-  isMac,
-  modifierMatches,
-} from "@/services/commands/registry";
+import { commands, isMac, modifierMatches } from "@/services/commands/registry";
 import type { SessionLogDraft } from "@/services/desktop/types";
 import { useHosts } from "@/modules/hosts/store";
 import { useSettings } from "@/modules/settings/store";
@@ -168,7 +164,6 @@ export function createTerminalEntry(
     search,
     host,
     observer: new ResizeObserver(() => fit(entry, terminal)),
-    connecting: false,
     log: connectionLog(terminal),
     disposed: false,
     lastSize: "",

@@ -7,7 +7,7 @@ mod forwarding;
 mod host_key;
 mod os_detection;
 mod socks;
-pub use channels::SshChannels;
+pub use channels::{EndpointIdentity, SshChannels};
 
 use async_trait::async_trait;
 use std::sync::Arc;
@@ -123,7 +123,8 @@ impl SessionFactory for SshFactory {
         }
         let snapshot = context.events.snapshot();
         let (requests, _registration) =
-            self.channels.register(&snapshot.session_id, &context.owner);
+            self.channels
+                .register(&snapshot.session_id, &context.owner, &config);
         let channels = channels::serve(&connection, requests);
         tokio::pin!(channels);
         if self.files_only {

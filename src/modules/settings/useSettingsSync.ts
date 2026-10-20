@@ -7,6 +7,8 @@ export function useSettingsSync() {
   const store = useSettings();
   const error = ref("");
   let stop: (() => void) | undefined;
+  let subscribing: Promise<void> | undefined;
+  let starting: Promise<void> | undefined;
   let disposed = false;
   let pending = Promise.resolve();
   function reload() {
@@ -23,16 +25,28 @@ export function useSettingsSync() {
       });
     return pending;
   }
-  async function start() {
-    const unlisten = await desktop.onSettingsChanged(() => {
-      void reload().catch(() => {});
+  function start(): Promise<void> {
+    if (disposed) return Promise.resolve();
+    // 窗口订阅只建立一次；解锁初始化失败时只重试读取，不叠加监听。
+    starting ??= (async () => {
+      subscribing ??= desktop
+        .onSettingsChanged(() => {
+          void reload().catch(() => {});
+        })
+        .then((unlisten) => {
+          if (disposed) unlisten();
+          else stop = unlisten;
+        })
+        .catch((cause: unknown) => {
+          subscribing = undefined;
+          throw cause;
+        });
+      await subscribing;
+      if (!disposed) await reload();
+    })().finally(() => {
+      starting = undefined;
     });
-    if (disposed) {
-      unlisten();
-      return;
-    }
-    stop = unlisten;
-    await reload();
+    return starting;
   }
   onBeforeUnmount(() => {
     disposed = true;

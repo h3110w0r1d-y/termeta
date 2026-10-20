@@ -12,6 +12,10 @@ Node 用例要求 Node 22.18+；纯逻辑用例直接导入 TypeScript，保险�
 | [terminal-activity.test.mjs](terminal-activity.test.mjs) | 关闭提醒和连接代次隔离 |
 | [host-search.test.mjs](host-search.test.mjs) | 拼音/字段搜索 |
 | [file-entries.test.mjs](file-entries.test.mjs) | 排序、过滤、分页与链接展示 |
+| [state-races.test.mjs](state-races.test.mjs) | 主机旧读与成功写入交错、设置订阅单飞/失败重试/卸载 |
+| [session-control.test.mjs](session-control.test.mjs) | 控制信封、早于响应的事件、旧流与迟到挑战隔离 |
+| [terminal-lifecycle.test.mjs](terminal-lifecycle.test.mjs) | 统一关闭、重复调用、归档失败重试和共享并发预算 |
+| [terminal-stream.test.mjs](terminal-stream.test.mjs) | 终态先于尾帧时等待解析、缺帧超时与重试 |
 | [vault-gate.test.mjs](vault-gate.test.mjs) | 启动门禁、并发状态、账号切换与失败重试 |
 
 授权后的入口：
@@ -22,7 +26,7 @@ node --test tests/*.test.mjs
 
 ## Rust 回归源码
 
-用例就近维护在各 crate 和壳模块中，具体断言以源码为准：core 覆盖会话/流控/取消；协议 crate 覆盖参数、编码、协商及转发；storage 覆盖持久化/事务/迁移/同步合并；security 覆盖主密钥/包认证/重加密恢复；壳覆盖 DTO、权限和设置契约。
+用例就近维护在各 crate 和壳模块中，具体断言以源码为准：core 覆盖会话/流控/取消；协议 crate 覆盖参数、编码、协商及转发；storage 覆盖持久化/事务/迁移/同步合并；security 覆盖主密钥/包认证/重加密恢复；壳覆盖 DTO、权限和设置契约，以及模式租约/预览代次/独立恢复提交、同步门禁故障分类。Local 新增有界输入桥背压，SSH 新增端点身份，core 新增附属资源幂等撤销与锁外回调，storage 新增公共凭据原子失败/历史 pending 清理回归源码；本轮均未编译或执行。
 
 ## 证据与静态检查
 

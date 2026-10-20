@@ -56,12 +56,8 @@ export function useMainWindowLifecycle(options: {
       options.beforeSave();
       savingLogs.value = true;
       // 任一日志提交失败都保留对应视图，并阻止窗口或应用退出。
-      const results = await Promise.allSettled(
-        workbench.terminals.map(async (terminal) => {
-          await terminalRegistry.dispose(terminal.terminalId);
-          workbench.dismiss(terminal.sessionId ?? "");
-          workbench.remove(terminal.terminalId);
-        }),
+      const results = await terminalRegistry.closeMany(
+        workbench.terminals.map((terminal) => terminal.terminalId),
       );
       const failure = results.find((result) => result.status === "rejected");
       if (failure?.status === "rejected") throw failure.reason;

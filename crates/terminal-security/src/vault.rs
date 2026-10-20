@@ -54,9 +54,10 @@ impl CredentialVault {
             return Err(SecurityError::NotReady);
         }
         let _guard = self.operations.lock().await;
-        let id = self.store.begin_credential("password", label).await?;
-        self.persist(&id, secret).await?;
-        Ok(id)
+        Ok(self
+            .store
+            .save_public_credential("password", label, &secret)
+            .await?)
     }
     pub async fn save_private_key(
         &self,
@@ -89,13 +90,10 @@ impl CredentialVault {
         let payload = Zeroizing::new(
             String::from_utf8(std::mem::take(&mut *bytes)).map_err(|_| SecurityError::KeyFile)?,
         );
-        let id = self.store.begin_credential("privateKey", label).await?;
-        self.persist(&id, payload).await?;
-        Ok(id)
-    }
-    async fn persist(&self, id: &str, secret: Zeroizing<String>) -> Result<(), SecurityError> {
-        self.store.set_credential_secret(id, &secret).await?;
-        Ok(())
+        Ok(self
+            .store
+            .save_public_credential("privateKey", label, &payload)
+            .await?)
     }
     pub async fn save_host(
         &self,
@@ -138,12 +136,12 @@ impl CredentialVault {
             .store
             .begin_host_password(&profile_id, &host.name)
             .await?;
-        if let Err(error) = self.persist(&id, password).await {
+        if let Err(error) = self.store.set_credential_secret(&id, &password).await {
             // 未绑定的新项无法供任何会话使用，清理失败仍保留 deleting 状态。
             if self.store.begin_delete_credential(&id).await.is_ok() {
                 let _ = self.reconcile_locked().await;
             }
-            return Err(error);
+            return Err(error.into());
         }
         // 先写新项，再事务替换引用；失败时不改动旧项，孤立新项由删除协调回收。
         let result = self
@@ -198,7 +196,7 @@ impl CredentialVault {
         self.reconcile_locked().await
     }
     async fn reconcile_locked(&self) -> Result<(), SecurityError> {
-        self.store.mark_orphaned_host_credentials_deleting().await?;
+        self.store.mark_orphaned_credentials_deleting().await?;
         let mut first_error = None;
         for item in self.store.list_all_credentials().await? {
             if item.status != "deleting" {

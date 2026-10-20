@@ -76,9 +76,14 @@ pub fn run() {
             let factory =
                 SshFactory::new(store.clone(), vault.clone()).with_system_detection(store.clone());
             let ssh_channels = factory.channels();
-            let file_sessions = SessionManager::new(Arc::new(factory.for_files()));
-            let forward_sessions = SessionManager::new(Arc::new(factory.for_forwarding()));
+            let sftp = state::SftpBrowsers::default();
+            let resource_cleanup = state::sftp_resource_cleanup(sftp.clone());
+            let file_sessions = SessionManager::new(Arc::new(factory.for_files()))
+                .with_resource_cleanup(resource_cleanup.clone());
+            let forward_sessions = SessionManager::new(Arc::new(factory.for_forwarding()))
+                .with_resource_cleanup(resource_cleanup.clone());
             let sessions = SessionManager::new(Arc::new(factory))
+                .with_resource_cleanup(resource_cleanup)
                 .with_factory(Arc::new(terminal_local::LocalFactory))
                 .with_factory(Arc::new(terminal_serial::SerialFactory))
                 .with_factory(Arc::new(terminal_telnet::TelnetFactory));
@@ -92,7 +97,7 @@ pub fn run() {
                 file_sessions,
                 forward_sessions,
                 ssh_channels,
-                sftp: Mutex::new(std::collections::HashMap::new()),
+                sftp,
                 transfers: Arc::new(tokio::sync::Semaphore::new(4)),
                 store,
                 vault,
@@ -124,16 +129,7 @@ pub fn run() {
                             }
                         });
                     }
-                    state.sftp.lock().unwrap().retain(|id, browser| {
-                        let alive = state
-                            .session_manager("main", id)
-                            .and_then(|manager| manager.get("main", id))
-                            .is_ok_and(|s| s.state == terminal_core::SessionState::Connected);
-                        if !alive {
-                            browser.cancel();
-                        }
-                        alive
-                    });
+                    state.cleanup_sftp();
                 }
             });
             // macOS 使用 overlay traffic lights；无边框平台由标签栏承载窗口控件。
@@ -167,9 +163,6 @@ pub fn run() {
                         let _ = window.run_on_main_thread(macos_menu::remove_listeners);
                         if let Some(settings) = window.app_handle().get_webview_window("settings") {
                             let _ = settings.destroy();
-                        }
-                        for browser in state.sftp.lock().unwrap().values() {
-                            browser.cancel();
                         }
                     }
                 }
@@ -223,6 +216,7 @@ pub fn run() {
             commands::unlock_vault,
             commands::change_vault_password,
             commands::list_hosts,
+            commands::list_host_inventory,
             commands::save_host,
             commands::save_workspace,
             commands::delete_host,

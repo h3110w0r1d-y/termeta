@@ -77,6 +77,10 @@ export interface HostGroup {
   sortOrder: number;
   revision: number;
 }
+export interface HostInventory {
+  hosts: HostProfile[];
+  groups: HostGroup[];
+}
 export interface SerialConfig {
   path: string;
   baudRate: number;
@@ -144,47 +148,53 @@ export interface ForwardDraft {
   profileId: string;
   rule: ForwardRule;
 }
-export interface HostKeyChallenge {
-  type: "hostKeyChallenge";
+// 控制事件的信封与 Rust 保持一致，不能用可选序号掩盖契约偏差。
+export interface SessionEnvelope {
+  protocolVersion: 1;
+  requestId: string;
   sessionId: string;
+  eventSeq: number;
+}
+export interface SessionError {
+  code: string;
+  phase: string;
+  retryable: boolean;
+  message: string;
+  details?: string;
+}
+export interface HostKeyChallenge extends SessionEnvelope {
+  type: "hostKeyChallenge";
   challengeId: string;
   endpoint: { host: string; canonicalHost: string; port: number };
   algorithm: string;
   fingerprint: string;
-  expiresAt?: number;
+  expiresAt: number;
 }
-export interface AuthChallenge {
+export interface AuthChallenge extends SessionEnvelope {
   type: "authChallenge";
-  sessionId: string;
   challengeId: string;
   name: string;
   instructions: string;
   prompts: { text: string; echo: boolean }[];
-  expiresAt?: number;
+  expiresAt: number;
 }
-export type SessionEvent =
-  | { type: "hostSystemChanged"; sessionId: string; profileId: string }
-  | HostKeyChallenge
-  | AuthChallenge
-  | { type: "stateChanged"; sessionId: string; snapshot: SessionSnapshot }
-  | {
-      type: "notice";
-      sessionId: string;
-      code: string;
-      messageKey: string;
-      details?: string;
-    }
-  | {
-      type: "ended";
-      sessionId: string;
-      finalState: SessionState;
-      reason: string;
-      finalOffset: string;
-      outputComplete: boolean;
-      exitCode?: number | null;
-      exitSignal?: string | null;
-      error?: { message?: string; code?: string; details?: string };
-    };
+export type SessionEvent = SessionEnvelope &
+  (
+    | { type: "hostSystemChanged"; profileId: string }
+    | HostKeyChallenge
+    | AuthChallenge
+    | { type: "stateChanged"; snapshot: SessionSnapshot }
+    | {
+        type: "ended";
+        finalState: SessionState;
+        reason: string;
+        finalOffset: string;
+        outputComplete: boolean;
+        exitCode: number | null;
+        exitSignal: string | null;
+        error: SessionError | null;
+      }
+  );
 export interface KnownHost {
   id: string;
   canonicalHost: string;

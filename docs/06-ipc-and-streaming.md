@@ -27,7 +27,7 @@
 | `respond_host_key`、`respond_auth_challenge`、`cancel_auth_challenge` | 响应当前会话的有效 challenge；认证仅接受 savePolicy=never |
 | `close_session`、快照查询与心跳 | 幂等关闭、状态读取及当前 owner 会话集合对账 |
 
-控制 Channel 使用类型化 SessionEvent，信封包含 protocolVersion、requestId、sessionId、eventSeq。事件包括 stateChanged、hostKeyChallenge、authChallenge、hostSystemChanged、notice 和 ended；stateRevision 防止迟到快照覆盖新状态。SessionSnapshot.sshCommand 表示本次实际命令模式，不返回命令正文，前端据此隔离广播和显示关闭提醒。
+控制 Channel 使用 Rust/TS 一致的 SessionEvent 判别联合；每个事件必含 protocolVersion、requestId、sessionId、eventSeq 信封。事件包括 stateChanged、hostKeyChallenge、authChallenge、hostSystemChanged 和 ended；ended 的退出码、信号及错误使用显式 nullable 字段。前端公共控制投影校验版本、请求与会话身份、递增事件序号，stateRevision 防止迟到快照覆盖新状态。调用方先登记 requestId 再打开，首个匹配事件可以绑定 sessionId；响应必须与该绑定一致，已收到 ended 时拒绝迟到初始快照。SessionSnapshot.sshCommand 表示本次实际命令模式，不返回命令正文，前端据此隔离广播和显示关闭提醒。
 
 输出使用原始二进制 Channel（Rust `Channel<Response>` / JS `ArrayBuffer`），不走全局事件或 Base64。两个 Channel 各自有序，但没有跨 Channel 全局顺序。ended 可能先于最后数据帧到达，不能收到终态就丢弃输出 handler 或销毁终端。
 
@@ -85,8 +85,10 @@ forwarder 停止后冻结 finalOffset，并在 ended 中返回 outputComplete、
 
 隐藏终端继续解析/ACK。重连复用原 terminalId 和 xterm，先结束旧流并等待有界解析栅栏，再绑定新的 sessionId；旧输出、状态、输入及 ACK 不得混入新流。当前不支持热重载后重新 attach 原 stream。生命周期详见 [会话模型](04-session-model.md)。
 
+前端分别等待在途连接、ended 完成信号与 xterm 解析进度，终态信号不等于尾帧已解析。普通关闭和窗口退出共用 Registry 关闭入口及最多两个归档任务的预算，日志提交前保留实例；超时或提交失败可重试。Rust 在驱动结束或关闭请求时独立撤销附属文件资源，不等待输出排空或前端补偿。
+
 ## 7. 非终端接口
 
-主机/分组/工作区写入使用 revision 事务；秘密仅作为受控写入参数，不随读取 DTO 返回。设置采用局部合并、完整快照返回及无秘密失效通知，快捷键仅接受当前 keymap 版本 2。Snippets 使用带 revision 的管理命令；会话日志保存仅用于视图关闭时的 xterm 带样式缓冲快照（版本封装保存在 content，兼容旧纯文本），列表只返回摘要，回看按 ID 读取正文，均要求已解锁本地 main。应用退出由 Rust 拦截并通知 main，main 等待归档后通过专用完成命令放行，锁定页仅可完成退出握手，不开放日志数据权限。文件使用独立命令和进度 Channel，正文不进入 IPC；转发只发送控制状态。
+主机/分组/工作区写入使用 revision 事务；`list_host_inventory` 一次返回同事务读取的 hosts/groups，主机标签与认证摘要也属于该快照，避免拼接不同时间的关联。秘密仅作为受控写入参数，不随读取 DTO 返回。设置采用局部合并、完整快照返回及无秘密失效通知，快捷键仅接受当前 keymap 版本 2。Snippets 使用带 revision 的管理命令；会话日志保存仅用于视图关闭时的 xterm 带样式缓冲快照（版本封装保存在 content，兼容旧纯文本），列表只返回摘要，回看按 ID 读取正文，均要求已解锁本地 main。应用退出由 Rust 拦截并通知 main，main 等待归档后通过专用完成命令放行，锁定页仅可完成退出握手，不开放日志数据权限。文件使用独立命令和进度 Channel，正文不进入 IPC；转发只发送控制状态。
 
 模块接口边界分别见 [存储](07-storage.md)、[桌面交互](09-desktop-ux.md)、[快捷键](14-shortcuts.md)、[SFTP](16-sftp-workspace.md)、[工作区存档](18-terminal-workspaces.md)、[转发](21-port-forwarding.md)、[备份](22-data-backup.md) 和 [Snippets/日志](23-snippets-and-session-logs.md)。不要在本文重复维护全部字段或组件调用流程。

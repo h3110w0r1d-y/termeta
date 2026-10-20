@@ -5,9 +5,7 @@ use tauri::{State, WebviewWindow, ipc::Channel};
 use tauri_plugin_dialog::{
     DialogExt, MessageDialogButtons, MessageDialogKind, MessageDialogResult,
 };
-use terminal_core::{
-    CancellationToken, Result, SessionEvent, SessionSink, SessionSnapshot, TerminalSize,
-};
+use terminal_core::{Result, SessionEvent, SessionSink, SessionSnapshot, TerminalSize};
 use terminal_files::{TransferProgress, child_path, file_error};
 
 struct FileSink(Channel<SessionEvent>);
@@ -113,8 +111,8 @@ pub async fn sftp_copy(
         return Err(file_error("对拷需要两个独立连接，每批最多100个条目"));
     }
     // 此入口只允许双栏自己持有的独立连接，不借用终端浏览器和分页游标。
-    let source_session = state.file_sessions.get(&owner, &source_session_id)?;
-    let target_session = state.file_sessions.get(&owner, &target_session_id)?;
+    state.file_sessions.get(&owner, &source_session_id)?;
+    state.file_sessions.get(&owner, &target_session_id)?;
     let source = browser(&state, &owner, &source_session_id).await?;
     let target = browser(&state, &owner, &target_session_id).await?;
     // try_lock不等待另一端，因此反向请求不会形成循环等待。
@@ -131,14 +129,14 @@ pub async fn sftp_copy(
         .clone()
         .try_acquire_owned()
         .map_err(|_| file_error("传输队列已满"))?;
-    let cancel = CancellationToken::new();
+    let cancel = source.transfer_cancellation();
     for browser in [&source, &target] {
-        *browser.transfer.lock().unwrap() = Some((transfer_id.clone(), cancel.clone()));
+        browser.register_transfer(&transfer_id, cancel.clone());
     }
     let _guard = CopyGuard(vec![source.clone(), target.clone()]);
     let operation = async {
-        // 比较同一已知主机上的真实目录，拒绝复制到自身或目录子树，避免截断源文件。
-        if source_session.title == target_session.title {
+        // 仅同一文件端点比较真实目录；标题省略端口，共享主机密钥也不能证明同一命名空间。
+        if source.identity() == target.identity() {
             let from = source.canonical_path(&source_path).await?;
             let to = target.canonical_path(&target_path).await?;
             for name in &names {

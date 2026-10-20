@@ -2,7 +2,6 @@ import { terminalBaseTitle } from "../terminal/title";
 import { t } from "@/i18n";
 import { nextTick } from "vue";
 import { confirmAction } from "@/components/ui/confirmation";
-import { errorMessage } from "@/services/desktop/client";
 import { useSettings } from "../settings/store";
 import { needsCloseConfirmation } from "../terminal/activity";
 import { terminalRegistry } from "../terminal/registry";
@@ -12,13 +11,19 @@ import { useWorkbenchStore } from "./store";
 export function useTerminalClose() {
   const workbench = useWorkbenchStore();
   const settings = useSettings();
+  const pending = new Set<string>();
   async function closeTerminals(ids: string[], title: string) {
-    if (ids.some((id) => workbench.closingTerminalIds.includes(id))) return;
+    if (
+      ids.some(
+        (id) => pending.has(id) || workbench.closingTerminalIds.includes(id),
+      )
+    )
+      return;
     const terminals = workbench.terminals.filter((terminal) =>
       ids.includes(terminal.terminalId),
     );
     if (!terminals.length) return;
-    workbench.closingTerminalIds.push(...ids);
+    ids.forEach((id) => pending.add(id));
     const restoreTabFocus = !!document.activeElement?.closest(
       "[data-app-tab], .app-tab-close",
     );
@@ -43,16 +48,8 @@ export function useTerminalClose() {
       )
         return;
       // 每个终端成功释放后才从布局删除，失败的窗格与历史保留以便重试。
-      await Promise.all(
-        terminals.map(async (terminal) => {
-          try {
-            await terminalRegistry.dispose(terminal.terminalId);
-            workbench.dismiss(terminal.sessionId ?? "");
-            workbench.remove(terminal.terminalId);
-          } catch (error) {
-            terminal.error = errorMessage(error);
-          }
-        }),
+      await terminalRegistry.closeMany(
+        terminals.map((terminal) => terminal.terminalId),
       );
       await nextTick();
       if (restoreTabFocus)
@@ -62,9 +59,7 @@ export function useTerminalClose() {
       else if (workbench.activeTerminal)
         terminalRegistry.focus(workbench.activeTerminal.terminalId);
     } finally {
-      workbench.closingTerminalIds = workbench.closingTerminalIds.filter(
-        (id) => !ids.includes(id),
-      );
+      ids.forEach((id) => pending.delete(id));
     }
   }
   function closeTab(id: string) {

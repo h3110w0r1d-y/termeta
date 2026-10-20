@@ -34,6 +34,8 @@ pub trait SessionSink: Send + Sync {
     fn output(&self, frame: Vec<u8>) -> Result<()>;
     fn event(&self, event: SessionEvent) -> Result<()>;
 }
+/// 只撤销会话附属资源，不承载输出、协议对象或异步等待；由桌面壳注入具体清理。
+pub type SessionResourceCleanup = dyn Fn(&str, &str) + Send + Sync;
 #[async_trait]
 pub trait SessionFactory: Send + Sync {
     fn kind(&self) -> &'static str;

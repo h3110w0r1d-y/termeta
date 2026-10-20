@@ -1,6 +1,6 @@
 # 统一会话模型与生命周期
 
-更新：2026-10-18。本文维护协议无关的身份、状态与资源契约。功能及验收状态见 [产品需求](01-product-requirements.md#8-当前实现与限制)，字节流协议见 [IPC](06-ipc-and-streaming.md)。
+更新：2026-10-20。本文维护协议无关的身份、状态与资源契约。功能及验收状态见 [产品需求](01-product-requirements.md#8-当前实现与限制)，字节流协议见 [IPC](06-ipc-and-streaming.md)。
 
 ## 1. 身份与所有权
 
@@ -14,6 +14,8 @@
 | Owner | Tauri 注入的窗口身份；不采信前端提供的身份字符串 |
 
 当前没有公开 ConnectionId 或跨功能共享连接租约。终端、独立文件、转发分别使用 `sessions`、`file_sessions`、`forward_sessions`。
+
+前端 [sessions 模块](../src/modules/sessions/store.ts) 统一三种用途的轻量控制投影、挑战队列与心跳登记；工作台仅保留终端展示和布局。投影按协议版本、RequestId、SessionId、事件序号和状态 revision 过滤迟到数据，不持有输出、秘密或协议资源。
 
 ## 2. 状态机
 
@@ -37,11 +39,15 @@ Closed、Failed、Disconnected 都要求释放协议资源，不是保留后台�
 
 ## 4. 打开、关闭与重连
 
-`open_session` 校验 DTO、owner 和配额后返回 Created 快照，连接异步进行。事件可能早于命令返回；调用方预先绑定 Channel，并按 RequestId/SessionId 归并。非法配置等同步错误不创建会话。
+`open_session` 校验 DTO、owner 和配额后返回 Created 快照，连接异步进行。调用方先生成并登记 RequestId、绑定 Channel，再发起打开；首个匹配事件可以绑定 SessionId，命令返回后核对一致性。事件可能先于响应，已接收终态不能被迟到初始快照覆盖。非法配置等同步错误不创建会话。
 
 关闭幂等且立即拒绝新输入、设置取消信号、撤销挑战。`close_session` 返回当前快照不代表清理已结束，应以终态事件或查询为准。适配器负责释放 socket、channel、设备及 worker；输出信用等待不能阻塞关闭。正常结束最多等待 3 秒排空输出，显式取消允许丢弃尾部；先汇合 forwarder 冻结偏移，再发布终态，详见 [IPC](06-ipc-and-streaming.md)。
 
+附属资源使用独立取消令牌与窄撤销回调：驱动返回或请求关闭时幂等撤销，覆盖远端结束、显式关闭、心跳对账和 owner 销毁。回调在会话表与记录锁外执行，由壳取消 SFTP 浏览、传输及原生等待；正常结束的附属取消不打断终端尾输出排空，定时扫描只作兜底。
+
 “断开”只关闭连接；“关闭标签/窗格”才额外释放视图。重连使用新的 RequestId、SessionId 和 Channel，保留 TerminalId、xterm 与历史；清空旧输入队列，不重放输入。旧流先完成结束协调，新旧回调按 SessionId 和绑定代次隔离；重复重连须合并为一次操作。
+
+视图关闭由 Registry 的 `closeAndRemove` 合并普通关闭与退出请求，等待在途连接、终态完成信号、输出解析和日志提交；全局归档并发最多两个。任一步失败保留视图及错误供重试，成功才移除布局和销毁 xterm，详见 [工作台](18-terminal-workspaces.md)。
 
 窗口 `Destroyed`、owner 销毁或会话 Channel 发送失败会关闭所属会话；切页和隐藏标签不关闭。前端心跳只提交当前持有的终端、文件和转发会话集合，后端据此对账并关闭当前 owner 多余的会话，不承担前端存活检测。进程崩溃依靠 OS 释放网络资源。
 
@@ -54,7 +60,7 @@ Closed、Failed、Disconnected 都要求释放协议资源，不是保留后台�
 | [Serial](19-serial-terminal.md) | 流式转码为 UTF-8 | 否 / 否 | 设备独占；无会话内控制线命令或原始 HEX 通道 |
 | [Telnet](20-telnet-terminal.md) | 剥离 IAC、处理 NVT/BINARY 后的字节 | NAWS / 否 | 明文终端登录；NAWS 须服务端接受 |
 
-Local 使用阻塞读写线程和有界桥，输出排空后发布终态；取消清理子进程，晚到的 PTY 创建结果也由 RAII 回收。Unix 结束初始进程组；脱离进程组的子进程及 Windows 完整进程树仍待完善。实现见 [terminal-local](../crates/terminal-local/src/lib.rs)。
+Local 使用阻塞读写线程和有界桥，独立输入泵等待写线程容量时继续驱动输出、退出、resize 和取消，输出排空后发布终态。取消清理子进程，晚到的 PTY 创建结果也由 RAII 回收。Unix 结束初始进程组；脱离进程组的子进程及 Windows 完整进程树仍待完善。实现见 [terminal-local](../crates/terminal-local/src/lib.rs)。
 
 独立文件和转发复用状态、挑战与取消，不申请 PTY/Shell，也不记录终端会话日志；分别见 [SFTP](16-sftp-workspace.md)、[端口转发](21-port-forwarding.md)。
 

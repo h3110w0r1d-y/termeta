@@ -1,4 +1,5 @@
 import { t } from "@/i18n";
+import { errorMessage } from "@/services/desktop/client";
 import { nextTick } from "vue";
 import { sendFinalWheelInput } from "./inputOrigin";
 import { createInputRouter, type InputKind } from "./inputRouter";
@@ -20,6 +21,21 @@ import {
 export { schemeForTerminal } from "./runtime/view";
 
 const entries = new Map<string, Entry>();
+let archiving = 0;
+const archiveWaiters: (() => void)[] = [];
+async function archive(entry: Entry) {
+  // 所有关闭入口共享预算，窗口退出与手动关闭重叠也最多保留两份滚屏快照。
+  if (archiving >= 2)
+    await new Promise<void>((resolve) => archiveWaiters.push(resolve));
+  else archiving++;
+  try {
+    await archiveAndDispose(entry, entry.terminal);
+  } finally {
+    const next = archiveWaiters.shift();
+    if (next) next();
+    else archiving--;
+  }
+}
 function connectedTargets(sourceId: string, kind: InputKind = "keyboard") {
   const workbench = useWorkbenchStore();
   const source = workbench.terminals.find(
@@ -28,8 +44,9 @@ function connectedTargets(sourceId: string, kind: InputKind = "keyboard") {
   const origin = entries.get(sourceId);
   if (
     source?.state !== "connected" ||
-    !origin?.stream?.sessionId ||
-    origin.stream.ended ||
+    !origin?.stream?.control.sessionId ||
+    origin.stream.inputStopped ||
+    origin.stream.control.ended ||
     origin.disposed
   )
     return [];
@@ -43,8 +60,9 @@ function connectedTargets(sourceId: string, kind: InputKind = "keyboard") {
       terminal?.state === "connected" &&
       entry &&
       !entry.disposed &&
-      entry.stream?.sessionId &&
-      !entry.stream.ended &&
+      entry.stream?.control.sessionId &&
+      !entry.stream.inputStopped &&
+      !entry.stream.control.ended &&
       !workbench.closingTerminalIds.includes(id)
     );
   });
@@ -83,19 +101,38 @@ export const terminalRegistry = {
     const entry = entries.get(id);
     if (entry) await disconnect(entry, entry.terminal);
   },
-  async dispose(id: string) {
+  async closeAndRemove(id: string) {
+    const workbench = useWorkbenchStore();
     const entry = entries.get(id);
-    if (!entry) return;
+    if (!entry) {
+      workbench.remove(id);
+      return;
+    }
     if (!entry.closing) {
-      entry.closing = archiveAndDispose(entry, entry.terminal)
+      workbench.closingTerminalIds.push(id);
+      // 先发布关闭事实，再执行异步操作；普通关闭与窗口退出共用这一入口。
+      entry.closing = Promise.resolve()
+        .then(() => archive(entry))
         .then(() => {
           entries.delete(id);
+          workbench.remove(id);
+        })
+        .catch((cause) => {
+          entry.terminal.error = errorMessage(cause);
+          throw cause;
         })
         .finally(() => {
           entry.closing = undefined;
+          workbench.closingTerminalIds = workbench.closingTerminalIds.filter(
+            (value) => value !== id,
+          );
         });
     }
     await entry.closing;
+  },
+  async closeMany(ids: string[]) {
+    // 单项失败仍继续提交其余终端，调用方决定是否放行窗口退出。
+    return Promise.allSettled(ids.map((id) => this.closeAndRemove(id)));
   },
   apply() {
     const workbench = useWorkbenchStore();
@@ -189,7 +226,8 @@ export const terminalRegistry = {
     if (
       e.disposed ||
       e.stream !== sourceStream ||
-      sourceStream?.ended ||
+      sourceStream?.inputStopped ||
+      sourceStream?.control.ended ||
       terminal.state !== "connected" ||
       workbench.activeGroup !== group ||
       workbench.activeTerminal?.terminalId !== id ||
@@ -204,7 +242,8 @@ export const terminalRegistry = {
       if (
         target.entry.disposed ||
         target.entry.stream !== target.stream ||
-        target.stream?.ended ||
+        target.stream?.inputStopped ||
+        target.stream?.control.ended ||
         current?.state !== "connected" ||
         workbench.closingTerminalIds.includes(target.id)
       )

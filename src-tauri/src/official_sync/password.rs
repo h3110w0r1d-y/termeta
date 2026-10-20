@@ -2,7 +2,7 @@
 use super::{
     envelope, network,
     runtime::Status,
-    service::{account, needs_password},
+    service::{account, failed, needs_password},
     sync::synchronize,
 };
 use crate::{
@@ -18,6 +18,7 @@ pub async fn change_password(
     new: Zeroizing<String>,
 ) -> Result<terminal_security::PasswordChangeResult> {
     let _operation = state.official.operation.lock().await;
+    let _mode = crate::account::service::begin_mode_change(state).await?;
     let api = Api::new()?;
     let Some(account) = account(state, &api).await? else {
         return state
@@ -54,7 +55,10 @@ pub async fn change_password(
     .await
     .map_err(|_| failure("SYNC_INTERRUPTED", "密码派生中断"))?
     .map_err(crate::commands::security_error)?;
-    synchronize(state, &api, &account, None).await?;
+    if let Err(error) = synchronize(state, &api, &account, None).await {
+        failed(state, &error, true, state.official.value().cloud_has_data);
+        return Err(error);
+    }
     let revision = state
         .official
         .revision

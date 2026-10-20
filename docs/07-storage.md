@@ -55,9 +55,11 @@ SQLCipher 由锁定的 `libsqlite3-sys 0.30.1` 内嵌 4.5.7 源码与 vendored O
 
 密码、私钥正文及可选解密口令保存在加密的 `credentials.secret`，导入后不依赖原文件。公共列表仅返回公共项元数据。公共引用须类型匹配且 ready，专属凭据须属于对应主机。直接主机密码非空替换、显式空串移除、省略/null 保留；复制主机不复制专属密码。
 
-凭据使用 pending/ready/deleting 状态协调多步写入。秘密与 ready 同次写入，替换时事务绑定新项并登记旧项 deleting；失败保留原引用，提交后清理失败不改变保存成功语义，解锁后回收。被引用公共项不能删除，不扫描旧 OS 凭据。实现见 [凭据协调](../crates/terminal-security/src/vault.rs)、[凭据存储](../crates/terminal-storage/src/credentials.rs)。
+公共密码与导入私钥使用单条 INSERT 原子提交元数据、秘密及 ready 状态，失败不留下 pending 占位项。主机专属密码替换仍用 pending/ready/deleting 协调：先准备新项，再事务绑定新项并登记旧项 deleting；失败保留原引用，提交后清理失败不改变保存成功语义。解锁协调在专用操作锁内回收无认证引用的主机孤立项及历史公共 pending 项，保留可用公共 ready 项和仍被引用的记录。被引用公共项不能删除，不扫描旧 OS 凭据。实现见 [凭据协调](../crates/terminal-security/src/vault.rs)、[凭据存储](../crates/terminal-storage/src/credentials.rs)。
 
 分组迁移防环并校验 revision。默认删除将直属主机/子组上移；连同内容删除在单事务中递归删除子树并登记专属凭据清理。公共凭据、信任及已有会话快照保留；删除主机使历史/转发外键置空，工作区 JSON 引用保留为失效。
+
+主机清单在同一读事务取得主机、标签、认证摘要与分组，前端不得拼接两个独立时点的主机/分组读取。成功写入使更早的前端读取失效，防止迟到快照覆盖已提交结果；请求代次只隔离 UI 旧读，数据库写入仍依赖 revision 和事务校验。
 
 SSH `config_json.startup` 使用共享 `SshStartup` 类型：Shell 或 PTY exec。缺失按 Shell，null/未知类型/无效命令拒绝，非 SSH 不接受 exec。该字段不改变 schema；工作区下次打开读取最新主机配置，不更新活动会话。启动行为见 [SSH](05-ssh-design.md)。
 

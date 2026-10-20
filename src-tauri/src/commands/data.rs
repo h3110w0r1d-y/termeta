@@ -4,6 +4,19 @@ use terminal_core::{Result, SessionError};
 use terminal_storage::{CredentialRecord, GroupDraft, HostDraft, HostGroup, HostProfile};
 
 #[tauri::command]
+pub async fn list_host_inventory(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+) -> Result<terminal_storage::HostInventory> {
+    owner(&window)?;
+    state
+        .store
+        .list_host_inventory()
+        .await
+        .map_err(storage_error)
+}
+
+#[tauri::command]
 pub async fn list_hosts(
     window: WebviewWindow,
     state: State<'_, AppState>,

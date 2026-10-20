@@ -106,8 +106,8 @@ async fn transfer_paths(
         .clone()
         .try_acquire_owned()
         .map_err(|_| file_error("传输队列已满，请稍后重试"))?;
-    let cancel = terminal_core::CancellationToken::new();
-    *browser.transfer.lock().unwrap() = Some((transfer_id, cancel.clone()));
+    let cancel = browser.transfer_cancellation();
+    browser.register_transfer(&transfer_id, cancel.clone());
     let _transfer = TransferGuard(browser.clone());
     if on_progress
         .send(TransferProgress {
@@ -211,8 +211,8 @@ pub async fn sftp_transfer(
         .map_err(|_| file_error("传输队列已满，请稍后重试"))?;
     let name = name.ok_or_else(|| file_error("请选择下载文件"))?;
     let destination = child_path(&directory, &name)?;
-    let cancel = terminal_core::CancellationToken::new();
-    *browser.transfer.lock().unwrap() = Some((transfer_id, cancel.clone()));
+    let cancel = browser.transfer_cancellation();
+    browser.register_transfer(&transfer_id, cancel.clone());
     let _transfer = TransferGuard(browser.clone());
     let (tx, rx) = tokio::sync::oneshot::channel();
     window

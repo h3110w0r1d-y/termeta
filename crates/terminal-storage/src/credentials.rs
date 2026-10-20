@@ -13,6 +13,24 @@ fn credential_from_row(row: sqlx::sqlite::SqliteRow) -> Result<CredentialRecord>
 }
 
 impl SqliteStore {
+    /// 公共凭据的元数据、秘密和就绪状态在同一条 SQL 中提交，不留下两阶段占位项。
+    pub async fn save_public_credential(
+        &self,
+        kind: &str,
+        label: &str,
+        secret: &str,
+    ) -> Result<String> {
+        if !matches!(kind, "password" | "privateKey") || secret.is_empty() {
+            return Err(StorageError::Validation("凭据类型或秘密无效"));
+        }
+        validate_name(label)?;
+        let id = Uuid::new_v4().to_string();
+        sqlx::query("INSERT INTO credentials(id,kind,label,owner_profile_id,secret,status,created_at,updated_at) VALUES(?,?,?,NULL,?,'ready',?,?)")
+            .bind(&id).bind(kind).bind(label.trim()).bind(secret).bind(now()).bind(now())
+            .execute(&*self.pool().await?).await?;
+        Ok(id)
+    }
+
     /// 公共列表不暴露主机专属密码的元数据与定位符。
     pub async fn list_credentials(&self) -> Result<Vec<CredentialRecord>> {
         sqlx::query("SELECT id,owner_profile_id,kind,label,status FROM credentials WHERE owner_profile_id IS NULL ORDER BY created_at")
@@ -38,7 +56,9 @@ impl SqliteStore {
                 .ok_or(StorageError::NotFound)?;
         credential_from_row(row)
     }
-    pub async fn begin_credential(&self, kind: &str, label: &str) -> Result<String> {
+    // 仅用于构造旧版中断状态的回归样例；生产公共写入必须直接原子提交。
+    #[cfg(test)]
+    pub(crate) async fn begin_credential(&self, kind: &str, label: &str) -> Result<String> {
         self.begin_scoped_credential(kind, label, None).await
     }
     pub async fn begin_host_password(&self, profile_id: &str, label: &str) -> Result<String> {
@@ -85,9 +105,9 @@ impl SqliteStore {
         tx.commit().await?;
         Ok(())
     }
-    /// 必须由凭据协调器持有专用操作锁后调用，避免清理正在准备的主机密码。
-    pub async fn mark_orphaned_host_credentials_deleting(&self) -> Result<()> {
-        sqlx::query("UPDATE credentials SET status='deleting',updated_at=? WHERE owner_profile_id IS NOT NULL AND status IN ('pending','ready') AND NOT EXISTS(SELECT 1 FROM profile_auth_steps a WHERE a.credential_id=credentials.id)")
+    /// 操作锁排除在途写入；历史公共 pending 与主机孤立项只在没有引用时回收。
+    pub async fn mark_orphaned_credentials_deleting(&self) -> Result<()> {
+        sqlx::query("UPDATE credentials SET status='deleting',updated_at=? WHERE ((owner_profile_id IS NOT NULL AND status IN ('pending','ready')) OR (owner_profile_id IS NULL AND status='pending')) AND NOT EXISTS(SELECT 1 FROM profile_auth_steps a WHERE a.credential_id=credentials.id)")
             .bind(now()).execute(&*self.pool().await?).await?;
         Ok(())
     }

@@ -3,7 +3,7 @@ use super::{
     dto::*,
     failure,
     network::{Api, authorization_url},
-    runtime::{Flow, Stamp, authorization_deadline},
+    runtime::{Flow, ModeChange, Stamp, authorization_deadline},
     storage::{self, SavedAccount},
 };
 use crate::state::AppState;
@@ -25,6 +25,14 @@ async fn revoke(api: &Api, token: &str) -> Result<()> {
         .await
         .map(|_| ())
 }
+
+/// 调用方持有官方操作锁；排空离线任务后清除前一模式凭证，再触及账号/密钥提交锁。
+pub async fn begin_mode_change(state: &AppState) -> Result<ModeChange> {
+    let change = state.account.begin_mode_change().await?;
+    state.backup.clear_mode();
+    Ok(change)
+}
+
 async fn install(
     state: &AppState,
     api: &Api,
@@ -40,6 +48,8 @@ async fn install(
         }
     };
     let result = async {
+        let _sync = state.official.operation.lock().await;
+        let _mode = begin_mode_change(state).await?;
         let _commit = state.account.commit.lock().await;
         check(state, stamp)?;
         if flow_id.is_some_and(|(owner, id)| !state.account.contains(owner, id)) {
@@ -89,6 +99,7 @@ pub async fn refresh(state: &AppState, owner: &str) -> Result<AccountStatus> {
     let Some(mut account) = storage::load(state, &api.origin).await? else {
         return Ok(AccountStatus::default());
     };
+    let _mode = begin_mode_change(state).await?;
     let user = api
         .request::<AccountUser, ()>(
             Method::GET,
@@ -112,14 +123,17 @@ pub async fn refresh(state: &AppState, owner: &str) -> Result<AccountStatus> {
         Err(error) => {
             if error.code == "ACCOUNT_UNAUTHORIZED" {
                 storage::save(state, None).await?;
+                state.account.invalidate();
+                state.official.reset();
             }
             Err(error)
         }
     }
 }
 pub async fn logout_local(state: &AppState) -> Result<Option<SavedAccount>> {
-    // 不等待正在联网的账号操作；代次先失效，持久化清理再短暂串行。
+    // 先让旧授权失效；等待离线任务时不持有它们读取账号所需的提交锁。
     state.account.invalidate();
+    let _mode = begin_mode_change(state).await?;
     let _commit = state.account.commit.lock().await;
     storage::take_for_logout(state).await
 }
