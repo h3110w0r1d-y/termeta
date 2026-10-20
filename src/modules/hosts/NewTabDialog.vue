@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import ConnectionTypeDropdown from "./ConnectionTypeDropdown.vue";
 import { hostEndpoint, hostKindLabel } from "./presentation";
 import { NIcon } from "naive-ui";
@@ -16,9 +16,9 @@ import {
   NText,
   type InputInst,
 } from "naive-ui";
-import AppDialog from "../../components/ui/AppDialog.vue";
+import AppDialog from "@/components/ui/AppDialog.vue";
 import SearchPreferences from "../settings/SearchPreferences.vue";
-import type { HostKind, HostProfile } from "../../services/desktop/types";
+import type { HostKind, HostProfile } from "@/services/desktop/types";
 import { useHosts } from "./store";
 import { groupPath } from "./groups";
 import { useHostSearch } from "./useHostSearch";

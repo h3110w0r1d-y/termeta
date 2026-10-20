@@ -1,8 +1,8 @@
-import { t } from "../../../i18n";
-import { desktop, errorMessage } from "../../../services/desktop/client";
-import { useHosts } from "../../hosts/store";
-import { useWorkbenchStore, type TerminalItem } from "../../workbench/store";
-import { captureTerminalLog } from "../../session-logs/snapshot";
+import { t } from "@/i18n";
+import { desktop, errorMessage } from "@/services/desktop/client";
+import { useHosts } from "@/modules/hosts/store";
+import { useWorkbenchStore, type TerminalItem } from "@/modules/workbench/store";
+import { captureTerminalLog } from "@/modules/session-logs/snapshot";
 import { resetTerminalActivity } from "../activity";
 import { writeLocalStatus } from "../localStatus";
 import type { Entry } from "./entry";

@@ -1,4 +1,4 @@
-import { locale, t } from "../../i18n";
+import { locale, t } from "@/i18n";
 import type { Terminal } from "@xterm/xterm";
 
 /** 在连接边界追加可信本地消息，不恢复旧光标或清空终端历史。 */

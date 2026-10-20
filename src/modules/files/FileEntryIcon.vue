@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import { NIcon } from "naive-ui";
 import {
   IconFile,
@@ -10,7 +10,7 @@ import {
   IconFolderSymlink,
   IconLink,
 } from "@tabler/icons-vue";
-import type { FileEntry } from "../../services/desktop/types";
+import type { FileEntry } from "@/services/desktop/types";
 
 const props = defineProps<{
   kind: FileEntry["kind"];

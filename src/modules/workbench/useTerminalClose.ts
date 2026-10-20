@@ -1,8 +1,8 @@
 import { terminalBaseTitle } from "../terminal/title";
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import { nextTick } from "vue";
-import { confirmAction } from "../../components/ui/confirmation";
-import { errorMessage } from "../../services/desktop/client";
+import { confirmAction } from "@/components/ui/confirmation";
+import { errorMessage } from "@/services/desktop/client";
 import { useSettings } from "../settings/store";
 import { needsCloseConfirmation } from "../terminal/activity";
 import { terminalRegistry } from "../terminal/registry";

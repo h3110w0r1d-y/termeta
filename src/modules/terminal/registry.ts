@@ -1,4 +1,4 @@
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import { nextTick } from "vue";
 import { sendFinalWheelInput } from "./inputOrigin";
 import { createInputRouter, type InputKind } from "./inputRouter";

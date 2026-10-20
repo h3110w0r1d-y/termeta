@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import {
   NFlex,
   NSelect,
@@ -13,20 +13,20 @@ import {
   type FormItemInst,
   type FormRules,
 } from "naive-ui";
-import { clone } from "../../services/data/clone";
+import { clone } from "@/services/data/clone";
 import { computed, ref, watch, reactive, h } from "vue";
-import AppDialog from "../../components/ui/AppDialog.vue";
-import AppSelect from "../../components/ui/AppSelect.vue";
-import AppCheckbox from "../../components/ui/AppCheckbox.vue";
-import AppButton from "../../components/ui/AppButton.vue";
-import AppInput from "../../components/ui/AppInput.vue";
+import AppDialog from "@/components/ui/AppDialog.vue";
+import AppSelect from "@/components/ui/AppSelect.vue";
+import AppCheckbox from "@/components/ui/AppCheckbox.vue";
+import AppButton from "@/components/ui/AppButton.vue";
+import AppInput from "@/components/ui/AppInput.vue";
 import {
   requiredText,
   integerRange,
   validateForm,
-} from "../../services/forms/rules";
-import AppNumberField from "../../components/ui/AppNumberField.vue";
-import { desktop, errorMessage } from "../../services/desktop/client";
+} from "@/services/forms/rules";
+import AppNumberField from "@/components/ui/AppNumberField.vue";
+import { desktop, errorMessage } from "@/services/desktop/client";
 import type {
   AuthStep,
   CredentialMetadata,
@@ -34,7 +34,7 @@ import type {
   HostProfile,
   OpenTarget,
   SshStartup,
-} from "../../services/desktop/types";
+} from "@/services/desktop/types";
 import { useSettings } from "../settings/store";
 import { builtinSchemes } from "../settings/themes";
 import { useHosts } from "./store";

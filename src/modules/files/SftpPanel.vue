@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { t } from "../../i18n";
-import { validateForm } from "../../services/forms/rules";
+import { t } from "@/i18n";
+import { validateForm } from "@/services/forms/rules";
 import {
   computed,
   h,
@@ -26,15 +26,15 @@ import {
   NFormItem,
   type FormInst,
 } from "naive-ui";
-import { desktop, errorMessage } from "../../services/desktop/client";
+import { desktop, errorMessage } from "@/services/desktop/client";
 import type {
   FileEntry,
   SftpLocalDrop,
   SftpDropPosition,
-} from "../../services/desktop/types";
+} from "@/services/desktop/types";
 import { useWorkbenchStore } from "../workbench/store";
 import type { TerminalItem } from "../workbench/store";
-import { confirmAction } from "../../components/ui/confirmation";
+import { confirmAction } from "@/components/ui/confirmation";
 import { directoryRows, entryLabel, isDirectory } from "./fileEntries";
 import { useSftpTransferQueue } from "./useSftpTransferQueue";
 import FileEntryIcon from "./FileEntryIcon.vue";

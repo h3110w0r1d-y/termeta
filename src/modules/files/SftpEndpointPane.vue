@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { t } from "../../i18n";
-import { validateForm } from "../../services/forms/rules";
+import { t } from "@/i18n";
+import { validateForm } from "@/services/forms/rules";
 import { computed, h, ref, watch, reactive } from "vue";
 import {
   NAlert,
@@ -19,8 +19,8 @@ import {
   NFormItem,
   type FormInst,
 } from "naive-ui";
-import { desktop, errorMessage } from "../../services/desktop/client";
-import type { FileEntry } from "../../services/desktop/types";
+import { desktop, errorMessage } from "@/services/desktop/client";
+import type { FileEntry } from "@/services/desktop/types";
 import { useHosts } from "../hosts/store";
 import type { SftpEndpoint, SftpSelection } from "./types";
 import { directoryRows, entryLabel, isDirectory } from "./fileEntries";

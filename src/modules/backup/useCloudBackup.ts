@@ -1,4 +1,4 @@
-import { t, formatDate } from "../../i18n";
+import { t, formatDate } from "@/i18n";
 import {
   computed,
   onBeforeUnmount,
@@ -9,15 +9,15 @@ import {
   type Ref,
 } from "vue";
 import type { FormInst, FormItemInst, FormRules } from "naive-ui";
-import { desktop, errorMessage } from "../../services/desktop/client";
-import { requiredText, validateForm } from "../../services/forms/rules";
+import { desktop, errorMessage } from "@/services/desktop/client";
+import { requiredText, validateForm } from "@/services/forms/rules";
 import type {
   BackupConfigDraft,
   BackupConfigView,
   BackupCounts,
   BackupListEntry,
   BackupRestorePreview,
-} from "../../services/desktop/types";
+} from "@/services/desktop/types";
 
 export interface BackupPanelOptions {
   disabled: boolean;

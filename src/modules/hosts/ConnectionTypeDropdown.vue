@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import { computed, h, onBeforeUnmount, onMounted, watch } from "vue";
 import { NButton, NDropdown, NIcon, type DropdownOption } from "naive-ui";
 import {
@@ -8,7 +8,7 @@ import {
   IconTerminal2,
   IconWorld,
 } from "@tabler/icons-vue";
-import type { HostKind } from "../../services/desktop/types";
+import type { HostKind } from "@/services/desktop/types";
 
 const props = withDefaults(
   defineProps<{ label: string; primary?: boolean; disabled?: boolean }>(),

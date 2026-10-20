@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import { ref } from "vue";
 import {
   NAlert,
@@ -18,7 +18,7 @@ import {
   type FormInst,
   type FormItemInst,
 } from "naive-ui";
-import AppDialog from "../../components/ui/AppDialog.vue";
+import AppDialog from "@/components/ui/AppDialog.vue";
 import { useCloudBackup, type BackupPanelOptions } from "./useCloudBackup";
 
 const props = withDefaults(defineProps<Partial<BackupPanelOptions>>(), {

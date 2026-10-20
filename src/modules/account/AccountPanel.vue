@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { watch } from "vue";
 import { NAlert, NButton, NSpin } from "naive-ui";
-import { formatDate, t } from "../../i18n";
-import { confirmAction } from "../../components/ui/confirmation";
-import { desktop } from "../../services/desktop/client";
+import { formatDate, t } from "@/i18n";
+import { confirmAction } from "@/components/ui/confirmation";
+import { desktop } from "@/services/desktop/client";
 import { useAccount } from "./useAccount";
 import { useOfficialSync } from "./useOfficialSync";
 import BrowserAccountLogin from "./BrowserAccountLogin.vue";

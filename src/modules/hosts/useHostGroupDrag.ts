@@ -1,7 +1,7 @@
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import { onBeforeUnmount, ref, type Ref } from "vue";
-import type { HostProfile } from "../../services/desktop/types";
-import { errorMessage } from "../../services/desktop/client";
+import type { HostProfile } from "@/services/desktop/types";
+import { errorMessage } from "@/services/desktop/client";
 import { descendantIds } from "./groups";
 import { useHosts } from "./store";
 import { createDragPreview } from "./dragPreview";

@@ -1,15 +1,15 @@
-import { t } from "../../../i18n";
-import { errorMessage } from "../../../services/desktop/client";
+import { t } from "@/i18n";
+import { errorMessage } from "@/services/desktop/client";
 import {
   registerSessionPresence,
   unregisterSessionPresence,
-} from "../../../services/desktop/sessionPresence";
+} from "@/services/desktop/sessionPresence";
 import type {
   SessionEvent,
   SessionSnapshot,
-} from "../../../services/desktop/types";
-import { useHosts } from "../../hosts/store";
-import { useWorkbenchStore, type TerminalItem } from "../../workbench/store";
+} from "@/services/desktop/types";
+import { useHosts } from "@/modules/hosts/store";
+import { useWorkbenchStore, type TerminalItem } from "@/modules/workbench/store";
 import { resetTerminalActivity } from "../activity";
 import { writeLocalStatus } from "../localStatus";
 import type { Entry, Stream } from "./entry";

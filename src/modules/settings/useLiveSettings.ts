@@ -1,9 +1,9 @@
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import { ref, watch } from "vue";
 import type { FormInst } from "naive-ui";
-import { clone } from "../../services/data/clone";
-import { errorMessage } from "../../services/desktop/client";
-import { validateBindings } from "../../services/commands/registry";
+import { clone } from "@/services/data/clone";
+import { errorMessage } from "@/services/desktop/client";
+import { validateBindings } from "@/services/commands/registry";
 import { useSettings } from "./store";
 import type { AppSettings } from "./model";
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import { computed, reactive, ref, watch } from "vue";
 import { IconRefresh } from "@tabler/icons-vue";
 import {
@@ -23,16 +23,16 @@ import {
   type FormRules,
   type SelectOption,
 } from "naive-ui";
-import AppDialog from "../../components/ui/AppDialog.vue";
-import { desktop, errorMessage } from "../../services/desktop/client";
+import AppDialog from "@/components/ui/AppDialog.vue";
+import { desktop, errorMessage } from "@/services/desktop/client";
 import type {
   HostDraft,
   HostProfile,
   SerialConfig,
   SerialPortInfo,
-} from "../../services/desktop/types";
-import { requiredText, validateForm } from "../../services/forms/rules";
-import { clone } from "../../services/data/clone";
+} from "@/services/desktop/types";
+import { requiredText, validateForm } from "@/services/forms/rules";
+import { clone } from "@/services/data/clone";
 import { useHosts } from "../hosts/store";
 import { uniqueHostNameRule } from "../hosts/validation";
 import { groupChoices } from "../hosts/groups";

@@ -1,4 +1,4 @@
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 // 在 JSON.parse 前检查重复键和嵌套深度，防止不同解析器对导入配置作出不同解释。
 export function parseJson(text: string): unknown {
   let at = 0;

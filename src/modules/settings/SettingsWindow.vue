@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { naiveLocale, naiveDateLocale, t } from "../../i18n";
+import { naiveLocale, naiveDateLocale, t } from "@/i18n";
 import { onMounted, onBeforeUnmount, ref, watch } from "vue";
 import { NConfigProvider, NGlobalStyle, NAlert } from "naive-ui";
 import SettingsPage from "./SettingsPage.vue";
-import ConfirmationDialog from "../../components/ui/ConfirmationDialog.vue";
-import { useAppAppearance } from "../../layout/useAppAppearance";
+import ConfirmationDialog from "@/components/ui/ConfirmationDialog.vue";
+import { useAppAppearance } from "@/layout/useAppAppearance";
 import { useSettingsSync } from "./useSettingsSync";
-import { desktop, errorMessage } from "../../services/desktop/client";
+import { desktop, errorMessage } from "@/services/desktop/client";
 const { naiveTheme, naiveThemeOverrides } = useAppAppearance();
 const sync = useSettingsSync();
 const ready = ref(false),

@@ -1,19 +1,19 @@
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import { defineStore } from "pinia";
 import { computed, onScopeDispose, reactive, ref, watch } from "vue";
-import { desktop, errorMessage } from "../../services/desktop/client";
+import { desktop, errorMessage } from "@/services/desktop/client";
 import type {
   ForwardDraft,
   ForwardProfile,
   SessionEvent,
   SessionSnapshot,
   SessionState,
-} from "../../services/desktop/types";
+} from "@/services/desktop/types";
 import { useWorkbenchStore } from "../workbench/store";
 import {
   registerSessionPresence,
   unregisterSessionPresence,
-} from "../../services/desktop/sessionPresence";
+} from "@/services/desktop/sessionPresence";
 
 interface Runtime {
   sessionId?: string;

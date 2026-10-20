@@ -1,9 +1,9 @@
-import { clone } from "../../services/data/clone";
+import { clone } from "@/services/data/clone";
 import { defineStore } from "pinia";
-import { normalizeLanguage, setLanguage } from "../../i18n";
+import { normalizeLanguage, setLanguage } from "@/i18n";
 import { ref, watch } from "vue";
-import { desktop } from "../../services/desktop/client";
-import { defaults } from "../../services/commands/registry";
+import { desktop } from "@/services/desktop/client";
+import { defaults } from "@/services/commands/registry";
 import type {
   AppSettings,
   SettingsPatch,

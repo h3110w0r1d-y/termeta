@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import {
   NFlex,
   NForm,
@@ -9,12 +9,12 @@ import {
   type FormRules,
 } from "naive-ui";
 import { computed, reactive, ref, useId, watch } from "vue";
-import AppButton from "../../components/ui/AppButton.vue";
-import AppDialog from "../../components/ui/AppDialog.vue";
-import AppInput from "../../components/ui/AppInput.vue";
-import AppSelect from "../../components/ui/AppSelect.vue";
-import { requiredText, validateForm } from "../../services/forms/rules";
-import { desktop, errorMessage } from "../../services/desktop/client";
+import AppButton from "@/components/ui/AppButton.vue";
+import AppDialog from "@/components/ui/AppDialog.vue";
+import AppInput from "@/components/ui/AppInput.vue";
+import AppSelect from "@/components/ui/AppSelect.vue";
+import { requiredText, validateForm } from "@/services/forms/rules";
+import { desktop, errorMessage } from "@/services/desktop/client";
 
 const props = withDefaults(
   defineProps<{

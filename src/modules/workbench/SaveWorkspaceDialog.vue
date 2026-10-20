@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import { computed, reactive, ref, watch } from "vue";
 import {
   NAlert,
@@ -12,10 +12,10 @@ import {
   type FormInst,
   type FormRules,
 } from "naive-ui";
-import AppDialog from "../../components/ui/AppDialog.vue";
-import { errorMessage } from "../../services/desktop/client";
-import { requiredText, validateForm } from "../../services/forms/rules";
-import type { SavedWorkspace } from "../../services/desktop/types";
+import AppDialog from "@/components/ui/AppDialog.vue";
+import { errorMessage } from "@/services/desktop/client";
+import { requiredText, validateForm } from "@/services/forms/rules";
+import type { SavedWorkspace } from "@/services/desktop/types";
 import { useHosts } from "../hosts/store";
 import { useWorkbenchStore } from "./store";
 const props = defineProps<{ groupId: string }>();

@@ -1,6 +1,6 @@
-import { t } from "../../../i18n";
-import { desktop, errorMessage } from "../../../services/desktop/client";
-import type { TerminalItem } from "../../workbench/store";
+import { t } from "@/i18n";
+import { desktop, errorMessage } from "@/services/desktop/client";
+import type { TerminalItem } from "@/modules/workbench/store";
 import type { Entry, Stream } from "./entry";
 
 export function createStream(): Stream {

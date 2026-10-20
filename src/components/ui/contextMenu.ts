@@ -1,4 +1,4 @@
-import { isMac } from "../../services/commands/registry";
+import { isMac } from "@/services/commands/registry";
 
 export function closeContextMenuOnOutside(
   event: MouseEvent,

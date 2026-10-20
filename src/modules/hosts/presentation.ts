@@ -1,5 +1,5 @@
-import { t } from "../../i18n";
-import type { HostProfile } from "../../services/desktop/types";
+import { t } from "@/i18n";
+import type { HostProfile } from "@/services/desktop/types";
 
 export function hostKindLabel(host: Pick<HostProfile, "kind">): string {
   return host.kind === "workspace"
@@ -20,7 +20,7 @@ export function hostAddress(host: HostProfile): string {
 export function hostEndpoint(host: HostProfile): string {
   if (host.kind === "workspace") {
     const count = (
-      node: import("../../services/desktop/types").SavedLayout,
+      node: import("@/services/desktop/types").SavedLayout,
     ): number =>
       node.kind === "connection" ? 1 : count(node.first) + count(node.second);
     return host.workspace

@@ -1,8 +1,8 @@
-import { t, type PlainMessageKey } from "../../i18n";
+import { t, type PlainMessageKey } from "@/i18n";
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { useHosts } from "../hosts/store";
-import { clone } from "../../services/data/clone";
+import { clone } from "@/services/data/clone";
 import { terminalBaseTitle, terminalDisplayTitle } from "../terminal/title";
 import { moveTabBefore } from "./tabInsertion";
 import { broadcastTargets, type InputKind } from "../terminal/inputRouter";
@@ -26,7 +26,7 @@ import type {
   HostKind,
   SavedWorkspace,
   SessionLogSummary,
-} from "../../services/desktop/types";
+} from "@/services/desktop/types";
 export type {
   TerminalOpenMode,
   TerminalItem,

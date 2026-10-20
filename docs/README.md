@@ -29,6 +29,7 @@
 | [官方服务](24-official-service.md) | 独立服务端、账号/密文备份、分发更新与远程协助规划 |
 | [官方账号与第三方登录](25-account-authentication.md) | termeta.io/GitHub/Google 浏览器登录、独立用户端、永久会话与协议回跳 |
 | [双模式与官方保险库同步](26-official-vault-sync.md) | 启动门禁、主密钥、稳定 ID 合并、CAS 与改密恢复 |
+| [代码结构评估与渐进重构](27-architecture-refactoring.md) | 基于现有功能与近期路线的源码问题、职责调整建议、分批迁移与验证门槛；尚未实施 |
 
 文件编号保留空缺，不为连续编号重命名。
 

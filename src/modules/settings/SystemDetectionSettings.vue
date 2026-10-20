@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import { NText } from "naive-ui";
-import AppCheckbox from "../../components/ui/AppCheckbox.vue";
+import AppCheckbox from "@/components/ui/AppCheckbox.vue";
 defineProps<{ modelValue: boolean }>();
 const emit = defineEmits<{ "update:modelValue": [boolean] }>();
 </script>

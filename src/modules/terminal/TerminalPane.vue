@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import { IconGitBranch, IconX } from "@tabler/icons-vue";
 import { computed, onMounted, ref, watch } from "vue";
 import {
@@ -9,7 +9,7 @@ import {
   lightTheme,
   type GlobalThemeOverrides,
 } from "naive-ui";
-import AppButton from "../../components/ui/AppButton.vue";
+import AppButton from "@/components/ui/AppButton.vue";
 import { useWorkbenchStore, type TerminalItem } from "../workbench/store";
 import { stateLabels } from "../workbench/store";
 import { schemeForTerminal, terminalRegistry } from "./registry";

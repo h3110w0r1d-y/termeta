@@ -1,4 +1,4 @@
-import { t, type PlainMessageKey } from "../../i18n";
+import { t, type PlainMessageKey } from "@/i18n";
 import type { FormItemRule, FormInst } from "naive-ui";
 export function requiredText(label: PlainMessageKey): FormItemRule {
   return {

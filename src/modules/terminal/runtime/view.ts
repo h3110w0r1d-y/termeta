@@ -2,19 +2,19 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import { WebLinksAddon } from "@xterm/addon-web-links";
-import { t } from "../../../i18n";
-import { desktop, errorMessage } from "../../../services/desktop/client";
+import { t } from "@/i18n";
+import { desktop, errorMessage } from "@/services/desktop/client";
 import {
   commands,
   isMac,
   modifierMatches,
-} from "../../../services/commands/registry";
-import type { SessionLogDraft } from "../../../services/desktop/types";
-import { useHosts } from "../../hosts/store";
-import { useSettings } from "../../settings/store";
-import { loadTerminalFont, terminalFontFamily } from "../../settings/fonts";
-import { resolveTerminalScheme } from "../../settings/themes";
-import type { TerminalItem } from "../../workbench/store";
+} from "@/services/commands/registry";
+import type { SessionLogDraft } from "@/services/desktop/types";
+import { useHosts } from "@/modules/hosts/store";
+import { useSettings } from "@/modules/settings/store";
+import { loadTerminalFont, terminalFontFamily } from "@/modules/settings/fonts";
+import { resolveTerminalScheme } from "@/modules/settings/themes";
+import type { TerminalItem } from "@/modules/workbench/store";
 import { updateActivityTitle, updateShellActivity } from "../activity";
 import { observeTerminalInput, type TerminalInput } from "../inputOrigin";
 import { applyTerminalTheme } from "../theme";

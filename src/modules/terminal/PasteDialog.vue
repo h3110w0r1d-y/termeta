@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import { NFlex } from "naive-ui";
-import AppButton from "../../components/ui/AppButton.vue";
-import AppDialog from "../../components/ui/AppDialog.vue";
+import AppButton from "@/components/ui/AppButton.vue";
+import AppDialog from "@/components/ui/AppDialog.vue";
 import { pendingPaste, resolvePaste } from "./paste";
 </script>
 <template>

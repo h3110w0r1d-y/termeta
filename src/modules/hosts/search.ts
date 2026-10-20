@@ -1,4 +1,4 @@
-import { PINYIN_CONF } from "../../assets/conf/PINYIN_CONF.ts";
+import { PINYIN_CONF } from "@/assets/conf/PINYIN_CONF.ts";
 // 匹配算法改编自 roco-helper-web 的 petNameSearch，仅保留文本与拼音匹配。
 function uniqueSorted(values: string[]) {
   return Array.from(new Set(values)).sort((a, b) =>

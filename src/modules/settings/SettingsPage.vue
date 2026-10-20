@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import {
   NColorPicker,
   NButton,
@@ -14,14 +14,14 @@ import {
   NRadioButton,
   type SelectRenderLabel,
 } from "naive-ui";
-import AppNumberField from "../../components/ui/AppNumberField.vue";
-import AppCheckbox from "../../components/ui/AppCheckbox.vue";
-import AppSelect from "../../components/ui/AppSelect.vue";
+import AppNumberField from "@/components/ui/AppNumberField.vue";
+import AppCheckbox from "@/components/ui/AppCheckbox.vue";
+import AppSelect from "@/components/ui/AppSelect.vue";
 import SystemDetectionSettings from "./SystemDetectionSettings.vue";
 import SearchPreferences from "./SearchPreferences.vue";
-import { requiredText, integerRange } from "../../services/forms/rules";
+import { requiredText, integerRange } from "@/services/forms/rules";
 import { computed, h, ref, watch } from "vue";
-import AppDialog from "../../components/ui/AppDialog.vue";
+import AppDialog from "@/components/ui/AppDialog.vue";
 import ThemeSettings from "./ThemeSettings.vue";
 import ShortcutSettings from "./ShortcutSettings.vue";
 import VaultSecuritySettings from "./VaultSecuritySettings.vue";

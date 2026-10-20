@@ -1,5 +1,5 @@
-import { t } from "../../i18n";
-import type { HostGroup } from "../../services/desktop/types";
+import { t } from "@/i18n";
+import type { HostGroup } from "@/services/desktop/types";
 
 // 分组关系只处理轻量元数据；遍历保留环保护，避免异常数据阻塞界面。
 export function descendantIds(groups: HostGroup[], id: string): Set<string> {

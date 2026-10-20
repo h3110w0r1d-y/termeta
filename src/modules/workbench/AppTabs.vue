@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import { terminalBaseTitle } from "../terminal/title";
-import ScrollFade from "../../components/ui/ScrollFade.vue";
+import ScrollFade from "@/components/ui/ScrollFade.vue";
 import { IconX, IconFileText } from "@tabler/icons-vue";
 import { computed, nextTick, ref, watch } from "vue";
 import {
@@ -12,11 +12,11 @@ import {
   useThemeVars,
   type GlobalThemeOverrides,
 } from "naive-ui";
-import { isMac } from "../../services/commands/registry";
-import ApplicationMenu from "../../components/ApplicationMenu.vue";
-import AssetIcon from "../../components/ui/AssetIcon.vue";
-import WindowControls from "../../components/WindowControls.vue";
-import AppButton from "../../components/ui/AppButton.vue";
+import { isMac } from "@/services/commands/registry";
+import ApplicationMenu from "@/components/ApplicationMenu.vue";
+import AssetIcon from "@/components/ui/AssetIcon.vue";
+import WindowControls from "@/components/WindowControls.vue";
+import AppButton from "@/components/ui/AppButton.vue";
 import { schemeForTerminal } from "../terminal/registry";
 import {
   colorOverlay as overlay,

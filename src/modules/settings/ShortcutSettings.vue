@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import { IconPlus, IconRefresh, IconX } from "@tabler/icons-vue";
 import { NIcon, NTabs, NTab } from "naive-ui";
-import AppCheckbox from "../../components/ui/AppCheckbox.vue";
-import AppSelect from "../../components/ui/AppSelect.vue";
-import AppInput from "../../components/ui/AppInput.vue";
-import AppButton from "../../components/ui/AppButton.vue";
+import AppCheckbox from "@/components/ui/AppCheckbox.vue";
+import AppSelect from "@/components/ui/AppSelect.vue";
+import AppInput from "@/components/ui/AppInput.vue";
+import AppButton from "@/components/ui/AppButton.vue";
 import { computed, ref } from "vue";
 import {
   commandLabel,
@@ -14,13 +14,13 @@ import {
   parseKeymap,
   conflict,
   isMac,
-} from "../../services/commands/registry";
+} from "@/services/commands/registry";
 import { downloadJson } from "./themes";
-import { parseJson } from "../../services/data/json";
+import { parseJson } from "@/services/data/json";
 import type { Binding, Modifier } from "./model";
-import { clone } from "../../services/data/clone";
-import { confirmAction } from "../../components/ui/confirmation";
-import { errorMessage } from "../../services/desktop/client";
+import { clone } from "@/services/data/clone";
+import { confirmAction } from "@/components/ui/confirmation";
+import { errorMessage } from "@/services/desktop/client";
 import type { AppSettings } from "./model";
 const keyFile = ref<HTMLInputElement>();
 const draft = defineModel<AppSettings>("settings", { required: true });

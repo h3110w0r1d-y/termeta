@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import { IconStarFilled } from "@tabler/icons-vue";
 import { computed, h, ref, watch, type HTMLAttributes } from "vue";
 import {
@@ -12,7 +12,7 @@ import {
   type SelectOption,
 } from "naive-ui";
 import SearchPreferences from "../settings/SearchPreferences.vue";
-import type { HostProfile } from "../../services/desktop/types";
+import type { HostProfile } from "@/services/desktop/types";
 import { useHosts } from "./store";
 import { hostEndpoint, hostKindLabel } from "./presentation";
 import { groupPath } from "./groups";

@@ -1,9 +1,9 @@
-import { t } from "../../i18n";
-import type { Locale } from "../../i18n";
+import { t } from "@/i18n";
+import type { Locale } from "@/i18n";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { Channel, invoke } from "@tauri-apps/api/core";
-import type { AppSettings, SettingsPatch } from "../../modules/settings/model";
+import type { AppSettings, SettingsPatch } from "@/modules/settings/model";
 import type {
   AccountStatus,
   AccountProvider,

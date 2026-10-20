@@ -6,7 +6,7 @@ import type {
   SerialConfig,
   SessionState,
   SessionLogSummary,
-} from "../../services/desktop/types";
+} from "@/services/desktop/types";
 
 export type TerminalOpenMode = "tabs" | "workspace";
 /** 单个终端的轻量运行状态；分屏后也不对应独立标签页。 */

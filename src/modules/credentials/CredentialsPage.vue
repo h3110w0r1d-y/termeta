@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import { NIcon } from "naive-ui";
 import { IconPlus } from "@tabler/icons-vue";
 import { NEmpty, NList, NListItem, NThing, NSpin, NH1, NText } from "naive-ui";
-import AppInput from "../../components/ui/AppInput.vue";
-import AppButton from "../../components/ui/AppButton.vue";
+import AppInput from "@/components/ui/AppInput.vue";
+import AppButton from "@/components/ui/AppButton.vue";
 import { computed, onMounted, ref } from "vue";
-import { confirmAction } from "../../components/ui/confirmation";
-import { desktop, errorMessage } from "../../services/desktop/client";
-import type { CredentialMetadata } from "../../services/desktop/types";
+import { confirmAction } from "@/components/ui/confirmation";
+import { desktop, errorMessage } from "@/services/desktop/client";
+import type { CredentialMetadata } from "@/services/desktop/types";
 import { useHosts } from "../hosts/store";
 import { useBackupRestored } from "../backup/useBackupRestored";
 import CredentialEditor from "./CredentialEditor.vue";

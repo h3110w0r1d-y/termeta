@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import { watch } from "vue";
 import { NButton, NSpace, NText } from "naive-ui";
-import AppDialog from "../../components/ui/AppDialog.vue";
-import type { HostProfile } from "../../services/desktop/types";
+import AppDialog from "@/components/ui/AppDialog.vue";
+import type { HostProfile } from "@/services/desktop/types";
 import type { TerminalOpenMode } from "../workbench/store";
 
 const props = defineProps<{

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { t, formatDate } from "../../i18n";
+import { t, formatDate } from "@/i18n";
 import {
   NList,
   NListItem,
@@ -12,12 +12,12 @@ import {
   NFlex,
   NPagination,
 } from "naive-ui";
-import AppButton from "../../components/ui/AppButton.vue";
-import AppInput from "../../components/ui/AppInput.vue";
+import AppButton from "@/components/ui/AppButton.vue";
+import AppInput from "@/components/ui/AppInput.vue";
 import { computed, ref, onMounted, watch } from "vue";
-import { confirmAction } from "../../components/ui/confirmation";
-import { desktop, errorMessage } from "../../services/desktop/client";
-import type { SessionLogSummary } from "../../services/desktop/types";
+import { confirmAction } from "@/components/ui/confirmation";
+import { desktop, errorMessage } from "@/services/desktop/client";
+import type { SessionLogSummary } from "@/services/desktop/types";
 import { useWorkbenchStore } from "../workbench/store";
 import { sessionLogEndpoint, sessionLogProtocol } from "./presentation";
 const workbench = useWorkbenchStore();

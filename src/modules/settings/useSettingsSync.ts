@@ -1,5 +1,5 @@
 import { onBeforeUnmount, ref } from "vue";
-import { desktop, errorMessage } from "../../services/desktop/client";
+import { desktop, errorMessage } from "@/services/desktop/client";
 import { useSettings } from "./store";
 
 // 先订阅再读取，并串行重读，避免初始化与通知交错导致旧值回写。

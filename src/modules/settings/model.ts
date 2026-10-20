@@ -1,5 +1,5 @@
-import type { Language } from "../../i18n";
-import type { Keymap } from "../../services/commands/types";
+import type { Language } from "@/i18n";
+import type { Keymap } from "@/services/commands/types";
 
 export interface Scheme {
   schemaVersion: 1;
@@ -21,7 +21,7 @@ export interface Scheme {
     scrollbar?: { normal?: string; hover?: string; active?: string };
   };
 }
-export type { Binding, Modifier } from "../../services/commands/types";
+export type { Binding, Modifier } from "@/services/commands/types";
 export interface HostsViewSettings {
   includeChildren: boolean;
   showHosts: boolean;

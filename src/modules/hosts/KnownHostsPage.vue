@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import {
   NList,
   NListItem,
@@ -11,11 +11,11 @@ import {
   NText,
   NFlex,
 } from "naive-ui";
-import AppButton from "../../components/ui/AppButton.vue";
+import AppButton from "@/components/ui/AppButton.vue";
 import { ref, onMounted } from "vue";
-import { confirmAction } from "../../components/ui/confirmation";
-import { desktop, errorMessage } from "../../services/desktop/client";
-import type { KnownHost } from "../../services/desktop/types";
+import { confirmAction } from "@/components/ui/confirmation";
+import { desktop, errorMessage } from "@/services/desktop/client";
+import type { KnownHost } from "@/services/desktop/types";
 import { useBackupRestored } from "../backup/useBackupRestored";
 const error = ref("");
 const known = ref<KnownHost[]>([]);

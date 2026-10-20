@@ -1,9 +1,9 @@
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import type {
   HostProfile,
   SavedLayout,
   SavedWorkspace,
-} from "../../services/desktop/types";
+} from "@/services/desktop/types";
 import { terminalIds, type LayoutNode } from "./layout";
 import type { TerminalItem, TerminalTabGroup } from "./types";
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { NButton, NIcon, useThemeVars } from "naive-ui";
 import {

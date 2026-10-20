@@ -1,9 +1,9 @@
 import type { Terminal } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
 import type { SearchAddon } from "@xterm/addon-search";
-import type { SessionLogDraft } from "../../../services/desktop/types";
+import type { SessionLogDraft } from "@/services/desktop/types";
 import type { observeTerminalInput } from "../inputOrigin";
-import type { TerminalItem } from "../../workbench/store";
+import type { TerminalItem } from "@/modules/workbench/store";
 
 /** 每次连接独立持有字节预算、序号与解析进度，不能跨重连复用。 */
 export interface Stream {

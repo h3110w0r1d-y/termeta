@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import { computed, ref } from "vue";
 import {
   NAlert,
@@ -15,10 +15,10 @@ import {
   NText,
   useThemeVars,
 } from "naive-ui";
-import AssetIcon from "../../components/ui/AssetIcon.vue";
-import { confirmAction } from "../../components/ui/confirmation";
-import { errorMessage } from "../../services/desktop/client";
-import type { ForwardProfile } from "../../services/desktop/types";
+import AssetIcon from "@/components/ui/AssetIcon.vue";
+import { confirmAction } from "@/components/ui/confirmation";
+import { errorMessage } from "@/services/desktop/client";
+import type { ForwardProfile } from "@/services/desktop/types";
 import { useHosts } from "../hosts/store";
 import { stateLabels } from "../workbench/store";
 import { usePortForwards } from "./store";

@@ -1,12 +1,12 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import { desktop } from "../../services/desktop/client";
+import { desktop } from "@/services/desktop/client";
 import type {
   HostDraft,
   HostGroup,
   HostProfile,
   WorkspaceDraft,
-} from "../../services/desktop/types";
+} from "@/services/desktop/types";
 export const useHosts = defineStore("hosts", () => {
   const managementBusy = ref(false);
   const hosts = ref<HostProfile[]>([]),

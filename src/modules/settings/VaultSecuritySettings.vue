@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import { onBeforeUnmount, reactive, ref, watch } from "vue";
 import {
   NAlert,
@@ -11,9 +11,9 @@ import {
   type FormItemInst,
   type FormRules,
 } from "naive-ui";
-import AppDialog from "../../components/ui/AppDialog.vue";
-import { validateForm } from "../../services/forms/rules";
-import { desktop, errorMessage } from "../../services/desktop/client";
+import AppDialog from "@/components/ui/AppDialog.vue";
+import { validateForm } from "@/services/forms/rules";
+import { desktop, errorMessage } from "@/services/desktop/client";
 
 const open = ref(false);
 const busy = ref(false);

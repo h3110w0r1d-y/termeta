@@ -1,4 +1,4 @@
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 
 /** 远端标题仅作受限展示文本；不修改原始终端字节或保存的连接名称。 */
 export function normalizeRemoteTitle(title: string): string {

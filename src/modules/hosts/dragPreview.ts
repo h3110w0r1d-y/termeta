@@ -1,4 +1,4 @@
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 // Pointer Events 不提供原生拖动影像；使用只读DOM快照保留库组件的当前外观。
 export function createDragPreview(
   source: HTMLElement,

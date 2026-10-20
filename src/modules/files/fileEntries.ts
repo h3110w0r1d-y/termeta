@@ -1,4 +1,4 @@
-import type { FileEntry } from "../../services/desktop/types";
+import type { FileEntry } from "@/services/desktop/types";
 
 export const parentEntry: FileEntry = {
   name: "..",

@@ -1,6 +1,6 @@
 import { onBeforeUnmount, onMounted, ref } from "vue";
-import { desktop, errorMessage } from "../../services/desktop/client";
-import type { OfficialSyncStatus } from "../../services/desktop/types";
+import { desktop, errorMessage } from "@/services/desktop/client";
+import type { OfficialSyncStatus } from "@/services/desktop/types";
 
 // 窗口只订阅失效通知，重新通过 IPC 获取状态，不接收保险库正文。
 export function useOfficialSync() {

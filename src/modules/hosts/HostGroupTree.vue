@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { t } from "../../i18n";
-import ScrollFade from "../../components/ui/ScrollFade.vue";
-import { closeContextMenuOnOutside } from "../../components/ui/contextMenu";
+import { t } from "@/i18n";
+import ScrollFade from "@/components/ui/ScrollFade.vue";
+import { closeContextMenuOnOutside } from "@/components/ui/contextMenu";
 import { computed, h, nextTick, ref, watch, reactive } from "vue";
 import {
   NButton,
@@ -20,12 +20,12 @@ import {
   NTree,
   type TreeOption,
 } from "naive-ui";
-import { requiredText, validateForm } from "../../services/forms/rules";
-import AppDialog from "../../components/ui/AppDialog.vue";
-import { confirmAction } from "../../components/ui/confirmation";
-import { desktop, errorMessage } from "../../services/desktop/client";
+import { requiredText, validateForm } from "@/services/forms/rules";
+import AppDialog from "@/components/ui/AppDialog.vue";
+import { confirmAction } from "@/components/ui/confirmation";
+import { desktop, errorMessage } from "@/services/desktop/client";
 import HostProfileIcon from "./HostProfileIcon.vue";
-import type { HostGroup, HostProfile } from "../../services/desktop/types";
+import type { HostGroup, HostProfile } from "@/services/desktop/types";
 import { descendantIds, groupChoices, groupPath } from "./groups";
 import { useHosts } from "./store";
 import { useSettings } from "../settings/store";

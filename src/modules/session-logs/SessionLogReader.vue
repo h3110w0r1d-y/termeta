@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { t, formatDate } from "../../i18n";
+import { t, formatDate } from "@/i18n";
 import { nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { NAlert, NEmpty, NFlex, NSpin, NText } from "naive-ui";
-import AppButton from "../../components/ui/AppButton.vue";
-import { desktop, errorMessage } from "../../services/desktop/client";
-import type { SessionLogSummary } from "../../services/desktop/types";
+import AppButton from "@/components/ui/AppButton.vue";
+import { desktop, errorMessage } from "@/services/desktop/client";
+import type { SessionLogSummary } from "@/services/desktop/types";
 import { sessionLogEndpoint, sessionLogProtocol } from "./presentation";
 import { readTerminalLogSnapshot, type TerminalLogSnapshot } from "./snapshot";
 import { mountLogTerminal } from "./viewer";

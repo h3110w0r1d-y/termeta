@@ -1,7 +1,7 @@
 import { terminalBaseTitle } from "../terminal/title";
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import { computed, nextTick, ref } from "vue";
-import { confirmAction } from "../../components/ui/confirmation";
+import { confirmAction } from "@/components/ui/confirmation";
 import { useSettings } from "../settings/store";
 import { builtinSchemes as builtinThemeOptions } from "../settings/themes";
 import { terminalRegistry } from "../terminal/registry";

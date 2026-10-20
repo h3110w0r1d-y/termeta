@@ -1,11 +1,11 @@
-import { t } from "../../i18n";
-import { desktop } from "../../services/desktop/client";
-import { parseJson } from "../../services/data/json";
-import { clone } from "../../services/data/clone";
+import { t } from "@/i18n";
+import { desktop } from "@/services/desktop/client";
+import { parseJson } from "@/services/data/json";
+import { clone } from "@/services/data/clone";
 import type { ITheme } from "@xterm/xterm";
 import type { AppSettings, Scheme } from "./model";
-import type { OpenTarget } from "../../services/desktop/types";
-import palettes from "../../../resources/terminal-palettes.json";
+import type { OpenTarget } from "@/services/desktop/types";
+import palettes from "@resources/terminal-palettes.json";
 // 名称和终端色值由用户提供的配色数组静态提取，映射及摘要见 resources 中的来源记录。
 export const builtinSchemes: Scheme[] = palettes.map((palette): Scheme => ({
   ...palette,

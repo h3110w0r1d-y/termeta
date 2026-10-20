@@ -1,7 +1,7 @@
-import { t, type PlainMessageKey } from "../../i18n";
+import { t, type PlainMessageKey } from "@/i18n";
 import { computed, ref, type Ref } from "vue";
-import { desktop, errorMessage } from "../../services/desktop/client";
-import type { TransferProgress } from "../../services/desktop/types";
+import { desktop, errorMessage } from "@/services/desktop/client";
+import type { TransferProgress } from "@/services/desktop/types";
 import type { TerminalItem } from "../workbench/store";
 
 export function useSftpTransferQueue(options: {

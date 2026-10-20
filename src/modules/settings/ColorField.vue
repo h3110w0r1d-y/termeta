@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import { NIcon } from "naive-ui";
 import { IconRefresh, IconX } from "@tabler/icons-vue";
-import AppColorPicker from "../../components/ui/AppColorPicker.vue";
-import AppButton from "../../components/ui/AppButton.vue";
+import AppColorPicker from "@/components/ui/AppColorPicker.vue";
+import AppButton from "@/components/ui/AppButton.vue";
 import { NFormItem, type FormItemInst, type FormItemRule } from "naive-ui";
 import { computed, ref } from "vue";
 const props = defineProps<{

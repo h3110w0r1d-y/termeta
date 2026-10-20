@@ -1,6 +1,6 @@
 import type { ITheme, Terminal } from "@xterm/xterm";
 import { SerializeAddon } from "@xterm/addon-serialize";
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 
 const prefix = "Termeta terminal snapshot v1\n";
 const ansiKeys = [

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import {
   NForm,
   NFormItem,
@@ -12,11 +12,11 @@ import {
   NCollapseItem,
   NEmpty,
 } from "naive-ui";
-import AppCollapsible from "../../components/ui/AppCollapsible.vue";
-import AppInput from "../../components/ui/AppInput.vue";
-import AppTextarea from "../../components/ui/AppTextarea.vue";
-import { requiredText, validateForm } from "../../services/forms/rules";
-import AppButton from "../../components/ui/AppButton.vue";
+import AppCollapsible from "@/components/ui/AppCollapsible.vue";
+import AppInput from "@/components/ui/AppInput.vue";
+import AppTextarea from "@/components/ui/AppTextarea.vue";
+import { requiredText, validateForm } from "@/services/forms/rules";
+import AppButton from "@/components/ui/AppButton.vue";
 import {
   computed,
   ref,
@@ -40,10 +40,10 @@ import {
   parseScheme,
   downloadJson,
 } from "./themes";
-import { parseJson } from "../../services/data/json";
-import { clone } from "../../services/data/clone";
-import { confirmAction } from "../../components/ui/confirmation";
-import { errorMessage } from "../../services/desktop/client";
+import { parseJson } from "@/services/data/json";
+import { clone } from "@/services/data/clone";
+import { confirmAction } from "@/components/ui/confirmation";
+import { errorMessage } from "@/services/desktop/client";
 import type { AppSettings } from "./model";
 let syncingEditor = false;
 const themeFile = ref<HTMLInputElement>();

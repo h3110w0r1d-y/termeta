@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { t } from "../../i18n";
-import ScrollFade from "../../components/ui/ScrollFade.vue";
+import { t } from "@/i18n";
+import ScrollFade from "@/components/ui/ScrollFade.vue";
 import HostProfileIcon from "./HostProfileIcon.vue";
 import ConnectionTypeDropdown from "./ConnectionTypeDropdown.vue";
 import { hostEndpoint, hostKindLabel } from "./presentation";
-import AssetIcon from "../../components/ui/AssetIcon.vue";
+import AssetIcon from "@/components/ui/AssetIcon.vue";
 import { NIcon } from "naive-ui";
 import {
   IconLayoutGrid,
@@ -12,8 +12,8 @@ import {
   IconStarFilled,
   IconStar,
 } from "@tabler/icons-vue";
-import { closeContextMenuOnOutside } from "../../components/ui/contextMenu";
-import { confirmAction } from "../../components/ui/confirmation";
+import { closeContextMenuOnOutside } from "@/components/ui/contextMenu";
+import { confirmAction } from "@/components/ui/confirmation";
 import { computed, nextTick, ref, watch, reactive } from "vue";
 import {
   NForm,
@@ -37,10 +37,10 @@ import {
   NTag,
   NText,
 } from "naive-ui";
-import { validateForm } from "../../services/forms/rules";
-import AppDialog from "../../components/ui/AppDialog.vue";
-import { errorMessage } from "../../services/desktop/client";
-import type { HostKind, HostProfile } from "../../services/desktop/types";
+import { validateForm } from "@/services/forms/rules";
+import AppDialog from "@/components/ui/AppDialog.vue";
+import { errorMessage } from "@/services/desktop/client";
+import type { HostKind, HostProfile } from "@/services/desktop/types";
 import HostGroupTree from "./HostGroupTree.vue";
 import GroupConnectDialog from "./GroupConnectDialog.vue";
 import type { TerminalOpenMode } from "../workbench/store";

@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import { NCheckbox, NCheckboxGroup, NSpace, NSwitch, NText } from "naive-ui";
 import { computed, ref } from "vue";
 import { useSettings } from "./store";
 import type { HostSearchSettings, HostSearchField } from "./model";
-import { errorMessage } from "../../services/desktop/client";
+import { errorMessage } from "@/services/desktop/client";
 defineProps<{ compact?: boolean }>();
 const store = useSettings();
 const busy = ref(false),

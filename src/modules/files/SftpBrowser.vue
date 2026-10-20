@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { t, type PlainMessageKey } from "../../i18n";
+import { t, type PlainMessageKey } from "@/i18n";
 import {
   computed,
   nextTick,
@@ -10,16 +10,16 @@ import {
   watch,
 } from "vue";
 import { NAlert, NButton, NFlex, NTag, NText } from "naive-ui";
-import { desktop, errorMessage } from "../../services/desktop/client";
+import { desktop, errorMessage } from "@/services/desktop/client";
 import {
   registerSessionPresence,
   unregisterSessionPresence,
-} from "../../services/desktop/sessionPresence";
+} from "@/services/desktop/sessionPresence";
 import type {
   SessionEvent,
   SessionSnapshot,
   TransferProgress,
-} from "../../services/desktop/types";
+} from "@/services/desktop/types";
 import { useWorkbenchStore } from "../workbench/store";
 import SftpEndpointPane from "./SftpEndpointPane.vue";
 import type { SftpEndpoint, SftpSelection } from "./types";

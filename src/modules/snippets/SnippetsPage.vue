@@ -17,14 +17,14 @@ import {
   type FormRules,
 } from "naive-ui";
 import { IconPlus } from "@tabler/icons-vue";
-import { t } from "../../i18n";
-import AppButton from "../../components/ui/AppButton.vue";
-import AppDialog from "../../components/ui/AppDialog.vue";
-import AppInput from "../../components/ui/AppInput.vue";
-import { confirmAction } from "../../components/ui/confirmation";
-import { desktop, errorMessage } from "../../services/desktop/client";
-import type { Snippet } from "../../services/desktop/types";
-import { requiredText, validateForm } from "../../services/forms/rules";
+import { t } from "@/i18n";
+import AppButton from "@/components/ui/AppButton.vue";
+import AppDialog from "@/components/ui/AppDialog.vue";
+import AppInput from "@/components/ui/AppInput.vue";
+import { confirmAction } from "@/components/ui/confirmation";
+import { desktop, errorMessage } from "@/services/desktop/client";
+import type { Snippet } from "@/services/desktop/types";
+import { requiredText, validateForm } from "@/services/forms/rules";
 import { useBackupRestored } from "../backup/useBackupRestored";
 
 const items = ref<Snippet[]>([]);

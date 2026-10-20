@@ -10,9 +10,9 @@ import {
   type FormItemInst,
   type FormRules,
 } from "naive-ui";
-import { t } from "../../i18n";
-import { desktop, errorMessage } from "../../services/desktop/client";
-import { validateForm } from "../../services/forms/rules";
+import { t } from "@/i18n";
+import { desktop, errorMessage } from "@/services/desktop/client";
+import { validateForm } from "@/services/forms/rules";
 
 const props = defineProps<{ flowId: string; disabled: boolean }>();
 const model = reactive({ confirmationCode: "" });

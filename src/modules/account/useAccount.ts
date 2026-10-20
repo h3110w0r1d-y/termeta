@@ -1,12 +1,12 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
-import { t } from "../../i18n";
-import { desktop, errorMessage } from "../../services/desktop/client";
+import { t } from "@/i18n";
+import { desktop, errorMessage } from "@/services/desktop/client";
 import type {
   AccountOAuthFlow,
   AccountProvider,
   AccountProviderId,
   AccountStatus,
-} from "../../services/desktop/types";
+} from "@/services/desktop/types";
 
 // WebView 仅持有公开摘要；凭据、浏览器地址和轮询 proof 始终留在 Rust。
 export function useAccount(options: { loadProviders?: boolean } = {}) {

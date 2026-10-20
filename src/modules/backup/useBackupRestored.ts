@@ -1,5 +1,5 @@
 import { onBeforeUnmount, onMounted } from "vue";
-import { desktop } from "../../services/desktop/client";
+import { desktop } from "@/services/desktop/client";
 
 // 备份只通知轻量数据发生变化，不在窗口事件中携带备份正文或凭据。
 export function useBackupRestored(

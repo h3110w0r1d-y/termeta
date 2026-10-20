@@ -1,4 +1,4 @@
-import type { SessionState } from "../../services/desktop/types";
+import type { SessionState } from "@/services/desktop/types";
 
 export interface SftpEndpoint {
   profileId: string | null;

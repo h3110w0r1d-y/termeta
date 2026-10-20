@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { NAlert, NButton, NCollapse, NCollapseItem } from "naive-ui";
 import { IconBrandGithub, IconBrandGoogle, IconWorld } from "@tabler/icons-vue";
-import { formatDate, t } from "../../i18n";
+import { formatDate, t } from "@/i18n";
 import type {
   AccountOAuthFlow,
   AccountProvider,
   AccountProviderId,
-} from "../../services/desktop/types";
+} from "@/services/desktop/types";
 import AccountOAuthConfirmation from "./AccountOAuthConfirmation.vue";
 
 defineProps<{

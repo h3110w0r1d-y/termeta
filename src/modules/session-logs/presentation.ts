@@ -1,5 +1,5 @@
-import { t } from "../../i18n";
-import type { SessionLogSummary } from "../../services/desktop/types";
+import { t } from "@/i18n";
+import type { SessionLogSummary } from "@/services/desktop/types";
 
 export function sessionLogProtocol(protocol: SessionLogSummary["protocol"]) {
   if (protocol === "local") return t("common.connection.local");

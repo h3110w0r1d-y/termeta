@@ -1,5 +1,5 @@
 import { onBeforeUnmount } from "vue";
-import { desktop, errorMessage } from "../../services/desktop/client";
+import { desktop, errorMessage } from "@/services/desktop/client";
 
 interface WindowDragOptions {
   enabled: () => boolean;

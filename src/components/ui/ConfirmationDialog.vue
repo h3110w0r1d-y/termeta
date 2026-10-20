@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import { computed, ref, watch } from "vue";
-import { validateForm } from "../../services/forms/rules";
+import { validateForm } from "@/services/forms/rules";
 import {
   NFlex,
   NForm,

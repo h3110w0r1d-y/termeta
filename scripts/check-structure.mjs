@@ -47,6 +47,9 @@ for (const path of (await walk("src")).filter((path) =>
       /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s*)["']([^"']+)["']/g,
     ),
   ].map((match) => match[1]);
+  if (imports.some((name) => name.startsWith("../../"))) {
+    errors.push(`${path}: 跨越两层及以上的导入须使用 @/ 或 @resources/ 别名`);
+  }
   if (
     !path.startsWith("src/services/desktop/") &&
     imports.some((name) => name.startsWith("@tauri-apps/"))

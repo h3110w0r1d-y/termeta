@@ -1,6 +1,6 @@
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import type { FormItemRule } from "naive-ui";
-import type { HostProfile } from "../../services/desktop/types";
+import type { HostProfile } from "@/services/desktop/types";
 
 // 与数据库的二进制名称唯一索引一致：去掉首尾空格，保留大小写。
 export function uniqueHostNameRule(
