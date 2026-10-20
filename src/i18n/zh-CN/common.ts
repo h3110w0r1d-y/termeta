@@ -7,7 +7,7 @@ export default {
   "common.navigation.snippets": "Snippets",
   "common.regions.snippets": "Snippets 内容",
   "common.navigation.logs": "会话日志",
-  "common.navigation.vault": "保险箱",
+  "common.navigation.vault": "保险库",
   "common.regions.forwarding": "端口转发内容",
   "common.regions.credentials": "凭据内容",
   "common.regions.knownHosts": "主机信任内容",

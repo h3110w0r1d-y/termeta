@@ -168,7 +168,7 @@ async function focusTerminal(id: string) {
   terminalRegistry.focus(group.focusedTerminalId);
 }
 function restoreTerminalFocus() {
-  // 连接/认证弹窗的焦点陷阱退场后再聚焦，避免库恢复到已经隐藏的保险箱控件。
+  // 连接/认证弹窗的焦点陷阱退场后再聚焦，避免库恢复到已经隐藏的保险库控件。
   if (workbenchAccessible.value && !findOpen.value && workbench.activeTerminal)
     terminalRegistry.focus(workbench.activeTerminal.terminalId);
 }

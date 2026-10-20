@@ -19,7 +19,7 @@ Termeta 是 Tauri 2 + Rust + Vue 3 + TypeScript 桌面终端客户端，目标 W
 
 ## 3. 架构约束
 
-- `src/layout/` 装配保险箱与外观，App 保留根布局和稳定终端宿主，设置由独立 SettingsWindow 装配；公共基础样式在 `src/assets/base.css`。`src/modules/` 按业务分责，Vue/Pinia 只保存轻量状态，不保存终端输出、文件/备份正文或转发载荷。sessions 模块拥有通用控制投影/挑战，Workbench 只管布局/焦点；关闭归档统一走 TerminalRegistry。
+- `src/layout/` 装配保险库与外观，App 保留根布局和稳定终端宿主，设置由独立 SettingsWindow 装配；公共基础样式在 `src/assets/base.css`。`src/modules/` 按业务分责，Vue/Pinia 只保存轻量状态，不保存终端输出、文件/备份正文或转发载荷。sessions 模块拥有通用控制投影/挑战，Workbench 只管布局/焦点；关闭归档统一走 TerminalRegistry。
 - `src/services/desktop/` 是唯一 Tauri IPC 门面，组件不能直接 invoke；CommandRegistry 统一按钮/菜单/快捷键。KeymapService/TerminalThemeService 是设计职责名，不假定有同名类。
 - 壳的 `commands/` 负责 DTO、窗口/资源所有权、Channel 和编排，`files/` 负责文件服务，协议核心留在 crate。九个领域 crate 为 core、ssh、telnet、local、serial、storage、security、files、sftp；core 不依赖 Tauri/Vue/具体协议库。security 当前直接依赖 storage，云 provider 位于壳的 backup 模块。
 - 每会话 actor、有界字节队列和独立取消；输出二进制 Channel、控制类型化 Channel，消费后 ACK。全局锁不跨网络/数据库/Channel 等待，ACK 不得阻塞关闭、KeepAlive 或信任响应。凭据、信任、网络与设备由 Rust 管理。
@@ -42,7 +42,7 @@ Termeta 是 Tauri 2 + Rust + Vue 3 + TypeScript 桌面终端客户端，目标 W
 ## 5. 领域行为约束
 
 - 主机分组前后端防环；删除默认保留上移，递归删除独立二次确认，Rust 单事务校验范围/revision，保留公共凭据与已有会话快照。即时偏好串行局部保存，旧设置草稿不能覆盖。搜索不改分组范围，批量打开包含后代。
-- 固定保险箱/SFTP 不可关闭、不创建终端；设置为独立单实例窗口，权限仅限设置、专用改密/JSON 导出及备份，通用 session owner 仍只 main。模态/录制/弹层优先处理快捷键，弹窗 Cmd+W 不关闭标签或主窗口；认证弹窗退出后恢复当前活动终端焦点。
+- 固定保险库/SFTP 不可关闭、不创建终端；设置为独立单实例窗口，权限仅限设置、专用改密/JSON 导出及备份，通用 session owner 仍只 main。模态/录制/弹层优先处理快捷键，弹窗 Cmd+W 不关闭标签或主窗口；认证弹窗退出后恢复当前活动终端焦点。
 - 广播默认关闭、仅内存；成员重组关闭，排序/比例/子树交换保持。排除命令窗格、点击/拖动、设备应答和认证；键盘/粘贴要求焦点，远端滚轮可来自当前组非聚焦窗格，只分发源端最终动作，不合成 wheel 或在目标累积。inputOrigin 集中适配固定 xterm，能力缺失拒绝广播；目标独立编码、限额、代次检查，不重放。
 - 标准粘贴放行系统 paste，由宿主执行大小/多行/广播校验；自定义绑定保留显式剪贴板路径。应用内快捷键与系统后台热键分开。完整路由见 [快捷键](docs/14-shortcuts.md)。
 - SFTP 侧栏仅单 SSH 终端且与分屏互斥，隐藏保留任务，断开/关闭取消，重连不重放。双栏独立连接与对拷，不借原生拖出做内部复制；文件正文仅 Rust 流动，上传确认覆盖/目录合并不承诺回滚，下载拒绝覆盖。

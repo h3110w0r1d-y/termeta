@@ -162,7 +162,7 @@ export const terminalRegistry = {
       terminal = useWorkbenchStore().terminals.find((t) => t.terminalId === id);
     if (e && terminal) {
       requestAnimationFrame(() => {
-        // 快速切换到保险箱或弹出认证时，迟到的焦点任务不能抢回隐藏终端。
+        // 快速切换到保险库或弹出认证时，迟到的焦点任务不能抢回隐藏终端。
         if (
           e.disposed ||
           useWorkbenchStore().activeTerminal?.terminalId !== id ||
