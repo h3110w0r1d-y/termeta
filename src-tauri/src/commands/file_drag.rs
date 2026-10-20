@@ -40,7 +40,7 @@ pub async fn sftp_start_drag(
     on_progress: Channel<TransferProgress>,
 ) -> Result<bool> {
     let owner = owner(&window)?;
-    if !cfg!(target_os = "macos") {
+    if !cfg!(any(target_os = "macos", target_os = "windows")) {
         return Err(file_error("此平台尚未支持原生文件拖出，请使用下载按钮"));
     }
     if uuid::Uuid::parse_str(&transfer_id).is_err() || names.is_empty() || names.len() > 100 {
@@ -78,95 +78,115 @@ pub async fn sftp_start_drag(
         paths.push(path);
     }
     connected(&state, &owner, &session_id)?;
-    let count = names.len();
-    let completed = Arc::new(AtomicUsize::new(0));
-    let serial = Arc::new(tokio::sync::Mutex::new(()));
-    let channel = Arc::new(on_progress);
-    let files = names
-        .into_iter()
-        .zip(paths)
-        .map(|(name, remote)| {
-            let browser = browser.clone();
-            let cancel = cancel.clone();
-            let completed = completed.clone();
-            let serial = serial.clone();
-            let channel = channel.clone();
-            let app = window.app_handle().clone();
-            let owner = owner.clone();
-            let session_id = session_id.clone();
-            let directory = directories.contains(&name);
-            PromisedFile {
-                directory,
-                name: name.clone(),
-                write: Arc::new(move |local| {
-                    tauri::async_runtime::block_on(async {
-                        let _serial = serial.lock().await;
-                        if cancel.is_cancelled() {
-                            return Err("拖出下载已取消".into());
-                        }
-                        connected(&app.state::<AppState>(), &owner, &session_id)
+    #[cfg(target_os = "windows")]
+    {
+        return crate::file_drag_windows::start_drag(
+            window,
+            browser.clone(),
+            session_id,
+            names,
+            paths,
+            directories,
+            cancel.clone(),
+            on_progress,
+        )
+        .await;
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let count = names.len();
+        let completed = Arc::new(AtomicUsize::new(0));
+        let serial = Arc::new(tokio::sync::Mutex::new(()));
+        let channel = Arc::new(on_progress);
+        let files = names
+            .into_iter()
+            .zip(paths)
+            .map(|(name, remote)| {
+                let browser = browser.clone();
+                let cancel = cancel.clone();
+                let completed = completed.clone();
+                let serial = serial.clone();
+                let channel = channel.clone();
+                let app = window.app_handle().clone();
+                let owner = owner.clone();
+                let session_id = session_id.clone();
+                let directory = directories.contains(&name);
+                PromisedFile {
+                    directory,
+                    name: name.clone(),
+                    write: Arc::new(move |local| {
+                        tauri::async_runtime::block_on(async {
+                            let _serial = serial.lock().await;
+                            if cancel.is_cancelled() {
+                                return Err("拖出下载已取消".into());
+                            }
+                            connected(&app.state::<AppState>(), &owner, &session_id)
+                                .map_err(|error| error.message)?;
+                            // 只有外部目标请求兑现文件承诺，才通知前端出现下载任务。
+                            if channel
+                                .send(TransferProgress {
+                                    transferred: "0".into(),
+                                    total: None,
+                                    current_name: Some(name.clone()),
+                                    completed_files: Some(completed.load(Ordering::SeqCst)),
+                                    total_files: Some(count),
+                                })
+                                .is_err()
+                            {
+                                cancel.cancel();
+                            }
+                            let report = |mut progress: TransferProgress| {
+                                if !directory {
+                                    progress.current_name = Some(name.clone());
+                                    progress.completed_files =
+                                        Some(completed.load(Ordering::SeqCst));
+                                    progress.total_files = Some(count);
+                                }
+                                if channel.send(progress).is_err() {
+                                    cancel.cancel();
+                                }
+                            };
+                            if directory {
+                                download_directory_to_path(
+                                    &browser, &remote, &local, &cancel, report,
+                                )
+                                .await
+                            } else {
+                                download_to_path(&browser, &remote, &local, &cancel, report).await
+                            }
                             .map_err(|error| error.message)?;
-                        // 只有外部目标请求兑现文件承诺，才通知前端出现下载任务。
-                        if channel
-                            .send(TransferProgress {
+                            let done = completed.fetch_add(1, Ordering::SeqCst) + 1;
+                            let _ = channel.send(TransferProgress {
                                 transferred: "0".into(),
                                 total: None,
                                 current_name: Some(name.clone()),
-                                completed_files: Some(completed.load(Ordering::SeqCst)),
+                                completed_files: Some(done),
                                 total_files: Some(count),
-                            })
-                            .is_err()
-                        {
-                            cancel.cancel();
-                        }
-                        let report = |mut progress: TransferProgress| {
-                            if !directory {
-                                progress.current_name = Some(name.clone());
-                                progress.completed_files = Some(completed.load(Ordering::SeqCst));
-                                progress.total_files = Some(count);
-                            }
-                            if channel.send(progress).is_err() {
-                                cancel.cancel();
-                            }
-                        };
-                        if directory {
-                            download_directory_to_path(&browser, &remote, &local, &cancel, report)
-                                .await
-                        } else {
-                            download_to_path(&browser, &remote, &local, &cancel, report).await
-                        }
-                        .map_err(|error| error.message)?;
-                        let done = completed.fetch_add(1, Ordering::SeqCst) + 1;
-                        let _ = channel.send(TransferProgress {
-                            transferred: "0".into(),
-                            total: None,
-                            current_name: Some(name.clone()),
-                            completed_files: Some(done),
-                            total_files: Some(count),
-                        });
-                        Ok(())
-                    })
-                }),
-            }
-        })
-        .collect();
-    // 命令独占拖出令牌；原生层只接收本次手势，不再从全局表隐式复用。
-    let outgoing = window
-        .state::<crate::file_drag::LocalDropRegistry>()
-        .begin_outgoing()
-        .map_err(|error| file_error(&error))?;
-    let result = tokio::select! {
-        biased;
-        _ = cancel.cancelled() => Err(terminal_core::SessionError::cancelled()),
-        _ = outgoing.cancelled() => Ok(false),
-        result = crate::file_drag::start_drag(window.clone(), files, outgoing.clone()) => result.map_err(|error| file_error(&error)),
-    };
-    outgoing.finish();
-    cancel.cancel();
-    // 取消先阻断迟到承诺，并等待正在运行的回调完成关闭/清理，再释放会话操作锁。
-    let _drained = serial.lock().await;
-    crate::file_drag::finish_drag(&window, &outgoing)
-        .await
-        .map_err(|error| file_error(&error))?;
-    result
+                            });
+                            Ok(())
+                        })
+                    }),
+                }
+            })
+            .collect();
+        // 命令独占拖出令牌；原生层只接收本次手势，不再从全局表隐式复用。
+        let outgoing = window
+            .state::<crate::file_drag::LocalDropRegistry>()
+            .begin_outgoing()
+            .map_err(|error| file_error(&error))?;
+        let result = tokio::select! {
+            biased;
+            _ = cancel.cancelled() => Err(terminal_core::SessionError::cancelled()),
+            _ = outgoing.cancelled() => Ok(false),
+            result = crate::file_drag::start_drag(window.clone(), files, outgoing.clone()) => result.map_err(|error| file_error(&error)),
+        };
+        outgoing.finish();
+        cancel.cancel();
+        // 取消先阻断迟到承诺，并等待正在运行的回调完成关闭/清理，再释放会话操作锁。
+        let _drained = serial.lock().await;
+        crate::file_drag::finish_drag(&window, &outgoing)
+            .await
+            .map_err(|error| file_error(&error))?;
+        result
+    }
 }

@@ -28,7 +28,7 @@ pub struct LocalDropRegistry {
     external_entries: Mutex<HashSet<String>>,
 }
 
-/// 原生内部落点可直接终止拖出，不依赖AppKit源结束回调或对象析构。
+/// 原生内部落点可直接终止拖出，不依赖平台源结束回调或对象析构。
 #[derive(Default)]
 pub struct OutgoingDrag {
     cancel: terminal_core::CancellationToken,
@@ -37,6 +37,10 @@ pub struct OutgoingDrag {
 impl OutgoingDrag {
     pub async fn cancelled(&self) {
         self.cancel.cancelled().await;
+    }
+    #[cfg(target_os = "windows")]
+    pub fn is_cancelled(&self) -> bool {
+        self.cancel.is_cancelled()
     }
     pub fn finish(&self) {
         self.cancel.cancel();

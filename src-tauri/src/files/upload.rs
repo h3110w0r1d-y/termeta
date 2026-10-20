@@ -15,6 +15,24 @@ struct UploadItem {
     directory: bool,
 }
 
+/// Windows junction 与其他 reparse point 也可能表现为目录，不能跟随上传。
+fn validate_local_source(attrs: &std::fs::Metadata) -> Result<()> {
+    if attrs.file_type().is_symlink() || (!attrs.is_file() && !attrs.is_dir()) {
+        return Err(file_error("不上传本地符号链接或特殊文件"));
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::fs::MetadataExt;
+        use windows::Win32::Storage::FileSystem::FILE_ATTRIBUTE_REPARSE_POINT;
+        if attrs.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT.0 != 0 {
+            return Err(file_error(
+                "不上传 Windows 目录联接、符号链接或其他重解析点，请选择普通文件或目录",
+            ));
+        }
+    }
+    Ok(())
+}
+
 async fn upload_items(
     roots: Vec<PathBuf>,
     directory: &str,
@@ -40,9 +58,7 @@ async fn upload_items(
         let attrs = tokio::fs::symlink_metadata(&local)
             .await
             .map_err(|_| file_error("无法读取上传源"))?;
-        if attrs.file_type().is_symlink() || (!attrs.is_file() && !attrs.is_dir()) {
-            return Err(file_error("不上传本地符号链接或特殊文件"));
-        }
+        validate_local_source(&attrs)?;
         let is_directory = attrs.is_dir();
         if is_directory {
             let mut children = tokio::fs::read_dir(&local)
@@ -109,6 +125,9 @@ pub(crate) async fn upload_paths(
             if cancel.is_cancelled() { return Err(SessionError::cancelled()); }
             connected(state, owner_id, session_id)?;
             if item.directory {
+                let attrs = tokio::fs::symlink_metadata(&item.local).await.map_err(|_| file_error("无法复核上传源目录"))?;
+                validate_local_source(&attrs)?;
+                if !attrs.is_dir() { return Err(file_error("上传源目录已变化，请重新拖入")); }
                 // 合并已有目录，不删除或替换任何目录；树内链接不是递归上传目标。
                 if browser.upload_metadata(&item.remote).await?.is_some_and(|attrs| attrs.file_type().is_symlink()) {
                     return Err(file_error("上传树中的同名目标是链接，不自动合并，请直接打开目标目录后上传"));
@@ -143,9 +162,15 @@ pub(crate) async fn upload_paths(
             } else { false };
             if cancel.is_cancelled() { return Err(SessionError::cancelled()); }
             let attrs = tokio::fs::symlink_metadata(&item.local).await.map_err(|_| file_error("无法读取上传源"))?;
-            if !attrs.is_file() || attrs.file_type().is_symlink() { return Err(file_error("上传源已变化，不再是普通文件")); }
-            let mut source = tokio::fs::File::open(&item.local).await.map_err(|_| file_error("无法打开上传源"))?;
+            validate_local_source(&attrs)?;
+            if !attrs.is_file() { return Err(file_error("上传源已变化，不再是普通文件")); }
+            let mut options = tokio::fs::OpenOptions::new();
+            options.read(true);
+            #[cfg(target_os = "windows")]
+            options.custom_flags(windows::Win32::Storage::FileSystem::FILE_FLAG_OPEN_REPARSE_POINT.0);
+            let mut source = options.open(&item.local).await.map_err(|_| file_error("无法打开上传源"))?;
             let opened = source.metadata().await.map_err(|_| file_error("无法核对上传源属性"))?;
+            validate_local_source(&opened)?;
             if !opened.is_file() || opened.len() != attrs.len() {
                 return Err(file_error("上传源在打开前发生变化，请重试"));
             }

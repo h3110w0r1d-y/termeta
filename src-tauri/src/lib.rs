@@ -2,6 +2,8 @@ mod backup;
 mod backup_runtime;
 mod commands;
 mod file_drag;
+#[cfg(target_os = "windows")]
+mod file_drag_windows;
 mod files;
 #[cfg(target_os = "macos")]
 mod macos_menu;

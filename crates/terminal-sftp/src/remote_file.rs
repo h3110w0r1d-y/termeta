@@ -22,6 +22,24 @@ pub struct RemoteFile {
     pub(super) offset: u64,
 }
 impl RemoteFile {
+    /// SFTP 使用显式字节偏移；原生虚拟文件流可独立定位，不读取或缓存跳过内容。
+    pub fn seek_to(&mut self, offset: u64) {
+        self.offset = offset;
+    }
+
+    /// 以打开后的句柄核对长度，避免原生拖出使用打开前的路径属性声明流大小。
+    pub async fn size(&self) -> Result<Option<u64>> {
+        let handle = self
+            .handle
+            .as_ref()
+            .ok_or_else(|| file_error("文件已关闭"))?;
+        self.raw
+            .fstat(handle)
+            .await
+            .map(|value| value.attrs.size)
+            .map_err(protocol_error)
+    }
+
     async fn finish(&mut self) -> Result<()> {
         if let Some(handle) = self.handle.take() {
             self.raw.close(handle).await.map_err(protocol_error)?;

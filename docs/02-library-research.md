@@ -33,7 +33,7 @@ SerializeAddon 0.14.0（MIT，未声明独立 engines/features/MSRV）与 xterm 
 
 macOS 文件承诺与原生菜单使用 objc2 0.6.5、block2 0.6.2、objc2-app-kit/foundation 0.3.2，仅 macOS target 按需启用 features。objc2/foundation/block2 为 MIT，AppKit 为 Zlib OR Apache-2.0 OR MIT，声明 MSRV 1.71。AppKit 对象及通知令牌在主线程管理，文件承诺后台兑现；API 来源见 [NSFilePromiseProvider](https://docs.rs/objc2-app-kit/0.3.2/objc2_app_kit/struct.NSFilePromiseProvider.html) 和 [菜单](https://github.com/tauri-apps/muda/issues/235)。串口角色枚举另用 core-foundation 0.10.1、io-kit-sys 0.4.1（MIT/Apache-2.0）。
 
-Windows/Linux 原生文件拖出没有落地，不将候选库写成已支持。系统后台热键同样未引入，见 [路线](10-roadmap.md)。
+Windows 文件/目录拖出使用固定 [windows 0.62.2](https://docs.rs/crate/windows/0.62.2/source/) 与 [windows-core 0.62.2](https://docs.rs/crate/windows-core/0.62.2/source/)（MIT OR Apache-2.0，声明 MSRV 1.82），按目标启用 Shell/OLE、COM/存储、内存、文件属性、事件与窗口消息 API。自行实现目录描述符、只读内容流及异步生命周期，不依赖 `virtual-file-transfer` 或预下载临时文件；文件内容读取留在 Rust，STA 等待通过 COM 消息泵分派窗口/COM 调用。API 依据为 [Shell 数据格式](https://learn.microsoft.com/en-us/windows/win32/shell/clipboard)、[FILEDESCRIPTORW](https://learn.microsoft.com/en-us/windows/win32/api/shlobj_core/ns-shlobj_core-filedescriptorw)、[异步数据传输](https://learn.microsoft.com/en-us/windows/win32/shell/datascenarios#dragging-and-dropping-shell-objects-asynchronously) 和 [CoWaitForMultipleHandles](https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-cowaitformultiplehandles)，已按固定 release 的生成接口核对签名。2026-10-21 查询 GitHub Advisory 的 Rust 包索引未返回这两个固定版本的匹配公告；这不代表完整依赖安全审计或 Windows 运行验收通过。Linux 原生拖出与系统后台热键尚未引入，见 [路线](10-roadmap.md)。
 
 12 家族字体的固定版本、来源、许可和摘要集中在 [字体清单](../resources/fonts/README.md)；配色、拼音表和用户指定 SSH 系统图标集中在 [资源来源](../resources/README.md)。资源来源记录不等同发布许可审查通过，不重复维护尺寸、提取过程或组件样式。
 
