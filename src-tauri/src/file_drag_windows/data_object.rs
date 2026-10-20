@@ -124,14 +124,13 @@ fn descriptors(manifest: &Manifest) -> Result<STGMEDIUM> {
                     dwHighDateTime: (ticks >> 32) as u32,
                 };
             }
+            // packed 描述符字段不能被借用；先填充对齐的数组，再按值赋回。
             // 清单已验证 UTF-16 长度和每个路径分量，终止符由零初始化保留。
-            for (target, value) in descriptor
-                .cFileName
-                .iter_mut()
-                .zip(entry.relative.encode_utf16())
-            {
+            let mut file_name = [0u16; 260];
+            for (target, value) in file_name.iter_mut().zip(entry.relative.encode_utf16()) {
                 *target = value;
             }
+            descriptor.cFileName = file_name;
             pointer
                 .add(header + index * size_of::<FILEDESCRIPTORW>())
                 .cast::<FILEDESCRIPTORW>()
@@ -414,17 +413,24 @@ mod tests {
                     .cast::<FILEDESCRIPTORW>()
                     .read_unaligned()
             };
-            assert_eq!(descriptor(0).dwFileAttributes, FILE_ATTRIBUTE_DIRECTORY.0);
+            // 断言宏和切片也会借用字段，先按值复制 packed 字段。
+            let root_attributes = descriptor(0).dwFileAttributes;
+            assert_eq!(root_attributes, FILE_ATTRIBUTE_DIRECTORY.0);
             let empty = descriptor(1);
-            assert_eq!(empty.dwFileAttributes, FILE_ATTRIBUTE_DIRECTORY.0);
+            let empty_attributes = empty.dwFileAttributes;
+            let empty_name = empty.cFileName;
+            assert_eq!(empty_attributes, FILE_ATTRIBUTE_DIRECTORY.0);
             assert_eq!(empty.dwFlags & FD_FILESIZE.0 as u32, 0);
             assert_eq!(
-                String::from_utf16(&empty.cFileName[..10]).unwrap(),
+                String::from_utf16(&empty_name[..10]).unwrap(),
                 "root\\empty"
             );
+            assert_eq!(empty_name[10], 0);
             let file = descriptor(2);
-            assert_eq!(file.nFileSizeHigh, 1);
-            assert_eq!(file.nFileSizeLow, 17);
+            let size_high = file.nFileSizeHigh;
+            let size_low = file.nFileSizeLow;
+            assert_eq!(size_high, 1);
+            assert_eq!(size_low, 17);
             assert_ne!(file.dwFlags & FD_FILESIZE.0 as u32, 0);
             let _ = GlobalUnlock(medium.u.hGlobal);
             ReleaseStgMedium(&mut medium);

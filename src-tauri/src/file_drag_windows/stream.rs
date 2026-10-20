@@ -35,6 +35,13 @@ struct Stream {
 impl Drop for Stream {
     fn drop(&mut self) {
         self.transfer.streams.fetch_sub(1, Ordering::AcqRel);
+        let cursor = self
+            .cursor
+            .get_mut()
+            .unwrap_or_else(|error| error.into_inner());
+        if let Some(reader) = cursor.remote.take() {
+            self.transfer.retire(reader);
+        }
     }
 }
 

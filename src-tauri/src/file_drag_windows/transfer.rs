@@ -5,7 +5,7 @@ use std::{
     collections::HashMap,
     ops::Range,
     sync::{
-        Arc, Mutex, Weak,
+        Arc, Mutex,
         atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     time::{Duration, Instant},
@@ -21,6 +21,7 @@ pub(super) type Remote = Arc<RemoteReader>;
 pub(super) struct RemoteReader {
     pub file: tokio::sync::Mutex<Option<RemoteFile>>,
     runtime: tokio::runtime::Handle,
+    closed: AtomicBool,
 }
 impl Drop for RemoteReader {
     fn drop(&mut self) {
@@ -168,7 +169,8 @@ pub(super) struct Transfer {
     progress: Mutex<Progress>,
     // 仅本次传输串行化远端请求；不持有全局状态锁等待网络或 Channel。
     gate: tokio::sync::Mutex<()>,
-    readers: Mutex<Vec<Weak<RemoteReader>>>,
+    readers: Mutex<Vec<Remote>>,
+    close_failed: AtomicBool,
 }
 
 impl Transfer {
@@ -206,6 +208,7 @@ impl Transfer {
             }),
             gate: tokio::sync::Mutex::new(()),
             readers: Mutex::new(Vec::new()),
+            close_failed: AtomicBool::new(false),
         })
     }
 
@@ -256,7 +259,7 @@ impl Transfer {
         }
         {
             let mut readers = self.readers.lock().unwrap();
-            readers.retain(|reader| reader.strong_count() > 0);
+            readers.retain(|reader| !reader.closed.load(Ordering::Acquire));
             if readers.len() >= 128 {
                 return Err(file_error("同时打开的拖出文件过多"));
             }
@@ -272,8 +275,9 @@ impl Transfer {
         let remote = Arc::new(RemoteReader {
             file: tokio::sync::Mutex::new(Some(file)),
             runtime: self.runtime.clone(),
+            closed: AtomicBool::new(false),
         });
-        self.readers.lock().unwrap().push(Arc::downgrade(&remote));
+        self.readers.lock().unwrap().push(remote.clone());
         Ok(remote)
     }
 
@@ -398,25 +402,36 @@ impl Transfer {
         })
     }
 
+    pub fn retire(self: &Arc<Self>, reader: Remote) {
+        let transfer = self.clone();
+        self.runtime.spawn(async move {
+            let _gate = transfer.gate.lock().await;
+            if let Some(mut file) = reader.file.lock().await.take() {
+                if file.close().await.is_err() {
+                    transfer.close_failed.store(true, Ordering::Release);
+                }
+            }
+            reader.closed.store(true, Ordering::Release);
+        });
+    }
+
     pub async fn close(&self) -> Result<()> {
         self.cancel.cancel();
         self.outgoing.finish();
         self.operation.lock().unwrap().sealed = true;
         // 与清单/OPEN/READ 共用门闩，迟到 COM 请求只能看到取消，不能复活会话。
         let _gate = self.gate.lock().await;
-        let readers: Vec<_> = self
-            .readers
-            .lock()
-            .unwrap()
-            .drain(..)
-            .filter_map(|reader| reader.upgrade())
-            .collect();
-        let mut failed = false;
+        let readers = std::mem::take(&mut *self.readers.lock().unwrap());
         for reader in readers {
             if let Some(mut file) = reader.file.lock().await.take() {
-                failed |= file.close().await.is_err();
+                if file.close().await.is_err() {
+                    self.close_failed.store(true, Ordering::Release);
+                }
             }
+            reader.closed.store(true, Ordering::Release);
         }
+        // 登记表持有强引用直到 CLOSE 完成；晚到的 retire 只能看到空句柄，不再发网络请求。
+        let failed = self.close_failed.load(Ordering::Acquire);
         if failed {
             return Err(file_error("拖出读取已结束，但部分远端句柄关闭失败"));
         }
