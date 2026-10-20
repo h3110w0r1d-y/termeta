@@ -16,7 +16,9 @@
 
 ## 账号、备份与同步
 
-桌面通过 termeta.io/GitHub/Google 浏览器登录，桌面会话永久可撤销；网页和管理会话有限期。提供方秘密留在服务端，应用 Token 留在 Rust/SQLCipher；相同邮箱不自动合并身份。完整 proof、回跳、owner 和撤销边界见 [账号认证](25-account-authentication.md)，HTTP DTO 以 服务端认证契约 为准。
+桌面通过 termeta.io/GitHub/Google 浏览器登录，桌面会话永久可撤销；网页和管理会话有限期。提供方秘密由服务端管理，应用 Token 留在 Rust/SQLCipher；相同邮箱不自动合并身份。完整 proof、回跳、owner 和撤销边界见 [账号认证](25-account-authentication.md)，HTTP DTO 以 服务端认证契约 为准。
+
+服务端可显式选择受信任的鉴权 HTTPS 中继，覆盖 GitHub 和可选 Google 的固定上游请求；中继会处理提供方认证秘密，应纳入认证信任范围。浏览器授权与回调来源、桌面 proof/PKCE、Google OIDC 校验和客户端 HTTP DTO 保持既有契约。部署配置与失败不重放规则见服务端中继接入，真实容器/Worker/提供方链路待验收。
 
 官方模式使用 `/api/sync/vault` 单头密文、revision CAS 和客户端稳定 ID 三方合并。云包使用本地主密钥/派生盐，服务端无法验证保险库密码；门禁、改密和故障恢复见 [官方同步](26-official-vault-sync.md)。退出保留本地数据。
 

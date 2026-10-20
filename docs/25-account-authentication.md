@@ -12,7 +12,7 @@
 
 ## 登录协议
 
-使用系统浏览器、S256 proof、短期确认码与一次性兑换。Rust 生成随机 verifier，仅向服务端提交 challenge；提供方凭据留在服务端。termeta.io 打开固定用户端 `/desktop/authorize`，用户注册/登录后显式授权；GitHub/Google 回调固定 HTTPS 服务。
+使用系统浏览器、S256 proof、短期确认码与一次性兑换。Rust 生成随机 verifier，仅向服务端提交 challenge；提供方凭据由服务端管理，可选受信任中继参与提供方请求，不交付客户端或浏览器，中继信任边界见[官方服务](24-official-service.md)。termeta.io 打开固定用户端 `/desktop/authorize`，用户注册/登录后显式授权；GitHub/Google 回调固定 HTTPS 服务。
 
 认证后服务端生成固定 `termeta://auth/callback?flow_id=<UUID>&provider=<termeta|github|google>#confirmation_code=<code>`。URI 只携带短期确认码，不含 Token、设备 proof 或提供方秘密。Rust 必须匹配本进程在途 flow、提供方、发起窗口、代次和期限，再用 proof 与确认码兑换；取消或关闭使旧流程失效。
 
