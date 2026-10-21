@@ -179,6 +179,7 @@ pub fn run() {
             commands::change_vault_password,
             commands::list_hosts,
             commands::list_host_inventory,
+            commands::arrange_hosts,
             commands::save_host,
             commands::save_workspace,
             commands::delete_host,

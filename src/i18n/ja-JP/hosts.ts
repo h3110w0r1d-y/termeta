@@ -4,7 +4,7 @@ export default {
   "hosts.batch.confirm":
     "サブグループを含め、「{groupName}」内の全{count}ホストに接続しますか？",
   "hosts.batch.separateTabs": "個別のタブで開く",
-  "hosts.batch.workspace": "ワークスペースで開く",
+  "hosts.batch.workspace": "タブグループで開く",
   "hosts.auth.password": "パスワード",
   "hosts.auth.publicKey": "公開鍵",
   "hosts.startup.shell": "対話型シェル",
@@ -67,7 +67,6 @@ export default {
   "hosts.groups.deleteAndMove": "グループを削除して内容を移動",
   "hosts.search.limit":
     "{count}件のホストのうち先頭100件を表示しています。検索条件を絞り込んでください。",
-  "hosts.status.favorite": "お気に入り",
   "hosts.search.placeholder": "すべてのホストを検索…",
   "hosts.search.label": "すべてのホストを検索",
   "hosts.search.noResults": "一致するホストがありません",
@@ -85,7 +84,6 @@ export default {
   "hosts.groups.empty":
     "このグループにホストはありません。作成するか、別のグループからドラッグしてください。",
   "hosts.actions.createHere": "ここにホストを作成",
-  "hosts.actions.favorite": "お気に入りに追加",
   "hosts.actions.move": "ホストを移動",
   "hosts.move.prompt": "「{name}」の移動先：",
   "hosts.move.destination": "移動先グループ",
@@ -100,7 +98,7 @@ export default {
   "hosts.drag.destination": "移動先：{target}",
   "hosts.drag.invalidTarget": "ここにはドロップできません",
   "hosts.batch.description":
-    "個別のタブまたは分割ワークスペースを選択してください。",
+    "個別のタブまたは分割タブグループを選択してください。",
   "hosts.batch.savedWorkspaceHint":
     "保存済みワークスペースは元のレイアウトで開きます。",
   "hosts.form.useHostPassword": "ホスト専用のパスワードを使用",
@@ -116,4 +114,16 @@ export default {
     "ホストは保存されましたが、配色を保存できませんでした。再試行してください。{error}",
   "hosts.selection.sshRequired": "保存済みSSHホストを選択してください",
   "hosts.selection.sshPlaceholder": "保存済みSSHホストを選択",
+  "hosts.selection.label": "選択したホスト",
+  "hosts.selection.count": "{count} 台を選択中",
+  "hosts.move.selectionPrompt": "選択した {count} 台のホストの移動先：",
+  "hosts.batch.selectionConfirm": "選択した {count} 台のホストに接続しますか？",
+  "hosts.sort.label": "並べ替え",
+  "hosts.sort.first": "先頭へ移動",
+  "hosts.sort.up": "上へ移動",
+  "hosts.sort.down": "下へ移動",
+  "hosts.sort.last": "末尾へ移動",
+  "hosts.sort.before": "「{name}」の前",
+  "hosts.sort.after": "「{name}」の後",
+  "hosts.drag.selection": "{count} 台のホストを移動 · {destination}",
 } as const;

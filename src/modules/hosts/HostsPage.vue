@@ -3,18 +3,23 @@ import { t } from "@/i18n";
 import ScrollFade from "@/components/ui/ScrollFade.vue";
 import HostProfileIcon from "./HostProfileIcon.vue";
 import ConnectionTypeDropdown from "./ConnectionTypeDropdown.vue";
+import { useHostSelection } from "./useHostSelection";
+import { compareHostOrder } from "./ordering";
 import { hostEndpoint, hostKindLabel } from "./presentation";
 import AssetIcon from "@/components/ui/AssetIcon.vue";
 import { NIcon } from "naive-ui";
-import {
-  IconLayoutGrid,
-  IconList,
-  IconStarFilled,
-  IconStar,
-} from "@tabler/icons-vue";
+import { IconLayoutGrid, IconList } from "@tabler/icons-vue";
 import { closeContextMenuOnOutside } from "@/components/ui/contextMenu";
 import { confirmAction } from "@/components/ui/confirmation";
-import { computed, nextTick, ref, watch, reactive } from "vue";
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+  reactive,
+} from "vue";
 import {
   NForm,
   NFormItem,
@@ -66,12 +71,14 @@ const group = ref("all");
 const batchOpen = ref(false);
 const batchGroup = ref({ id: "all", hostIds: [] as string[] });
 const batchGroupName = computed(() =>
-  batchGroup.value.id === "all"
-    ? t("hosts.filters.all")
-    : groupPath(
-        store.groups,
-        batchGroup.value.id === "ungrouped" ? null : batchGroup.value.id,
-      ),
+  batchGroup.value.id === "selection"
+    ? t("hosts.selection.label")
+    : batchGroup.value.id === "all"
+      ? t("hosts.filters.all")
+      : groupPath(
+          store.groups,
+          batchGroup.value.id === "ungrouped" ? null : batchGroup.value.id,
+        ),
 );
 const batchHosts = computed(() => {
   const byId = new Map(store.hosts.map((host) => [host.id, host]));
@@ -95,10 +102,7 @@ function connectGroup(id: string) {
           ? !host.groupId
           : !!host.groupId && ids.has(host.groupId)),
     )
-    .sort(
-      (a, b) =>
-        Number(b.favorite) - Number(a.favorite) || a.name.localeCompare(b.name),
-    );
+    .sort(compareHostOrder);
   if (profiles.length === 1) emit("connect", profiles[0]!);
   else if (profiles.length > 1) {
     menu.value.show = false;
@@ -162,11 +166,38 @@ const visible = computed(() =>
           ? !host.groupId
           : !!host.groupId && scope.value.has(host.groupId)),
     )
-    .sort(
-      (a, b) =>
-        Number(b.favorite) - Number(a.favorite) || a.name.localeCompare(b.name),
-    ),
+    .sort(compareHostOrder),
 );
+const hostContent = ref<HTMLElement>();
+const selection = useHostSelection(visible, hostContent);
+const { selectedIds, selectedHosts, focusedId } = selection;
+function openSelection() {
+  if (!props.active || store.managementBusy || batchGroup.value.hostIds.length)
+    return;
+  const profiles = selectedHosts.value;
+  if (profiles.length === 1) emit("connect", profiles[0]!);
+  else if (profiles.length > 1) {
+    menu.value.show = false;
+    groupTree.value?.cancelDrag();
+    batchGroup.value = {
+      id: "selection",
+      hostIds: profiles.map((host) => host.id),
+    };
+    batchOpen.value = true;
+  }
+}
+function doubleClick(event: MouseEvent, host: HostProfile) {
+  if (
+    !props.active ||
+    store.managementBusy ||
+    event.ctrlKey ||
+    event.metaKey ||
+    event.shiftKey ||
+    (event.target as HTMLElement).closest("button, .selectable-text, a, input")
+  )
+    return;
+  emit("connect", host);
+}
 async function setIncludeChildren(value: boolean) {
   if (savingIncludeChildren.value) return;
   savingIncludeChildren.value = true;
@@ -182,34 +213,120 @@ function createHost(kind: HostKind = "ssh") {
   emit("create", kind, selectedGroup.value?.id ?? null);
 }
 const menu = ref({ show: false, hostId: "", x: 0, y: 0 });
+const menuHosts = computed(() =>
+  selectedIds.value.includes(menu.value.hostId)
+    ? selectedHosts.value
+    : store.hosts.filter((host) => host.id === menu.value.hostId),
+);
 const menuOptions = computed(() => [
-  { label: t("common.actions.connect"), key: "connect" },
-  {
-    label: t("common.actions.edit"),
-    key: "edit",
-    disabled:
-      store.managementBusy ||
-      store.hosts.find((h) => h.id === menu.value.hostId)?.kind === "workspace",
-  },
-  {
-    label: t("common.actions.duplicate"),
-    key: "duplicate",
-    disabled:
-      store.managementBusy ||
-      store.hosts.find((h) => h.id === menu.value.hostId)?.kind === "workspace",
-  },
+  ...(menuHosts.value.length > 1
+    ? [
+        {
+          label: t("hosts.batch.workspace"),
+          key: "workspace",
+          disabled: store.managementBusy,
+        },
+        {
+          label: t("hosts.batch.separateTabs"),
+          key: "tabs",
+          disabled: store.managementBusy,
+        },
+      ]
+    : [
+        { label: t("common.actions.connect"), key: "connect" },
+        {
+          label: t("common.actions.edit"),
+          key: "edit",
+          disabled:
+            store.managementBusy || menuHosts.value[0]?.kind === "workspace",
+        },
+        {
+          label: t("common.actions.duplicate"),
+          key: "duplicate",
+          disabled:
+            store.managementBusy || menuHosts.value[0]?.kind === "workspace",
+        },
+      ]),
   {
     label: t("hosts.actions.moveToGroup"),
     key: "move",
     disabled: store.managementBusy,
   },
   {
-    label: t("common.actions.delete"),
-    key: "delete",
-    disabled: store.managementBusy,
+    label: t("hosts.sort.label"),
+    key: "sort",
+    children: [
+      {
+        label: t("hosts.sort.first"),
+        key: "first",
+        disabled: store.managementBusy,
+      },
+      { label: t("hosts.sort.up"), key: "up", disabled: store.managementBusy },
+      {
+        label: t("hosts.sort.down"),
+        key: "down",
+        disabled: store.managementBusy,
+      },
+      {
+        label: t("hosts.sort.last"),
+        key: "last",
+        disabled: store.managementBusy,
+      },
+    ],
+    disabled: !menuHosts.value.every((host) =>
+      visible.value.some((item) => item.id === host.id),
+    ),
   },
+  ...(menuHosts.value.length === 1
+    ? [
+        {
+          label: t("common.actions.delete"),
+          key: "delete",
+          disabled: store.managementBusy,
+        },
+      ]
+    : []),
 ]);
+// 只重排当前浏览范围，隐藏项保持原来的槽位，批次内部顺序始终不变。
+async function sortSelection(direction: "first" | "last" | "up" | "down") {
+  if (store.managementBusy || !props.active) return;
+  const selected = new Set(menuHosts.value.map((host) => host.id));
+  const ids = visible.value.map((host) => host.id);
+  const moved = ids.filter((id) => selected.has(id));
+  const rest = ids.filter((id) => !selected.has(id));
+  if (!moved.length || !rest.length) return;
+  let next: string[];
+  if (direction === "first" || direction === "last") {
+    next = direction === "first" ? [...moved, ...rest] : [...rest, ...moved];
+  } else {
+    next = [...ids];
+    if (direction === "up") {
+      for (let i = 1; i < next.length; i++)
+        if (selected.has(next[i]!) && !selected.has(next[i - 1]!))
+          [next[i - 1], next[i]] = [next[i]!, next[i - 1]!];
+    } else {
+      for (let i = next.length - 2; i >= 0; i--)
+        if (selected.has(next[i]!) && !selected.has(next[i + 1]!))
+          [next[i], next[i + 1]] = [next[i + 1]!, next[i]!];
+    }
+  }
+  if (next.every((id, index) => id === ids[index])) return;
+  const visibleIds = new Set(ids);
+  let index = 0;
+  const ordered = [...store.hosts]
+    .sort(compareHostOrder)
+    .map((host) => (visibleIds.has(host.id) ? next[index++]! : host.id));
+  store.managementBusy = true;
+  try {
+    await store.arrangeHosts(ordered);
+  } catch (e) {
+    error.value = errorMessage(e);
+  } finally {
+    store.managementBusy = false;
+  }
+}
 const movingHost = ref<HostProfile>();
+const movingHostIds = ref<string[]>([]);
 const destination = ref("");
 const moveError = ref("");
 const moveOptions = computed(() => [
@@ -217,7 +334,13 @@ const moveOptions = computed(() => [
   ...groupChoices(store.groups),
 ]);
 function openMenu(event: MouseEvent | KeyboardEvent, host: HostProfile) {
+  if (!props.active) return;
   event.preventDefault();
+  if (!selectedIds.value.includes(host.id)) {
+    selection.clear();
+    if (visible.value.some((item) => item.id === host.id))
+      selection.select(host.id);
+  }
   const target = event.currentTarget as HTMLElement;
   const rect = (
     event instanceof KeyboardEvent
@@ -232,14 +355,81 @@ function openMenu(event: MouseEvent | KeyboardEvent, host: HostProfile) {
   };
 }
 function cardKey(event: KeyboardEvent, host: HostProfile) {
-  if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10"))
+  if (
+    !props.active ||
+    event.isComposing ||
+    event.defaultPrevented ||
+    menu.value.show ||
+    batchOpen.value ||
+    movingHost.value
+  )
+    return;
+  if (event.key === "Enter") {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!selectedHosts.value.length) selection.select(host.id);
+    openSelection();
+  } else if (event.key === " ") {
+    event.preventDefault();
+    selection.select(host.id, event.shiftKey, event.ctrlKey || event.metaKey);
+  } else if (event.key === "Escape") {
+    event.preventDefault();
+    selection.clear();
+  } else if (
+    event.key === "ContextMenu" ||
+    (event.shiftKey && event.key === "F10")
+  )
     openMenu(event, host);
 }
+// 页面捕获卡片外的导航；文档冒泡补足焦点落在页面外壳或 body 的情形。
+// 应用命令先在文档捕获阶段执行，输入、复杂控件、模态与弹层保留各自按键。
+function pageKey(event: KeyboardEvent) {
+  if (
+    !props.active ||
+    event.defaultPrevented ||
+    event.isComposing ||
+    event.getModifierState("AltGraph") ||
+    (event.target instanceof Element &&
+      event.target.closest("[data-shortcut-recorder]")) ||
+    menu.value.show ||
+    batchOpen.value ||
+    movingHost.value ||
+    document.querySelector(
+      "[data-modal-open], [data-ui-popup-open]:not([data-application-shortcuts]), body.host-dragging",
+    )
+  )
+    return;
+  if (
+    (event.metaKey || event.ctrlKey) &&
+    !event.altKey &&
+    !event.shiftKey &&
+    event.key.toLowerCase() === "f"
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    search.value?.focus();
+    return;
+  }
+  if (
+    !(event.target instanceof Element) ||
+    event.target.closest(
+      "input, textarea, select, [contenteditable]:not([contenteditable='false']), [role='tree'], [role='combobox'], [role='radiogroup'], [role='slider'], .selectable-text",
+    )
+  )
+    return;
+  selection.navigate(event);
+}
+onMounted(() => document.addEventListener("keydown", pageKey));
+onBeforeUnmount(() => document.removeEventListener("keydown", pageKey));
 async function selectMenu(key: string) {
   menu.value.show = false;
   const host = store.hosts.find((item) => item.id === menu.value.hostId);
   if (!host) return;
-  if (key === "connect") emit("connect", host);
+  if (store.managementBusy || !props.active) return;
+  if (key === "workspace" || key === "tabs") connectMany(menuHosts.value, key);
+  else if (key === "first" || key === "last" || key === "up" || key === "down")
+    await sortSelection(key);
+  else if (key === "connect") emit("connect", host);
   else if (!store.managementBusy) {
     if (key === "edit" && host.kind !== "workspace") emit("edit", host);
     else if (key === "duplicate" && host.kind !== "workspace")
@@ -247,6 +437,7 @@ async function selectMenu(key: string) {
     else if (key === "delete") await remove(host);
     else if (key === "move") {
       movingHost.value = { ...host };
+      movingHostIds.value = menuHosts.value.map((host) => host.id);
       destination.value = host.groupId ?? "";
       moveError.value = "";
     }
@@ -273,7 +464,13 @@ async function moveHost() {
     return;
   store.managementBusy = true;
   try {
-    await store.moveHost(movingHost.value, destination.value || null);
+    await store.arrangeHosts(
+      [...store.hosts].sort(compareHostOrder).map((host) => host.id),
+      {
+        hostIds: [...movingHostIds.value],
+        groupId: destination.value || null,
+      },
+    );
     movingHost.value = undefined;
   } catch (e) {
     moveError.value = errorMessage(e);
@@ -299,17 +496,6 @@ async function remove(host: HostProfile) {
     store.managementBusy = false;
   }
 }
-async function favorite(host: HostProfile) {
-  if (store.managementBusy) return;
-  store.managementBusy = true;
-  try {
-    await store.favorite(host);
-  } catch (e) {
-    error.value = errorMessage(e);
-  } finally {
-    store.managementBusy = false;
-  }
-}
 watch(
   () => props.active,
   async (active) => {
@@ -323,16 +509,19 @@ watch(
   },
   { immediate: true, flush: "post" },
 );
-watch(group, () => {
+watch([group, includeChildren], () => {
   menu.value.show = false;
+  selection.clear();
+  groupTree.value?.cancelDrag();
 });
 </script>
 <template>
-  <section class="hosts-page home-page">
+  <section class="hosts-page home-page" @keydown.capture="pageKey">
     <HostSearch
       ref="search"
       :active="active"
       @connect="emit('connect', $event)"
+      @navigate-hosts="selection.first"
     />
     <NSpace class="host-actions" justify="start">
       <ConnectionTypeDropdown
@@ -367,6 +556,8 @@ watch(group, () => {
         ref="groupTree"
         v-model="group"
         :active="active"
+        :selected-host-ids="selectedIds"
+        @host-drag-start="selection.beginDrag"
         @error="error = $event"
         @connect="emit('connect', $event)"
         @connect-group="connectGroup"
@@ -378,16 +569,24 @@ watch(group, () => {
         :active="active"
         :group-name="batchGroupName"
         :hosts="batchHosts"
+        :selection="batchGroup.id === 'selection'"
         @connect="connectMany"
         @after-leave="batchGroup = { id: 'all', hostIds: [] }"
       />
-      <section class="host-content" :aria-label="t('hosts.filters.group')">
+      <section
+        ref="hostContent"
+        class="host-content"
+        :aria-label="t('hosts.filters.group')"
+      >
         <div class="host-scope">
           <NEllipsis>
             <NText strong>{{ groupName }}</NText>
           </NEllipsis>
           <NText depth="3">
             {{ t("hosts.count", { count: visible.length }) }}
+          </NText>
+          <NText v-if="selectedIds.length" role="status" depth="3">
+            {{ t("hosts.selection.count", { count: selectedIds.length }) }}
           </NText>
           <NCheckbox
             v-if="selectedGroup"
@@ -421,7 +620,12 @@ watch(group, () => {
             </NRadioButton>
           </NRadioGroup>
         </div>
-        <ScrollFade class="host-list-scroll" background="var(--bg)" :size="20">
+        <ScrollFade
+          class="host-list-scroll"
+          background="var(--bg)"
+          :size="20"
+          data-host-drop-area
+        >
           <NScrollbar>
             <NEmpty
               v-if="!visible.length"
@@ -439,13 +643,29 @@ watch(group, () => {
                 </NSpace>
               </template>
             </NEmpty>
-            <div v-else-if="displayMode === 'card'" class="host-grid">
+            <div
+              v-else-if="displayMode === 'card'"
+              class="host-grid"
+              role="listbox"
+              aria-multiselectable="true"
+              :aria-label="t('hosts.filters.group')"
+            >
               <NCard
                 v-for="host in visible"
                 :key="host.id"
                 size="small"
                 hoverable
-                tabindex="0"
+                class="host-item"
+                :class="{ 'host-selected': selectedIds.includes(host.id) }"
+                :tabindex="
+                  focusedId === host.id ||
+                  (!focusedId && host.id === visible[0]?.id)
+                    ? 0
+                    : -1
+                "
+                role="option"
+                :aria-selected="selectedIds.includes(host.id)"
+                :data-host-order-id="host.id"
                 :aria-label="
                   t('hosts.accessibility.connect', {
                     name: host.name,
@@ -453,46 +673,34 @@ watch(group, () => {
                 "
                 @pointerdown="groupTree?.startHostDrag($event, host)"
                 @dragstart.prevent
-                @dblclick="emit('connect', host)"
-                @keydown.enter.self.prevent="emit('connect', host)"
+                @click="selection.click($event, host)"
+                @dblclick="doubleClick($event, host)"
                 @keydown.self="cardKey($event, host)"
                 @contextmenu="openMenu($event, host)"
               >
                 <template #header>
-                  <div class="host-card-title">
-                    <HostProfileIcon :host="host" />
-                    <NEllipsis class="host-card-name">
-                      {{ host.name }}
-                    </NEllipsis>
-                    <NTag class="host-protocol" type="info" size="small">
-                      {{ hostKindLabel(host) }}
-                    </NTag>
+                  <div class="host-card-title host-card-heading">
+                    <div class="host-card-icon">
+                      <HostProfileIcon :host="host" />
+                    </div>
+                    <div class="host-card-name-row">
+                      <NEllipsis class="host-card-name">
+                        {{ host.name }}
+                      </NEllipsis>
+                      <NTag class="host-protocol" type="info" size="small">
+                        {{ hostKindLabel(host) }}
+                      </NTag>
+                    </div>
+                    <div class="host-card-group">
+                      <NEllipsis>
+                        <NText depth="3">
+                          {{ groupPath(store.groups, host.groupId) }}
+                        </NText>
+                      </NEllipsis>
+                    </div>
                   </div>
                 </template>
-                <template #header-extra>
-                  <NButton
-                    :disabled="store.managementBusy"
-                    quaternary
-                    circle
-                    :type="host.favorite ? 'warning' : 'default'"
-                    :aria-label="
-                      host.favorite
-                        ? t('common.actions.removeFavorite')
-                        : t('hosts.actions.favorite')
-                    "
-                    @dblclick.stop
-                    @click.stop="favorite(host)"
-                  >
-                    <NIcon :size="18" aria-hidden="true">
-                      <IconStarFilled v-if="host.favorite" />
-                      <IconStar v-else />
-                    </NIcon>
-                  </NButton>
-                </template>
                 <NSpace vertical>
-                  <NText depth="3">
-                    {{ groupPath(store.groups, host.groupId) }}
-                  </NText>
                   <NEllipsis class="selectable-text">
                     {{ hostEndpoint(host) }}
                   </NEllipsis>
@@ -504,11 +712,30 @@ watch(group, () => {
                 </NSpace>
               </NCard>
             </div>
-            <NList v-else hoverable bordered size="small" class="host-list">
+            <NList
+              v-else
+              hoverable
+              bordered
+              size="small"
+              class="host-list"
+              role="listbox"
+              aria-multiselectable="true"
+              :aria-label="t('hosts.filters.group')"
+            >
               <NListItem
                 v-for="host in visible"
                 :key="host.id"
-                tabindex="0"
+                class="host-item"
+                :class="{ 'host-selected': selectedIds.includes(host.id) }"
+                :tabindex="
+                  focusedId === host.id ||
+                  (!focusedId && host.id === visible[0]?.id)
+                    ? 0
+                    : -1
+                "
+                role="option"
+                :aria-selected="selectedIds.includes(host.id)"
+                :data-host-order-id="host.id"
                 :aria-label="
                   t('hosts.accessibility.connect', {
                     name: host.name,
@@ -516,8 +743,8 @@ watch(group, () => {
                 "
                 @pointerdown="groupTree?.startHostDrag($event, host)"
                 @dragstart.prevent
-                @dblclick="emit('connect', host)"
-                @keydown.enter.self.prevent="emit('connect', host)"
+                @click="selection.click($event, host)"
+                @dblclick="doubleClick($event, host)"
                 @keydown.self="cardKey($event, host)"
                 @contextmenu="openMenu($event, host)"
               >
@@ -549,26 +776,6 @@ watch(group, () => {
                     </NTag>
                   </NSpace>
                 </div>
-                <template #suffix>
-                  <NButton
-                    :disabled="store.managementBusy"
-                    quaternary
-                    circle
-                    :type="host.favorite ? 'warning' : 'default'"
-                    :aria-label="
-                      host.favorite
-                        ? t('common.actions.removeFavorite')
-                        : t('hosts.actions.favorite')
-                    "
-                    @dblclick.stop
-                    @click.stop="favorite(host)"
-                  >
-                    <NIcon :size="18" aria-hidden="true">
-                      <IconStarFilled v-if="host.favorite" />
-                      <IconStar v-else />
-                    </NIcon>
-                  </NButton>
-                </template>
               </NListItem>
             </NList>
           </NScrollbar>
@@ -598,7 +805,13 @@ watch(group, () => {
         }
       "
     >
-      <p>{{ t("hosts.move.prompt", { name: movingHost?.name ?? "" }) }}</p>
+      <p>
+        {{
+          movingHostIds.length > 1
+            ? t("hosts.move.selectionPrompt", { count: movingHostIds.length })
+            : t("hosts.move.prompt", { name: movingHost?.name ?? "" })
+        }}
+      </p>
       <NForm ref="moveForm" :model="moveModel" :rules="moveRules">
         <NFormItem :label="t('hosts.move.destination')" path="destination">
           <NSelect
@@ -699,11 +912,73 @@ watch(group, () => {
   flex: 1;
   min-height: 0;
 }
+/* 选中与悬浮分开；只开放地址正文的原生选字。 */
+.host-item {
+  position: relative;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.host-item.host-selected,
+.host-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.host-item.host-selected {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
+.host-item[data-host-drop-position]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--accent);
+  pointer-events: none;
+  z-index: 1;
+}
+.host-item[data-host-drop-position="before"]::after {
+  top: 0;
+}
+.host-item[data-host-drop-position="after"]::after {
+  bottom: 0;
+}
+.host-grid .host-item[data-host-drop-position]::after {
+  width: 3px;
+  height: auto;
+  top: 0;
+  bottom: 0;
+  right: auto;
+}
+.host-grid .host-item[data-host-drop-position="after"]::after {
+  left: auto;
+  right: 0;
+}
 .host-card-title {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
+}
+.host-card-heading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0px 8px;
+}
+.host-card-icon {
+  grid-row: span 2;
+  display: flex;
+  align-items: center;
+}
+.host-card-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.host-card-group {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: normal;
 }
 .host-card-name {
   min-width: 0;

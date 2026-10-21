@@ -20,8 +20,6 @@ pub struct HostDraft {
     pub username: String,
     pub group_id: Option<String>,
     #[serde(default)]
-    pub favorite: bool,
-    #[serde(default)]
     pub tags: Vec<String>,
     #[serde(default)]
     pub auth_plan: Vec<AuthStep>,
@@ -30,6 +28,7 @@ pub struct HostDraft {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostProfile {
+    pub sort_order: i64,
     #[serde(default)]
     pub startup: SshStartup,
     #[serde(default)]
@@ -47,7 +46,6 @@ pub struct HostProfile {
     pub port: u16,
     pub username: String,
     pub group_id: Option<String>,
-    pub favorite: bool,
     pub tags: Vec<String>,
     pub auth_plan: Vec<AuthStep>,
     pub has_password: bool,
@@ -162,4 +160,24 @@ pub struct WorkspaceDraft {
     pub name: String,
     pub workspace: SavedWorkspace,
     pub expected_revision: Option<i64>,
+}
+
+/// 排序携带完整清单版本，迁组与顺序必须在同一事务中校验和保存。
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct HostArrangement {
+    pub ordered_hosts: Vec<HostOrderEntry>,
+    pub move_to: Option<HostMove>,
+}
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct HostOrderEntry {
+    pub id: String,
+    pub revision: i64,
+}
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct HostMove {
+    pub host_ids: Vec<String>,
+    pub group_id: Option<String>,
 }

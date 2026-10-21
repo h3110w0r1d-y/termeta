@@ -2,8 +2,6 @@
 import { t } from "@/i18n";
 import ConnectionTypeDropdown from "./ConnectionTypeDropdown.vue";
 import { hostEndpoint, hostKindLabel } from "./presentation";
-import { NIcon } from "naive-ui";
-import { IconStarFilled } from "@tabler/icons-vue";
 import { computed, nextTick, ref, watch } from "vue";
 import {
   NButton,
@@ -151,14 +149,6 @@ function enter(event: KeyboardEvent) {
               >
                 <NFlex vertical align="start" :size="4" class="result-text">
                   <NText>
-                    <NIcon
-                      v-if="host.favorite"
-                      :size="16"
-                      role="img"
-                      :aria-label="t('hosts.status.favorite')"
-                    >
-                      <IconStarFilled />
-                    </NIcon>
                     {{ host.name }}
                   </NText>
                   <NText depth="3">

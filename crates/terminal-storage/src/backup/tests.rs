@@ -32,7 +32,6 @@ fn draft(credential_id: Option<String>) -> HostDraft {
         port: 22,
         username: "test".into(),
         group_id: None,
-        favorite: false,
         tags: vec!["服务器".into()],
         auth_plan: vec![terminal_core::AuthStep::Password { credential_id }],
     }

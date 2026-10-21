@@ -35,7 +35,7 @@ use std::{
 };
 use thiserror::Error;
 
-const SCHEMA_VERSION: i64 = 8;
+const SCHEMA_VERSION: i64 = 9;
 
 #[derive(Debug, Error)]
 pub enum StorageError {
@@ -167,9 +167,9 @@ impl SqliteStore {
         let version: i64 = sqlx::query_scalar("PRAGMA user_version")
             .fetch_one(pool)
             .await?;
-        if ![0, 2, 3, 4, 5, 6, 7, SCHEMA_VERSION].contains(&version) {
+        if ![0, 2, 3, 4, 5, 6, 7, 8, SCHEMA_VERSION].contains(&version) {
             return Err(StorageError::Validation(
-                "数据库格式不兼容，仅支持当前加密格式及 schema 2/3/4/5/6/7 升级",
+                "数据库格式不兼容，仅支持当前加密格式及 schema 2/3/4/5/6/7/8 升级",
             ));
         }
         private_file(path)?;

@@ -32,7 +32,7 @@ impl SqliteStore {
         connection: &mut sqlx::SqliteConnection,
         search: &str,
     ) -> Result<Vec<HostProfile>> {
-        let rows = sqlx::query("SELECT p.*,s.address,s.port,s.username FROM connection_profiles p LEFT JOIN ssh_profiles s ON s.profile_id=p.id WHERE p.kind IN ('ssh','serial','telnet','workspace') ORDER BY p.favorite DESC,p.name COLLATE NOCASE")
+        let rows = sqlx::query("SELECT p.*,s.address,s.port,s.username FROM connection_profiles p LEFT JOIN ssh_profiles s ON s.profile_id=p.id WHERE p.kind IN ('ssh','serial','telnet','workspace') ORDER BY p.sort_order,p.name COLLATE NOCASE,p.id")
             .fetch_all(&mut *connection).await?;
         let mut profiles = Vec::with_capacity(rows.len());
         let search = search.to_lowercase();
@@ -83,6 +83,7 @@ impl SqliteStore {
                 None
             };
             let host = HostProfile {
+                sort_order: row.try_get("sort_order")?,
                 startup: if kind == "ssh" {
                     ssh_startup(&config)?
                 } else {
@@ -117,7 +118,6 @@ impl SqliteStore {
                     .try_get::<Option<String>, _>("username")?
                     .unwrap_or_default(),
                 group_id: row.try_get("group_id")?,
-                favorite: row.try_get("favorite")?,
                 tags,
                 auth_plan,
                 has_password,
@@ -140,6 +140,81 @@ impl SqliteStore {
             }
         }
         Ok(profiles)
+    }
+    /// 仅更新位置与分组，不经过认证配置保存路径，也不接触秘密或活动会话。
+    pub async fn arrange_hosts(&self, draft: HostArrangement) -> Result<HostInventory> {
+        use std::collections::{HashMap, HashSet};
+        let mut tx = self.pool().await?.begin_with("BEGIN IMMEDIATE").await?;
+        let rows = sqlx::query("SELECT id,revision,sort_order,group_id FROM connection_profiles WHERE kind IN ('ssh','telnet','serial','workspace')")
+            .fetch_all(&mut *tx).await?;
+        let current: HashMap<String, (i64, i64, Option<String>)> = rows
+            .into_iter()
+            .map(|row| {
+                Ok((
+                    row.try_get("id")?,
+                    (
+                        row.try_get("revision")?,
+                        row.try_get("sort_order")?,
+                        row.try_get("group_id")?,
+                    ),
+                ))
+            })
+            .collect::<std::result::Result<_, sqlx::Error>>()?;
+        let mut seen = HashSet::new();
+        if draft.ordered_hosts.len() != current.len() {
+            return Err(StorageError::Conflict);
+        }
+        for entry in &draft.ordered_hosts {
+            if !seen.insert(entry.id.as_str())
+                || current
+                    .get(&entry.id)
+                    .is_none_or(|host| host.0 != entry.revision)
+            {
+                return Err(StorageError::Conflict);
+            }
+        }
+        let mut moving = HashSet::new();
+        if let Some(target) = &draft.move_to {
+            for id in &target.host_ids {
+                if !current.contains_key(id) || !moving.insert(id.as_str()) {
+                    return Err(StorageError::Validation("迁移主机范围无效"));
+                }
+            }
+            if moving.is_empty() {
+                return Err(StorageError::Validation("未选择要移动的主机"));
+            }
+            if let Some(group_id) = &target.group_id {
+                let exists: bool =
+                    sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM host_groups WHERE id=?)")
+                        .bind(group_id)
+                        .fetch_one(&mut *tx)
+                        .await?;
+                if !exists {
+                    return Err(StorageError::Validation("目标分组不存在"));
+                }
+            }
+        }
+        let timestamp = now();
+        for (position, entry) in draft.ordered_hosts.iter().enumerate() {
+            let (_, order, group) = current.get(&entry.id).ok_or(StorageError::Conflict)?;
+            let group_id = if moving.contains(entry.id.as_str()) {
+                &draft
+                    .move_to
+                    .as_ref()
+                    .ok_or(StorageError::Conflict)?
+                    .group_id
+            } else {
+                group
+            };
+            if *order != position as i64 || group != group_id {
+                sqlx::query("UPDATE connection_profiles SET sort_order=?,group_id=?,revision=revision+1,updated_at=? WHERE id=?")
+                    .bind(position as i64).bind(group_id).bind(timestamp).bind(&entry.id).execute(&mut *tx).await?;
+            }
+        }
+        let hosts = Self::list_hosts_from(&mut tx, "").await?;
+        let groups = Self::list_groups_from(&mut tx).await?;
+        tx.commit().await?;
+        Ok(HostInventory { hosts, groups })
     }
     pub async fn get_host(&self, id: &str) -> Result<HostProfile> {
         self.list_hosts("")
@@ -338,8 +413,8 @@ impl SqliteStore {
                 return Err(StorageError::Validation("不能更改已保存主机的连接类型"));
             }
             let revision = draft.revision.ok_or(StorageError::Conflict)?;
-            let changed = sqlx::query("UPDATE connection_profiles SET name=?,group_id=?,favorite=?,revision=revision+1,updated_at=? WHERE id=? AND revision=?")
-                .bind(draft.name.trim()).bind(&draft.group_id).bind(draft.favorite).bind(now()).bind(&id).bind(revision).execute(&mut *tx).await?;
+            let changed = sqlx::query("UPDATE connection_profiles SET name=?,group_id=?,revision=revision+1,updated_at=? WHERE id=? AND revision=?")
+                .bind(draft.name.trim()).bind(&draft.group_id).bind(now()).bind(&id).bind(revision).execute(&mut *tx).await?;
             if changed.rows_affected() != 1 {
                 return Err(StorageError::Conflict);
             }
@@ -352,8 +427,8 @@ impl SqliteStore {
                 .execute(&mut *tx)
                 .await?;
         } else {
-            sqlx::query("INSERT INTO connection_profiles(id,kind,name,group_id,favorite,created_at,updated_at) VALUES(?,?,?,?,?,?,?)")
-                .bind(&id).bind(&draft.kind).bind(draft.name.trim()).bind(&draft.group_id).bind(draft.favorite).bind(now()).bind(now()).execute(&mut *tx).await?;
+            sqlx::query("INSERT INTO connection_profiles(id,kind,name,group_id,favorite,created_at,updated_at) VALUES(?,?,?,?,0,?,?)")
+                .bind(&id).bind(&draft.kind).bind(draft.name.trim()).bind(&draft.group_id).bind(now()).bind(now()).execute(&mut *tx).await?;
         }
         // 只合并可编辑字段；检测标记和令牌不能由主机表单回写。
         sqlx::query("UPDATE connection_profiles SET config_json=json_set(CASE WHEN coalesce(json_extract(config_json,'$.icon'),'ssh')<>? OR EXISTS(SELECT 1 FROM ssh_profiles WHERE profile_id=? AND (address<>? OR port<>? OR username<>?)) THEN json_remove(config_json,'$.systemDetectionToken') ELSE config_json END,'$.icon',?) WHERE id=?")
@@ -425,7 +500,13 @@ impl SqliteStore {
                 .fetch_one(&mut *tx)
                 .await?;
         let metadata: serde_json::Value = serde_json::from_str(&config_json)?;
+        let sort_order =
+            sqlx::query_scalar("SELECT sort_order FROM connection_profiles WHERE id=?")
+                .bind(&id)
+                .fetch_one(&mut *tx)
+                .await?;
         let saved = HostProfile {
+            sort_order,
             startup: draft.startup,
             workspace: None,
             kind: draft.kind,
@@ -441,7 +522,6 @@ impl SqliteStore {
             port: draft.port,
             username: draft.username,
             group_id: draft.group_id,
-            favorite: draft.favorite,
             tags,
             // draft 只允许公共引用或空密码引用，专属定位符不进入返回值。
             auth_plan: draft.auth_plan,
@@ -484,7 +564,6 @@ impl SqliteStore {
             port: host.port,
             username: host.username,
             group_id: host.group_id,
-            favorite: host.favorite,
             tags: host.tags,
             auth_plan: host.auth_plan,
         })

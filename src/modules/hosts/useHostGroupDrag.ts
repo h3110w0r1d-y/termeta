@@ -2,6 +2,7 @@ import { t } from "@/i18n";
 import { onBeforeUnmount, ref, type Ref } from "vue";
 import type { HostProfile } from "@/services/desktop/types";
 import { errorMessage } from "@/services/desktop/client";
+import { compareHostOrder } from "./ordering";
 import { descendantIds } from "./groups";
 import { useHosts } from "./store";
 import { createDragPreview } from "./dragPreview";
@@ -13,6 +14,8 @@ export function useHostGroupDrag(options: {
   nextOrder: (id: string | null) => number;
   closeMenu: () => void;
   onError: (message: string) => void;
+  selectedHostIds: () => string[];
+  onHostDragStart: (ids: string[]) => void;
 }) {
   const store = useHosts();
   const { panel, previewLayer, reveal, nextOrder } = options;
@@ -25,6 +28,8 @@ export function useHostGroupDrag(options: {
     y: number;
     moved: boolean;
     target: string | null;
+    hostIds: string[];
+    orderTarget: { id: string; before: boolean } | null;
   }
   const drag = ref<DragState>();
   let hoverTimer: ReturnType<typeof setTimeout> | undefined;
@@ -44,10 +49,14 @@ export function useHostGroupDrag(options: {
       store.managementBusy ||
       drag.value ||
       (event.target as HTMLElement).closest(
-        "button, input, .n-tree-node-switcher, .selectable-text, [contenteditable]",
+        "button, input, textarea, a, .n-tree-node-switcher, .selectable-text, [contenteditable]",
       )
     )
       return;
+    // 从非正文区域起拖时取消浏览器默认选字；正文区域始终留给原生选区。
+    if ((event.currentTarget as HTMLElement).hasAttribute("data-host-order-id"))
+      event.preventDefault();
+    const selected = new Set(options.selectedHostIds());
     drag.value = {
       kind,
       id,
@@ -57,6 +66,16 @@ export function useHostGroupDrag(options: {
       y: event.clientY,
       moved: false,
       target: null,
+      hostIds:
+        kind === "host"
+          ? selected.has(id)
+            ? store.hosts
+                .filter((host) => selected.has(host.id))
+                .sort(compareHostOrder)
+                .map((host) => host.id)
+            : [id]
+          : [],
+      orderTarget: null,
     };
     capture = event.currentTarget as HTMLElement;
     capture.addEventListener("lostpointercapture", lostCapture);
@@ -90,6 +109,9 @@ export function useHostGroupDrag(options: {
       return;
     if (!current.moved) {
       current.moved = true;
+      document.body.classList.add("host-dragging");
+      window.getSelection()?.removeAllRanges();
+      if (current.kind === "host") options.onHostDragStart(current.hostIds);
       if (capture) {
         if (previewLayer.value)
           preview = createDragPreview(
@@ -105,9 +127,8 @@ export function useHostGroupDrag(options: {
       suppressClick = true;
     }
     event.preventDefault();
-    const element = document
-      .elementFromPoint(event.clientX, event.clientY)
-      ?.closest<HTMLElement>("[data-host-group-target]");
+    const hit = document.elementFromPoint(event.clientX, event.clientY);
+    const element = hit?.closest<HTMLElement>("[data-host-group-target]");
     const target =
       element && panel.value?.contains(element)
         ? (element.dataset.hostGroupTarget ?? null)
@@ -118,15 +139,92 @@ export function useHostGroupDrag(options: {
       if (current.target && !["all", "ungrouped"].includes(current.target))
         hoverTimer = setTimeout(() => reveal(current.target), 600);
     }
+    clearOrderTarget();
+    current.orderTarget = null;
+    const page = panel.value?.closest(".hosts-page");
+    if (
+      current.kind === "host" &&
+      !current.target &&
+      hit &&
+      page?.contains(hit)
+    ) {
+      const item = hit.closest<HTMLElement>("[data-host-order-id]");
+      const area = hit.closest<HTMLElement>("[data-host-drop-area]");
+      if (item && !current.hostIds.includes(item.dataset.hostOrderId ?? "")) {
+        const rect = item.getBoundingClientRect();
+        const before = item.closest(".host-grid")
+          ? event.clientX < rect.left + rect.width / 2
+          : event.clientY < rect.top + rect.height / 2;
+        current.orderTarget = { id: item.dataset.hostOrderId!, before };
+        orderElement = item;
+        item.dataset.hostDropPosition = before ? "before" : "after";
+      } else if (!item && area) {
+        // 卡片间隙按最近边界插入，底部空白才追加，避免一进入间隙就跳到末尾。
+        const available = [
+          ...area.querySelectorAll<HTMLElement>("[data-host-order-id]"),
+        ].filter(
+          (item) => !current.hostIds.includes(item.dataset.hostOrderId ?? ""),
+        );
+        const nearest = available
+          .map((item) => {
+            const rect = item.getBoundingClientRect();
+            const dx = Math.max(
+              rect.left - event.clientX,
+              0,
+              event.clientX - rect.right,
+            );
+            const dy = Math.max(
+              rect.top - event.clientY,
+              0,
+              event.clientY - rect.bottom,
+            );
+            return { item, rect, distance: dx * dx + dy * dy };
+          })
+          .sort((a, b) => a.distance - b.distance)[0];
+        if (nearest) {
+          const { item, rect } = nearest;
+          const before =
+            event.clientY < rect.top
+              ? true
+              : event.clientY > rect.bottom
+                ? false
+                : item.closest(".host-grid")
+                  ? event.clientX < rect.left + rect.width / 2
+                  : event.clientY < rect.top + rect.height / 2;
+          current.orderTarget = { id: item.dataset.hostOrderId!, before };
+          orderElement = item;
+          item.dataset.hostDropPosition = before ? "before" : "after";
+        }
+      }
+    }
     const targetLabel =
       current.target === "all"
         ? t("hosts.groups.topLevel")
         : current.target === "ungrouped"
           ? t("hosts.groups.ungrouped")
           : store.groups.find((group) => group.id === current.target)?.name;
-    preview?.move(event.clientX, event.clientY, targetLabel ?? null);
+    preview?.move(
+      event.clientX,
+      event.clientY,
+      current.orderTarget
+        ? t(
+            current.orderTarget.before
+              ? "hosts.sort.before"
+              : "hosts.sort.after",
+            {
+              name:
+                store.hosts.find((host) => host.id === current.orderTarget?.id)
+                  ?.name ?? "",
+            },
+          )
+        : (targetLabel ?? null),
+      current.hostIds.length,
+    );
     // 指针靠近树边缘时滚动真实容器，折叠的目标悬停展开。
-    const scroll = panel.value?.querySelector<HTMLElement>(
+    const scrollRoot = current.orderTarget
+      ? page?.querySelector(".host-list-scroll")
+      : panel.value;
+    const scroll = scrollRoot?.querySelector<HTMLElement>(
       ".n-scrollbar-container",
     );
     if (scroll) {
@@ -137,6 +235,11 @@ export function useHostGroupDrag(options: {
       }
     }
   }
+  let orderElement: HTMLElement | undefined;
+  function clearOrderTarget() {
+    orderElement?.removeAttribute("data-host-drop-position");
+    orderElement = undefined;
+  }
   function swallowClick(event: MouseEvent) {
     if (suppressClick) {
       event.preventDefault();
@@ -144,6 +247,8 @@ export function useHostGroupDrag(options: {
     }
   }
   function finishDrag() {
+    document.body.classList.remove("host-dragging");
+    clearOrderTarget();
     clearTimeout(hoverTimer);
     preview?.dispose();
     preview = undefined;
@@ -184,15 +289,47 @@ export function useHostGroupDrag(options: {
     if (!current || current.pointer !== event.pointerId) return;
     if (current.moved) pointerMove(event);
     const target = current.target;
-    const valid = current.moved && target !== null && validTarget(target);
+    const orderTarget = current.orderTarget;
+    const valid =
+      current.moved &&
+      ((target !== null && validTarget(target)) || !!orderTarget);
     finishDrag();
-    if (!valid || target === null || store.managementBusy) return;
-    const parentId = ["all", "ungrouped"].includes(target) ? null : target;
+    if (!valid || store.managementBusy) return;
+    const parentId =
+      target && !["all", "ungrouped"].includes(target) ? target : null;
     store.managementBusy = true;
     try {
       if (current.kind === "host") {
-        const host = store.hosts.find((host) => host.id === current.id);
-        if (host) await store.moveHost(host, parentId);
+        const moving = new Set(current.hostIds);
+        const ordered = [...store.hosts]
+          .sort(compareHostOrder)
+          .map((host) => host.id);
+        const rest = ordered.filter((id) => !moving.has(id));
+        if (orderTarget) {
+          const index = rest.indexOf(orderTarget.id);
+          if (index < 0) return;
+          rest.splice(
+            index + (orderTarget.before ? 0 : 1),
+            0,
+            ...current.hostIds,
+          );
+          await store.arrangeHosts(rest);
+        } else if (target !== null) {
+          // 迁组追加到目标组末尾，整个批次与顺序原子提交。
+          const groups = new Map(
+            store.hosts.map((host) => [host.id, host.groupId]),
+          );
+          let last = -1;
+          rest.forEach((id, index) => {
+            if (groups.get(id) === parentId) last = index;
+          });
+          rest.splice(last < 0 ? rest.length : last + 1, 0, ...current.hostIds);
+          await store.arrangeHosts(rest, {
+            hostIds: current.hostIds,
+            groupId: parentId,
+          });
+          reveal(parentId);
+        }
       } else {
         const group = store.groups.find((group) => group.id === current.id);
         if (group && group.parentId !== parentId)
@@ -200,8 +337,8 @@ export function useHostGroupDrag(options: {
             { ...group, parentId, sortOrder: nextOrder(parentId) },
             group.revision,
           );
+        reveal(parentId);
       }
-      reveal(parentId);
     } catch (error) {
       options.onError(errorMessage(error));
     } finally {

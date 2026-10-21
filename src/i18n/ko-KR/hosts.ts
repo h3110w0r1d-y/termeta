@@ -4,7 +4,7 @@ export default {
   "hosts.batch.confirm":
     "하위 그룹을 포함하여 “{groupName}”의 호스트 {count}개 모두에 연결할까요?",
   "hosts.batch.separateTabs": "개별 탭으로 열기",
-  "hosts.batch.workspace": "작업 공간에서 열기",
+  "hosts.batch.workspace": "탭 그룹에서 열기",
   "hosts.auth.password": "비밀번호",
   "hosts.auth.publicKey": "공개 키",
   "hosts.startup.shell": "대화형 셸",
@@ -66,7 +66,6 @@ export default {
   "hosts.groups.deleteAndMove": "그룹 삭제 후 내용 이동",
   "hosts.search.limit":
     "호스트 {count}개 중 처음 100개를 표시합니다. 검색 조건을 좁히세요.",
-  "hosts.status.favorite": "즐겨찾기",
   "hosts.search.placeholder": "모든 호스트 검색…",
   "hosts.search.label": "모든 호스트 검색",
   "hosts.search.noResults": "일치하는 호스트가 없습니다",
@@ -84,7 +83,6 @@ export default {
   "hosts.groups.empty":
     "이 그룹에 호스트가 없습니다. 새로 만들거나 다른 그룹에서 드래그하세요.",
   "hosts.actions.createHere": "여기에 호스트 만들기",
-  "hosts.actions.favorite": "즐겨찾기에 추가",
   "hosts.actions.move": "호스트 이동",
   "hosts.move.prompt": "“{name}” 이동 대상:",
   "hosts.move.destination": "대상 그룹",
@@ -97,7 +95,7 @@ export default {
     "호스트 {count}개 중 처음 100개를 표시합니다. 검색 조건을 좁히세요.",
   "hosts.drag.destination": "이동 대상: {target}",
   "hosts.drag.invalidTarget": "여기에 놓을 수 없습니다",
-  "hosts.batch.description": "개별 탭 또는 분할 작업 공간을 선택하세요.",
+  "hosts.batch.description": "개별 탭 또는 분할 탭 그룹을 선택하세요.",
   "hosts.batch.savedWorkspaceHint":
     "저장된 작업 공간은 원래 레이아웃으로 열립니다.",
   "hosts.form.useHostPassword": "호스트 전용 비밀번호 사용",
@@ -113,4 +111,16 @@ export default {
     "호스트를 저장했지만 색 구성표를 저장하지 못했습니다. 다시 시도하세요. {error}",
   "hosts.selection.sshRequired": "저장된 SSH 호스트를 선택하세요",
   "hosts.selection.sshPlaceholder": "저장된 SSH 호스트 선택",
+  "hosts.selection.label": "선택한 호스트",
+  "hosts.selection.count": "{count}개 선택됨",
+  "hosts.move.selectionPrompt": "선택한 호스트 {count}개의 이동 대상:",
+  "hosts.batch.selectionConfirm": "선택한 호스트 {count}개에 연결하시겠습니까?",
+  "hosts.sort.label": "순서 변경",
+  "hosts.sort.first": "맨 앞으로 이동",
+  "hosts.sort.up": "위로 이동",
+  "hosts.sort.down": "아래로 이동",
+  "hosts.sort.last": "맨 뒤로 이동",
+  "hosts.sort.before": "“{name}” 앞",
+  "hosts.sort.after": "“{name}” 뒤",
+  "hosts.drag.selection": "호스트 {count}개 이동 · {destination}",
 } as const;

@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { t } from "@/i18n";
-import { IconStarFilled } from "@tabler/icons-vue";
 import { computed, h, ref, watch, type HTMLAttributes } from "vue";
 import {
-  NIcon,
   NSelect,
   NEllipsis,
   NSpace,
@@ -19,7 +17,7 @@ import { groupPath } from "./groups";
 import { useHostSearch } from "./useHostSearch";
 
 const props = defineProps<{ active: boolean }>();
-const emit = defineEmits<{ connect: [HostProfile] }>();
+const emit = defineEmits<{ connect: [HostProfile]; navigateHosts: [] }>();
 const store = useHosts();
 const shown = ref(false);
 const query = ref("");
@@ -52,16 +50,7 @@ function renderLabel(option: SelectOption) {
   const host = store.hosts.find((host) => host.id === option.value);
   if (!host) return String(option.label);
   return h(NSpace, { vertical: true, size: 0 }, () => [
-    h(NEllipsis, null, () => [
-      host.favorite
-        ? h(
-            NIcon,
-            { size: 16, role: "img", "aria-label": t("hosts.status.favorite") },
-            () => h(IconStarFilled),
-          )
-        : null,
-      host.name,
-    ]),
+    h(NEllipsis, null, () => host.name),
     h(
       NText,
       { depth: 3 },
@@ -90,11 +79,31 @@ watch(
     }
   },
 );
+function navigateHosts(event: KeyboardEvent) {
+  if (
+    !props.active ||
+    event.defaultPrevented ||
+    !(event.target instanceof HTMLInputElement) ||
+    event.target.value.length ||
+    query.value.length ||
+    event.isComposing ||
+    event.altKey ||
+    event.ctrlKey ||
+    event.metaKey ||
+    !["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)
+  )
+    return;
+  event.preventDefault();
+  event.stopPropagation();
+  shown.value = false;
+  input.value?.blurInput();
+  emit("navigateHosts");
+}
 // 库的focus只高亮选择器外壳；保险库需要真实输入焦点。
 defineExpose({ focus: () => input.value?.focusInput() });
 </script>
 <template>
-  <div class="host-search">
+  <div class="host-search" @keydown.capture="navigateHosts">
     <NSelect
       ref="input"
       :value="null"

@@ -6,7 +6,6 @@ import {
   NAlert,
   NAutoComplete,
   NButton,
-  NCheckbox,
   NCollapse,
   NCollapseItem,
   NFlex,
@@ -58,7 +57,6 @@ const draft = reactive({
   name: "",
   groupId: "",
   tagText: "",
-  favorite: false,
   hostScheme: "",
   path: "",
   baudRate: "9600",
@@ -201,7 +199,6 @@ watch(
           : "",
         groupId: host ? (host.groupId ?? "") : (props.initialGroupId ?? ""),
         tagText: host?.tags.join(", ") ?? "",
-        favorite: host?.favorite ?? false,
         hostScheme: host ? (settings.value.hostSchemes[host.id] ?? "") : "",
         path: config?.path ?? "",
         baudRate: String(config?.baudRate ?? 9600),
@@ -243,7 +240,6 @@ async function connect() {
         icon: props.host?.icon ?? "ssh",
         name: draft.name.trim(),
         groupId: draft.groupId || null,
-        favorite: draft.favorite,
         tags: draft.tagText
           .split(/[,，]/)
           .map((tag) => tag.trim())
@@ -424,11 +420,6 @@ async function connect() {
             v-model:value="draft.tagText"
             :placeholder="t('serial.form.tagsPlaceholder')"
           />
-        </NFormItem>
-        <NFormItem>
-          <NCheckbox v-model:checked="draft.favorite">
-            {{ t("common.actions.addFavorite") }}
-          </NCheckbox>
         </NFormItem>
       </template>
       <NAlert v-if="saveError" type="error">{{ saveError }}</NAlert>

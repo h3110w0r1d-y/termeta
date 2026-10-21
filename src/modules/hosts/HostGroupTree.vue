@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { compareHostOrder } from "./ordering";
 import { t } from "@/i18n";
 import ScrollFade from "@/components/ui/ScrollFade.vue";
 import { closeContextMenuOnOutside } from "@/components/ui/contextMenu";
@@ -32,7 +33,11 @@ import { useSettings } from "../settings/store";
 import { useHostGroupDrag } from "./useHostGroupDrag";
 import { IconFolder } from "@tabler/icons-vue";
 
-const props = defineProps<{ modelValue: string; active: boolean }>();
+const props = defineProps<{
+  modelValue: string;
+  active: boolean;
+  selectedHostIds: string[];
+}>();
 const emit = defineEmits<{
   "update:modelValue": [string];
   error: [string];
@@ -40,6 +45,7 @@ const emit = defineEmits<{
   connectGroup: [string];
   hostMenu: [MouseEvent | KeyboardEvent, HostProfile];
   editHost: [HostProfile];
+  hostDragStart: [string[]];
 }>();
 const store = useHosts();
 const panel = ref<HTMLElement>();
@@ -119,11 +125,7 @@ const tree = computed<TreeOption[]>(() => {
     showHosts.value
       ? store.hosts
           .filter((host) => host.groupId === groupId)
-          .sort(
-            (a, b) =>
-              Number(b.favorite) - Number(a.favorite) ||
-              a.name.localeCompare(b.name),
-          )
+          .sort(compareHostOrder)
           .map((host) => ({
             key: `host:${host.id}`,
             label: host.name,
@@ -340,6 +342,8 @@ function nextOrder(parentId: string | null) {
 const { drag, startDrag, startHostDrag, cancelDrag } = useHostGroupDrag({
   panel,
   previewLayer,
+  selectedHostIds: () => props.selectedHostIds,
+  onHostDragStart: (ids) => emit("hostDragStart", ids),
   reveal,
   nextOrder,
   closeMenu: () => {

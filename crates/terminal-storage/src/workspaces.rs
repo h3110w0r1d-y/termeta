@@ -33,10 +33,10 @@ impl SqliteStore {
                 ));
             }
         }
-        let existing = sqlx::query("SELECT id,kind,revision,group_id,favorite FROM connection_profiles WHERE name=? AND kind IN ('ssh','telnet','serial','workspace')")
+        let existing = sqlx::query("SELECT id,kind,revision,group_id FROM connection_profiles WHERE name=? AND kind IN ('ssh','telnet','serial','workspace')")
             .bind(draft.name.trim()).fetch_optional(&mut *tx).await?;
         let config = serde_json::to_string(&serde_json::json!({"workspace": draft.workspace}))?;
-        let (id, revision, group_id, favorite) = if let Some(row) = existing {
+        let (id, revision, group_id) = if let Some(row) = existing {
             if row.try_get::<String, _>("kind")? != "workspace" {
                 return Err(StorageError::Validation(
                     "名称已被连接使用，只允许替换同名工作区",
@@ -53,7 +53,6 @@ impl SqliteStore {
                 id,
                 revision + 1,
                 row.try_get::<Option<String>, _>("group_id")?,
-                row.try_get::<bool, _>("favorite")?,
             )
         } else {
             if draft.expected_revision.is_some() {
@@ -62,9 +61,15 @@ impl SqliteStore {
             let id = uuid::Uuid::new_v4().to_string();
             sqlx::query("INSERT INTO connection_profiles(id,kind,name,favorite,config_json,created_at,updated_at) VALUES(?,'workspace',?,0,?,?,?)")
                 .bind(&id).bind(draft.name.trim()).bind(&config).bind(now()).bind(now()).execute(&mut *tx).await?;
-            (id, 1, None, false)
+            (id, 1, None)
         };
+        let sort_order =
+            sqlx::query_scalar("SELECT sort_order FROM connection_profiles WHERE id=?")
+                .bind(&id)
+                .fetch_one(&mut *tx)
+                .await?;
         let saved = HostProfile {
+            sort_order,
             startup: terminal_core::SshStartup::default(),
             id,
             revision,
@@ -78,7 +83,6 @@ impl SqliteStore {
             port: 0,
             username: String::new(),
             group_id,
-            favorite,
             tags: vec![],
             auth_plan: vec![],
             has_password: false,
@@ -86,7 +90,7 @@ impl SqliteStore {
         tx.commit().await?;
         Ok(saved)
     }
-    /// 只开放收藏与分组，名称和布局必须通过保存工作区入口整体替换。
+    /// 只开放分组，名称和布局必须通过保存工作区入口整体替换。
     pub(crate) async fn update_workspace_metadata(&self, draft: HostDraft) -> Result<HostProfile> {
         let id = draft
             .id
@@ -114,9 +118,21 @@ impl SqliteStore {
         }
         let config: serde_json::Value = serde_json::from_str(row.try_get("config_json")?)?;
         let workspace = serde_json::from_value(config["workspace"].clone())?;
-        sqlx::query("UPDATE connection_profiles SET group_id=?,favorite=?,revision=revision+1,updated_at=? WHERE id=?")
-            .bind(&draft.group_id).bind(draft.favorite).bind(now()).bind(id).execute(&mut *tx).await?;
+        sqlx::query(
+            "UPDATE connection_profiles SET group_id=?,revision=revision+1,updated_at=? WHERE id=?",
+        )
+        .bind(&draft.group_id)
+        .bind(now())
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+        let sort_order =
+            sqlx::query_scalar("SELECT sort_order FROM connection_profiles WHERE id=?")
+                .bind(&id)
+                .fetch_one(&mut *tx)
+                .await?;
         let saved = HostProfile {
+            sort_order,
             startup: terminal_core::SshStartup::default(),
             id: id.into(),
             revision: revision + 1,
@@ -130,7 +146,6 @@ impl SqliteStore {
             port: 0,
             username: String::new(),
             group_id: draft.group_id,
-            favorite: draft.favorite,
             tags: vec![],
             auth_plan: vec![],
             has_password: false,

@@ -100,7 +100,6 @@ fn draft() -> HostDraft {
         port: 22,
         username: "user".into(),
         group_id: None,
-        favorite: false,
         tags: vec![],
         auth_plan: vec![AuthStep::Password {
             credential_id: None,
@@ -120,10 +119,73 @@ fn edit(host: HostProfile) -> HostDraft {
         port: host.port,
         username: host.username,
         group_id: host.group_id,
-        favorite: host.favorite,
         tags: host.tags,
         auth_plan: host.auth_plan,
     }
+}
+
+// 旧库夹具只使用旧表契约，不借当前保存入口提前引入新 schema 字段。
+async fn legacy_profile_fixture(
+    store: &SqliteStore,
+    draft: HostDraft,
+    password_ref: Option<&str>,
+    workspace: Option<SavedWorkspace>,
+) -> HostProfile {
+    let id = if let Some(reference) = password_ref {
+        store
+            .get_credential(reference)
+            .await
+            .unwrap()
+            .owner_profile_id
+            .unwrap()
+    } else {
+        uuid::Uuid::new_v4().to_string()
+    };
+    let mut value = serde_json::to_value(&draft).unwrap();
+    value["id"] = serde_json::json!(id);
+    value["revision"] = serde_json::json!(1);
+    value["sortOrder"] = serde_json::json!(0);
+    value["hasPassword"] = serde_json::json!(password_ref.is_some());
+    value["systemDetectionAttempted"] = serde_json::json!(false);
+    value["workspace"] = serde_json::to_value(&workspace).unwrap();
+    let host: HostProfile = serde_json::from_value(value).unwrap();
+    let config = serde_json::json!({"icon":draft.icon,"startup":draft.startup,"serialConfig":draft.serial_config,"workspace":workspace});
+    let mut tx = store.pool().await.unwrap().begin().await.unwrap();
+    sqlx::query("INSERT INTO connection_profiles(id,kind,name,group_id,favorite,config_json,created_at,updated_at) VALUES(?,?,?,?,?,?,1,1)")
+        .bind(&id).bind(&draft.kind).bind(&draft.name).bind(&draft.group_id).bind(false).bind(config.to_string()).execute(&mut *tx).await.unwrap();
+    if draft.kind == "ssh" {
+        sqlx::query("INSERT INTO ssh_profiles(profile_id,address,canonical_host,port,username) VALUES(?,?,?,?,?)")
+            .bind(&id).bind(&draft.address).bind(canonical_host(&draft.address)).bind(i64::from(draft.port)).bind(&draft.username).execute(&mut *tx).await.unwrap();
+        for (index, step) in draft.auth_plan.iter().enumerate() {
+            let (method, credential) = match step {
+                AuthStep::Password { credential_id } => {
+                    ("password", password_ref.or(credential_id.as_deref()))
+                }
+                AuthStep::PrivateKey { credential_id } => {
+                    ("privateKey", Some(credential_id.as_str()))
+                }
+            };
+            sqlx::query("INSERT INTO profile_auth_steps(id,profile_id,sort_order,method,credential_id) VALUES(?,?,?,?,?)")
+                .bind(uuid::Uuid::new_v4().to_string()).bind(&id).bind(index as i64).bind(method).bind(credential).execute(&mut *tx).await.unwrap();
+        }
+    }
+    for tag in &draft.tags {
+        let tag_id = uuid::Uuid::new_v4().to_string();
+        sqlx::query("INSERT INTO tags(id,name) VALUES(?,?)")
+            .bind(&tag_id)
+            .bind(tag)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO profile_tags(profile_id,tag_id) VALUES(?,?)")
+            .bind(&id)
+            .bind(&tag_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+    }
+    tx.commit().await.unwrap();
+    host
 }
 
 fn serial_draft() -> HostDraft {
@@ -217,10 +279,18 @@ fn legacy_host_dto_defaults_to_ssh() {
     value.as_object_mut().unwrap().remove("kind");
     value.as_object_mut().unwrap().remove("serialConfig");
     value.as_object_mut().unwrap().remove("startup");
+    // 接受旧客户端遗留字段，但不再向新契约输出收藏。
+    value["favorite"] = serde_json::json!(true);
     let host: HostDraft = serde_json::from_value(value).unwrap();
     assert_eq!(host.kind, "ssh");
     assert!(host.serial_config.is_none());
     assert_eq!(host.startup, terminal_core::SshStartup::Shell);
+    assert!(
+        serde_json::to_value(host)
+            .unwrap()
+            .get("favorite")
+            .is_none()
+    );
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -240,7 +310,7 @@ async fn ssh_startup_roundtrips_and_legacy_records_keep_shell() {
         host.startup
     );
     let mut metadata = edit(saved.clone());
-    metadata.favorite = true;
+    metadata.tags = vec!["元数据编辑".into()];
     let edited = store.save_host(metadata).await.unwrap();
     assert_eq!(edited.startup, host.startup);
     let copy = store.duplicate_host(&saved.id).await.unwrap();
@@ -348,7 +418,6 @@ async fn serial_hosts_persist_offline_and_preserve_configuration_across_metadata
         .unwrap();
     let serial_config = serde_json::to_value(&saved.serial_config).unwrap();
     let mut changed = edit(saved);
-    changed.favorite = true;
     changed.group_id = Some(group.id.clone());
     changed.tags = vec!["开发板".into()];
     let saved = store.save_host(changed).await.unwrap();
@@ -372,7 +441,6 @@ async fn serial_hosts_persist_offline_and_preserve_configuration_across_metadata
         serde_json::to_value(&duplicate.serial_config).unwrap(),
         serial_config
     );
-    assert!(duplicate.favorite);
     assert_eq!(duplicate.tags, saved.tags);
     assert_eq!(duplicate.group_id, saved.group_id);
     store.pool().await.unwrap().close().await;
@@ -462,7 +530,7 @@ async fn service_cleanup_preserves_business_data_and_third_party_backup_settings
     let old = SqliteStore::locked(&path);
     *old.pool.write().await = Some(pool);
     old.unlocked.store(true, Ordering::Release);
-    let host = old.save_host(draft()).await.unwrap();
+    let host = legacy_profile_fixture(&old, draft(), None, None).await;
     let backup = serde_json::json!({"backupPassword":"retained-backup-password"});
     old.set_setting("backup", 2, &backup).await.unwrap();
     old.set_setting(
@@ -506,7 +574,7 @@ async fn initializes_rebuilt_schema_with_password_and_private_key_credentials() 
             .fetch_all(&*store.pool().await.unwrap())
             .await
             .unwrap();
-    assert_eq!(versions, vec![1, 2, 3, 4, 5, 6, 7]);
+    assert_eq!(versions, vec![1, 2, 3, 4, 5, 6, 7, 8]);
     let version: i64 = sqlx::query_scalar("PRAGMA user_version")
         .fetch_one(&*store.pool().await.unwrap())
         .await
@@ -1189,13 +1257,11 @@ async fn telnet_hosts_round_trip_without_ssh_credentials_and_reject_type_changes
     let mut changed = edit(saved.clone());
     changed.address = "2001:db8::1".into();
     changed.port = 2323;
-    changed.favorite = true;
     let updated = store.save_host(changed).await.unwrap();
     let copy = store.duplicate_host(&updated.id).await.unwrap();
     assert_eq!(copy.address, updated.address);
     assert_eq!(copy.port, 2323);
     assert_eq!(copy.tags, updated.tags);
-    assert!(copy.favorite);
     let mut changed_kind = edit(updated.clone());
     changed_kind.kind = "ssh".into();
     changed_kind.username = "user".into();
@@ -1270,11 +1336,8 @@ async fn schema_two_upgrade_preserves_profiles_children_and_history_references()
     let mut ssh = draft();
     ssh.group_id = Some(group.id.clone());
     ssh.tags = vec!["保留".into()];
-    let ssh = old
-        .save_host_with_password_ref(ssh, Some(&secret))
-        .await
-        .unwrap();
-    let serial = old.save_host(serial_draft()).await.unwrap();
+    let ssh = legacy_profile_fixture(&old, ssh, Some(&secret), None).await;
+    let serial = legacy_profile_fixture(&old, serial_draft(), None, None).await;
     // 旧 schema 的夹具直接写 SQL，产品入口不再读取或维护旧连接历史。
     sqlx::query("INSERT INTO session_history(id,profile_id,display_name_snapshot,started_at) VALUES('legacy',?,?,1)")
         .bind(&ssh.id).bind(&ssh.name).execute(&*old.pool().await.unwrap()).await.unwrap();
@@ -1403,7 +1466,6 @@ async fn workspace_replacement_preserves_identity_and_rejects_other_kinds_or_sta
         .unwrap();
     let group = group_fixture(&store, "工作区分组", None).await;
     let mut metadata = edit(original.clone());
-    metadata.favorite = true;
     metadata.group_id = Some(group.id.clone());
     let current = store.save_host(metadata).await.unwrap();
     let mut replacement = workspace_draft(" 开发工作区 ", &host.id);
@@ -1415,7 +1477,6 @@ async fn workspace_replacement_preserves_identity_and_rejects_other_kinds_or_sta
     let saved = store.save_workspace(replacement.clone()).await.unwrap();
     assert_eq!(saved.id, original.id);
     assert_eq!(saved.group_id, Some(group.id));
-    assert!(saved.favorite);
     assert_eq!(saved.revision, current.revision + 1);
     let reloaded = store.get_host(&saved.id).await.unwrap();
     assert_eq!(
@@ -1555,11 +1616,23 @@ async fn applied_workspace_migration_upgrades_without_rewriting_history_or_profi
     let old = SqliteStore::locked(&path);
     *old.pool.write().await = Some(pool);
     old.unlocked.store(true, Ordering::Release);
-    let host = old.save_host(draft()).await.unwrap();
-    let workspace = old
-        .save_workspace(workspace_draft("升级保留工作区", &host.id))
-        .await
-        .unwrap();
+    let mut host = legacy_profile_fixture(&old, draft(), None, None).await;
+    let mut workspace_host = draft();
+    workspace_host.kind = "workspace".into();
+    workspace_host.name = "升级保留工作区".into();
+    workspace_host.address.clear();
+    workspace_host.port = 0;
+    workspace_host.username.clear();
+    workspace_host.auth_plan.clear();
+    let workspace = legacy_profile_fixture(
+        &old,
+        workspace_host,
+        None,
+        Some(workspace_draft("升级保留工作区", &host.id).workspace),
+    )
+    .await;
+    // 首次排序按原收藏/名称规则初始化，此夹具的工作区排在主机之前。
+    host.sort_order = 1;
     let before: Vec<(i64, Vec<u8>)> =
         sqlx::query_as("SELECT version,checksum FROM _sqlx_migrations ORDER BY version")
             .fetch_all(&*old.pool().await.unwrap())
@@ -1594,4 +1667,132 @@ async fn applied_workspace_migration_upgrades_without_rewriting_history_or_profi
             .unwrap();
     assert!(index.contains("trim(name)"));
     store.pool().await.unwrap().close().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn host_arrangement_is_atomic_and_preserves_authentication() {
+    let directory = TestDirectory::new();
+    let store = SqliteStore::open(directory.0.join("host-order.sqlite3"))
+        .await
+        .unwrap();
+    let credential = store
+        .save_public_credential("password", "排序凭据", "排序测试秘密")
+        .await
+        .unwrap();
+    let mut hosts = Vec::new();
+    for name in ["甲", "乙", "丙"] {
+        let mut item = draft();
+        item.name = name.into();
+        item.auth_plan = vec![AuthStep::Password {
+            credential_id: Some(credential.clone()),
+        }];
+        hosts.push(store.save_host(item).await.unwrap());
+    }
+    let group = store
+        .save_group(GroupDraft {
+            id: None,
+            revision: None,
+            name: "目标分组".into(),
+            parent_id: None,
+            sort_order: 0,
+        })
+        .await
+        .unwrap();
+    let make_request = |items: &[HostProfile]| HostArrangement {
+        ordered_hosts: items
+            .iter()
+            .map(|host| HostOrderEntry {
+                id: host.id.clone(),
+                revision: host.revision,
+            })
+            .collect(),
+        move_to: Some(HostMove {
+            host_ids: vec![hosts[0].id.clone(), hosts[2].id.clone()],
+            group_id: Some(group.id.clone()),
+        }),
+    };
+    let requested = vec![hosts[2].clone(), hosts[0].clone(), hosts[1].clone()];
+    // 在第二个受影响项写入时中断，首项的位置和迁组也必须回滚。
+    sqlx::query("CREATE TRIGGER fail_host_order BEFORE UPDATE OF sort_order ON connection_profiles WHEN NEW.name='甲' BEGIN SELECT RAISE(ABORT,'模拟排序中断'); END")
+        .execute(&*store.pool().await.unwrap()).await.unwrap();
+    assert!(store.arrange_hosts(make_request(&requested)).await.is_err());
+    let unchanged = store.list_hosts("").await.unwrap();
+    assert!(unchanged.iter().all(|host| host.group_id.is_none()
+        && host.sort_order == 2147483647
+        && host.revision == 1));
+    sqlx::query("DROP TRIGGER fail_host_order")
+        .execute(&*store.pool().await.unwrap())
+        .await
+        .unwrap();
+    let saved = store.arrange_hosts(make_request(&requested)).await.unwrap();
+    assert_eq!(
+        saved.hosts.iter().map(|host| &host.id).collect::<Vec<_>>(),
+        requested.iter().map(|host| &host.id).collect::<Vec<_>>()
+    );
+    for (index, host) in saved.hosts.iter().enumerate() {
+        assert_eq!(host.sort_order, index as i64);
+        assert_eq!(
+            host.group_id.as_deref(),
+            if index < 2 {
+                Some(group.id.as_str())
+            } else {
+                None
+            }
+        );
+        assert_eq!(
+            serde_json::to_value(&host.auth_plan).unwrap(),
+            serde_json::to_value(&hosts[0].auth_plan).unwrap()
+        );
+    }
+    assert_eq!(
+        &*store.credential_secret(&credential).await.unwrap(),
+        "排序测试秘密"
+    );
+    // 旧版本、重复或缺项清单及非法分组均不能产生部分更新。
+    assert!(matches!(
+        store.arrange_hosts(make_request(&requested)).await,
+        Err(StorageError::Conflict)
+    ));
+    let mut duplicate = make_request(&saved.hosts);
+    duplicate.ordered_hosts[1].id = duplicate.ordered_hosts[0].id.clone();
+    assert!(matches!(
+        store.arrange_hosts(duplicate).await,
+        Err(StorageError::Conflict)
+    ));
+    let mut missing = make_request(&saved.hosts);
+    missing.ordered_hosts.pop();
+    assert!(matches!(
+        store.arrange_hosts(missing).await,
+        Err(StorageError::Conflict)
+    ));
+    let mut invalid_group = make_request(&saved.hosts);
+    invalid_group.move_to.as_mut().unwrap().group_id = Some("不存在的分组".into());
+    assert!(store.arrange_hosts(invalid_group).await.is_err());
+    assert_eq!(
+        store
+            .list_hosts("")
+            .await
+            .unwrap()
+            .iter()
+            .map(|host| (&host.id, host.revision, &host.group_id, host.sort_order))
+            .collect::<Vec<_>>(),
+        saved
+            .hosts
+            .iter()
+            .map(|host| (&host.id, host.revision, &host.group_id, host.sort_order))
+            .collect::<Vec<_>>()
+    );
+    // 重新打开加密库仍保持顺序，普通编辑及新增不会覆盖它。
+    store.pool().await.unwrap().close().await;
+    let reopened = SqliteStore::open(store.path()).await.unwrap();
+    let mut edited = edit(saved.hosts[0].clone());
+    edited.tags = vec!["排序保留".into()];
+    assert_eq!(reopened.save_host(edited).await.unwrap().sort_order, 0);
+    let mut added = draft();
+    added.name = "新增主机".into();
+    let added = reopened.save_host(added).await.unwrap();
+    let all = reopened.list_hosts("").await.unwrap();
+    assert_eq!(all.last().unwrap().id, added.id);
+    assert_eq!(all[0].id, saved.hosts[0].id);
+    reopened.pool().await.unwrap().close().await;
 }

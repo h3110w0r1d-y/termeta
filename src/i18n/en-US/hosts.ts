@@ -4,7 +4,7 @@ export default {
   "hosts.batch.confirm":
     "Connect to all {count} hosts in “{groupName}”, including subgroups?",
   "hosts.batch.separateTabs": "Open in separate tabs",
-  "hosts.batch.workspace": "Open in workspace",
+  "hosts.batch.workspace": "Open in tab group",
   "hosts.auth.password": "Password",
   "hosts.auth.publicKey": "Public key",
   "hosts.startup.shell": "Interactive shell",
@@ -66,7 +66,6 @@ export default {
   "hosts.groups.deleteAndMove": "Delete group and move contents",
   "hosts.search.limit":
     "Showing the first 100 of {count} hosts. Refine your search.",
-  "hosts.status.favorite": "Favorite",
   "hosts.search.placeholder": "Search all hosts…",
   "hosts.search.label": "Search all hosts",
   "hosts.search.noResults": "No matching hosts",
@@ -84,7 +83,6 @@ export default {
   "hosts.groups.empty":
     "No hosts in this group. Create one or drag one here from another group.",
   "hosts.actions.createHere": "Create host here",
-  "hosts.actions.favorite": "Add to favorites",
   "hosts.actions.move": "Move host",
   "hosts.move.prompt": "Move “{name}” to:",
   "hosts.move.destination": "Destination group",
@@ -96,7 +94,7 @@ export default {
     "Showing the first 100 of {count} hosts. Refine your search.",
   "hosts.drag.destination": "Move to: {target}",
   "hosts.drag.invalidTarget": "Cannot drop here",
-  "hosts.batch.description": "Choose separate tabs or a split workspace.",
+  "hosts.batch.description": "Choose separate tabs or a split tab group.",
   "hosts.batch.savedWorkspaceHint":
     "Saved workspaces open with their original layout.",
   "hosts.form.useHostPassword": "Use a host-specific password",
@@ -112,4 +110,16 @@ export default {
     "Host saved, but its color scheme could not be saved. Please retry. {error}",
   "hosts.selection.sshRequired": "Select a saved SSH host",
   "hosts.selection.sshPlaceholder": "Select a saved SSH host",
+  "hosts.selection.label": "Selected hosts",
+  "hosts.selection.count": "{count} selected",
+  "hosts.move.selectionPrompt": "Move the {count} selected hosts to:",
+  "hosts.batch.selectionConfirm": "Connect to the {count} selected hosts?",
+  "hosts.sort.label": "Reorder",
+  "hosts.sort.first": "Move to beginning",
+  "hosts.sort.up": "Move up",
+  "hosts.sort.down": "Move down",
+  "hosts.sort.last": "Move to end",
+  "hosts.sort.before": "Before “{name}”",
+  "hosts.sort.after": "After “{name}”",
+  "hosts.drag.selection": "Dragging {count} hosts · {destination}",
 } as const;

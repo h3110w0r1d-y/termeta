@@ -26,6 +26,8 @@ export function createDragPreview(
     cloned.removeAttribute("id");
     cloned.removeAttribute("autofocus");
     cloned.removeAttribute("data-host-group-target");
+    cloned.removeAttribute("data-host-order-id");
+    cloned.removeAttribute("data-host-drop-position");
     cloned.removeAttribute("data-ui-popup-open");
     cloned.setAttribute("tabindex", "-1");
     cloned.setAttribute("draggable", "false");
@@ -50,11 +52,15 @@ export function createDragPreview(
   const priority = source.style.getPropertyPriority("opacity");
   source.style.setProperty("opacity", "0.4");
   return {
-    move(x: number, y: number, target: string | null) {
+    move(x: number, y: number, target: string | null, count = 0) {
       preview.style.transform = `translate3d(${x - offsetX}px, ${y - offsetY}px, 0)`;
-      hint.textContent = target
-        ? t("hosts.drag.destination", { target: target })
+      const destination = target
+        ? t("hosts.drag.destination", { target })
         : t("hosts.drag.invalidTarget");
+      hint.textContent =
+        count > 1
+          ? t("hosts.drag.selection", { count, destination })
+          : destination;
     },
     dispose() {
       preview.replaceChildren();

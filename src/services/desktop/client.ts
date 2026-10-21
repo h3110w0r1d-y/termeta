@@ -28,6 +28,7 @@ import type {
   SessionLogDraft,
   SessionLogSummary,
   HostDraft,
+  HostArrangement,
   WorkspaceDraft,
   HostGroup,
   HostInventory,
@@ -205,6 +206,8 @@ export const desktop = {
   startWindowDragging: () => getCurrentWindow().startDragging(),
   listHosts: () => invoke<HostProfile[]>("list_hosts"),
   listHostInventory: () => invoke<HostInventory>("list_host_inventory"),
+  arrangeHosts: (draft: HostArrangement) =>
+    invoke<HostInventory>("arrange_hosts", { draft }),
   saveHost: (
     host: HostDraft,
     expectedRevision: number | null,

@@ -17,6 +17,20 @@ pub async fn list_host_inventory(
 }
 
 #[tauri::command]
+pub async fn arrange_hosts(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    draft: terminal_storage::HostArrangement,
+) -> Result<terminal_storage::HostInventory> {
+    owner(&window)?;
+    state
+        .store
+        .arrange_hosts(draft)
+        .await
+        .map_err(storage_error)
+}
+
+#[tauri::command]
 pub async fn list_hosts(
     window: WebviewWindow,
     state: State<'_, AppState>,

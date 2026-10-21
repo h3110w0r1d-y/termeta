@@ -146,3 +146,11 @@ p {
 .n-tree-node-content{
   width: 100%;
 }
+
+/* 拖动手势期间覆盖可复制正文，避免跨过地址时产生浏览器文字选区。 */
+body.host-dragging,
+body.host-dragging * {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  cursor: grabbing !important;
+}

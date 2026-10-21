@@ -76,6 +76,7 @@ impl Table {
         )
     }
 }
+// 历史 favorite 列只用于云包兼容，不再投影到主机契约或参与排序。
 pub(crate) static TABLES: &[Table] = &[
     Table {
         name: "host_groups",

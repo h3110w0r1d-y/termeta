@@ -17,7 +17,6 @@ import { clone } from "@/services/data/clone";
 import { computed, ref, watch, reactive, h } from "vue";
 import AppDialog from "@/components/ui/AppDialog.vue";
 import AppSelect from "@/components/ui/AppSelect.vue";
-import AppCheckbox from "@/components/ui/AppCheckbox.vue";
 import AppButton from "@/components/ui/AppButton.vue";
 import AppInput from "@/components/ui/AppInput.vue";
 import {
@@ -103,7 +102,6 @@ const blank = (): HostDraft => ({
   address: "",
   port: isTelnet.value ? 23 : 22,
   username: "",
-  favorite: false,
   tags: [],
   groupId: props.initialGroupId ?? null,
   authPlan: isTelnet.value ? [] : [{ type: "privateKey", credentialId: "" }],
@@ -559,14 +557,6 @@ async function submit() {
               :placeholder="t('hosts.form.tagsPlaceholder')"
             />
           </NFormItemGi>
-          <NGi :span="2">
-            <AppCheckbox
-              v-model="formModel.draft.favorite"
-              :disabled="fieldsLocked"
-            >
-              {{ t("common.actions.addFavorite") }}
-            </AppCheckbox>
-          </NGi>
         </template>
         <NGi v-if="error" :span="2">
           <p class="error" role="alert">{{ error }}</p>

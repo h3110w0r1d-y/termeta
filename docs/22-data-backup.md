@@ -8,7 +8,7 @@
 
 | 包含 | 排除 |
 | --- | --- |
-| SSH/Telnet/Serial 主机、分组、标签、收藏、保存工作区、转发规则与 Snippets | 应用设置、快捷键、自定义配色及主机配色映射、会话日志与旧连接历史 |
+| SSH/Telnet/Serial 主机、分组、标签、保存工作区、转发规则与 Snippets | 应用设置、快捷键、自定义配色及主机配色映射、会话日志与旧连接历史 |
 | 公共及主机专属凭据、已导入私钥正文与口令、认证关联 | 私钥来源路径登记、OS 主密钥、vault.json、SQLx 迁移记录 |
 | SSH 主机信任 | 云配置/Token/WebDAV 密码/备份密码、OTP、终端输出、运行标签/广播及文件任务/正文 |
 
@@ -18,7 +18,7 @@
 
 `terminal-storage` 在同一读事务读取十表：`host_groups`、`connection_profiles`、`credentials`、`ssh_profiles`、`profile_auth_steps`、`tags`、`profile_tags`、`port_forwards`、`known_hosts`、`snippets`。凭据操作门闩协调多步写入与改密，只导出 ready 凭据并移除进行中的系统识别令牌。事务释放后才压缩、派生密码和联网。
 
-快照在独立内存连接创建固定普通表，经 SQLite serialize 输出真实数据库；独立 `user_version=2`（兼容读取不含 Snippets 的版本 1 九表快照），与业务 schema 8 分开演进，明文不写临时文件。最大 128 MiB、十表合计 100000 行。全量处理需要内存，不能保证压缩后满足云端限额。
+快照在独立内存连接创建固定普通表，经 SQLite serialize 输出真实数据库；独立 `user_version=2`（兼容读取不含 Snippets 的版本 1 九表快照），与业务 schema 9 分开演进，明文不写临时文件。主机手动浏览顺序属于本机元数据，不进入白名单云包，新增合并项排在本机手动顺序之后。已移除的收藏只保留历史 `favorite` 列以兼容旧包，不恢复收藏功能或排序优先级。最大 128 MiB、十表合计 100000 行。全量处理需要内存，不能保证压缩后满足云端限额。
 
 恢复只执行应用内固定 SQL，严格匹配 SQLite 文件头、版本、表结构、字段类型及业务关联，拒绝额外表、视图、触发器与虚拟表。解析采用只读 deserialize、defensive、禁 trusted schema/扩展及只读 authorizer，并限制 SQL 长度、深度、行数和执行预算；认证通过不等于内容可信。
 

@@ -37,11 +37,22 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-for (const action of ["save", "remove", "saveWorkspace", "saveGroup"]) {
+for (const action of [
+  "save",
+  "remove",
+  "saveWorkspace",
+  "saveGroup",
+  "arrangeHosts",
+]) {
   test(`主机旧快照不覆盖已完成的 ${action}`, async () => {
     pinia.setActivePinia(pinia.createPinia());
     const old = deferred();
-    const saved = { id: "host", name: "新名称", revision: 2, favorite: false };
+    const saved = {
+      id: "host",
+      name: "新名称",
+      revision: 2,
+      sortOrder: 0,
+    };
     const group = { id: "group", name: "新分组", revision: 2 };
     const desktop = {
       listHostInventory: () => old.promise,
@@ -49,11 +60,13 @@ for (const action of ["save", "remove", "saveWorkspace", "saveGroup"]) {
       deleteHost: async () => {},
       saveWorkspace: async () => saved,
       saveGroup: async () => group,
+      arrangeHosts: async () => ({ hosts: [saved], groups: [group] }),
     };
     const { useHosts } = load("../src/modules/hosts/store.ts", {
       vue,
       pinia,
       "@/services/desktop/client": { desktop },
+      "./ordering": load("../src/modules/hosts/ordering.ts", {}),
     });
     const store = useHosts();
     store.hosts = [{ ...saved, name: "旧名称", revision: 1 }];
@@ -61,6 +74,7 @@ for (const action of ["save", "remove", "saveWorkspace", "saveGroup"]) {
     if (action === "save") await store.save({}, 1);
     else if (action === "remove") await store.remove(store.hosts[0]);
     else if (action === "saveWorkspace") await store.saveWorkspace({});
+    else if (action === "arrangeHosts") await store.arrangeHosts(["host"]);
     else await store.saveGroup({}, 1);
     old.resolve({
       hosts: [{ ...saved, name: "旧名称", revision: 1 }],

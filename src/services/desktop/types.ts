@@ -33,13 +33,13 @@ export interface TelnetConfig {
 }
 export type HostKind = "ssh" | "serial" | "telnet";
 export interface HostProfile extends Omit<SshConfig, "configVersion"> {
+  sortOrder: number;
   id: string;
   kind: HostKind | "workspace";
   serialConfig?: SerialConfig | null;
   workspace?: SavedWorkspace | null;
   name: string;
   groupId: string | null;
-  favorite: boolean;
   tags: string[];
   revision: number;
   hasPassword: boolean;
@@ -48,7 +48,7 @@ export interface HostProfile extends Omit<SshConfig, "configVersion"> {
 }
 export type HostDraft = Omit<
   HostProfile,
-  "id" | "revision" | "hasPassword" | "systemDetectionAttempted"
+  "id" | "revision" | "hasPassword" | "systemDetectionAttempted" | "sortOrder"
 > & {
   id: string | null;
 };
@@ -345,4 +345,9 @@ export interface BackupListEntry {
 export interface BackupRestorePreview {
   token: string;
   metadata: BackupMetadata;
+}
+
+export interface HostArrangement {
+  orderedHosts: { id: string; revision: number }[];
+  moveTo: { hostIds: string[]; groupId: string | null } | null;
 }

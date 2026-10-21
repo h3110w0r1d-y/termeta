@@ -10,6 +10,7 @@ const props = defineProps<{
   open: boolean;
   active: boolean;
   groupName: string;
+  selection?: boolean;
   hosts: HostProfile[];
 }>();
 const emit = defineEmits<{
@@ -57,10 +58,9 @@ function afterLeave() {
   >
     <p>
       {{
-        t("hosts.batch.confirm", {
-          groupName: groupName,
-          count: hosts.length,
-        })
+        selection
+          ? t("hosts.batch.selectionConfirm", { count: hosts.length })
+          : t("hosts.batch.confirm", { groupName, count: hosts.length })
       }}
     </p>
     <NText depth="3">{{ t("hosts.batch.description") }}</NText>

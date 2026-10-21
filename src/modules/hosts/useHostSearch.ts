@@ -5,7 +5,7 @@ import { hostAddress } from "./presentation";
 import { groupPath } from "./groups";
 import { matchesText, searchWords, toSearchableName } from "./search";
 
-// 保险库下拉和新建标签页弹窗共用索引、字段偏好及收藏排序。
+// 保险库下拉和新建标签页弹窗共用索引、字段偏好及名称排序。
 export function useHostSearch(query: Ref<string>, includeAllWhenEmpty = false) {
   const store = useHosts();
   const settings = useSettings();
@@ -53,11 +53,7 @@ export function useHostSearch(query: Ref<string>, includeAllWhenEmpty = false) {
         ),
       )
       .map((entry) => entry.host)
-      .sort(
-        (a, b) =>
-          Number(b.favorite) - Number(a.favorite) ||
-          a.name.localeCompare(b.name),
-      );
+      .sort((a, b) => a.name.localeCompare(b.name));
   });
   return matches;
 }

@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
+import { compareHostOrder } from "./ordering";
 import { desktop } from "@/services/desktop/client";
 import type {
   HostDraft,
@@ -31,10 +32,7 @@ export const useHosts = defineStore("hosts", () => {
     hosts.value = [
       ...hosts.value.filter((item) => item.id !== saved.id),
       saved,
-    ].sort(
-      (a, b) =>
-        Number(b.favorite) - Number(a.favorite) || a.name.localeCompare(b.name),
-    );
+    ].sort(compareHostOrder);
     return saved;
   }
   async function saveWorkspace(draft: WorkspaceDraft) {
@@ -43,10 +41,7 @@ export const useHosts = defineStore("hosts", () => {
     hosts.value = [
       ...hosts.value.filter((item) => item.id !== saved.id),
       saved,
-    ].sort(
-      (a, b) =>
-        Number(b.favorite) - Number(a.favorite) || a.name.localeCompare(b.name),
-    );
+    ].sort(compareHostOrder);
     return saved;
   }
   async function remove(host: HostProfile) {
@@ -55,15 +50,21 @@ export const useHosts = defineStore("hosts", () => {
     // 删除已提交，直接更新列表，避免重读失败被误报为删除失败。
     hosts.value = hosts.value.filter((item) => item.id !== host.id);
   }
-  async function favorite(host: HostProfile) {
-    const { revision, hasPassword: _hasPassword, ...draft } = host;
-    await save({ ...draft, favorite: !host.favorite }, revision);
-  }
-  async function moveHost(host: HostProfile, groupId: string | null) {
-    if (host.groupId === groupId) return;
-    const { revision, hasPassword: _hasPassword, ...draft } = host;
-    // 不传密码字段，保持专属密码和公共认证引用，不读取或重写秘密。
-    await save({ ...draft, groupId }, revision);
+  async function arrangeHosts(
+    orderedIds: string[],
+    moveTo: { hostIds: string[]; groupId: string | null } | null = null,
+  ) {
+    const byId = new Map(hosts.value.map((host) => [host.id, host]));
+    const inventory = await desktop.arrangeHosts({
+      orderedHosts: orderedIds.map((id) => ({
+        id,
+        revision: byId.get(id)?.revision ?? -1,
+      })),
+      moveTo,
+    });
+    loadRevision++;
+    hosts.value = inventory.hosts;
+    groups.value = inventory.groups;
   }
   async function saveGroup(
     group: Omit<HostGroup, "id" | "revision"> & { id: string | null },
@@ -85,8 +86,7 @@ export const useHosts = defineStore("hosts", () => {
     save,
     saveWorkspace,
     remove,
-    favorite,
-    moveHost,
+    arrangeHosts,
     saveGroup,
   };
 });

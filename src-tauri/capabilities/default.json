@@ -33,6 +33,7 @@
     "allow-change-vault-password",
     "allow-list-hosts",
     "allow-list-host-inventory",
+    "allow-arrange-hosts",
     "allow-save-host",
     "allow-save-workspace",
     "allow-delete-host",
