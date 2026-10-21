@@ -24,7 +24,7 @@ export default {
   "credentials.form.sshPassword": "SSH 密碼",
   "credentials.form.sshPrivateKey": "SSH 私鑰",
   "credentials.form.privateKeyPlaceholder":
-    "貼上完整的 OpenSSH 私鑰，包含 BEGIN 和 END 行",
+    "貼上完整的 SSH 私鑰（OpenSSH、PEM 或 PuTTY PPK）",
   "credentials.form.passphrase": "私鑰解密密碼（可選）",
   "credentials.form.passphraseHint": "留空時如需解密，將在連線時詢問",
   "credentials.actions.save": "儲存認證資訊",
@@ -38,4 +38,6 @@ export default {
   "credentials.publicKey.loading": "正在讀取公鑰…",
   "credentials.publicKey.hint": "可複製到伺服器的 authorized_keys 檔案中。",
   "credentials.publicKey.copied": "公鑰已複製",
+  "credentials.publicKey.passphraseHint":
+    "若私鑰已加密，請輸入解密密碼重試；本次輸入僅用於檢視公鑰，不會儲存。",
 } as const;

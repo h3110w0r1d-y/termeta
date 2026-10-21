@@ -172,13 +172,30 @@ pub async fn credential_public_key(
     window: WebviewWindow,
     state: State<'_, AppState>,
     id: String,
+    passphrase: Option<String>,
 ) -> Result<String> {
+    let passphrase = passphrase.map(zeroize::Zeroizing::new);
     let owner = owner(&window)?;
+    if passphrase.as_ref().is_some_and(|value| value.len() > 65536) {
+        return Err(SessionError::new(
+            "INVALID_CONFIG",
+            "validation",
+            "私钥解密密码过长",
+        ));
+    }
     // 复用凭据端口校验公共、就绪、类型与 owner；正文和口令均不返回前端。
-    let text = state.vault.private_key(&owner, &id).await?.private_key;
-    tokio::task::spawn_blocking(move || terminal_ssh::public_key_from_private_key(&text))
-        .await
-        .map_err(|_| SessionError::new("KEY_READ_FAILED", "credentials", "无法读取公钥，请重试"))?
+    let material = state.vault.private_key(&owner, &id).await?;
+    tokio::task::spawn_blocking(move || {
+        terminal_ssh::public_key_from_private_key(
+            &material.private_key,
+            passphrase
+                .as_ref()
+                .or(material.passphrase.as_ref())
+                .map(|value| value.as_str()),
+        )
+    })
+    .await
+    .map_err(|_| SessionError::new("KEY_READ_FAILED", "credentials", "无法读取公钥，请重试"))?
 }
 #[tauri::command]
 pub async fn save_credential(
@@ -216,7 +233,7 @@ pub async fn save_credential(
         }
         "privateKey" if password.is_none() => {
             let private_key = private_key.ok_or_else(|| {
-                SessionError::new("INVALID_CONFIG", "validation", "请输入 OpenSSH 私钥正文")
+                SessionError::new("INVALID_CONFIG", "validation", "请输入 SSH 私钥正文")
             })?;
             state
                 .vault

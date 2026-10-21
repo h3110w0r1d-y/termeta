@@ -18,7 +18,7 @@ pub enum SecurityError {
     Metadata(#[from] terminal_storage::StorageError),
     #[error("凭据不存在或尚未就绪")]
     NotReady,
-    #[error("请输入完整的 OpenSSH 私钥正文，大小不能超过 1 MiB")]
+    #[error("私钥正文不完整或格式不受支持，请粘贴完整的 OpenSSH、PEM 或 PuTTY PPK 私钥")]
     PrivateKey,
     #[error("调用窗口无权使用该资源")]
     Forbidden,
@@ -75,7 +75,7 @@ impl CredentialVault {
         serde_json::to_writer(
             &mut *bytes,
             &KeyPayloadRef {
-                private_key: text.as_str(),
+                private_key: text.trim(),
                 passphrase: passphrase.as_ref().map(|value| value.as_str()),
             },
         )

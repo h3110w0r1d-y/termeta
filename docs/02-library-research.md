@@ -25,7 +25,7 @@
 
 SerializeAddon 0.14.0（MIT，未声明独立 engines/features/MSRV）与 xterm 6.0.0 使用同一源码基线。使用固定 release 的 `serialize({excludeModes,excludeAltBuffer})` 保留缓冲样式，不使用 HTML 导出；插件标为 experimental，升级须验证复杂样式、宽字符及备用屏往返。来源：[包元数据](https://registry.npmjs.org/@xterm/addon-serialize/0.14.0)、[固定提交 API](https://github.com/xtermjs/xterm.js/blob/f447274f430fd22513f6adbf9862d19524471c04/addons/addon-serialize/typings/addon-serialize.d.ts)。
 
-公钥查看复用 russh 0.64.1 重导出的 `PrivateKey::from_openssh`、`public_key` 与 `PublicKey::to_openssh`，锁内实现为 ssh-key 0.7.0-rc.11；解析加密封装即可读取其公开部分，不调用解密或执行 KDF。未新增依赖或改变 features，API 已按该锁定源码静态核对；不代表认证可用性验证。
+私钥格式与公钥查看对齐 russh 0.64.1 的 `decode_secret_key`（OpenSSH、RSA PEM、PKCS#8/EC 标记、PuTTY PPK）。OpenSSH 使用重导出的 `PrivateKey::from_openssh` 直接读取公开部分，不解密；其余格式复用认证解析器，必要时以保存或本次输入的口令解密。公钥通过 `public_key` / `PublicKey::to_openssh` 编码，锁内实现为 ssh-key 0.7.0-rc.11。具体算法与加密方式仍受该 release 限制，不根据格式名称承诺全变种互通。未新增依赖或改变 features，API 已按该锁定源码静态核对；不代表认证可用性验证。
 
 基础库共用 Tokio/async-trait/serde/uuid/bytes/zeroize 等锁定依赖；`spawn_blocking` 用于短期阻塞工作，长期 PTY/设备 I/O 使用独立线程。表中 MSRV 是直接依赖声明，不是整个传递集合的兼容保证；SQLCipher/OpenSSL、Zstd、rustls 所选 aws-lc 等还涉及原生编译和许可集合。
 

@@ -29,7 +29,7 @@ export default {
   "credentials.form.sshPassword": "SSHパスワード",
   "credentials.form.sshPrivateKey": "SSH秘密鍵",
   "credentials.form.privateKeyPlaceholder":
-    "BEGIN 行と END 行を含む OpenSSH 秘密鍵全体を貼り付けてください",
+    "SSH 秘密鍵全体を貼り付けてください（OpenSSH、PEM、PuTTY PPK）",
   "credentials.form.passphrase": "鍵のパスフレーズ（任意）",
   "credentials.form.passphraseHint":
     "空欄の場合、必要に応じて接続時に入力を求めます",
@@ -46,4 +46,6 @@ export default {
   "credentials.publicKey.hint":
     "サーバーの authorized_keys ファイルに追加できます。",
   "credentials.publicKey.copied": "公開鍵をコピーしました",
+  "credentials.publicKey.passphraseHint":
+    "秘密鍵が暗号化されている場合は、パスフレーズを入力して再試行してください。今回の入力は公開鍵の表示にのみ使用され、保存されません。",
 } as const;

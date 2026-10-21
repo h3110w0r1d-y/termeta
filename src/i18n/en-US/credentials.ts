@@ -29,7 +29,7 @@ export default {
   "credentials.form.sshPassword": "SSH password",
   "credentials.form.sshPrivateKey": "SSH private key",
   "credentials.form.privateKeyPlaceholder":
-    "Paste the complete OpenSSH private key, including the BEGIN and END lines",
+    "Paste the complete SSH private key (OpenSSH, PEM, or PuTTY PPK)",
   "credentials.form.passphrase": "Key passphrase (optional)",
   "credentials.form.passphraseHint":
     "Leave blank to be asked when connecting, if needed",
@@ -46,4 +46,6 @@ export default {
   "credentials.publicKey.hint":
     "You can add this key to the server’s authorized_keys file.",
   "credentials.publicKey.copied": "Public key copied",
+  "credentials.publicKey.passphraseHint":
+    "If the private key is encrypted, enter its passphrase and retry. This passphrase is used only to view the public key and will not be saved.",
 } as const;

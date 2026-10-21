@@ -29,7 +29,7 @@ export default {
   "credentials.form.sshPassword": "SSH 비밀번호",
   "credentials.form.sshPrivateKey": "SSH 개인 키",
   "credentials.form.privateKeyPlaceholder":
-    "BEGIN 및 END 줄을 포함한 전체 OpenSSH 개인 키를 붙여넣으세요",
+    "전체 SSH 개인 키를 붙여넣으세요(OpenSSH, PEM 또는 PuTTY PPK)",
   "credentials.form.passphrase": "키 암호(선택 사항)",
   "credentials.form.passphraseHint":
     "비워 두면 필요한 경우 연결할 때 입력을 요청합니다",
@@ -46,4 +46,6 @@ export default {
   "credentials.publicKey.hint":
     "서버의 authorized_keys 파일에 추가할 수 있습니다.",
   "credentials.publicKey.copied": "공개 키를 복사했습니다",
+  "credentials.publicKey.passphraseHint":
+    "개인 키가 암호화되어 있으면 암호를 입력하고 다시 시도하세요. 입력한 암호는 공개 키 확인에만 사용되며 저장되지 않습니다.",
 } as const;

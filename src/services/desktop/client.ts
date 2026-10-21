@@ -238,8 +238,8 @@ export const desktop = {
   revokeKnownHost: (id: string) => invoke<void>("revoke_known_host", { id }),
   saveCredential: (payload: CredentialDraft) =>
     invoke<{ id: string }>("save_credential", { ...payload }),
-  credentialPublicKey: (id: string) =>
-    invoke<string>("credential_public_key", { id }),
+  credentialPublicKey: (id: string, passphrase?: string) =>
+    invoke<string>("credential_public_key", { id, passphrase }),
   listSnippets: () => invoke<Snippet[]>("list_snippets"),
   saveSnippet: (draft: SnippetDraft) =>
     invoke<Snippet>("save_snippet", { draft }),
