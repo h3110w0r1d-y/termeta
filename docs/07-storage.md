@@ -75,7 +75,7 @@ SSH `config_json.startup` 使用共享 `SshStartup` 类型：Shell 或 PTY exec�
 
 ## 5. 设置、Snippets 与会话日志
 
-应用设置保存在 `settings.key=app` 的版本化 JSON，最大 256 KiB。Rust 校验版本、白名单、字段及方案引用；main/settings 使用专用串行队列读取最新值并局部合并，hostsView/hostSearch 逐字段合并，旧草稿不能覆盖即时偏好。提交后通知其他窗口重读。字段和默认值以 [settings.rs](../src-tauri/src/settings.rs) 为准；搜索查询与拼音索引只驻内存。
+应用设置保存在 `settings.key=app` 的版本化 JSON，最大 256 KiB。Rust 校验版本、白名单、字段及方案引用；main/settings 使用专用串行队列读取最新值并局部合并，hostsView/hostSearch 逐字段合并，hostSchemes 按主机 ID 局部合并（补丁中的 null 删除指定覆盖，持久化记录不保留 null），旧草稿不能覆盖即时偏好。SFTP 左右停靠偏好保存在同一设置记录，旧值缺失时默认右侧。提交后通知其他窗口重读。字段和默认值以 [settings.rs](../src-tauri/src/settings.rs) 为准；搜索查询与拼音索引只驻内存。
 
 云认证及备份密码另存于 `settings.key=backup`、`value_version=2`，不通过普通设置返回，也不进入云备份。专用读取仅返回秘密存在标记；版本 1 配置可保留认证并补填密码后升级，不改变业务 schema。详见 [备份配置](22-data-backup.md#5-配置与权限)。
 

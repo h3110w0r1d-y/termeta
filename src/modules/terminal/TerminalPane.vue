@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useSettings } from "../settings/store";
 import { t } from "@/i18n";
 import { IconGitBranch, IconX } from "@tabler/icons-vue";
 import { computed, onMounted, ref, watch } from "vue";
@@ -28,6 +29,7 @@ const emit = defineEmits<{
   close: [];
   menu: [event: MouseEvent | KeyboardEvent];
 }>();
+const settings = useSettings();
 const workbench = useWorkbenchStore();
 const broadcastCount = computed(() =>
   workbench.broadcastTargetCount(props.terminal.terminalId),
@@ -190,7 +192,10 @@ function menuKey(event: KeyboardEvent) {
         </AppButton>
       </header>
     </NConfigProvider>
-    <div class="terminal-pane-body">
+    <div
+      class="terminal-pane-body"
+      :class="{ 'sftp-left': settings.value.sftpPosition === 'left' }"
+    >
       <div ref="host" class="terminal-host" />
       <SftpPanel
         v-if="sftpMounted"
@@ -335,5 +340,8 @@ function menuKey(event: KeyboardEvent) {
 .terminal-pane-body > .terminal-host {
   width: 0;
   min-width: 0;
+}
+.terminal-pane-body.sftp-left {
+  flex-direction: row-reverse;
 }
 </style>

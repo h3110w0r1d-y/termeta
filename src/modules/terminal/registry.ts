@@ -197,6 +197,7 @@ export const terminalRegistry = {
     text: string,
     options: {
       broadcast?: boolean;
+      execute?: boolean;
       expectedSessionId?: string;
     } = {},
   ) {
@@ -246,6 +247,9 @@ export const terminalRegistry = {
       document.querySelector("[data-modal-open], [data-ui-popup-open]")
     )
       return;
+    const pasteBytes = new TextEncoder().encode(
+      text.replace(/\r?\n/g, "\r"),
+    ).length;
     for (const target of targets) {
       const current = workbench.terminals.find(
         (item) => item.terminalId === target.id,
@@ -259,8 +263,25 @@ export const terminalRegistry = {
         workbench.closingTerminalIds.includes(target.id)
       )
         continue;
+      // 先为正文、括号标记和执行回车一起检查队列，避免正文被拒后只发送回车。
+      const requiredBytes =
+        pasteBytes +
+        (target.entry.term.modes.bracketedPasteMode &&
+        !target.entry.term.options.ignoreBracketedPasteMode
+          ? 12
+          : 0) +
+        (options.execute ? 1 : 0);
+      if (!target.stream || target.stream.inputBytes + requiredBytes > 65536) {
+        if (current) current.error = t("terminal.paste.queueFull");
+        continue;
+      }
       // 每个目标独立应用括号粘贴模式；本次已展开目标，不能再次触发广播。
-      inputRouter.local(target.id, () => target.entry.term.paste(text));
+      inputRouter.local(target.id, () => {
+        target.entry.term.paste(text);
+        // 回车在括号粘贴结束后单独发送，与正文共用本次目标及会话代次校验。
+        if (options.execute)
+          input(target.entry, target.entry.terminal, Uint8Array.of(13));
+      });
     }
   },
   toggleBroadcast() {

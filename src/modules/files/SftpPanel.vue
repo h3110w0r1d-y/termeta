@@ -66,7 +66,9 @@ function moveResize(event: PointerEvent) {
     240,
     Math.min(
       available - 120,
-      resizeStart.width + resizeStart.x - event.clientX,
+      resizeStart.width +
+        (event.clientX - resizeStart.x) *
+          (settings.value.sftpPosition === "left" ? 1 : -1),
     ),
   );
 }
@@ -84,7 +86,9 @@ function resizeKey(event: KeyboardEvent) {
     240,
     Math.min(
       available - 120,
-      panelWidth.value + (event.key === "ArrowLeft" ? 20 : -20),
+      panelWidth.value +
+        (event.key === "ArrowLeft" ? 20 : -20) *
+          (settings.value.sftpPosition === "left" ? -1 : 1),
     ),
   );
 }
@@ -394,7 +398,10 @@ onBeforeUnmount(() => {
     ref="panel"
     :style="[surfaceStyle, { flexBasis: panelWidth + 'px' }]"
     class="sftp-panel"
-    :class="{ 'sftp-drop-target': dropTarget !== undefined }"
+    :class="{
+      'sftp-drop-target': dropTarget !== undefined,
+      'sftp-left': settings.value.sftpPosition === 'left',
+    }"
     :aria-label="t('files.sidebar.label')"
     @keydown.stop
   >
@@ -580,6 +587,14 @@ onBeforeUnmount(() => {
   border-left: 1px solid var(--border);
   background: var(--surface);
   overflow: hidden;
+}
+.sftp-panel.sftp-left {
+  border-left: 0;
+  border-right: 1px solid var(--border);
+}
+.sftp-panel.sftp-left .sftp-resizer {
+  left: auto;
+  right: 0;
 }
 .sftp-drop-indicator {
   position: absolute;

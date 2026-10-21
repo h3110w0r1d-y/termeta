@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import WorkbenchSidebar from "./modules/workbench/WorkbenchSidebar.vue";
+import WorkbenchSidebarToggle from "./modules/workbench/WorkbenchSidebarToggle.vue";
 import { t } from "./i18n";
 import { naiveLocale, naiveDateLocale } from "./i18n";
 import { IconX } from "@tabler/icons-vue";
@@ -202,6 +204,10 @@ watch(
   () => terminalRegistry.apply(),
 );
 onMounted(() => {
+  commands.register("workbench.toggleSidebar", () => {
+    if (workbench.activeGroup || workbench.activeLogTab)
+      workbench.sidebarOpen = !workbench.sidebarOpen;
+  });
   commands.register("workbench.newConnection", openNewTab);
   commands.register("workbench.newTab", openNewTab);
   commands.register("workbench.newLocalTerminal", openLocalTerminal);
@@ -278,6 +284,7 @@ onBeforeUnmount(() => {
           <ApplicationMenu v-if="!isMac" />
           <span data-tauri-drag-region>Termeta</span>
           <div class="window-drag-space" data-tauri-drag-region />
+          <WorkbenchSidebarToggle />
           <WindowControls @error="initError = $event" />
         </header>
         <AppTabs
@@ -308,93 +315,98 @@ onBeforeUnmount(() => {
           @clickoutside="closeContextMenuOnOutside($event, tabMenu)"
           @update:show="tabMenu.show = $event"
         />
-        <main class="workbench-content">
-          <NAlert
-            v-if="initError"
-            type="error"
-            closable
-            @close="initError = ''"
-          >
-            {{ initError }}
-          </NAlert>
-          <VaultLayout
-            @connect="connect"
-            @connect-many="connectMany"
-            @local="openLocalTerminal"
-            @create="createHost"
-            @quick="quickConnect"
-            @edit="edit"
-          />
-          <SftpBrowser v-show="workbench.activeId === 'sftp'" />
-          <SessionLogStage />
-          <!-- 终端宿主始终留在同一组件树内；页面与布局切换仅改变可见性。 -->
-          <section
-            v-show="!!workbench.activeTerminal"
-            class="terminal-area"
-            :aria-label="t('terminal.regions.area')"
-          >
-            <div v-if="findOpen && workbench.activeTerminal" class="find-bar">
-              <AppInput
-                v-model="query"
-                autofocus
-                :aria-label="t('terminal.search.label')"
-                :placeholder="t('terminal.search.placeholder')"
-                @keydown.enter.prevent="
-                  terminalRegistry.find(
-                    workbench.activeTerminal.terminalId,
-                    query,
-                    $event.shiftKey,
-                  )
-                "
-                @keydown.esc="closeFind()"
-              />
-              <AppButton
-                @click="
-                  terminalRegistry.find(
-                    workbench.activeTerminal.terminalId,
-                    query,
-                    true,
-                  )
-                "
-              >
-                {{ t("common.actions.previous") }}
-              </AppButton>
-              <AppButton
-                @click="
-                  terminalRegistry.find(
-                    workbench.activeTerminal.terminalId,
-                    query,
-                  )
-                "
-              >
-                {{ t("common.actions.next") }}
-              </AppButton>
-              <AppButton
-                class="icon-button"
-                :aria-label="t('terminal.search.close')"
-                @click="closeFind()"
-              >
-                <NIcon :size="16" aria-hidden="true"><IconX /></NIcon>
-              </AppButton>
-            </div>
-            <NAlert v-if="activeTerminalError" type="error">
-              {{ activeTerminalError }}
-            </NAlert>
-            <div
-              class="terminal-stage"
-              :style="{ '--terminal-background': terminalBackground }"
+        <div class="workbench-body">
+          <main class="workbench-content">
+            <NAlert
+              v-if="initError"
+              type="error"
+              closable
+              @close="initError = ''"
             >
-              <TerminalStage @close="closePane" @menu="openTerminalMenu" />
-            </div>
-            <TerminalStatusBar
-              v-if="workbench.activeTerminal"
-              :terminal="workbench.activeTerminal"
-              :sftp-available="workbench.activeGroup?.root.kind === 'terminal'"
-              :dragging="!!workbench.drag"
-              @toggle-sftp="workbench.toggleSftp()"
+              {{ initError }}
+            </NAlert>
+            <VaultLayout
+              @connect="connect"
+              @connect-many="connectMany"
+              @local="openLocalTerminal"
+              @create="createHost"
+              @quick="quickConnect"
+              @edit="edit"
             />
-          </section>
-        </main>
+            <SftpBrowser v-show="workbench.activeId === 'sftp'" />
+            <SessionLogStage />
+            <!-- 终端宿主始终留在同一组件树内；页面与布局切换仅改变可见性。 -->
+            <section
+              v-show="!!workbench.activeTerminal"
+              class="terminal-area"
+              :aria-label="t('terminal.regions.area')"
+            >
+              <div v-if="findOpen && workbench.activeTerminal" class="find-bar">
+                <AppInput
+                  v-model="query"
+                  autofocus
+                  :aria-label="t('terminal.search.label')"
+                  :placeholder="t('terminal.search.placeholder')"
+                  @keydown.enter.prevent="
+                    terminalRegistry.find(
+                      workbench.activeTerminal.terminalId,
+                      query,
+                      $event.shiftKey,
+                    )
+                  "
+                  @keydown.esc="closeFind()"
+                />
+                <AppButton
+                  @click="
+                    terminalRegistry.find(
+                      workbench.activeTerminal.terminalId,
+                      query,
+                      true,
+                    )
+                  "
+                >
+                  {{ t("common.actions.previous") }}
+                </AppButton>
+                <AppButton
+                  @click="
+                    terminalRegistry.find(
+                      workbench.activeTerminal.terminalId,
+                      query,
+                    )
+                  "
+                >
+                  {{ t("common.actions.next") }}
+                </AppButton>
+                <AppButton
+                  class="icon-button"
+                  :aria-label="t('terminal.search.close')"
+                  @click="closeFind()"
+                >
+                  <NIcon :size="16" aria-hidden="true"><IconX /></NIcon>
+                </AppButton>
+              </div>
+              <NAlert v-if="activeTerminalError" type="error">
+                {{ activeTerminalError }}
+              </NAlert>
+              <div
+                class="terminal-stage"
+                :style="{ '--terminal-background': terminalBackground }"
+              >
+                <TerminalStage @close="closePane" @menu="openTerminalMenu" />
+              </div>
+              <TerminalStatusBar
+                v-if="workbench.activeTerminal"
+                :terminal="workbench.activeTerminal"
+                :sftp-available="
+                  workbench.activeGroup?.root.kind === 'terminal'
+                "
+                :dragging="!!workbench.drag"
+                @toggle-sftp="workbench.toggleSftp()"
+              />
+            </section>
+          </main>
+          <WorkbenchSidebar />
+        </div>
         <NewTabDialog
           v-model:open="newTabOpen"
           @connect="connect"
@@ -441,6 +453,13 @@ onBeforeUnmount(() => {
   overflow: hidden;
   min-width: 680px;
   background: var(--bg);
+}
+.workbench-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 .workbench-content {
   display: flex;
@@ -497,7 +516,7 @@ onBeforeUnmount(() => {
   grid-template-columns: 180px minmax(0, 1fr);
   grid-template-rows: 48px minmax(0, 1fr);
 }
-.tabs-left > .workbench-content {
+.tabs-left > .workbench-body {
   grid-column: 2;
   grid-row: 2;
 }

@@ -42,6 +42,7 @@ pub fn validate(settings: &Value) -> Result<()> {
         "tabPosition",
         "tabDoubleClickAction",
         "sftpShowHidden",
+        "sftpPosition",
         "detectSshSystem",
         "hostsView",
         "hostSearch",
@@ -78,6 +79,10 @@ pub fn validate(settings: &Value) -> Result<()> {
         // 旧设置缺失时双击无动作；仅允许声明式的内置标签动作。
         || object.get("tabDoubleClickAction").is_some_and(|value| {
             !matches!(value.as_str(), Some("none" | "close" | "duplicate" | "split"))
+        })
+        // 缺少位置偏好的旧设置继续显示在右侧。
+        || object.get("sftpPosition").is_some_and(|value| {
+            !matches!(value.as_str(), Some("left" | "right"))
         })
         // 旧设置缺失时由前端默认隐藏；已保存的值必须是布尔值。
         || object.get("sftpShowHidden").is_some_and(|value| !value.is_boolean())
@@ -373,6 +378,7 @@ fn command(id: &str) -> bool {
         "workbench.previousTab",
         "settings.open",
         "workbench.newLocalTerminal",
+        "workbench.toggleSidebar",
         "terminal.copy",
         "terminal.paste",
         "terminal.find",

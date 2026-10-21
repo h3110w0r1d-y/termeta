@@ -1,5 +1,14 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
+  "workbench.sidebar.themes": "테마",
+  "workbench.sidebar.toggle": "도구 사이드바 전환",
+  "workbench.sidebar.label": "터미널 도구",
+  "workbench.sidebar.themeHint":
+    "글꼴과 크기는 모든 터미널에 적용됩니다. 배색을 선택하면 현재 호스트가 기본값을 상속하고 전역 배색이 변경됩니다.",
+  "workbench.sidebar.noTerminal":
+    "스니펫을 사용하려면 연결된 터미널을 활성화하세요.",
+  "workbench.sidebar.execute": "실행",
+
   "workbench.actions.newTab": "새 탭",
   "workbench.actions.newSshConnection": "새 SSH 연결",
   "workbench.actions.closeCurrentTab": "현재 탭 닫기",

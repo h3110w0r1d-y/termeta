@@ -9,7 +9,9 @@ export function useAppAppearance() {
     () => settings.value.primaryColor || darkTheme.common.primaryColor,
   );
   const naiveThemeOverrides = computed<GlobalThemeOverrides>(() => {
-    if (!settings.value.primaryColor) return {};
+    // 根主题统一圆角，局部终端配色 Provider 通过库的主题合并继续继承。
+    const common = { borderRadius: "6px", borderRadiusSmall: "4px" };
+    if (!settings.value.primaryColor) return { common };
     const color = primaryColor.value;
     // 从主色分别混入白色和黑色，为库控件派生悬停和按下状态。
     const mix = (target: number, ratio: number) =>
@@ -24,6 +26,7 @@ export function useAppAppearance() {
         .join("");
     return {
       common: {
+        ...common,
         primaryColor: color,
         primaryColorHover: mix(255, 0.16),
         primaryColorPressed: mix(0, 0.16),

@@ -1,5 +1,13 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
+  "workbench.sidebar.themes": "主题",
+  "workbench.sidebar.toggle": "切换工具侧栏",
+  "workbench.sidebar.label": "终端工具",
+  "workbench.sidebar.themeHint":
+    "字体与字号应用于所有终端。选择配色会让当前主机继承默认，并更新全局配色。",
+  "workbench.sidebar.noTerminal": "请激活一个已连接的终端以使用片段。",
+  "workbench.sidebar.execute": "执行",
+
   "workbench.actions.newTab": "新建标签页",
   "workbench.actions.newSshConnection": "新建 SSH 连接",
   "workbench.actions.closeCurrentTab": "关闭当前标签",

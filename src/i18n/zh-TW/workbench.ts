@@ -1,5 +1,13 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
+  "workbench.sidebar.themes": "主題",
+  "workbench.sidebar.toggle": "切換工具側欄",
+  "workbench.sidebar.label": "終端工具",
+  "workbench.sidebar.themeHint":
+    "字型與字級套用至所有終端。選擇配色會讓目前主機繼承預設，並更新全域配色。",
+  "workbench.sidebar.noTerminal": "請啟用一個已連線的終端以使用片段。",
+  "workbench.sidebar.execute": "執行",
+
   "workbench.actions.newTab": "新建標籤頁",
   "workbench.actions.newSshConnection": "新建 SSH 連線",
   "workbench.actions.closeCurrentTab": "關閉目前標籤",

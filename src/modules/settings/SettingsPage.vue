@@ -98,6 +98,7 @@ function resetPrimaryColor() {
     .catch(() => undefined);
 }
 const rules = computed<FormRules>(() => ({
+  sftpPosition: requiredText("settings.general.sftpPosition"),
   tabPosition: requiredText("settings.general.tabPosition"),
   tabDoubleClickAction: requiredText("settings.general.tabDoubleClickAction"),
   primaryColor: {
@@ -178,6 +179,22 @@ const rules = computed<FormRules>(() => ({
                   </NRadioButton>
                   <NRadioButton value="left">
                     {{ t("settings.tabPosition.left") }}
+                  </NRadioButton>
+                </NRadioGroup>
+              </NFormItem>
+              <NFormItem
+                :label="t('settings.general.sftpPosition')"
+                path="sftpPosition"
+              >
+                <NRadioGroup
+                  v-model:value="draft.sftpPosition"
+                  :aria-label="t('settings.general.sftpPosition')"
+                >
+                  <NRadioButton value="left">
+                    {{ t("settings.sftpPosition.left") }}
+                  </NRadioButton>
+                  <NRadioButton value="right">
+                    {{ t("settings.sftpPosition.right") }}
                   </NRadioButton>
                 </NRadioGroup>
               </NFormItem>

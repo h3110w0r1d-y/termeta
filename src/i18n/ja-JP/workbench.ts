@@ -1,5 +1,14 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
+  "workbench.sidebar.themes": "テーマ",
+  "workbench.sidebar.toggle": "ツールサイドバーを切り替え",
+  "workbench.sidebar.label": "ターミナルツール",
+  "workbench.sidebar.themeHint":
+    "フォントとサイズはすべてのターミナルに適用されます。配色を選ぶと現在のホストを既定に戻し、全体の配色を更新します。",
+  "workbench.sidebar.noTerminal":
+    "スニペットを使うには接続中のターミナルを選択してください。",
+  "workbench.sidebar.execute": "実行",
+
   "workbench.actions.newTab": "新しいタブ",
   "workbench.actions.newSshConnection": "新しいSSH接続",
   "workbench.actions.closeCurrentTab": "現在のタブを閉じる",

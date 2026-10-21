@@ -37,7 +37,7 @@ export function useTerminalSurface(colors: () => Scheme["colors"]) {
       pressed: mix(ui, 18),
       border: colorOverlay(ui, 20),
       muted: mix(foreground, 72),
-      disabled: mix(foreground, 35),
+      disabled: mix(ui, 35),
     };
   });
   const theme = computed(() => (palette.value.light ? lightTheme : darkTheme));
@@ -56,9 +56,10 @@ export function useTerminalSurface(colors: () => Scheme["colors"]) {
         tableColorStriped: p.surface,
         inputColor: p.background,
         inputColorDisabled: p.surface,
-        textColorBase: p.foreground,
-        textColor1: p.foreground,
-        textColor2: p.muted,
+        // 普通文字与顶部未激活标签共用 UI 色，终端前景色只用于交互强调。
+        textColorBase: p.ui,
+        textColor1: p.ui,
+        textColor2: p.ui,
         textColor3: p.ui,
         textColorDisabled: p.disabled,
         placeholderColor: p.ui,
@@ -91,6 +92,17 @@ export function useTerminalSurface(colors: () => Scheme["colors"]) {
         primaryColorPressed: p.foreground,
         primaryColorSuppl: p.foreground,
       },
+      // 深色主题的输入默认边框为透明，须显式沿用卡片的普通边框色。
+      Input: {
+        border: `1px solid ${p.border}`,
+      },
+      Select: {
+        peers: {
+          InternalSelection: {
+            border: `1px solid ${p.border}`,
+          },
+        },
+      },
       Button: {
         colorHover: mixColors(p.ui, p.background, 12),
         colorPressed: mixColors(p.ui, p.background, 18),
@@ -110,12 +122,12 @@ export function useTerminalSurface(colors: () => Scheme["colors"]) {
       "--surface": p.background,
       "--surface-hover": p.hover,
       "--border": p.border,
-      "--text": p.foreground,
+      "--text": p.ui,
       "--muted": p.ui,
       "--accent": p.foreground,
       "--danger": theme.value.common!.errorColor,
       "--input": p.surface,
-      color: p.foreground,
+      color: p.ui,
       colorScheme: p.light ? "light" : "dark",
     };
   });

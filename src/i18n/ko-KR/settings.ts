@@ -1,5 +1,9 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
+  "settings.general.sftpPosition": "SFTP 표시 위치",
+  "settings.sftpPosition.left": "왼쪽",
+  "settings.sftpPosition.right": "오른쪽",
+
   "settings.language.system": "시스템 설정 따르기",
   "settings.actions.open": "설정 열기",
   "settings.detection.enabled": "SSH 연결 시 운영 체제 감지",

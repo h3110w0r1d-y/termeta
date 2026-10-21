@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import WorkbenchSidebarToggle from "./WorkbenchSidebarToggle.vue";
 import { t } from "@/i18n";
 import { terminalBaseTitle } from "../terminal/title";
 import ScrollFade from "@/components/ui/ScrollFade.vue";
@@ -377,6 +378,7 @@ watch(
         <i class="status-dot" :class="{ connected: connected > 0 }" />
         {{ t("common.count.connections", { count: connected }) }}
       </span>
+      <WorkbenchSidebarToggle v-if="position === 'top'" />
       <WindowControls
         v-if="position === 'top'"
         @error="emit('windowError', $event)"

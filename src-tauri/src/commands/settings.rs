@@ -77,6 +77,19 @@ pub async fn save_settings(
                 "expandedGroupIds": []
             });
         }
+        // 主机配色按引用局部合并，null 只删除指定主机的覆盖。
+        if key == "hostSchemes" {
+            if let (Some(target), Some(fields)) = (merged[key].as_object_mut(), value.as_object()) {
+                for (id, scheme) in fields {
+                    if scheme.is_null() {
+                        target.remove(id);
+                    } else {
+                        target.insert(id.clone(), scheme.clone());
+                    }
+                }
+                continue;
+            }
+        }
         if matches!(key.as_str(), "hostsView" | "hostSearch") {
             if let (Some(target), Some(fields)) = (merged[key].as_object_mut(), value.as_object()) {
                 target.extend(fields.clone());

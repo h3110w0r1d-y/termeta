@@ -43,6 +43,7 @@ export interface AppSettings {
   tabPosition: "top" | "left";
   tabDoubleClickAction: "none" | "close" | "duplicate" | "split";
   sftpShowHidden: boolean;
+  sftpPosition: "left" | "right";
   detectSshSystem: boolean;
   hostsView: HostsViewSettings;
   hostSearch: HostSearchSettings;
@@ -60,8 +61,9 @@ export interface AppSettings {
 // 即时偏好允许字段级更新，避免不同窗口覆盖同一对象中的其他字段。
 export type SettingsPatch = Omit<
   Partial<AppSettings>,
-  "hostsView" | "hostSearch"
+  "hostsView" | "hostSearch" | "hostSchemes"
 > & {
   hostsView?: Partial<HostsViewSettings>;
   hostSearch?: Partial<HostSearchSettings>;
+  hostSchemes?: Record<string, string | null>;
 };

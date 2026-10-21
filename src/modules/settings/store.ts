@@ -21,6 +21,7 @@ export function defaultSettings(): AppSettings {
     tabPosition: "top",
     tabDoubleClickAction: "none",
     sftpShowHidden: false,
+    sftpPosition: "right",
     detectSshSystem: true,
     hostsView: {
       includeChildren: false,
@@ -95,6 +96,11 @@ export const useSettings = defineStore("settings", () => {
       if (JSON.stringify(next[key]) !== JSON.stringify(value.value[key]))
         Object.assign(patch, { [key]: clone(next[key]) });
     }
+    if (patch.hostSchemes)
+      return persist({
+        ...patch,
+        hostSchemes: hostSchemePatch(next.hostSchemes, value.value.hostSchemes),
+      });
     return persist(patch);
   }
   async function setSftpShowHidden(show: boolean) {
@@ -126,3 +132,15 @@ export const useSettings = defineStore("settings", () => {
     setHostsView,
   };
 });
+
+// null 表示删除单个主机覆盖，跨窗口合并时保留其他主机的即时修改。
+export function hostSchemePatch(
+  next: Record<string, string>,
+  previous: Record<string, string>,
+) {
+  return Object.fromEntries(
+    [...new Set([...Object.keys(previous), ...Object.keys(next)])]
+      .filter((id) => next[id] !== previous[id])
+      .map((id) => [id, next[id] ?? null]),
+  );
+}

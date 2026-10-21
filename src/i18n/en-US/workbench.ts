@@ -1,5 +1,14 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
+  "workbench.sidebar.themes": "Theme",
+  "workbench.sidebar.toggle": "Toggle tools sidebar",
+  "workbench.sidebar.label": "Terminal tools",
+  "workbench.sidebar.themeHint":
+    "Font and size apply to all terminals. Choosing a color scheme resets the current host to the default and updates the global scheme.",
+  "workbench.sidebar.noTerminal":
+    "Activate a connected terminal to use snippets.",
+  "workbench.sidebar.execute": "Execute",
+
   "workbench.actions.newTab": "New tab",
   "workbench.actions.newSshConnection": "New SSH connection",
   "workbench.actions.closeCurrentTab": "Close current tab",

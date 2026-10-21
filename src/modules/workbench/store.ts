@@ -54,6 +54,7 @@ import {
 } from "./workspace";
 
 export const useWorkbenchStore = defineStore("workbench", () => {
+  const sidebarOpen = ref(false);
   // terminals 保存终端元数据，groups 独立保存标签顺序与布局；移动布局不增删终端。
   const terminals = ref<TerminalItem[]>([]);
   const groups = ref<TerminalTabGroup[]>([]);
@@ -575,6 +576,7 @@ export const useWorkbenchStore = defineStore("workbench", () => {
     activeId.value = "home";
   }
   return {
+    sidebarOpen,
     terminals,
     groups,
     logTabs,

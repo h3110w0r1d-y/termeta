@@ -2,6 +2,7 @@ import { t } from "@/i18n";
 import type { Binding, Keymap, Modifier } from "./types";
 export const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
 export const commandDefinitions = [
+  ["workbench.toggleSidebar", "workbench.sidebar.toggle", "application", ""],
   ["workbench.newTab", "workbench.actions.newTab", "application", "Primary+T"],
   [
     "workbench.newConnection",
