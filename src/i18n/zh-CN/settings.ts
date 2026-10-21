@@ -24,8 +24,6 @@ export default {
   "settings.tabPosition.left": "左侧",
   "settings.security.confirmClose": "关闭可能正在执行命令的终端前确认",
   "settings.security.confirmMultilinePaste": "多行粘贴前确认",
-  "settings.security.description":
-    "终端输出不会保存到磁盘，主机和凭据加密保存在本机。",
   "settings.validation.accentColor": "请输入6位HEX颜色",
   "settings.validation.fontSize": "字号须为10–32",
   "settings.doubleClick.none": "无动作",
@@ -33,7 +31,6 @@ export default {
   "settings.validation.terminalRange": "字号须为 10–32，滚屏须为 1000–50000",
   "settings.validation.invalid": "设置无效，请检查输入",
   "settings.search.pinyin": "拼音模糊搜索",
-  "settings.search.description": "搜索设置修改后立即保存；名称始终参与搜索。",
   "settings.search.address": "地址",
   "settings.general.language": "语言",
   "settings.languages.zhCN": "简体中文",

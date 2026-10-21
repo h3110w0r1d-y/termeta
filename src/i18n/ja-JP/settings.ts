@@ -25,8 +25,6 @@ export default {
   "settings.security.confirmClose":
     "コマンドが実行中の可能性があるターミナルを閉じる前に確認",
   "settings.security.confirmMultilinePaste": "複数行の貼り付けを確認",
-  "settings.security.description":
-    "ターミナル出力はディスクに保存されません。ホストと認証情報はこのデバイスで暗号化されます。",
   "settings.validation.accentColor": "6桁のHEXカラーを入力してください",
   "settings.validation.fontSize": "フォントサイズは10から32にしてください",
   "settings.doubleClick.none": "何もしない",
@@ -35,8 +33,6 @@ export default {
     "フォントサイズは10～32、スクロールバックは1,000～50,000行にしてください",
   "settings.validation.invalid": "設定を確認して再試行してください",
   "settings.search.pinyin": "ピンイン検索",
-  "settings.search.description":
-    "変更は自動保存されます。名前は常に検索対象です。",
   "settings.search.address": "アドレス",
   "settings.general.language": "言語",
   "settings.languages.zhCN": "简体中文",

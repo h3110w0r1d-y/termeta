@@ -63,9 +63,6 @@ function select(values: (string | number)[]) {
         </NCheckbox>
       </NSpace>
     </NCheckboxGroup>
-    <NText v-if="!compact" depth="3">
-      {{ t("settings.search.description") }}
-    </NText>
     <NText v-if="error" type="error" role="alert">{{ error }}</NText>
   </NSpace>
 </template>

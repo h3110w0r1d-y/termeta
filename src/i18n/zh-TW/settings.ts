@@ -24,8 +24,6 @@ export default {
   "settings.tabPosition.left": "左側",
   "settings.security.confirmClose": "關閉可能正在執行命令的終端前確認",
   "settings.security.confirmMultilinePaste": "多行貼上前確認",
-  "settings.security.description":
-    "終端輸出不會儲存到磁碟，主機和認證資訊加密儲存在本機。",
   "settings.validation.accentColor": "請輸入6位HEX顏色",
   "settings.validation.fontSize": "字型大小須為10–32",
   "settings.doubleClick.none": "無動作",
@@ -34,7 +32,6 @@ export default {
     "字型大小須為 10–32，捲動回溯須為 1000–50000",
   "settings.validation.invalid": "設定無效，請檢查輸入",
   "settings.search.pinyin": "拼音模糊搜尋",
-  "settings.search.description": "搜尋設定修改後立即儲存；名稱始終參與搜尋。",
   "settings.search.address": "地址",
   "settings.general.language": "語言",
   "settings.languages.zhCN": "简体中文",

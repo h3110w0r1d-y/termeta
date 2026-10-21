@@ -248,9 +248,6 @@ const rules = computed<FormRules>(() => ({
               <AppCheckbox v-model="draft.multilinePaste" class="span-2">
                 {{ t("settings.security.confirmMultilinePaste") }}
               </AppCheckbox>
-              <p class="muted span-2">
-                {{ t("settings.security.description") }}
-              </p>
             </NForm>
             <section
               class="settings-group"
