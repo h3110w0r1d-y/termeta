@@ -1,5 +1,29 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
+  "files.hosts.search": "搜索 SSH 主机…",
+  "files.hosts.empty": "暂无已保存的 SSH 主机，请先在保险库中添加。",
+  "files.drag.pastePaths": "松开以粘贴 {count} 个路径",
+  "files.drag.hint": "{count} 项 · 拖到终端粘贴路径，拖出窗口下载",
+  "files.drag.invalidPaths":
+    "所选路径过长或包含不支持的字符，请减少选择后重试。",
+  "files.follow.label": "跟随终端工作目录",
+  "files.follow.description":
+    "终端报告目录变化时同步 SFTP，文件操作结束后跟随最新目录。",
+  "files.follow.waiting":
+    "等待终端提供工作目录；Shell 需报告目录或在标题中显示完整路径。",
+  "files.navigation.collapsed": "显示折叠的上级目录",
+  "files.navigation.edit": "编辑目录路径",
+  "files.activity.title": "传输记录",
+  "files.activity.open": "查看传输列表",
+  "files.activity.active": "正在传输 {count} 项",
+  "files.activity.clearFinished": "清除已结束",
+  "files.activity.empty": "暂无传输任务",
+  "files.activity.idle": "所有传输已结束",
+  "files.activity.failed": "传输失败",
+  "files.activity.cancelling": "正在取消…",
+  "files.activity.progress": "传输进度",
+  "files.activity.unknownProgress": "正在准备，尚无法确定总进度",
+  "files.table.label": "远程文件列表",
   "files.sidebar.toggle": "显示或隐藏此终端的 SFTP 侧栏",
   "files.errors.sshDisconnected": "SSH 未连接，列表已过期",
   "files.count": "{count} 项",
@@ -59,4 +83,35 @@ export default {
   "files.transfer.preparing": "选择文件或准备传输…",
   "files.sidebar.hide": "隐藏 SFTP 侧栏",
   "files.transfer.hidePanel": "隐藏面板，传输继续",
+  "files.manage.delete.action": "删除",
+  "files.manage.delete.title": "删除所选项目",
+  "files.manage.delete.recursiveTitle": "确认删除文件夹及其内容",
+  "files.manage.delete.warning":
+    "这些项目将从远端永久删除，无法撤销。链接只删除链接本身。",
+  "files.manage.delete.recursiveWarning":
+    "所选文件夹及其中全部内容将被永久删除，包括隐藏文件。操作中断或失败时，已删除的内容无法恢复。确认递归删除？",
+  "files.manage.delete.continue": "继续确认文件夹删除",
+  "files.manage.delete.permanent": "永久删除",
+  "files.manage.selection": "已选择 {count} 项",
+  "files.manage.partialFailure":
+    "操作可能已完成一部分。请检查刷新后的目录再重试；已完成的变更不会撤销。",
+  "files.manage.limit": "每次最多操作 100 项，请减少选择后重试。",
+  "files.manage.permissions.title": "编辑权限",
+  "files.manage.permissions.applies":
+    "以下权限将应用到所有所选项目，仅修改项目本身，不递归修改文件夹内容。混合权限或未知权限请先明确设置。",
+  "files.manage.permissions.owner": "所有者",
+  "files.manage.permissions.group": "用户组",
+  "files.manage.permissions.others": "其他用户",
+  "files.manage.permissions.read": "读取",
+  "files.manage.permissions.write": "写入",
+  "files.manage.permissions.execute": "执行 / 进入",
+  "files.manage.permissions.code": "八进制权限",
+  "files.manage.permissions.invalid":
+    "请输入 3 或 4 位八进制权限（000 至 7777）。",
+  "files.manage.permissions.special": "特殊权限（高级）",
+  "files.manage.permissions.setuid": "Setuid：以所有者身份执行",
+  "files.manage.permissions.setgid": "Setgid：继承用户组 / 以用户组身份执行",
+  "files.manage.permissions.sticky": "Sticky：仅允许所有者删除目录内项目",
+  "files.manage.delete.confirmContents":
+    "我了解将永久删除所选文件夹及其中全部内容。",
 } as const;

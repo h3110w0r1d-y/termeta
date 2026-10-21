@@ -1,7 +1,8 @@
 import { normalizeRemoteTitle } from "./title.ts";
+import type { TerminalWorkingDirectory } from "./workingDirectory";
 
 /** 只保留当前连接的提示信息，不保存命令正文或执行历史。 */
-export interface TerminalActivity {
+export interface TerminalActivity extends TerminalWorkingDirectory {
   sshCommand?: boolean;
   remoteTitle?: string;
   initialTitlePrefix?: string;
@@ -30,6 +31,8 @@ export function updateShellActivity(
 }
 
 export function resetTerminalActivity(activity: TerminalActivity) {
+  activity.workingDirectory = undefined;
+  activity.workingDirectorySource = undefined;
   activity.remoteTitle = undefined;
   activity.initialTitlePrefix = undefined;
   activity.commandRunning = false;

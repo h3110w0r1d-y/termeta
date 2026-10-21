@@ -72,6 +72,15 @@ const displayTitle = computed(() =>
   ),
 );
 const host = ref<HTMLElement>();
+function pasteSftpPaths(sessionId: string, text: string) {
+  if (!props.active || !props.visible || props.terminal.sessionId !== sessionId)
+    return;
+  terminalRegistry.focus(props.terminal.terminalId);
+  void terminalRegistry.pasteText(props.terminal.terminalId, text, {
+    broadcast: false,
+    expectedSessionId: sessionId,
+  });
+}
 const sftpMounted = ref(false);
 watch(
   () => props.terminal.sftpOpen,
@@ -187,6 +196,8 @@ function menuKey(event: KeyboardEvent) {
         v-if="sftpMounted"
         v-show="!!terminal.sftpOpen && !split"
         :terminal="terminal"
+        :terminal-host="host"
+        @paste-paths="pasteSftpPaths"
       />
     </div>
   </div>

@@ -9,7 +9,7 @@ export interface Scheme {
   colors: {
     foreground: string;
     background: string;
-    // Header 普通标签与工具按钮的辅助色；旧方案缺失时回退前景色。
+    // 终端标签、状态栏与侧栏的辅助色；旧方案缺失时回退前景色。
     ui?: string;
     cursor: string;
     cursorAccent: string;

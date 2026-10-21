@@ -64,6 +64,8 @@
     "allow-sftp-drop-upload",
     "allow-sftp-start-drag",
     "allow-sftp-list",
+    "allow-sftp-delete",
+    "allow-sftp-set-permissions",
     "allow-sftp-transfer",
     "allow-sftp-cancel",
     "allow-open-settings-window",

@@ -159,6 +159,8 @@ pub fn run() {
             commands::sftp_drop_upload,
             commands::sftp_start_drag,
             commands::sftp_list,
+            commands::sftp_delete,
+            commands::sftp_set_permissions,
             commands::sftp_transfer,
             commands::sftp_cancel,
             commands::available_session_kinds,

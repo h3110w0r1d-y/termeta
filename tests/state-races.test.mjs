@@ -37,6 +37,65 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
+function settingsStoreFixture(saveSettings) {
+  pinia.setActivePinia(pinia.createPinia());
+  const { useSettings } = load("../src/modules/settings/store.ts", {
+    vue,
+    pinia,
+    "@/services/data/clone": {
+      clone: (value) => JSON.parse(JSON.stringify(value)),
+    },
+    "@/i18n": { normalizeLanguage: (value) => value, setLanguage() {} },
+    "@/services/desktop/client": { desktop: { saveSettings } },
+    "@/services/commands/registry": { defaults: () => [] },
+    "./themes": { defaultSchemeId: "default" },
+    "./fonts": {
+      defaultTerminalFont: "default",
+      normalizeTerminalFont: (value) => value,
+    },
+  });
+  return useSettings();
+}
+
+test("隐藏文件在设置保存前立即更新，排队的旧设置回包不闪回过滤状态", async () => {
+  const oldSave = deferred();
+  const hiddenSave = deferred();
+  let calls = 0;
+  const store = settingsStoreFixture(() =>
+    ++calls === 1 ? oldSave.promise : hiddenSave.promise,
+  );
+  const old = store.patch({ fontSize: 16 });
+  const saving = store.setSftpShowHidden(true);
+  assert.equal(store.sftpShowHidden, true);
+  assert.equal(store.value.sftpShowHidden, false);
+  assert.equal(store.savingSftpHidden, true);
+  oldSave.resolve({ ...store.value, fontSize: 16 });
+  await old;
+  assert.equal(store.sftpShowHidden, true);
+  hiddenSave.resolve({ ...store.value, sftpShowHidden: true });
+  await saving;
+  assert.equal(store.sftpShowHidden, true);
+  assert.equal(store.value.sftpShowHidden, true);
+  assert.equal(store.savingSftpHidden, false);
+});
+
+test("隐藏文件保存失败恢复确认值，之后仍可正常切换", async () => {
+  const failed = deferred();
+  let calls = 0;
+  const store = settingsStoreFixture((patch, defaults) =>
+    ++calls === 1 ? failed.promise : Promise.resolve({ ...defaults, ...patch }),
+  );
+  const saving = store.setSftpShowHidden(true);
+  assert.equal(store.sftpShowHidden, true);
+  failed.reject(new Error("模拟保存失败"));
+  await assert.rejects(saving);
+  assert.equal(store.sftpShowHidden, false);
+  assert.equal(store.savingSftpHidden, false);
+  await store.setSftpShowHidden(true);
+  assert.equal(store.sftpShowHidden, true);
+  assert.equal(store.value.sftpShowHidden, true);
+});
+
 for (const action of [
   "save",
   "remove",

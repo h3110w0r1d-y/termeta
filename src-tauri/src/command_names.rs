@@ -20,6 +20,8 @@ pub const COMMANDS: &[&str] = &[
     "sftp_drop_upload",
     "sftp_start_drag",
     "sftp_list",
+    "sftp_delete",
+    "sftp_set_permissions",
     "sftp_transfer",
     "sftp_cancel",
     "available_session_kinds",

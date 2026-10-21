@@ -1,5 +1,29 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
+  "files.hosts.search": "搜尋 SSH 主機…",
+  "files.hosts.empty": "尚無已儲存的 SSH 主機，請先在保險庫中新增。",
+  "files.drag.pastePaths": "放開以貼上 {count} 個路徑",
+  "files.drag.hint": "{count} 項 · 拖到終端貼上路徑，拖出視窗下載",
+  "files.drag.invalidPaths":
+    "所選路徑過長或包含不支援的字元，請減少選取項目後重試。",
+  "files.follow.label": "跟隨終端工作目錄",
+  "files.follow.description":
+    "終端回報目錄變更時同步 SFTP，檔案操作結束後跟隨最新目錄。",
+  "files.follow.waiting":
+    "等待終端提供工作目錄；Shell 需回報目錄或在標題中顯示完整路徑。",
+  "files.navigation.collapsed": "顯示摺疊的上層目錄",
+  "files.navigation.edit": "編輯目錄路徑",
+  "files.activity.title": "傳輸記錄",
+  "files.activity.open": "檢視傳輸清單",
+  "files.activity.active": "正在傳輸 {count} 項",
+  "files.activity.clearFinished": "清除已結束",
+  "files.activity.empty": "尚無傳輸工作",
+  "files.activity.idle": "所有傳輸已結束",
+  "files.activity.failed": "傳輸失敗",
+  "files.activity.cancelling": "正在取消…",
+  "files.activity.progress": "傳輸進度",
+  "files.activity.unknownProgress": "正在準備，尚無法確定總進度",
+  "files.table.label": "遠端檔案清單",
   "files.sidebar.toggle": "顯示或隱藏此終端的 SFTP 側欄",
   "files.errors.sshDisconnected": "SSH 未連線，清單已過期",
   "files.count": "{count} 項",
@@ -59,4 +83,35 @@ export default {
   "files.transfer.preparing": "選擇檔案或準備傳輸…",
   "files.sidebar.hide": "隱藏 SFTP 側欄",
   "files.transfer.hidePanel": "隱藏面板，傳輸繼續",
+  "files.manage.delete.action": "刪除",
+  "files.manage.delete.title": "刪除所選項目",
+  "files.manage.delete.recursiveTitle": "確認刪除資料夾及其內容",
+  "files.manage.delete.warning":
+    "這些項目將從遠端永久刪除，無法復原。連結只刪除連結本身。",
+  "files.manage.delete.recursiveWarning":
+    "所選資料夾及其中全部內容將被永久刪除，包括隱藏檔案。操作中斷或失敗時，已刪除的內容無法復原。確認遞迴刪除？",
+  "files.manage.delete.continue": "繼續確認資料夾刪除",
+  "files.manage.delete.permanent": "永久刪除",
+  "files.manage.selection": "已選取 {count} 項",
+  "files.manage.partialFailure":
+    "操作可能已完成一部分。請檢查重新整理後的目錄再重試；已完成的變更不會復原。",
+  "files.manage.limit": "每次最多操作 100 項，請減少選取後重試。",
+  "files.manage.permissions.title": "編輯權限",
+  "files.manage.permissions.applies":
+    "以下權限將套用至所有所選項目，只修改項目本身，不遞迴修改資料夾內容。混合權限或未知權限請先明確設定。",
+  "files.manage.permissions.owner": "擁有者",
+  "files.manage.permissions.group": "使用者群組",
+  "files.manage.permissions.others": "其他使用者",
+  "files.manage.permissions.read": "讀取",
+  "files.manage.permissions.write": "寫入",
+  "files.manage.permissions.execute": "執行 / 進入",
+  "files.manage.permissions.code": "八進位權限",
+  "files.manage.permissions.invalid":
+    "請輸入 3 或 4 位八進位權限（000 至 7777）。",
+  "files.manage.permissions.special": "特殊權限（進階）",
+  "files.manage.permissions.setuid": "Setuid：以擁有者身分執行",
+  "files.manage.permissions.setgid": "Setgid：繼承群組 / 以群組身分執行",
+  "files.manage.permissions.sticky": "Sticky：僅允許擁有者刪除目錄內項目",
+  "files.manage.delete.confirmContents":
+    "我了解將永久刪除所選資料夾及其中全部內容。",
 } as const;

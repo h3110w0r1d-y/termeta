@@ -10,9 +10,13 @@ Node 用例要求 Node 22.18+；纯逻辑用例直接导入 TypeScript，保险�
 | [workbench-layout.test.mjs](workbench-layout.test.mjs) | 分屏、迁移、收缩、比例与不变性 |
 | [terminal-broadcast.test.mjs](terminal-broadcast.test.mjs) | 用户输入/自动应答隔离、滚轮编码与广播边界 |
 | [terminal-activity.test.mjs](terminal-activity.test.mjs) | 关闭提醒和连接代次隔离 |
+| [terminal-working-directory.test.mjs](terminal-working-directory.test.mjs) | 目录上报/标题解析、路径边界、主目录展开与上报优先级 |
+| [sftp-directory-follow.test.mjs](sftp-directory-follow.test.mjs) | 目录跟随启停、忙碌/隐藏时合并、断线与卸载清理 |
+| [sftp-file-drag.test.mjs](sftp-file-drag.test.mjs) | 内部路径落点/外部下载互斥、取消/代次、路径转义及 POSIX Shell 参数解析 |
+| [terminal-appearance.test.mjs](terminal-appearance.test.mjs) | 终端表面颜色混合、透明通道及 Naive UI 表格颜色解析 |
 | [host-search.test.mjs](host-search.test.mjs) | 拼音/字段搜索 |
 | [file-entries.test.mjs](file-entries.test.mjs) | 排序、过滤、分页与链接展示 |
-| [state-races.test.mjs](state-races.test.mjs) | 主机旧读与成功写入（含批量排序/迁组）交错、设置订阅单飞/失败重试/卸载 |
+| [state-races.test.mjs](state-races.test.mjs) | 主机旧读与成功写入（含批量排序/迁组）交错、设置订阅单飞/失败重试/卸载、隐藏文件即时过滤与保存失败回退 |
 | [session-control.test.mjs](session-control.test.mjs) | 控制信封、早于响应的事件、旧流与迟到挑战隔离 |
 | [terminal-lifecycle.test.mjs](terminal-lifecycle.test.mjs) | 统一关闭、重复调用、归档失败重试和共享并发预算 |
 | [terminal-stream.test.mjs](terminal-stream.test.mjs) | 终态先于尾帧时等待解析、缺帧超时与重试 |

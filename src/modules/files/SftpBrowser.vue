@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { t, type PlainMessageKey } from "@/i18n";
+import { t } from "@/i18n";
 import {
-  computed,
   nextTick,
   onBeforeUnmount,
   onMounted,
@@ -9,19 +8,16 @@ import {
   ref,
   watch,
 } from "vue";
-import { NAlert, NButton, NFlex, NTag, NText } from "naive-ui";
+import { NAlert, NTag } from "naive-ui";
 import { desktop, errorMessage } from "@/services/desktop/client";
 import { useSessions } from "../sessions/store";
-import { createSessionControl } from "../sessions/control";
-import type {
-  SessionEvent,
-  SessionSnapshot,
-  TransferProgress,
-} from "@/services/desktop/types";
+import { createSessionControl, isSessionTerminal } from "../sessions/control";
+import type { SessionEvent, SessionSnapshot } from "@/services/desktop/types";
 import { useWorkbenchStore } from "../workbench/store";
 import SftpEndpointPane from "./SftpEndpointPane.vue";
 import type { SftpEndpoint, SftpSelection } from "./types";
-import { formatFileSize } from "./format";
+import SftpTransferFooter from "./SftpTransferFooter.vue";
+import type { SftpTransferActivity } from "./transferActivity";
 
 const workbench = useWorkbenchStore();
 const sessions = useSessions();
@@ -38,8 +34,7 @@ const right = ref<InstanceType<typeof SftpEndpointPane>>();
 const panes = [left, right];
 const root = ref<HTMLElement>();
 const copying = ref(false);
-const progress = ref<TransferProgress>();
-const message = ref<PlainMessageKey | "">("");
+const tasks = ref<SftpTransferActivity[]>([]);
 const error = ref("");
 let disposed = false;
 const generations = [0, 0];
@@ -75,7 +70,12 @@ function control(side: number, generation: number, event: SessionEvent) {
 }
 async function connect(side: number, profileId: string) {
   const endpoint = endpoints[side]!;
-  if (endpoint.sessionId || endpoint.opening || copying.value) return;
+  if (
+    (endpoint.sessionId && !isSessionTerminal(endpoint.state)) ||
+    endpoint.opening ||
+    copying.value
+  )
+    return;
   const generation = ++generations[side]!;
   endpoint.profileId = profileId;
   endpoint.opening = true;
@@ -84,6 +84,14 @@ async function connect(side: number, profileId: string) {
     crypto.randomUUID(),
   ));
   try {
+    // 终态仍可能保留后端资源；先关闭旧会话，再从主机列表建立独立连接。
+    if (endpoint.sessionId) {
+      await desktop.close(endpoint.sessionId);
+      sessions.release("file", endpoint.sessionId);
+      endpoint.sessionId = undefined;
+      endpoint.state = "closed";
+      if (disposed || generations[side] !== generation) return;
+    }
     const snapshot = await desktop.sftpConnect(
       profileId,
       projection.requestId,
@@ -129,6 +137,8 @@ async function copy(side: number, selection: SftpSelection) {
     !ready(target) ||
     !sourceSessionId ||
     selection.sessionId !== sourceSessionId ||
+    !panes[side]!.value?.available ||
+    panes[side]!.value?.path !== selection.path ||
     !panes[target]!.value?.available ||
     !targetSessionId ||
     !targetPath ||
@@ -136,11 +146,16 @@ async function copy(side: number, selection: SftpSelection) {
   )
     return;
   const transferId = crypto.randomUUID();
+  const task = reactive<SftpTransferActivity>({
+    id: transferId,
+    label: selection.names.join(", "),
+    path: `${selection.path} → ${targetPath}`,
+    status: "running",
+  });
+  tasks.value = [...tasks.value.slice(-19), task];
   cancelRequested = false;
   copying.value = workbench.fileTransferring = true;
   currentCopy = { sessionId: sourceSessionId, id: transferId };
-  progress.value = undefined;
-  message.value = "";
   error.value = "";
   try {
     await desktop.sftpCopy(
@@ -154,7 +169,7 @@ async function copy(side: number, selection: SftpSelection) {
       },
       (value) => {
         if (currentCopy?.id === transferId) {
-          progress.value = value;
+          task.progress = value;
           // 取消可能早于后端登记；首次进度确认登记后再补发一次。
           if (cancelRequested) {
             cancelRequested = false;
@@ -165,10 +180,19 @@ async function copy(side: number, selection: SftpSelection) {
         }
       },
     );
-    message.value = "files.copy.complete";
+    task.status = "done";
+    task.messageKey = "files.copy.complete";
   } catch (cause) {
-    error.value = errorMessage(cause);
+    const cancelled =
+      typeof cause === "object" &&
+      cause !== null &&
+      "code" in cause &&
+      cause.code === "CANCELLED";
+    task.status = cancelled ? "cancelled" : "failed";
+    if (cancelled) task.messageKey = "common.status.cancelled";
+    else task.message = errorMessage(cause);
   } finally {
+    task.cancelling = false;
     currentCopy = undefined;
     copying.value = workbench.fileTransferring = false;
     // 等待busy属性同步到子组件，再刷新两端目录。
@@ -177,14 +201,22 @@ async function copy(side: number, selection: SftpSelection) {
       await Promise.all(panes.map((pane) => pane.value?.refresh()));
   }
 }
-async function cancelCopy() {
-  if (!currentCopy) return;
+async function cancelCopy(id: string) {
+  if (!currentCopy || currentCopy.id !== id) return;
   cancelRequested = true;
+  const task = tasks.value.find((item) => item.id === id);
+  if (task) task.cancelling = true;
   try {
     await desktop.sftpCancel(currentCopy.sessionId, currentCopy.id);
   } catch (cause) {
+    if (task) task.cancelling = false;
     error.value = errorMessage(cause);
   }
+}
+function clearFinished() {
+  tasks.value = tasks.value.filter(
+    (task) => task.status === "running" || task.status === "queued",
+  );
 }
 // 栏间拖动只使用Pointer Events；不设置draggable或文件DataTransfer，避免原生拖放接管。
 interface Gesture extends SftpSelection {
@@ -265,17 +297,6 @@ function keydown(event: KeyboardEvent) {
   if (event.key === "Escape") releaseDrag();
 }
 watch(() => workbench.activeId, releaseDrag);
-const detail = computed(() => {
-  const value = progress.value;
-  if (!value) return t("files.copy.preparing");
-  return t("files.transfer.summary", {
-    name: value.currentName ?? t("files.transfer.inProgress"),
-    completed: value.completedFiles ?? 0,
-    total: value.totalFiles ?? "?",
-    transferred: formatFileSize(value.transferred),
-    size: value.total ? ` / ${formatFileSize(value.total)}` : "",
-  });
-});
 onMounted(() => {
   window.addEventListener("pointermove", moveDrag, { passive: false });
   window.addEventListener("pointerup", endDrag);
@@ -311,15 +332,6 @@ onBeforeUnmount(() => {
     <NAlert v-if="error" type="error" closable @close="error = ''">
       {{ error }}
     </NAlert>
-    <NAlert v-else-if="message" type="success" closable @close="message = ''">
-      {{ t(message) }}
-    </NAlert>
-    <NFlex v-if="copying" align="center" :wrap="false">
-      <NText class="copy-progress">{{ detail }}</NText>
-      <NButton size="small" @click="cancelCopy">
-        {{ t("files.actions.cancelCopy") }}
-      </NButton>
-    </NFlex>
     <div class="endpoint-grid">
       <div
         v-for="side in [0, 1]"
@@ -349,6 +361,11 @@ onBeforeUnmount(() => {
         />
       </div>
     </div>
+    <SftpTransferFooter
+      :tasks="tasks"
+      @cancel="cancelCopy"
+      @clear-finished="clearFinished"
+    />
     <Teleport to="body">
       <div
         v-if="drag"
@@ -369,19 +386,14 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .sftp-browser {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding: 34px;
-}
-
-.sftp-browser {
   display: flex;
   flex-direction: column;
   gap: 12px;
   padding: 16px;
   overflow: hidden;
   min-width: 0;
+  min-height: 0;
+  flex: 1;
 }
 .endpoint-grid {
   display: grid;
@@ -400,11 +412,6 @@ onBeforeUnmount(() => {
 .copy-target {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
-}
-.copy-progress {
-  flex: 1;
-  min-width: 0;
-  overflow-wrap: anywhere;
 }
 .copy-drag-label {
   position: fixed;

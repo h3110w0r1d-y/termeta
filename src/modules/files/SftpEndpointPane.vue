@@ -1,31 +1,20 @@
 <script setup lang="ts">
 import { t } from "@/i18n";
-import { validateForm } from "@/services/forms/rules";
-import { computed, h, ref, watch, reactive } from "vue";
-import {
-  NAlert,
-  NButton,
-  NCheckbox,
-  NDataTable,
-  NEmpty,
-  NFlex,
-  NInput,
-  NSelect,
-  NText,
-  type DataTableColumns,
-  type DataTableRowKey,
-  type DataTableSortState,
-  NForm,
-  NFormItem,
-  type FormInst,
-} from "naive-ui";
+import { computed, ref, watch, onBeforeUnmount } from "vue";
+import { NAlert, NButton, NText } from "naive-ui";
 import { desktop, errorMessage } from "@/services/desktop/client";
 import type { FileEntry } from "@/services/desktop/types";
 import { useHosts } from "../hosts/store";
+import HostProfileIcon from "../hosts/HostProfileIcon.vue";
+import { hostEndpoint } from "../hosts/presentation";
+import { isSessionTerminal } from "../sessions/control";
 import type { SftpEndpoint, SftpSelection } from "./types";
-import { directoryRows, entryLabel, isDirectory } from "./fileEntries";
-import FileEntryIcon from "./FileEntryIcon.vue";
-import { formatFileSize } from "./format";
+import { isDirectory } from "./fileEntries";
+import SftpToolbar from "./SftpToolbar.vue";
+import SftpFileTable from "./SftpFileTable.vue";
+import SftpFileActions from "./SftpFileActions.vue";
+import SftpHostPicker from "./SftpHostPicker.vue";
+import { IconArrowsExchange } from "@tabler/icons-vue";
 import { useSettings } from "../settings/store";
 
 const props = defineProps<{
@@ -40,50 +29,25 @@ const emit = defineEmits<{
   copy: [selection: SftpSelection];
 }>();
 const hosts = useHosts();
-const profile = ref<string | null>(null);
-const connectModel = reactive({ profile });
-const connectForm = ref<FormInst>();
-const connectRules = computed(() => ({
-  profile: {
-    required: true,
-    message: t("hosts.selection.sshRequired"),
-    trigger: "change",
-  },
-}));
-async function connect() {
-  if (props.busy || props.endpoint.opening || props.endpoint.sessionId) return;
-  if ((await validateForm(connectForm.value)) && profile.value)
-    emit("connect", profile.value);
-}
-const options = computed(() =>
-  hosts.hosts
-    .filter((host) => host.kind === "ssh")
-    .map((host) => ({
-      label: `${host.name} · ${host.username}@${host.address}:${host.port}`,
-      value: host.id,
-    })),
+const connectedHost = computed(() =>
+  hosts.hosts.find((host) => host.id === props.endpoint.profileId),
+);
+const connecting = computed(
+  () =>
+    props.endpoint.opening ||
+    (!!props.endpoint.sessionId &&
+      !ready.value &&
+      !isSessionTerminal(props.endpoint.state)),
 );
 const directory = ref(".");
-const pathInput = ref(".");
-const pathModel = reactive({ path: pathInput });
-const pathForm = ref<FormInst>();
-const pathRules = computed(() => ({
-  path: {
-    required: true,
-    message: t("files.path.placeholder"),
-    trigger: ["input", "blur"],
-  },
-}));
-async function navigatePath() {
-  if (await validateForm(pathForm.value)) await load(pathInput.value);
-}
 const entries = ref<FileEntry[]>([]);
-const checked = ref<DataTableRowKey[]>([]);
+const checked = ref<string[]>([]);
 const loading = ref(false);
 const error = ref("");
 const hasMore = ref(false);
+const listSession = ref<string>();
 const settings = useSettings();
-const hidden = computed(() => settings.value.sftpShowHidden);
+const hidden = computed(() => settings.sftpShowHidden);
 async function updateHidden(show: boolean) {
   try {
     await settings.setSftpShowHidden(show);
@@ -91,70 +55,44 @@ async function updateHidden(show: boolean) {
     error.value = errorMessage(cause);
   }
 }
-const order = ref<DataTableSortState["order"]>("ascend");
+const mutationBusy = ref(false);
+const fileActions = ref<InstanceType<typeof SftpFileActions>>();
 const ready = computed(
   () => props.endpoint.state === "connected" && !!props.endpoint.sessionId,
 );
-const disabled = computed(() => !ready.value || loading.value || props.busy);
-const chosen = computed(() =>
-  entries.value.filter((entry) => checked.value.includes(entry.name)),
+const disabled = computed(
+  () => !ready.value || loading.value || props.busy || mutationBusy.value,
 );
-const rows = computed(() =>
-  directoryRows(entries.value, hidden.value, order.value),
-);
-const columns = computed<DataTableColumns<FileEntry>>(() => [
-  {
-    type: "selection",
-    width: 36,
-    disabled: (row) => row.name === ".." || disabled.value,
-  },
-  {
-    title: t("common.fields.name"),
-    key: "name",
-    minWidth: 160,
-    sorter: true,
-    sortOrder: order.value,
-    render: (row) =>
-      h("span", { class: "file-name", title: entryLabel(row) }, [
-        h(FileEntryIcon, { kind: row.kind, targetKind: row.targetKind }),
-        h("span", entryLabel(row)),
-      ]),
-  },
-  {
-    title: t("files.fields.size"),
-    key: "size",
-    width: 105,
-    render: (row) => formatFileSize(row.size),
-  },
-  {
-    title: t("files.fields.permissions"),
-    key: "permissions",
-    width: 70,
-    render: (row) =>
-      row.permissions === null
-        ? "—"
-        : (row.permissions & 0o7777).toString(8).padStart(3, "0"),
-  },
-]);
+const stale = computed(() => listSession.value !== props.endpoint.sessionId);
+const chosen = computed(() => {
+  const names = new Set(checked.value);
+  return entries.value.filter((entry) => names.has(entry.name));
+});
 let generation = 0;
+let disposed = false;
 async function load(path = directory.value, more = false) {
   const sessionId = props.endpoint.sessionId;
-  if (!sessionId || !ready.value || props.busy || loading.value) return;
+  if (!sessionId || disabled.value || disposed) return;
   const current = ++generation;
   loading.value = true;
   error.value = "";
   try {
     const page = await desktop.sftpList(sessionId, path, more);
-    if (generation !== current || props.endpoint.sessionId !== sessionId)
+    if (
+      disposed ||
+      generation !== current ||
+      props.endpoint.sessionId !== sessionId
+    )
       return;
-    directory.value = pathInput.value = page.path;
+    listSession.value = sessionId;
+    directory.value = page.path;
     entries.value = more ? [...entries.value, ...page.entries] : page.entries;
     if (!more) checked.value = [];
     hasMore.value = page.hasMore;
   } catch (cause) {
     if (generation === current) {
       error.value = errorMessage(cause);
-      pathInput.value = directory.value;
+      listSession.value = undefined;
     }
   } finally {
     if (generation === current) loading.value = false;
@@ -164,16 +102,18 @@ watch(
   () => [props.endpoint.sessionId, props.endpoint.state] as const,
   () => {
     generation++;
+    listSession.value = undefined;
     loading.value = false;
     entries.value = [];
     checked.value = [];
     hasMore.value = false;
-    directory.value = pathInput.value = ".";
+    directory.value = ".";
     if (ready.value) void load(".");
   },
+  { immediate: true },
 );
 function selection(items = chosen.value): SftpSelection | undefined {
-  if (!items.length || disabled.value) return;
+  if (!items.length || disabled.value || stale.value) return;
   if (
     items.some((entry) => entry.kind !== "file" && entry.kind !== "directory")
   ) {
@@ -186,221 +126,174 @@ function selection(items = chosen.value): SftpSelection | undefined {
     names: items.map((entry) => entry.name),
   };
 }
-function rowProps(row: FileEntry) {
-  return {
-    onPointerdown: (event: PointerEvent) => {
-      if (
-        disabled.value ||
-        row.name === ".." ||
-        event.button !== 0 ||
-        !event.isPrimary ||
-        (event.target as HTMLElement).closest(".n-checkbox")
-      )
-        return;
-      if (!checked.value.includes(row.name)) checked.value = [row.name];
-      const value = selection();
-      if (value) emit("drag", event, value);
-    },
-    onDblclick: () => {
-      if (
-        disabled.value ||
-        !isDirectory(row) ||
-        (row.name === ".." && directory.value === "/")
-      )
-        return;
-      void load(
-        row.name === ".."
-          ? directory.value.slice(0, directory.value.lastIndexOf("/")) || "/"
-          : `${directory.value.replace(/\/$/, "")}/${row.name}`,
-      );
-    },
-  };
+function navigateEntry(row: FileEntry) {
+  if (!disabled.value && !stale.value && isDirectory(row))
+    void load(`${directory.value.replace(/\/$/, "")}/${row.name}`);
+}
+function startDrag(event: PointerEvent, items: FileEntry[]) {
+  const value = selection(items);
+  if (value) emit("drag", event, value);
 }
 function copySelected() {
   const value = selection();
   if (value) emit("copy", value);
 }
-function updateSort(sort: DataTableSortState | DataTableSortState[] | null) {
-  order.value = (Array.isArray(sort) ? sort[0] : sort)?.order ?? false;
-}
 const available = computed(
-  () => !disabled.value && directory.value.startsWith("/"),
+  () => !disabled.value && !stale.value && directory.value.startsWith("/"),
 );
 defineExpose({ refresh: () => load(), path: directory, available });
+onBeforeUnmount(() => {
+  disposed = true;
+  generation++;
+});
 </script>
 
 <template>
   <section class="endpoint-pane">
-    <NForm
-      ref="connectForm"
-      :model="connectModel"
-      :rules="connectRules"
-      @submit.prevent="connect"
-    >
-      <NFlex :wrap="false">
-        <NFormItem
-          :label="t('common.connection.sshHost')"
-          path="profile"
-          class="path-form"
+    <div v-if="ready" class="connection-header">
+      <HostProfileIcon v-if="connectedHost" :host="connectedHost" :size="32" />
+      <div class="connection-info">
+        <NText class="connection-name" :title="connectedHost?.name">
+          {{ connectedHost?.name ?? t("common.connection.sshHost") }}
+        </NText>
+        <NText
+          v-if="connectedHost"
+          depth="3"
+          class="connection-address"
+          :title="hostEndpoint(connectedHost)"
         >
-          <NSelect
-            v-model:value="connectModel.profile"
-            :options="options"
-            filterable
-            :placeholder="t('hosts.selection.sshPlaceholder')"
-            :disabled="busy || endpoint.opening || !!endpoint.sessionId"
-          />
-        </NFormItem>
-        <NButton
-          v-if="!endpoint.sessionId"
-          :disabled="busy || endpoint.opening"
-          :loading="endpoint.opening"
-          @click="connect"
-        >
-          {{ t("common.actions.connect") }}
-        </NButton>
-        <NButton
-          v-else
-          :disabled="busy || endpoint.opening"
-          @click="emit('disconnect')"
-        >
-          {{ t("terminal.actions.disconnect") }}
-        </NButton>
-      </NFlex>
-    </NForm>
+          {{ hostEndpoint(connectedHost) }}
+        </NText>
+      </div>
+      <NButton
+        size="small"
+        :disabled="busy || endpoint.opening || mutationBusy || loading"
+        :loading="endpoint.opening"
+        @click="emit('disconnect')"
+      >
+        {{ t("terminal.actions.disconnect") }}
+      </NButton>
+    </div>
     <NAlert v-if="endpoint.error || error" type="error" :bordered="false">
       {{ endpoint.error || error }}
     </NAlert>
     <template v-if="ready">
-      <NFlex :wrap="false">
-        <NButton
-          :disabled="disabled || directory === '/'"
-          @click="load(directory.slice(0, directory.lastIndexOf('/')) || '/')"
-        >
-          {{ t("files.actions.parent") }}
-        </NButton>
-        <NButton :disabled="disabled" @click="load('.')">
-          {{ t("files.actions.home") }}
-        </NButton>
-        <NButton :disabled="disabled" @click="load()">
-          {{ t("common.actions.refresh") }}
-        </NButton>
-      </NFlex>
-      <NForm
-        ref="pathForm"
-        :model="pathModel"
-        :rules="pathRules"
-        @submit.prevent="navigatePath"
-        class="path-form"
+      <SftpToolbar
+        :path="directory"
+        :disabled="disabled"
+        :show-hidden="hidden"
+        :saving-hidden="settings.savingSftpHidden"
+        @navigate="load"
+        @refresh="load()"
+        @hidden="updateHidden"
       >
-        <NFormItem
-          :label="t('files.path.label')"
-          path="path"
-          :show-label="false"
-        >
-          <NInput
-            v-model:value="pathModel.path"
-            :disabled="disabled"
-            :placeholder="t('files.path.label')"
-          />
-        </NFormItem>
-      </NForm>
-      <NFlex align="center" justify="space-between">
-        <NCheckbox
-          :checked="hidden"
-          :disabled="disabled || settings.savingSftpHidden"
-          @update:checked="updateHidden"
-        >
-          {{ t("files.actions.showHidden") }}
-        </NCheckbox>
         <NButton
           size="small"
-          :disabled="disabled || !chosen.length || !canCopy"
+          :disabled="disabled || stale || !chosen.length || !canCopy"
           @click="copySelected"
         >
+          <template #icon>
+            <IconArrowsExchange :size="16" aria-hidden="true" />
+          </template>
           {{ t("files.actions.copyToOtherPane") }}
         </NButton>
-      </NFlex>
-      <NDataTable
-        class="file-table"
-        :columns="columns"
-        :data="rows"
-        :row-key="(row) => row.name"
-        :row-props="rowProps"
-        :checked-row-keys="checked"
+      </SftpToolbar>
+      <SftpFileTable
+        v-model:selected="checked"
+        :entries="entries"
+        :show-hidden="hidden"
+        :disabled="disabled || stale"
         :loading="loading"
-        :virtual-scroll="true"
-        :flex-height="true"
-        :single-line="false"
-        size="small"
-        @update:checked-row-keys="(keys) => (checked = keys)"
-        @update:sorter="updateSort"
+        :at-root="directory === '/'"
+        @navigate="navigateEntry"
+        @drag="startDrag"
+        @contextmenu="(event, row) => fileActions?.open(event, row)"
       />
-      <NFlex justify="space-between" align="center">
+      <div class="pane-status">
         <NText depth="3">
           {{
             t("files.selection.loaded", {
-              loaded: entries.length,
+              loaded: entries.filter(
+                (entry) => hidden || !entry.name.startsWith("."),
+              ).length,
               selected: checked.length,
             })
           }}
         </NText>
         <NButton
           v-if="hasMore"
-          size="small"
-          :disabled="disabled"
+          size="tiny"
+          :disabled="disabled || entries.length >= 10000"
           @click="load(directory, true)"
         >
           {{ t("common.actions.loadMore") }}
         </NButton>
-      </NFlex>
+      </div>
+      <NText v-if="entries.length >= 10000 && hasMore" type="warning">
+        {{ t("files.errors.tooManyEntries") }}
+      </NText>
+      <SftpFileActions
+        ref="fileActions"
+        :session-id="endpoint.sessionId"
+        :path="directory"
+        :entries="chosen"
+        :disabled="!ready || loading || busy || stale"
+        @busy="mutationBusy = $event"
+        @changed="load()"
+      />
     </template>
-    <NEmpty
+    <SftpHostPicker
       v-else
-      class="empty"
-      :description="
-        endpoint.sessionId
-          ? t('terminal.state.unavailable')
-          : t('files.hostPlaceholder')
-      "
+      :disabled="busy"
+      :connecting="connecting"
+      :profile-id="endpoint.profileId"
+      @connect="emit('connect', $event)"
     />
   </section>
 </template>
 
 <style scoped>
-.path-form {
+.connection-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.connection-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   flex: 1;
   min-width: 0;
+}
+.connection-name,
+.connection-address {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.connection-address {
+  font-size: 12px;
 }
 .endpoint-pane {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
   min-height: 0;
   height: 100%;
-  padding: 16px;
+  padding: 12px;
 }
-.file-table {
-  flex: 1;
-  min-height: 140px;
-}
-.empty {
-  margin: auto;
-  padding: 24px;
-}
-:deep(.file-name) {
+.pane-status {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-:deep(.file-name .n-icon) {
-  flex: none;
-}
-:deep(.file-name span) {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  gap: 8px;
+  min-height: 26px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+  font-size: 12px;
 }
 </style>

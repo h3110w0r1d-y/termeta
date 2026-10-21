@@ -281,6 +281,12 @@ export interface TransferProgress {
   total: string | null;
 }
 
+export interface SftpEntryRequest {
+  sessionId: string;
+  path: string;
+  names: string[];
+}
+
 export interface SftpCopyRequest {
   sourceSessionId: string;
   targetSessionId: string;

@@ -39,6 +39,7 @@ import SaveWorkspaceDialog from "./modules/workbench/SaveWorkspaceDialog.vue";
 import HostEditor from "./modules/hosts/HostEditor.vue";
 import SerialConnectDialog from "./modules/terminal/SerialConnectDialog.vue";
 import TerminalStage from "./modules/workbench/TerminalStage.vue";
+import TerminalStatusBar from "./modules/terminal/TerminalStatusBar.vue";
 import { useTerminalMenu } from "./modules/workbench/useTerminalMenu";
 import { useTerminalClose } from "./modules/workbench/useTerminalClose";
 import PasteDialog from "./modules/terminal/PasteDialog.vue";
@@ -46,7 +47,7 @@ import ChallengeDialog from "./modules/terminal/ChallengeDialog.vue";
 import { useHosts } from "./modules/hosts/store";
 import { usePortForwards } from "./modules/forwarding/store";
 import { useSettings } from "./modules/settings/store";
-import { useWorkbenchStore, stateLabels } from "./modules/workbench/store";
+import { useWorkbenchStore } from "./modules/workbench/store";
 import {
   schemeForTerminal,
   terminalRegistry,
@@ -385,54 +386,13 @@ onBeforeUnmount(() => {
             >
               <TerminalStage @close="closePane" @menu="openTerminalMenu" />
             </div>
-            <footer v-if="workbench.activeTerminal" class="status-bar">
-              <span>
-                {{
-                  workbench.activeTerminal.kind === "local"
-                    ? t("common.connection.local")
-                    : workbench.activeTerminal.kind === "serial"
-                      ? t("common.connection.serial")
-                      : workbench.activeTerminal.kind === "telnet"
-                        ? t("common.connection.telnetUnencrypted")
-                        : "SSH"
-                }}
-                · {{ t(stateLabels[workbench.activeTerminal.state]) }}
-              </span>
-              <span
-                v-if="
-                  workbench.activeTerminal.kind === 'serial' &&
-                  workbench.activeTerminal.serialConfig
-                "
-              >
-                {{ workbench.activeTerminal.serialConfig.baudRate }} baud ·
-                {{ workbench.activeTerminal.serialConfig.charset }}
-              </span>
-              <span v-else>
-                {{ workbench.activeTerminal.size.cols }} ×
-                {{ workbench.activeTerminal.size.rows }} · UTF-8
-              </span>
-              <AppButton
-                v-if="
-                  workbench.activeTerminal.kind === 'ssh' &&
-                  workbench.activeGroup?.root.kind === 'terminal'
-                "
-                class="status-sftp-toggle"
-                size="tiny"
-                :variant="
-                  workbench.activeTerminal.sftpOpen ? 'primary' : 'default'
-                "
-                :aria-pressed="!!workbench.activeTerminal.sftpOpen"
-                :disabled="
-                  !!workbench.drag ||
-                  (!workbench.activeTerminal.sftpOpen &&
-                    workbench.activeTerminal.state !== 'connected')
-                "
-                :title="t('files.sidebar.toggle')"
-                @click="workbench.toggleSftp()"
-              >
-                SFTP
-              </AppButton>
-            </footer>
+            <TerminalStatusBar
+              v-if="workbench.activeTerminal"
+              :terminal="workbench.activeTerminal"
+              :sftp-available="workbench.activeGroup?.root.kind === 'terminal'"
+              :dragging="!!workbench.drag"
+              @toggle-sftp="workbench.toggleSftp()"
+            />
           </section>
         </main>
         <NewTabDialog
@@ -503,18 +463,6 @@ onBeforeUnmount(() => {
   overflow: hidden;
   background: var(--terminal-background);
 }
-.status-bar {
-  align-items: center;
-  border-top: 1px solid var(--border);
-  display: flex;
-  gap: 20px;
-  color: var(--muted);
-  font-size: 11px;
-  padding: 8px 14px;
-}
-.status-bar span:last-child {
-  margin-left: auto;
-}
 .find-bar {
   display: flex;
   gap: 6px;
@@ -524,9 +472,6 @@ onBeforeUnmount(() => {
 }
 .find-bar .ui-input {
   max-width: 300px;
-}
-.status-bar > .status-sftp-toggle {
-  margin-left: auto;
 }
 .window-titlebar {
   grid-column: 1 / -1;

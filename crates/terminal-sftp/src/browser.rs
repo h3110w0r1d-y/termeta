@@ -16,7 +16,7 @@ struct Listing {
     pending: VecDeque<FileEntry>,
 }
 pub struct SftpBrowser {
-    raw: Arc<RawSftpSession>,
+    pub(crate) raw: Arc<RawSftpSession>,
     identity: terminal_ssh::EndpointIdentity,
     lifetime: terminal_core::CancellationToken,
     listing: Mutex<Option<Listing>>,

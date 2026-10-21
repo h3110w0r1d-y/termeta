@@ -11,6 +11,9 @@ pub use data::*;
 pub use native::*;
 pub use sessions::*;
 
+mod file_management;
+pub use file_management::*;
+
 mod files;
 pub use files::*;
 

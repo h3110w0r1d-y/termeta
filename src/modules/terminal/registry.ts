@@ -192,7 +192,14 @@ export const terminalRegistry = {
       return;
     await this.pasteText(id, text);
   },
-  async pasteText(id: string, text: string) {
+  async pasteText(
+    id: string,
+    text: string,
+    options: {
+      broadcast?: boolean;
+      expectedSessionId?: string;
+    } = {},
+  ) {
     const workbench = useWorkbenchStore();
     const e = entries.get(id);
     const terminal = workbench.terminals.find((item) => item.terminalId === id);
@@ -200,7 +207,9 @@ export const terminalRegistry = {
       !e ||
       !terminal ||
       terminal.state !== "connected" ||
-      workbench.activeTerminal?.terminalId !== id
+      workbench.activeTerminal?.terminalId !== id ||
+      (options.expectedSessionId !== undefined &&
+        e.stream?.control.sessionId !== options.expectedSessionId)
     )
       return;
     if (new TextEncoder().encode(text).length > 65536) {
@@ -210,7 +219,9 @@ export const terminalRegistry = {
     const group = workbench.activeGroup!;
     const revision = group.broadcastRevision;
     const sourceStream = e.stream;
-    const targets = connectedTargets(id).map((targetId) => ({
+    const targets = (
+      options.broadcast === false ? [id] : connectedTargets(id)
+    ).map((targetId) => ({
       id: targetId,
       entry: entries.get(targetId)!,
       stream: entries.get(targetId)!.stream,

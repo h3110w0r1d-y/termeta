@@ -103,7 +103,9 @@ const headerStyle = computed(() => {
     "--app-tab-close-hover": colors
       ? overlay(ui, 10)
       : themeVars.value.closeColorHover,
-    "--app-tab-close-selected-hover": overlay(foreground, 10),
+    "--app-tab-close-selected-hover": colors
+      ? overlay(foreground, 10)
+      : themeVars.value.closeColorHover,
     "--app-tab-radius": themeVars.value.borderRadius,
     "--app-tabs-background": headerBackground.value,
     "--app-tabs-border": colors ? "transparent" : undefined,

@@ -1,7 +1,7 @@
 import { clone } from "@/services/data/clone";
 import { defineStore } from "pinia";
 import { normalizeLanguage, setLanguage } from "@/i18n";
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { desktop } from "@/services/desktop/client";
 import { defaults } from "@/services/commands/registry";
 import type {
@@ -72,6 +72,11 @@ export const useSettings = defineStore("settings", () => {
     return request;
   }
   const savingSftpHidden = ref(false);
+  const pendingSftpHidden = ref<boolean>();
+  // 浏览过滤立即响应点击；持久化快照仍只保留已确认值，失败后自然回退。
+  const sftpShowHidden = computed(
+    () => pendingSftpHidden.value ?? value.value.sftpShowHidden,
+  );
   let pendingSave = Promise.resolve();
   // 单窗口读写共用队列，跨窗口合并由 Rust 的设置专用队列负责。
   function persist(patch: SettingsPatch) {
@@ -95,9 +100,11 @@ export const useSettings = defineStore("settings", () => {
   async function setSftpShowHidden(show: boolean) {
     if (savingSftpHidden.value) return;
     savingSftpHidden.value = true;
+    pendingSftpHidden.value = show;
     try {
       await persist({ sftpShowHidden: show });
     } finally {
+      pendingSftpHidden.value = undefined;
       savingSftpHidden.value = false;
     }
   }
@@ -114,6 +121,7 @@ export const useSettings = defineStore("settings", () => {
     load,
     save,
     savingSftpHidden,
+    sftpShowHidden,
     setSftpShowHidden,
     setHostsView,
   };

@@ -16,6 +16,7 @@ import type {
   ForwardProfile,
   DirectoryPage,
   SftpCopyRequest,
+  SftpEntryRequest,
   SftpLocalDrop,
   SftpDropPosition,
   TransferProgress,
@@ -114,6 +115,10 @@ export const desktop = {
   },
   sftpList: (sessionId: string, path: string, more = false) =>
     invoke<DirectoryPage>("sftp_list", { sessionId, path, more }),
+  sftpDelete: (request: SftpEntryRequest, recursive: boolean) =>
+    invoke<void>("sftp_delete", { request, recursive }),
+  sftpSetPermissions: (request: SftpEntryRequest, permissions: number) =>
+    invoke<void>("sftp_set_permissions", { request, permissions }),
   sftpTransfer(
     sessionId: string,
     transferId: string,

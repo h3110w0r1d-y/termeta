@@ -31,9 +31,16 @@ test("命令模式无标题也提醒，远端 Shell 标记不能解除实际命�
 });
 
 test("新连接切回 Shell 后恢复原有关闭判断，不继承上次执行提示", () => {
-  const activity = { state: "connected", sshCommand: true };
+  const activity = {
+    state: "connected",
+    sshCommand: true,
+    workingDirectory: "/old",
+    workingDirectorySource: "osc",
+  };
   updateShellActivity(activity, "C");
   resetTerminalActivity(activity);
+  assert.equal(activity.workingDirectory, undefined);
+  assert.equal(activity.workingDirectorySource, undefined);
   activity.sshCommand = false;
   assert.equal(needsCloseConfirmation(activity), false);
   updateActivityTitle(activity, "user@host:~");

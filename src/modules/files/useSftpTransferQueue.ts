@@ -11,7 +11,6 @@ export function useSftpTransferQueue(options: {
   connected: () => boolean;
   sameSession: (sessionId: string | undefined) => boolean;
   refresh: (path?: string) => Promise<void>;
-  releaseDrag: () => void;
   error: Ref<string>;
 }) {
   const { error } = options;
@@ -148,9 +147,7 @@ export function useSftpTransferQueue(options: {
       if (task.dragNames && !task.started && !cancelled)
         error.value = task.message ?? "";
     } finally {
-      if (task.dragNames) {
-        options.releaseDrag();
-      }
+      task.cancelRequested = false;
       transferring.value = false;
       currentTransfer = undefined;
     }

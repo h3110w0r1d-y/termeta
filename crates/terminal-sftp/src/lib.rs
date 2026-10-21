@@ -1,6 +1,7 @@
 //! 独立 SFTP 子系统适配器；目录增量读取，文件字节不进入 WebView。
 mod browser;
 mod copy;
+mod mutations;
 mod remote_file;
 pub use browser::SftpBrowser;
 pub use copy::copy_between;

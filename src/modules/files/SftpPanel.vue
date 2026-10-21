@@ -1,30 +1,13 @@
 <script setup lang="ts">
 import { t } from "@/i18n";
-import { validateForm } from "@/services/forms/rules";
-import {
-  computed,
-  h,
-  onBeforeUnmount,
-  onMounted,
-  ref,
-  watch,
-  reactive,
-} from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
   NAlert,
   NButton,
   NCheckbox,
-  NDataTable,
   NFlex,
-  NInput,
-  NScrollbar,
   NText,
-  type DataTableColumns,
-  type DataTableRowKey,
-  type DataTableSortState,
-  NForm,
-  NFormItem,
-  type FormInst,
+  NConfigProvider,
 } from "naive-ui";
 import { desktop, errorMessage } from "@/services/desktop/client";
 import type {
@@ -35,12 +18,33 @@ import type {
 import { useWorkbenchStore } from "../workbench/store";
 import type { TerminalItem } from "../workbench/store";
 import { confirmAction } from "@/components/ui/confirmation";
-import { directoryRows, entryLabel, isDirectory } from "./fileEntries";
+import { isDirectory } from "./fileEntries";
 import { useSftpTransferQueue } from "./useSftpTransferQueue";
-import FileEntryIcon from "./FileEntryIcon.vue";
-import { formatFileSize } from "./format";
+import SftpToolbar from "./SftpToolbar.vue";
+import SftpFileTable from "./SftpFileTable.vue";
+import SftpFileActions from "./SftpFileActions.vue";
+import SftpTransferFooter from "./SftpTransferFooter.vue";
+import type { SftpTransferActivity } from "./transferActivity";
+import { IconUpload, IconDownload, IconX } from "@tabler/icons-vue";
 import { useSettings } from "../settings/store";
-const props = defineProps<{ terminal: TerminalItem }>();
+import { schemeForTerminal } from "../terminal/registry";
+import { useTerminalSurface } from "../terminal/useTerminalSurface";
+import { sftpWorkingDirectory } from "../terminal/workingDirectory";
+import { useSftpDirectoryFollow } from "./useSftpDirectoryFollow";
+import { useSftpFileDrag } from "./useSftpFileDrag";
+import { sftpPathArguments } from "./sftpPathArguments";
+const props = defineProps<{
+  terminal: TerminalItem;
+  terminalHost?: HTMLElement;
+}>();
+const emit = defineEmits<{
+  pastePaths: [sessionId: string, text: string];
+}>();
+const {
+  theme,
+  themeOverrides,
+  style: surfaceStyle,
+} = useTerminalSurface(() => schemeForTerminal(props.terminal).colors);
 const panel = ref<HTMLElement>();
 const workbench = useWorkbenchStore();
 const panelWidth = ref(380);
@@ -85,31 +89,21 @@ function resizeKey(event: KeyboardEvent) {
   );
 }
 const directory = ref(".");
-const pathInput = ref(".");
-const pathModel = reactive({ path: pathInput });
-const pathForm = ref<FormInst>();
-const pathRules = computed(() => ({
-  path: {
-    required: true,
-    message: t("files.path.placeholder"),
-    trigger: ["input", "blur"],
-  },
-}));
-async function navigatePath() {
-  if (await validateForm(pathForm.value)) await load(pathInput.value);
-}
 const entries = ref<FileEntry[]>([]);
-const checkedNames = ref<DataTableRowKey[]>([]);
-const selectedEntries = computed(() =>
-  entries.value.filter((entry) => checkedNames.value.includes(entry.name)),
-);
+const checkedNames = ref<string[]>([]);
+const selectedEntries = computed(() => {
+  const names = new Set(checkedNames.value);
+  return entries.value.filter((entry) => names.has(entry.name));
+});
 const selected = computed(() =>
   selectedEntries.value.length === 1 ? selectedEntries.value[0] : undefined,
 );
-const nameSort = ref<DataTableSortState["order"]>("ascend");
+const mutationBusy = ref(false);
+const fileActions = ref<InstanceType<typeof SftpFileActions>>();
 const atRoot = computed(() => directory.value === "/");
 const settings = useSettings();
-const hidden = computed(() => settings.value.sftpShowHidden);
+const hidden = computed(() => settings.sftpShowHidden);
+const followDirectory = ref(false);
 async function updateHidden(show: boolean) {
   try {
     await settings.setSftpShowHidden(show);
@@ -120,13 +114,11 @@ async function updateHidden(show: boolean) {
 const loading = ref(false);
 const hasMore = ref(false);
 const error = ref("");
-const notice = ref("");
 const {
   tasks,
   visibleTasks,
   visibleTransfer,
   transferring,
-  progress,
   enqueue,
   cancelQueued,
   cancel,
@@ -138,28 +130,13 @@ const {
   connected: () => connected.value,
   sameSession,
   refresh: (path) => load(path),
-  releaseDrag: () => {
-    releaseFilePointer();
-    suppressClick = false;
-  },
   error,
 });
 
 const dropTarget = ref<string>();
 const consumedDrops = new Set<string>();
 const eventUnlisteners: (() => void)[] = [];
-let pendingDrop = false;
-let dragStart:
-  { x: number; y: number; names: string[]; directories: string[] } | undefined;
-let suppressClick = false;
-let filePointer: { element: HTMLElement; id: number } | undefined;
-function releaseFilePointer() {
-  const pointer = filePointer;
-  filePointer = undefined;
-  dragStart = undefined;
-  if (pointer?.element.hasPointerCapture(pointer.id))
-    pointer.element.releasePointerCapture(pointer.id);
-}
+const pendingDrop = ref(false);
 const listSession = ref<string>();
 const connected = computed(
   () => props.terminal.state === "connected" && !!props.terminal.sessionId,
@@ -167,52 +144,64 @@ const connected = computed(
 const stale = computed(
   () => !connected.value || listSession.value !== props.terminal.sessionId,
 );
-const busy = computed(() => loading.value || transferring.value);
-const rows = computed(() =>
-  directoryRows(entries.value, hidden.value, nameSort.value),
+const busy = computed(
+  () => loading.value || transferring.value || mutationBusy.value,
 );
-function updateSort(sort: DataTableSortState | DataTableSortState[] | null) {
-  nameSort.value = (Array.isArray(sort) ? sort[0] : sort)?.order ?? false;
+const fileDrag = useSftpFileDrag({
+  terminalHost: () => props.terminalHost,
+  valid: (selection) =>
+    sameSession(selection.sessionId) &&
+    !busy.value &&
+    !pendingDrop.value &&
+    !fileActions.value?.interacting &&
+    !!props.terminal.sftpOpen &&
+    directory.value === selection.path &&
+    workbench.activeTerminal?.terminalId === props.terminal.terminalId,
+  paste: (selection) => {
+    const text = sftpPathArguments(selection.path, selection.names);
+    if (text === undefined) error.value = t("files.drag.invalidPaths");
+    else emit("pastePaths", selection.sessionId, text);
+  },
+  native: (selection) =>
+    enqueue({
+      sessionId: selection.sessionId,
+      path: selection.path,
+      upload: false,
+      name: selection.names.join("、"),
+      dragNames: selection.names,
+      dragDirectories: selection.directories,
+    }),
+});
+const dragFeedback = fileDrag.feedback;
+const dragPreviewStyle = fileDrag.previewStyle;
+const activity = computed<SftpTransferActivity[]>(() =>
+  visibleTasks.value.map((task) => ({
+    id: task.id,
+    label: `${task.upload ? t("files.actions.upload") : t("files.actions.download")} · ${task.name || task.path}`,
+    path: task.path,
+    status: task.status,
+    progress: task.progress,
+    message: task.message,
+    messageKey: task.messageKey,
+    cancelling: task.cancelRequested,
+  })),
+);
+function cancelTask(id: string) {
+  const task = tasks.value.find((task) => task.id === id);
+  if (task?.status === "queued") cancelQueued(task);
+  else if (task?.status === "running") void cancel();
 }
-const columns = computed<DataTableColumns<FileEntry>>(() => [
-  {
-    type: "selection",
-    width: 36,
-    disabled: (row) => row.name === ".." || busy.value || stale.value,
-  },
-  {
-    title: t("common.fields.name"),
-    key: "name",
-    minWidth: 150,
-    sorter: true,
-    sortOrder: nameSort.value,
-    render: (row) =>
-      h("span", { class: "sftp-entry-name", title: entryLabel(row) }, [
-        h(FileEntryIcon, { kind: row.kind, targetKind: row.targetKind }),
-        h("span", { class: "sftp-entry-label" }, entryLabel(row)),
-      ]),
-  },
-  {
-    title: t("files.fields.size"),
-    key: "size",
-    width: 100,
-    render: (row) => formatFileSize(row.size),
-  },
-  {
-    title: t("files.fields.permissions"),
-    key: "permissions",
-    width: 70,
-    render: (row) =>
-      row.permissions === null
-        ? "—"
-        : (row.permissions & 0o7777).toString(8).padStart(3, "0"),
-  },
-]);
+function clearFinished() {
+  tasks.value = tasks.value.filter(
+    (task) => task.status === "queued" || task.status === "running",
+  );
+}
 let generation = 0;
 let disposed = false;
 async function load(path = directory.value, more = false) {
   const sessionId = props.terminal.sessionId;
-  if (!connected.value || !sessionId || busy.value) return;
+  if (!connected.value || !sessionId || busy.value || disposed) return;
+  fileDrag.cancel();
   const current = ++generation;
   loading.value = true;
   error.value = "";
@@ -224,7 +213,7 @@ async function load(path = directory.value, more = false) {
       sessionId !== props.terminal.sessionId
     )
       return;
-    directory.value = pathInput.value = page.path;
+    directory.value = page.path;
     entries.value = more ? [...entries.value, ...page.entries] : page.entries;
     hasMore.value = page.hasMore;
     listSession.value = sessionId;
@@ -250,6 +239,7 @@ async function transfer(upload: boolean) {
   if (
     stale.value ||
     loading.value ||
+    mutationBusy.value ||
     (!upload && selected.value?.kind !== "file")
   )
     return;
@@ -265,7 +255,9 @@ function targetAt(position: SftpDropPosition): string | undefined {
     !props.terminal.sftpOpen ||
     workbench.activeTerminal?.terminalId !== props.terminal.terminalId ||
     stale.value ||
-    dragStart !== undefined ||
+    mutationBusy.value ||
+    loading.value ||
+    fileDrag.dragging.value ||
     tasks.value.some((task) => task.dragNames && task.status === "running")
   )
     return;
@@ -292,17 +284,17 @@ async function receiveDrop(drop: SftpLocalDrop) {
     error.value = drop.error;
     return;
   }
-  if (consumedDrops.has(drop.dropId) || pendingDrop) return;
+  if (consumedDrops.has(drop.dropId) || pendingDrop.value) return;
   consumedDrops.add(drop.dropId);
   if (consumedDrops.size > 256)
     consumedDrops.delete(consumedDrops.values().next().value!);
-  pendingDrop = true;
+  pendingDrop.value = true;
   const sessionId = props.terminal.sessionId!;
   try {
     if (
       await confirmAction(t("files.upload.confirmDrop", { target: target }))
     ) {
-      if (sameSession(sessionId))
+      if (sameSession(sessionId) && !mutationBusy.value && !loading.value)
         enqueue({
           sessionId,
           path: target,
@@ -312,106 +304,31 @@ async function receiveDrop(drop: SftpLocalDrop) {
         });
     }
   } finally {
-    pendingDrop = false;
+    pendingDrop.value = false;
   }
 }
-function startFileDrag(event: PointerEvent, row: FileEntry) {
-  // 新的按下属于新手势，不能继承上次原生拖动的点击抑制。
-  suppressClick = false;
-  releaseFilePointer();
-  if (
-    event.button !== 0 ||
-    row.name === ".." ||
-    (row.kind !== "file" && row.kind !== "directory") ||
-    stale.value ||
-    busy.value ||
-    (event.target as HTMLElement).closest(".n-checkbox")
-  )
-    return;
-  const chosen = checkedNames.value.includes(row.name)
-    ? selectedEntries.value
-    : [row];
-  if (chosen.some((item) => item.kind !== "file" && item.kind !== "directory"))
-    return;
-  // 捕获指针，移出当前行后仍能跨过阈值并发起原生拖动。
-  const element = event.currentTarget as HTMLElement;
-  element.setPointerCapture(event.pointerId);
-  filePointer = { element, id: event.pointerId };
-  dragStart = {
-    x: event.clientX,
-    y: event.clientY,
+function startFileDrag(event: PointerEvent, chosen: FileEntry[]) {
+  if (!props.terminal.sessionId) return;
+  fileDrag.start(event, {
+    sessionId: props.terminal.sessionId,
+    path: directory.value,
     names: chosen.map((item) => item.name),
     directories: chosen
       .filter((item) => item.kind === "directory")
       .map((item) => item.name),
-  };
-}
-function moveFileDrag(event: PointerEvent) {
-  if (!dragStart || !(event.buttons & 1) || stale.value || busy.value) {
-    releaseFilePointer();
-    return;
-  }
-  if (Math.hypot(event.clientX - dragStart.x, event.clientY - dragStart.y) < 6)
-    return;
-  event.preventDefault();
-  const start = dragStart;
-  releaseFilePointer();
-  suppressClick = true;
-  // 文件承诺由原生拖动会话提供，不构造浏览器下载链接或伪造文件路径。
-  enqueue({
-    sessionId: props.terminal.sessionId!,
-    path: directory.value,
-    upload: false,
-    name: start.names.join("、"),
-    dragNames: start.names,
-    dragDirectories: start.directories,
+    nativeAllowed: chosen.every(
+      (item) => item.kind === "file" || item.kind === "directory",
+    ),
   });
 }
-function rowProps(row: FileEntry) {
-  return {
-    onPointerdown: (event: PointerEvent) => startFileDrag(event, row),
-    onPointermove: moveFileDrag,
-    onPointerup: releaseFilePointer,
-    onPointercancel: releaseFilePointer,
-    onLostpointercapture: () => {
-      // 旧捕获的迟到事件不能清除新手势的指针状态。
-      if (filePointer && !filePointer.element.hasPointerCapture(filePointer.id))
-        releaseFilePointer();
-    },
-    onClick: (event: MouseEvent) => {
-      if (suppressClick) {
-        suppressClick = false;
-        return;
-      }
-      if (
-        row.name === ".." ||
-        stale.value ||
-        busy.value ||
-        (event.target as HTMLElement).closest(".n-checkbox")
-      )
-        return;
-      checkedNames.value = [row.name];
-    },
-    onDblclick: () => {
-      if (
-        isDirectory(row) &&
-        !stale.value &&
-        !busy.value &&
-        !(row.name === ".." && atRoot.value)
-      )
-        void load(`${directory.value.replace(/\/$/, "")}/${row.name}`);
-    },
-    style: {
-      cursor: row.name === ".." && atRoot.value ? "not-allowed" : "pointer",
-      opacity: row.name === ".." && atRoot.value ? 0.4 : 1,
-    },
-    "aria-disabled": row.name === ".." && atRoot.value,
-    "aria-selected": checkedNames.value.includes(row.name),
-  };
+function navigateEntry(row: FileEntry) {
+  if (!busy.value && !stale.value && isDirectory(row))
+    void load(`${directory.value.replace(/\/$/, "")}/${row.name}`);
 }
 watch(
   () => [props.terminal.sessionId, props.terminal.state] as const,
   () => {
+    fileDrag.cancel();
     generation++;
     loading.value = false;
     dropTarget.value = undefined;
@@ -422,6 +339,29 @@ watch(
   },
   { immediate: true },
 );
+watch(
+  () =>
+    [props.terminal.sftpOpen, workbench.activeTerminal?.terminalId] as const,
+  ([open, terminalId]) => {
+    if (!open || terminalId !== props.terminal.terminalId) fileDrag.cancel();
+  },
+);
+useSftpDirectoryFollow({
+  enabled: () => followDirectory.value,
+  sessionId: () => (connected.value ? props.terminal.sessionId : undefined),
+  path: () => props.terminal.workingDirectory,
+  available: () =>
+    !!props.terminal.sftpOpen &&
+    connected.value &&
+    !busy.value &&
+    !fileActions.value?.interacting &&
+    !pendingDrop.value &&
+    !fileDrag.dragging.value,
+  navigate: async (path) => {
+    const target = sftpWorkingDirectory(path);
+    if (target !== directory.value || stale.value) await load(target);
+  },
+});
 onMounted(async () => {
   const listeners = await Promise.allSettled([
     desktop.onSftpLocalHover((position) => {
@@ -442,8 +382,7 @@ onMounted(async () => {
   }
 });
 onBeforeUnmount(() => {
-  releaseFilePointer();
-  suppressClick = false;
+  fileDrag.cancel();
   for (const unlisten of eventUnlisteners) unlisten();
   disposed = true;
   generation++;
@@ -453,251 +392,181 @@ onBeforeUnmount(() => {
 <template>
   <aside
     ref="panel"
-    :style="{ flexBasis: panelWidth + 'px' }"
+    :style="[surfaceStyle, { flexBasis: panelWidth + 'px' }]"
     class="sftp-panel"
     :class="{ 'sftp-drop-target': dropTarget !== undefined }"
     :aria-label="t('files.sidebar.label')"
     @keydown.stop
   >
-    <div
-      class="sftp-resizer"
-      role="separator"
-      tabindex="0"
-      :aria-label="t('files.sidebar.resize')"
-      aria-orientation="vertical"
-      :aria-valuenow="panelWidth"
-      @pointerdown="startResize"
-      @pointermove="moveResize"
-      @pointerup="stopResize"
-      @pointercancel="stopResize"
-      @lostpointercapture="resizeStart = undefined"
-      @keydown="resizeKey"
-    />
-    <NFlex justify="space-between" align="center">
-      <NText strong>SFTP · {{ terminal.title }}</NText>
-      <NButton
-        size="tiny"
-        @click="terminal.sftpOpen = false"
-        :title="
-          visibleTransfer
-            ? t('files.transfer.hidePanel')
-            : t('files.sidebar.hide')
-        "
-      >
-        {{ t("common.actions.hide") }}
-      </NButton>
-    </NFlex>
-    <NAlert v-if="stale" type="warning" :show-icon="false">
-      {{
-        connected
-          ? t("files.errors.staleList")
-          : t("files.errors.sshDisconnected")
-      }}
-    </NAlert>
-    <NAlert
-      v-if="error"
-      type="error"
-      :show-icon="false"
-      closable
-      @close="error = ''"
-    >
-      {{ error }}
-    </NAlert>
-    <NAlert
-      v-if="dropTarget !== undefined"
-      class="sftp-drop-indicator"
-      type="info"
-      :show-icon="false"
-    >
-      {{ t("files.upload.dropHint", { path: dropTarget }) }}
-    </NAlert>
-    <NText v-if="notice" type="success">{{ notice }}</NText>
-    <NFlex :wrap="false">
-      <NForm
-        ref="pathForm"
-        :model="pathModel"
-        :rules="pathRules"
-        @submit.prevent="navigatePath"
-        class="path-form"
-      >
-        <NFormItem
-          :label="t('files.path.label')"
-          path="path"
-          :show-label="false"
-        >
-          <NInput
-            v-model:value="pathModel.path"
-            size="small"
-            :placeholder="t('files.path.label')"
-            :disabled="busy || !connected"
-            :aria-label="t('files.path.label')"
-          />
-        </NFormItem>
-      </NForm>
-      <NButton
-        size="small"
-        :disabled="busy || !connected"
-        @click="navigatePath"
-      >
-        {{ t("files.actions.go") }}
-      </NButton>
-    </NFlex>
-    <NFlex>
-      <NButton size="tiny" :disabled="busy || !connected" @click="load('.')">
-        {{ t("files.actions.home") }}
-      </NButton>
-      <NButton
-        size="tiny"
-        :disabled="busy || stale || atRoot"
-        @click="load(directory.replace(/\/$/, '') + '/..')"
-      >
-        {{ t("files.actions.parent") }}
-      </NButton>
-      <NButton size="tiny" :disabled="busy || !connected" @click="load()">
-        {{ t("common.actions.refresh") }}
-      </NButton>
-      <NCheckbox
-        :checked="hidden"
-        :disabled="settings.savingSftpHidden"
-        size="small"
-        @update:checked="updateHidden"
-      >
-        {{ t("files.actions.showHidden") }}
-      </NCheckbox>
-    </NFlex>
-    <NFlex>
-      <NButton size="tiny" :disabled="loading || stale" @click="transfer(true)">
-        {{ t("files.actions.upload") }}
-      </NButton>
-      <NButton
-        size="tiny"
-        :disabled="busy || stale || selected?.kind !== 'file'"
-        @click="transfer(false)"
-      >
-        {{ t("files.actions.download") }}
-      </NButton>
-    </NFlex>
-    <NFlex v-if="visibleTransfer" align="center" justify="space-between">
-      <NText>
-        {{
-          progress
-            ? t("files.transfer.bytes", {
-                transferred: formatFileSize(progress.transferred),
-                total:
-                  progress.total === null
-                    ? "?"
-                    : formatFileSize(progress.total),
-              })
-            : t("files.transfer.preparing")
-        }}
-      </NText>
-      <NButton size="tiny" @click="cancel">
-        {{ t("files.actions.cancelTransfer") }}
-      </NButton>
-    </NFlex>
-    <NScrollbar
-      v-if="visibleTasks.length"
-      class="sftp-transfer-queue"
-      style="max-height: 120px"
-      :aria-label="t('files.transfer.queue')"
-    >
-      <NFlex
-        v-for="task in visibleTasks"
-        :key="task.id"
-        align="center"
-        justify="space-between"
-        :wrap="false"
-      >
-        <NText
-          :type="task.status === 'failed' ? 'error' : undefined"
-          class="sftp-task-label"
+    <NConfigProvider abstract :theme="theme" :theme-overrides="themeOverrides">
+      <div
+        class="sftp-resizer"
+        role="separator"
+        tabindex="0"
+        :aria-label="t('files.sidebar.resize')"
+        aria-orientation="vertical"
+        :aria-valuenow="panelWidth"
+        @pointerdown="startResize"
+        @pointermove="moveResize"
+        @pointerup="stopResize"
+        @pointercancel="stopResize"
+        @lostpointercapture="resizeStart = undefined"
+        @keydown="resizeKey"
+      />
+      <NFlex justify="space-between" align="center">
+        <NText strong>SFTP · {{ terminal.title }}</NText>
+        <NButton
+          size="tiny"
+          quaternary
+          :aria-label="t('files.sidebar.hide')"
+          @click="terminal.sftpOpen = false"
           :title="
-            task.messageKey ? t(task.messageKey) : task.message || task.path
+            visibleTransfer
+              ? t('files.transfer.hidePanel')
+              : t('files.sidebar.hide')
           "
         >
+          <template #icon><IconX :size="16" aria-hidden="true" /></template>
+        </NButton>
+      </NFlex>
+      <NAlert v-if="stale" type="warning" :show-icon="false">
+        {{
+          connected
+            ? t("files.errors.staleList")
+            : t("files.errors.sshDisconnected")
+        }}
+      </NAlert>
+      <NAlert
+        v-if="error"
+        type="error"
+        :show-icon="false"
+        closable
+        @close="error = ''"
+      >
+        {{ error }}
+      </NAlert>
+      <NAlert
+        v-if="dropTarget !== undefined"
+        class="sftp-drop-indicator"
+        type="info"
+        :show-icon="false"
+      >
+        {{ t("files.upload.dropHint", { path: dropTarget }) }}
+      </NAlert>
+      <SftpToolbar
+        :path="directory"
+        :disabled="busy || !connected"
+        :show-hidden="hidden"
+        :saving-hidden="settings.savingSftpHidden"
+        @navigate="load"
+        @refresh="load()"
+        @hidden="updateHidden"
+      >
+        <template #preferences>
+          <NCheckbox
+            v-model:checked="followDirectory"
+            size="small"
+            :title="t('files.follow.description')"
+          >
+            {{ t("files.follow.label") }}
+          </NCheckbox>
+          <NText
+            v-if="followDirectory && !terminal.workingDirectory"
+            depth="3"
+            class="follow-hint"
+          >
+            {{ t("files.follow.waiting") }}
+          </NText>
+        </template>
+        <NButton
+          size="small"
+          :disabled="loading || mutationBusy || stale"
+          @click="transfer(true)"
+        >
+          <template #icon>
+            <IconUpload :size="16" aria-hidden="true" />
+          </template>
+          {{ t("files.actions.upload") }}
+        </NButton>
+        <NButton
+          size="small"
+          :disabled="busy || stale || selected?.kind !== 'file'"
+          @click="transfer(false)"
+        >
+          <template #icon>
+            <IconDownload :size="16" aria-hidden="true" />
+          </template>
+          {{ t("files.actions.download") }}
+        </NButton>
+      </SftpToolbar>
+      <SftpFileTable
+        v-model:selected="checkedNames"
+        :entries="entries"
+        :show-hidden="hidden"
+        :disabled="busy || stale"
+        :loading="loading"
+        :at-root="atRoot"
+        @navigate="navigateEntry"
+        @drag="startFileDrag"
+        @contextmenu="(event, row) => fileActions?.open(event, row)"
+      />
+      <div class="panel-status">
+        <NText depth="3">
           {{
-            task.upload
-              ? t("files.actions.upload")
-              : t("files.actions.download")
-          }}
-          · {{ task.progress?.currentName || task.name || task.path }} ·
-          {{
-            task.status === "queued"
-              ? t("common.status.waiting")
-              : task.status === "running"
-                ? task.progress?.totalFiles
-                  ? t("files.transfer.progress", {
-                      completed: task.progress.completedFiles || 0,
-                      total: task.progress.totalFiles,
-                    })
-                  : t("files.transfer.active")
-                : task.messageKey
-                  ? t(task.messageKey)
-                  : task.message
+            t("files.selection.loaded", {
+              loaded: entries.filter(
+                (entry) => hidden || !entry.name.startsWith("."),
+              ).length,
+              selected: checkedNames.length,
+            })
           }}
         </NText>
         <NButton
-          v-if="task.status === 'queued'"
+          v-if="hasMore"
           size="tiny"
-          @click="cancelQueued(task)"
+          :disabled="busy || stale || entries.length >= 10000"
+          @click="load(directory, true)"
         >
-          {{ t("common.actions.remove") }}
+          {{ t("files.actions.loadMorePage") }}
         </NButton>
-      </NFlex>
-    </NScrollbar>
-    <NDataTable
-      class="sftp-table"
-      size="small"
-      flex-height
-      virtual-scroll
-      remote
-      v-model:checked-row-keys="checkedNames"
-      @update:sorter="updateSort"
-      :columns="columns"
-      :data="rows"
-      :row-key="(row) => row.name"
-      :row-props="rowProps"
-      :row-class-name="
-        (row) => (checkedNames.includes(row.name) ? 'sftp-selected' : '')
-      "
-      :loading="loading"
-      :scroll-x="356"
-      :single-line="false"
-    />
-    <NFlex justify="space-between" align="center">
-      <NText depth="3">
-        {{
-          hasMore
-            ? t("files.countPartial", { count: rows.length - 1 })
-            : t("files.count", { count: rows.length - 1 })
-        }}
+      </div>
+      <NText v-if="entries.length >= 10000 && hasMore" type="warning">
+        {{ t("files.errors.tooManyEntries") }}
       </NText>
-      <NButton
-        v-if="hasMore"
-        size="tiny"
-        :disabled="busy || stale || entries.length >= 10000"
-        @click="load(directory, true)"
-      >
-        {{ t("files.actions.loadMorePage") }}
-      </NButton>
-    </NFlex>
-    <NText v-if="entries.length >= 10000 && hasMore" type="warning">
-      {{ t("files.errors.tooManyEntries") }}
-    </NText>
-    <NText v-if="selectedEntries.length" depth="3" class="sftp-selection">
-      {{
-        selected
-          ? t("files.selection.named", { name: selected.name })
-          : t("files.selection.count", { count: selectedEntries.length })
-      }}
-    </NText>
+      <SftpTransferFooter
+        :tasks="activity"
+        @cancel="cancelTask"
+        @clear-finished="clearFinished"
+      />
+      <SftpFileActions
+        ref="fileActions"
+        :session-id="terminal.sessionId"
+        :path="directory"
+        :entries="selectedEntries"
+        :disabled="loading || transferring || stale"
+        @busy="mutationBusy = $event"
+        @changed="load()"
+      />
+      <Teleport to="body">
+        <div
+          v-if="dragFeedback?.active"
+          class="sftp-drag-preview"
+          :style="[surfaceStyle, dragPreviewStyle]"
+        >
+          {{
+            t(
+              dragFeedback.overTerminal
+                ? "files.drag.pastePaths"
+                : "files.drag.hint",
+              { count: dragFeedback.count },
+            )
+          }}
+        </div>
+      </Teleport>
+    </NConfigProvider>
   </aside>
 </template>
 <style scoped>
-.path-form {
-  flex: 1;
-  min-width: 0;
-}
 .sftp-panel {
   position: relative;
   max-width: calc(100% - 100px);
@@ -724,16 +593,6 @@ onBeforeUnmount(() => {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
-.sftp-transfer-queue {
-  max-height: 120px;
-  flex: 0 1 auto;
-  flex-shrink: 0;
-}
-.sftp-task-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .sftp-resizer {
   position: absolute;
   top: 0;
@@ -744,30 +603,29 @@ onBeforeUnmount(() => {
   touch-action: none;
   z-index: 2;
 }
-.sftp-table {
-  flex: 1;
-  min-height: 80px;
-}
-.sftp-selection {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-:deep(.sftp-entry-name) {
+.panel-status {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 6px;
-  min-width: 0;
+  min-height: 26px;
+  gap: 8px;
+  font-size: 12px;
 }
-:deep(.sftp-entry-name .n-icon) {
-  flex-shrink: 0;
+.follow-hint {
+  flex-basis: 100%;
+  font-size: 11px;
 }
-:deep(.sftp-entry-label) {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-:deep(.sftp-selected td) {
-  background: var(--n-td-color-hover) !important;
+.sftp-drag-preview {
+  position: fixed;
+  z-index: 3000;
+  max-width: 270px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 4px 16px #0004;
+  pointer-events: none;
+  font-size: 12px;
 }
 </style>

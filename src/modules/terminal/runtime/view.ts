@@ -12,6 +12,7 @@ import { loadTerminalFont, terminalFontFamily } from "@/modules/settings/fonts";
 import { resolveTerminalScheme } from "@/modules/settings/themes";
 import type { TerminalItem } from "@/modules/workbench/store";
 import { updateActivityTitle, updateShellActivity } from "../activity";
+import { updateWorkingDirectory } from "../workingDirectory";
 import { observeTerminalInput, type TerminalInput } from "../inputOrigin";
 import { applyTerminalTheme } from "../theme";
 import type { Entry } from "./entry";
@@ -181,10 +182,28 @@ export function mountTerminalView(
   },
 ) {
   const { term, host } = entry;
-  // xterm 统一解析 OSC 0/2；标题仅驻内存展示，不作为真实命令或主机身份。
+  const canReportDirectory = () =>
+    !entry.disposed &&
+    !entry.stream?.control.ended &&
+    terminal.state === "connected" &&
+    terminal.kind === "ssh" &&
+    !terminal.sshCommand &&
+    term.buffer.active.type === "normal";
+  // xterm 统一解析 OSC 0/2；目录兼容从完整原标题提取，避免展示截断影响路径。
   // 订阅随终端实例销毁，标签切换与分屏不重复注册。
   term.onTitleChange((title) => {
     if (!entry.disposed) updateActivityTitle(terminal, title);
+    if (canReportDirectory()) updateWorkingDirectory(terminal, title, "title");
+  });
+  term.parser.registerOscHandler(7, (payload) => {
+    if (canReportDirectory()) updateWorkingDirectory(terminal, payload, "osc7");
+    return true;
+  });
+  term.parser.registerOscHandler(1337, (payload) => {
+    if (!payload.startsWith("CurrentDir=")) return false;
+    if (canReportDirectory())
+      updateWorkingDirectory(terminal, payload, "osc1337");
+    return true;
   });
   // 只读取Shell执行阶段，不从输出猜命令，也不执行远端控制指令。
   term.parser.registerOscHandler(133, (payload) => {

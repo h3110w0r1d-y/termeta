@@ -109,11 +109,11 @@ const rules = computed<FormRules>(() => ({
                         value: 'system',
                         label: t('settings.language.system'),
                       },
+                      { value: 'en-US', label: 'English' },
                       { value: 'zh-CN', label: t('settings.languages.zhCN') },
                       { value: 'zh-TW', label: t('settings.languages.zhTW') },
                       { value: 'ja-JP', label: t('settings.languages.jaJP') },
                       { value: 'ko-KR', label: t('settings.languages.koKR') },
-                      { value: 'en-US', label: 'English' },
                     ]"
                   />
                 </NFormItem>
