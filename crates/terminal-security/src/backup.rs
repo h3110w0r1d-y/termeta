@@ -8,7 +8,10 @@ use argon2::{Algorithm, Argon2, Params, Version};
 use base64::{Engine, engine::general_purpose::STANDARD};
 use rand_core::{OsRng, RngCore};
 use serde::{Deserialize, Serialize};
-use std::io::{Read, Write};
+use std::{
+    borrow::Cow,
+    io::{Read, Write},
+};
 use terminal_storage::{
     BackupCounts, BackupImportMode, BackupImportSummary, BackupSettingWrite, MAX_DATABASE_BYTES,
 };
@@ -17,6 +20,7 @@ use zeroize::Zeroizing;
 const MAGIC: &[u8; 8] = b"TMETABK1";
 const HEADER_BYTES: usize = 8 + 16 + 12;
 const MAX_METADATA_BYTES: usize = 16 * 1024;
+const BASE64_LINE_CHARS: usize = 64;
 pub const MAX_PACKAGE_BYTES: usize = 192 * 1024 * 1024;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -129,18 +133,38 @@ pub fn seal(
     let mut binary = Vec::with_capacity(HEADER_BYTES + ciphertext.len());
     binary.extend_from_slice(&header);
     binary.extend_from_slice(&ciphertext);
-    let encoded = STANDARD.encode(&binary);
-    if encoded.len() > MAX_PACKAGE_BYTES {
+    let encoded_len = base64::encoded_len(binary.len(), true).ok_or_else(invalid)?;
+    let package_len = encoded_len
+        .checked_add(encoded_len.div_ceil(BASE64_LINE_CHARS))
+        .ok_or_else(invalid)?;
+    if package_len > MAX_PACKAGE_BYTES {
         return Err(invalid());
     }
-    Ok(encoded)
+    // 每组完整的三个字节编码成四个字符，分行不会在正文中间引入填充。
+    let mut package = String::with_capacity(package_len);
+    for chunk in binary.chunks(BASE64_LINE_CHARS / 4 * 3) {
+        STANDARD.encode_string(chunk, &mut package);
+        package.push('\n');
+    }
+    Ok(package)
 }
 
 pub fn open(password: &str, package: &str) -> Result<OpenedBackup, SecurityError> {
     if package.len() > MAX_PACKAGE_BYTES || package.len() < 80 {
         return Err(invalid());
     }
-    let bytes = STANDARD.decode(package).map_err(|_| invalid())?;
+    // 只移除文本换行，兼容旧单行包和 LF/CRLF 分行包，其余非法字符仍由 Base64 拒绝。
+    let encoded: Cow<'_, [u8]> = if package.bytes().any(|byte| matches!(byte, b'\r' | b'\n')) {
+        Cow::Owned(
+            package
+                .bytes()
+                .filter(|&byte| !matches!(byte, b'\r' | b'\n'))
+                .collect(),
+        )
+    } else {
+        Cow::Borrowed(package.as_bytes())
+    };
+    let bytes = STANDARD.decode(encoded.as_ref()).map_err(|_| invalid())?;
     if bytes.len() <= HEADER_BYTES + 16 || &bytes[..8] != MAGIC {
         return Err(invalid());
     }
@@ -254,7 +278,13 @@ mod tests {
         let second = seal("a-long-backup-password", &metadata, &database).unwrap();
         assert_ne!(package, second);
         assert!(package.len() < database.len());
-        let binary = STANDARD.decode(&package).unwrap();
+        assert!(package.ends_with('\n'));
+        let lines: Vec<_> = package.lines().collect();
+        assert!(lines.len() > 1);
+        assert!(lines[..lines.len() - 1].iter().all(|line| line.len() == 64));
+        assert!((1..=64).contains(&lines.last().unwrap().len()));
+        let single_line = package.replace('\n', "");
+        let binary = STANDARD.decode(&single_line).unwrap();
         assert!(
             !binary
                 .windows(metadata.device_name.len())
@@ -263,6 +293,11 @@ mod tests {
         let opened = open("a-long-backup-password", &package).unwrap();
         assert_eq!(opened.metadata.device_name, metadata.device_name);
         assert_eq!(opened.database.as_slice(), database.as_slice());
+        for compatible in [single_line, package.replace('\n', "\r\n")] {
+            let opened = open("a-long-backup-password", &compatible).unwrap();
+            assert_eq!(opened.database.as_slice(), database.as_slice());
+        }
+        assert!(open("a-long-backup-password", &package.replacen('\n', " ", 1)).is_err());
         assert!(open("wrong-backup-password", &package).is_err());
         let mut tampered = binary;
         *tampered.last_mut().unwrap() ^= 1;

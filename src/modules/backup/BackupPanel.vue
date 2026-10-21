@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { t } from "@/i18n";
 import { ref } from "vue";
+import { IconCloudDownload, IconCloudUpload } from "@tabler/icons-vue";
 import {
   NAlert,
   NButton,
@@ -11,14 +12,11 @@ import {
   NInput,
   NList,
   NListItem,
-  NRadioButton,
-  NRadioGroup,
   NSelect,
   NThing,
   type FormInst,
   type FormItemInst,
 } from "naive-ui";
-import AppDialog from "@/components/ui/AppDialog.vue";
 import { useCloudBackup, type BackupPanelOptions } from "./useCloudBackup";
 
 const props = withDefaults(defineProps<Partial<BackupPanelOptions>>(), {
@@ -37,8 +35,6 @@ const {
   entries,
   listed,
   hasMore,
-  preview,
-  previewOpen,
   operationBusy,
   canReuseSecret,
   canReuseBackupPassword,
@@ -48,10 +44,9 @@ const {
   testConnection,
   loadMore,
   execute,
-  prepare,
+  restore,
   counts,
   time,
-  apply,
 } = useCloudBackup(props, (value) => emit("busy-change", value), {
   config: configForm,
   confirmation: confirmationItem,
@@ -61,6 +56,86 @@ defineExpose({ busy, save, dirty });
 
 <template>
   <section class="backup-panel" :aria-label="t('backup.title')">
+    <NFlex>
+      <NButton
+        type="primary"
+        :disabled="operationBusy"
+        :loading="busy && action === 'backup'"
+        @click="execute('backup')"
+      >
+        <template #icon>
+          <IconCloudUpload aria-hidden="true" />
+        </template>
+        {{ t("backup.actions.uploadVersion") }}
+      </NButton>
+      <NButton
+        :disabled="operationBusy"
+        :loading="busy && action === 'restore'"
+        @click="execute('restore')"
+      >
+        <template #icon>
+          <IconCloudDownload aria-hidden="true" />
+        </template>
+        {{ t("backup.actions.downloadVersion") }}
+      </NButton>
+    </NFlex>
+    <NAlert v-if="error" type="error" role="alert">
+      {{ error }}
+    </NAlert>
+    <NAlert v-if="success" type="success">{{ success }}</NAlert>
+    <NAlert v-if="importWarnings.length" type="warning">
+      <p v-for="(message, index) in importWarnings" :key="index">
+        {{ message }}
+      </p>
+    </NAlert>
+    <template v-if="listed && action === 'restore'">
+      <p class="muted">{{ t("backup.download.description") }}</p>
+      <NAlert type="info">
+        {{ t("backup.import.mergeDescription") }}
+      </NAlert>
+      <NEmpty v-if="!entries.length" :description="t('backup.empty')" />
+      <NList v-else bordered>
+        <NListItem v-for="entry in entries" :key="entry.id">
+          <NThing
+            :title="
+              entry.metadata
+                ? `${time(entry.metadata.createdAt)} · ${entry.metadata.deviceName}`
+                : t('backup.version.undecryptable')
+            "
+            :description="
+              entry.metadata
+                ? counts(entry.metadata.counts)
+                : entry.error
+                  ? entry.error
+                  : t('backup.version.decryptError')
+            "
+          >
+            <span v-if="entry.metadata" class="muted">
+              Termeta {{ entry.metadata.appVersion }}
+            </span>
+          </NThing>
+          <template #suffix>
+            <NButton
+              :disabled="operationBusy || !entry.metadata"
+              @click="restore(entry)"
+            >
+              <template #icon>
+                <IconCloudDownload aria-hidden="true" />
+              </template>
+              {{ t("backup.actions.restore") }}
+            </NButton>
+          </template>
+        </NListItem>
+      </NList>
+      <NButton
+        v-if="hasMore"
+        :disabled="operationBusy"
+        :loading="busy"
+        @click="loadMore"
+      >
+        {{ t("backup.actions.loadMore") }}
+      </NButton>
+    </template>
     <NAlert type="info">
       {{ t("backup.description") }}
     </NAlert>
@@ -71,7 +146,7 @@ defineExpose({ busy, save, dirty });
       label-placement="top"
       :disabled="operationBusy"
       class="backup-config"
-      @submit.prevent="execute"
+      @submit.prevent="save"
     >
       <NFormItem :label="t('backup.form.provider')" path="provider">
         <NSelect
@@ -174,122 +249,6 @@ defineExpose({ busy, save, dirty });
         {{ t("backup.actions.saveConfig") }}
       </NButton>
     </NFlex>
-    <NRadioGroup
-      v-model:value="action"
-      :disabled="operationBusy"
-      :aria-label="t('backup.form.operation')"
-    >
-      <NRadioButton value="backup">
-        {{ t("backup.actions.uploadVersion") }}
-      </NRadioButton>
-      <NRadioButton value="sync">
-        {{ t("backup.actions.downloadVersion") }}
-      </NRadioButton>
-    </NRadioGroup>
-    <p class="muted">
-      {{
-        action === "backup"
-          ? t("backup.upload.description")
-          : t("backup.download.description")
-      }}
-    </p>
-    <NButton
-      type="primary"
-      :disabled="operationBusy"
-      :loading="busy"
-      @click="execute"
-    >
-      {{
-        action === "backup"
-          ? t("backup.upload.progress")
-          : t("backup.download.progress")
-      }}
-    </NButton>
-    <NAlert v-if="error && !previewOpen" type="error" role="alert">
-      {{ error }}
-    </NAlert>
-    <NAlert v-if="success" type="success">{{ success }}</NAlert>
-    <NAlert v-if="importWarnings.length" type="warning">
-      <p v-for="(message, index) in importWarnings" :key="index">
-        {{ message }}
-      </p>
-    </NAlert>
-    <template v-if="listed && action === 'sync'">
-      <NEmpty v-if="!entries.length" :description="t('backup.empty')" />
-      <NList v-else bordered>
-        <NListItem v-for="entry in entries" :key="entry.id">
-          <NThing
-            :title="
-              entry.metadata
-                ? `${time(entry.metadata.createdAt)} · ${entry.metadata.deviceName}`
-                : t('backup.version.undecryptable')
-            "
-            :description="
-              entry.metadata
-                ? counts(entry.metadata.counts)
-                : entry.error
-                  ? entry.error
-                  : t('backup.version.decryptError')
-            "
-          >
-            <span v-if="entry.metadata" class="muted">
-              Termeta {{ entry.metadata.appVersion }}
-            </span>
-          </NThing>
-          <template #suffix>
-            <NButton
-              :disabled="operationBusy || !entry.metadata"
-              @click="prepare(entry)"
-            >
-              {{ t("backup.actions.preview") }}
-            </NButton>
-          </template>
-        </NListItem>
-      </NList>
-      <NButton
-        v-if="hasMore"
-        :disabled="operationBusy"
-        :loading="busy"
-        @click="loadMore"
-      >
-        {{ t("backup.actions.loadMore") }}
-      </NButton>
-    </template>
-    <AppDialog
-      :open="previewOpen"
-      :title="t('backup.import.title')"
-      :locked="operationBusy"
-      @update:open="previewOpen = $event"
-    >
-      <template v-if="preview">
-        <p>
-          {{ time(preview.metadata.createdAt) }} ·
-          {{ preview.metadata.deviceName }}
-        </p>
-        <p>{{ counts(preview.metadata.counts) }}</p>
-        <NAlert type="info">
-          {{ t("backup.import.mergeDescription") }}
-        </NAlert>
-        <NAlert v-if="error" type="error" class="backup-error">
-          {{ error }}
-        </NAlert>
-      </template>
-      <template #footer>
-        <NFlex justify="end">
-          <NButton :disabled="operationBusy" @click="previewOpen = false">
-            {{ t("common.actions.cancel") }}
-          </NButton>
-          <NButton
-            type="primary"
-            :disabled="operationBusy || !preview"
-            :loading="busy"
-            @click="apply"
-          >
-            {{ t("backup.actions.confirmImport") }}
-          </NButton>
-        </NFlex>
-      </template>
-    </AppDialog>
   </section>
 </template>
 
@@ -307,9 +266,6 @@ defineExpose({ busy, save, dirty });
 }
 .backup-wide {
   grid-column: 1 / -1;
-}
-.backup-error {
-  margin-top: 16px;
 }
 @media (max-width: 640px) {
   .backup-config {

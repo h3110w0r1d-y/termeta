@@ -18,7 +18,7 @@ export default {
   "settings.sections.systemDetection": "SSH 시스템 감지",
   "settings.sections.search": "검색",
   "settings.sections.security": "보안",
-  "settings.sections.backup": "백업 / 동기화",
+  "settings.sections.backup": "백업 / 복원",
   "settings.sections.shortcuts": "단축키",
   "settings.tabPosition.top": "위쪽",
   "settings.tabPosition.left": "왼쪽",

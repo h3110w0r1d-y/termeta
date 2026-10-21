@@ -16,7 +16,6 @@ import type {
   BackupConfigView,
   BackupCounts,
   BackupListEntry,
-  BackupRestorePreview,
 } from "@/services/desktop/types";
 
 export interface BackupPanelOptions {
@@ -56,15 +55,15 @@ export function useCloudBackup(
     },
   );
   const importWarnings = ref<string[]>([]);
-  const action = ref<"backup" | "sync">("backup");
+  const action = ref<"backup" | "restore">("backup");
   const entries = ref<BackupListEntry[]>([]);
   const listed = ref(false);
   const hasMore = ref(false);
   const pageSize = 10;
   let pageOffset = 0;
   const baseline = ref(JSON.stringify(config));
-  const preview = ref<BackupRestorePreview>();
-  const previewOpen = ref(false);
+  // 保留未收到成功应答的令牌，同版本重试复用后端的短期幂等结果。
+  let pendingRestore: { id: string; token: string } | undefined;
   const operationBusy = computed(() => busy.value || props.disabled);
   const sameTarget = computed(
     () =>
@@ -187,8 +186,7 @@ export function useCloudBackup(
     listed.value = false;
     hasMore.value = false;
     pageOffset = 0;
-    previewOpen.value = false;
-    preview.value = undefined;
+    pendingRestore = undefined;
   }
   watch(
     () => [
@@ -198,7 +196,6 @@ export function useCloudBackup(
       config.secret,
       config.deviceName,
       config.backupPassword,
-      action.value,
     ],
     invalidate,
   );
@@ -273,23 +270,23 @@ export function useCloudBackup(
       busy.value = false;
     }
   }
-  async function execute() {
+  async function execute(operation: "backup" | "restore") {
     if (operationBusy.value) return;
+    action.value = operation;
     busy.value = true;
     error.value = "";
     success.value = "";
+    importWarnings.value = [];
     try {
       if (!(await validateForm(configForm.value))) return;
       if (!saved.value || dirty.value) await persist();
-      if (action.value === "backup") {
-        const entry = await desktop.createCloudBackup(config.deviceName.trim());
-        entries.value = [entry];
-        listed.value = true;
+      invalidate();
+      if (operation === "backup") {
+        await desktop.createCloudBackup(config.deviceName.trim());
         success.value = t("backup.status.uploaded");
         config.backupPassword = "";
         config.confirmation = "";
       } else {
-        invalidate();
         await loadPage();
       }
     } catch (cause) {
@@ -298,14 +295,28 @@ export function useCloudBackup(
       busy.value = false;
     }
   }
-  async function prepare(entry: BackupListEntry) {
+  async function restore(entry: BackupListEntry) {
     if (operationBusy.value || !entry.metadata) return;
     busy.value = true;
     error.value = "";
+    success.value = "";
+    importWarnings.value = [];
     try {
       if (!(await validateForm(configForm.value))) return;
-      preview.value = await desktop.prepareCloudRestore(entry.id);
-      previewOpen.value = true;
+      // 用户已在版本列表选择恢复，验证完成后直接新增合并，无需再次确认。
+      if (pendingRestore?.id !== entry.id) {
+        const prepared = await desktop.prepareCloudRestore(entry.id);
+        pendingRestore = { id: entry.id, token: prepared.token };
+      }
+      const result = await desktop.applyCloudRestore(pendingRestore.token);
+      pendingRestore = undefined;
+      success.value = t("backup.import.success", {
+        counts: counts(result.counts),
+      });
+      importWarnings.value = result.warnings;
+      config.backupPassword = "";
+      config.confirmation = "";
+      config.secret = "";
     } catch (cause) {
       error.value = errorMessage(cause);
     } finally {
@@ -317,27 +328,6 @@ export function useCloudBackup(
   }
   function time(value: number) {
     return formatDate(value);
-  }
-  async function apply() {
-    if (operationBusy.value || !preview.value) return;
-    busy.value = true;
-    error.value = "";
-    try {
-      const result = await desktop.applyCloudRestore(preview.value.token);
-      success.value = t("backup.import.success", {
-        counts: counts(result.counts),
-      });
-      importWarnings.value = result.warnings;
-      previewOpen.value = false;
-      preview.value = undefined;
-      config.backupPassword = "";
-      config.confirmation = "";
-      config.secret = "";
-    } catch (cause) {
-      error.value = errorMessage(cause);
-    } finally {
-      busy.value = false;
-    }
   }
   onMounted(async () => {
     busy.value = true;
@@ -354,7 +344,7 @@ export function useCloudBackup(
     config.secret = "";
     config.backupPassword = "";
     config.confirmation = "";
-    preview.value = undefined;
+    pendingRestore = undefined;
     onBusyChange(false);
   });
   return {
@@ -367,8 +357,6 @@ export function useCloudBackup(
     entries,
     listed,
     hasMore,
-    preview,
-    previewOpen,
     operationBusy,
     canReuseSecret,
     canReuseBackupPassword,
@@ -378,9 +366,8 @@ export function useCloudBackup(
     testConnection,
     loadMore,
     execute,
-    prepare,
+    restore,
     counts,
     time,
-    apply,
   };
 }

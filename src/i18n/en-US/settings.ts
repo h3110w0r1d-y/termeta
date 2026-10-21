@@ -19,7 +19,7 @@ export default {
   "settings.sections.systemDetection": "SSH system detection",
   "settings.sections.search": "Search",
   "settings.sections.security": "Security",
-  "settings.sections.backup": "Backup / Sync",
+  "settings.sections.backup": "Backup / Restore",
   "settings.sections.shortcuts": "Shortcuts",
   "settings.tabPosition.top": "Top",
   "settings.tabPosition.left": "Left",

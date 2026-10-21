@@ -1,24 +1,21 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
-  "backup.title": "備份與同步",
+  "backup.title": "備份與還原",
   "backup.form.provider": "備份服務",
   "backup.form.deviceName": "本機裝置名稱",
   "backup.form.devicePlaceholder": "例如：我的 MacBook",
   "backup.form.webdavUrl": "WebDAV HTTPS 目錄地址",
   "backup.form.password": "備份密碼（至少12個字元）",
   "backup.form.confirmPassword": "確認備份密碼",
-  "backup.form.operation": "備份或同步",
   "backup.empty": "該雲端目錄 / 賬戶中沒有備份。",
-  "backup.import.title": "確認從雲端同步",
   "backup.description":
     "加密備份主機、分組、認證資訊、轉發和主機信任。應用設定留在本機，請妥善保管備份密碼。",
   "backup.passwordHint":
     "備份密碼會儲存在本機。更改後只用於新備份，讀取舊備份仍需原密碼。",
   "backup.actions.test": "測試連線",
   "backup.actions.saveConfig": "儲存雲端配置",
-  "backup.actions.uploadVersion": "備份 · 上傳新版本",
-  "backup.actions.downloadVersion": "同步 · 從雲端下載",
-  "backup.actions.preview": "下載並預覽",
+  "backup.actions.uploadVersion": "備份",
+  "backup.actions.downloadVersion": "還原",
   "backup.actions.loadMore": "載入更多備份",
   "backup.form.githubToken": "GitHub Token（需 Gist 權限）",
   "backup.form.webdavPassword": "WebDAV 密碼 / 應用密碼",
@@ -27,16 +24,13 @@ export default {
   "backup.form.passwordHint": "備份密碼將加密儲存在本機",
   "backup.version.undecryptable": "無法解密的備份",
   "backup.version.decryptError": "密碼不匹配或備份損壞。",
-  "backup.upload.description": "每次上傳保留一個新版本。",
-  "backup.download.description": "選擇備份版本，預覽後確認匯入。",
-  "backup.upload.progress": "加密並上傳新備份",
-  "backup.download.progress": "讀取並解密雲端版本",
+  "backup.download.description":
+    "選擇要還原的備份版本，按下「還原」後直接合併資料。",
   "backup.import.mergeDescription":
     "匯入會新增資料，保留本機內容和設定。重複匯入會產生副本，主機信任衝突將跳過並提示。",
-  "backup.actions.confirmImport": "確認新增匯入",
   "backup.import.counts":
     "主機 {hosts} · 分組 {groups} · 認證資訊 {credentials} · 轉發 {forwards} · 主機信任 {knownHosts} · Snippets {snippets}",
-  "backup.import.success": "同步完成：{counts}。本機原有資料和設定已保留。",
+  "backup.import.success": "還原完成：{counts}。本機原有資料和設定已保留。",
   "backup.defaultDeviceName": "我的裝置",
   "backup.validation.deviceName": "請輸入裝置名稱，長度不能超過256位元組",
   "backup.validation.urlFormat":
@@ -51,4 +45,5 @@ export default {
   "backup.status.configSaved": "雲端配置已加密儲存在本機。",
   "backup.status.connected": "雲端連線成功。",
   "backup.status.uploaded": "已上傳新的獨立備份，雲端已有備份保留。",
+  "backup.actions.restore": "還原",
 } as const;

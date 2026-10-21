@@ -93,8 +93,8 @@ async function importKeys(event: Event) {
 }
 </script>
 <template>
-  <div>
-    <div class="button-row">
+  <div class="shortcut-settings">
+    <div class="shortcut-toolbar">
       <NTabs
         v-model:value="category"
         type="segment"
@@ -108,15 +108,22 @@ async function importKeys(event: Event) {
       <AppInput
         v-model="shortcutSearch"
         :placeholder="t('shortcuts.search.placeholder')"
+        :aria-label="t('shortcuts.search.placeholder')"
       />
     </div>
     <div v-for="b in bindings" :key="b.id" class="shortcut-row">
-      <AppCheckbox v-model="b.enabled">
-        {{ commandLabel(b.commandId) }}
-      </AppCheckbox>
+      <div class="shortcut-name">
+        <AppCheckbox v-model="b.enabled">
+          <span class="shortcut-name-text">
+            {{ commandLabel(b.commandId) }}
+          </span>
+        </AppCheckbox>
+      </div>
       <template v-if="b.trigger.type === 'pointer'">
         <AppSelect
           v-model="b.trigger.modifiers[0]"
+          class="shortcut-trigger"
+          :aria-label="commandLabel(b.commandId)"
           :options="[
             { value: 'Primary', label: t('shortcuts.triggers.primaryClick') },
             { value: 'Alt', label: t('shortcuts.triggers.altClick') },
@@ -126,44 +133,53 @@ async function importKeys(event: Event) {
       </template>
       <AppButton
         v-else
+        class="shortcut-trigger"
         :class="{ recording: recording === b.id }"
+        :aria-label="commandLabel(b.commandId)"
         @click="recording = b.id"
         data-shortcut-recorder
         @keydown="record($event, b)"
       >
-        {{
-          recording === b.id
-            ? t("shortcuts.recording.hint")
-            : keyLabel(b) || t("shortcuts.recording.unbound")
-        }}
+        <span class="shortcut-trigger-text">
+          {{
+            recording === b.id
+              ? t("shortcuts.recording.hint")
+              : keyLabel(b) || t("shortcuts.recording.unbound")
+          }}
+        </span>
       </AppButton>
-      <AppButton
-        class="icon-button"
-        :title="t('shortcuts.actions.addBinding')"
-        @click="
-          draft.keymap.bindings.push({
-            ...clone(b),
-            id: newId(),
-            enabled: false,
-          })
-        "
-      >
-        <NIcon :size="16" aria-hidden="true"><IconPlus /></NIcon>
-      </AppButton>
-      <AppButton
-        class="icon-button"
-        :title="t('shortcuts.actions.resetCommand')"
-        @click="resetBinding(b)"
-      >
-        <NIcon :size="16" aria-hidden="true"><IconRefresh /></NIcon>
-      </AppButton>
-      <AppButton
-        class="icon-button"
-        :title="t('shortcuts.actions.deleteBinding')"
-        @click="removeBinding(b)"
-      >
-        <NIcon :size="16" aria-hidden="true"><IconX /></NIcon>
-      </AppButton>
+      <div class="shortcut-actions">
+        <AppButton
+          class="icon-button"
+          :title="t('shortcuts.actions.addBinding')"
+          :aria-label="t('shortcuts.actions.addBinding')"
+          @click="
+            draft.keymap.bindings.push({
+              ...clone(b),
+              id: newId(),
+              enabled: false,
+            })
+          "
+        >
+          <NIcon :size="16" aria-hidden="true"><IconPlus /></NIcon>
+        </AppButton>
+        <AppButton
+          class="icon-button"
+          :title="t('shortcuts.actions.resetCommand')"
+          :aria-label="t('shortcuts.actions.resetCommand')"
+          @click="resetBinding(b)"
+        >
+          <NIcon :size="16" aria-hidden="true"><IconRefresh /></NIcon>
+        </AppButton>
+        <AppButton
+          class="icon-button"
+          :title="t('shortcuts.actions.deleteBinding')"
+          :aria-label="t('shortcuts.actions.deleteBinding')"
+          @click="removeBinding(b)"
+        >
+          <NIcon :size="16" aria-hidden="true"><IconX /></NIcon>
+        </AppButton>
+      </div>
     </div>
     <p v-if="conflict(draft.keymap.bindings)" class="error">
       {{ conflict(draft.keymap.bindings) }}
@@ -197,23 +213,64 @@ async function importKeys(event: Event) {
 </template>
 
 <style scoped>
+.shortcut-settings {
+  container-type: inline-size;
+}
+.shortcut-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 1fr);
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
 .shortcut-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(170px, 1fr) auto;
   gap: 10px;
   align-items: center;
   padding: 9px 0;
   border-bottom: 1px solid var(--border);
 }
-.shortcut-row .ui-label {
-  flex: 1;
+.shortcut-name {
+  min-width: 0;
 }
-.shortcut-row .ui-select-trigger {
-  width: 180px;
+.shortcut-name-text,
+.shortcut-trigger-text {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
-.shortcut-row > .n-button:not(.icon-button) {
-  min-width: 170px;
+.shortcut-trigger {
+  width: 100%;
+  min-width: 0;
+}
+.shortcut-row > .n-button {
+  height: auto;
+  min-height: 34px;
+}
+.shortcut-trigger-text {
+  padding-block: 6px;
+}
+.shortcut-actions {
+  display: flex;
+  gap: 4px;
+}
+.shortcut-actions > .icon-button {
+  width: 32px;
+  height: 32px;
+  padding: 0;
 }
 .recording {
   outline: 2px solid var(--accent);
+}
+@container (max-width: 460px) {
+  .shortcut-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .shortcut-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .shortcut-name {
+    grid-column: 1 / -1;
+  }
 }
 </style>

@@ -18,7 +18,7 @@ export default {
   "settings.sections.systemDetection": "SSHシステム検出",
   "settings.sections.search": "検索",
   "settings.sections.security": "セキュリティ",
-  "settings.sections.backup": "バックアップ / 同期",
+  "settings.sections.backup": "バックアップ / 復元",
   "settings.sections.shortcuts": "ショートカット",
   "settings.tabPosition.top": "上",
   "settings.tabPosition.left": "左",

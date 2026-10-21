@@ -25,7 +25,7 @@
 | [Telnet](20-telnet-terminal.md) | 协商、NVT/BINARY 与明文登录边界 |
 | [端口转发](21-port-forwarding.md) | 三模式、独立连接、监听与取消 |
 | [Snippets 与会话日志](23-snippets-and-session-logs.md) | 片段管理、关闭归档、退出握手与日志回看 |
-| [备份与同步](22-data-backup.md) | 第三方 provider、独立密码、快照预览与新增合并 |
+| [备份与恢复](22-data-backup.md) | 第三方 provider、独立密码、版本选择与新增合并 |
 | [代码结构评估与渐进重构](27-architecture-refactoring.md) | A/B/C 的最终职责与待验收边界，D/E/F 的结构方案与分批门槛 |
 
 文件编号保留空缺，不为连续编号重命名。

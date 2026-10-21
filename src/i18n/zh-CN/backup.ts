@@ -1,24 +1,21 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
-  "backup.title": "备份与同步",
+  "backup.title": "备份与恢复",
   "backup.form.provider": "备份服务",
   "backup.form.deviceName": "本机设备名称",
   "backup.form.devicePlaceholder": "例如：我的 MacBook",
   "backup.form.webdavUrl": "WebDAV HTTPS 目录地址",
   "backup.form.password": "备份密码（至少12个字符）",
   "backup.form.confirmPassword": "确认备份密码",
-  "backup.form.operation": "备份或同步",
   "backup.empty": "该云端目录 / 账户中没有备份。",
-  "backup.import.title": "确认从云端同步",
   "backup.description":
     "加密备份主机、分组、凭据、转发和主机信任。应用设置留在本机，请妥善保管备份密码。",
   "backup.passwordHint":
     "备份密码会保存在本机。更改后只用于新备份，读取旧备份仍需原密码。",
   "backup.actions.test": "测试连接",
   "backup.actions.saveConfig": "保存云端配置",
-  "backup.actions.uploadVersion": "备份 · 上传新版本",
-  "backup.actions.downloadVersion": "同步 · 从云端下载",
-  "backup.actions.preview": "下载并预览",
+  "backup.actions.uploadVersion": "备份",
+  "backup.actions.downloadVersion": "恢复",
   "backup.actions.loadMore": "加载更多备份",
   "backup.form.githubToken": "GitHub Token（需 Gist 权限）",
   "backup.form.webdavPassword": "WebDAV 密码 / 应用密码",
@@ -27,16 +24,13 @@ export default {
   "backup.form.passwordHint": "备份密码将加密保存在本机",
   "backup.version.undecryptable": "无法解密的备份",
   "backup.version.decryptError": "密码不匹配或备份损坏。",
-  "backup.upload.description": "每次上传保留一个新版本。",
-  "backup.download.description": "选择备份版本，预览后确认导入。",
-  "backup.upload.progress": "加密并上传新备份",
-  "backup.download.progress": "读取并解密云端版本",
+  "backup.download.description":
+    "选择要恢复的备份版本，点击“恢复”后直接合并数据。",
   "backup.import.mergeDescription":
     "导入会新增数据，保留本机内容和设置。重复导入会产生副本，主机信任冲突将跳过并提示。",
-  "backup.actions.confirmImport": "确认新增导入",
   "backup.import.counts":
     "主机 {hosts} · 分组 {groups} · 凭据 {credentials} · 转发 {forwards} · 主机信任 {knownHosts} · Snippets {snippets}",
-  "backup.import.success": "同步完成：{counts}。本机原有数据和设置已保留。",
+  "backup.import.success": "恢复完成：{counts}。本机原有数据和设置已保留。",
   "backup.defaultDeviceName": "我的设备",
   "backup.validation.deviceName": "请输入设备名称，长度不能超过256字节",
   "backup.validation.urlFormat":
@@ -51,4 +45,5 @@ export default {
   "backup.status.configSaved": "云端配置已加密保存在本机。",
   "backup.status.connected": "云端连接成功。",
   "backup.status.uploaded": "已上传新的独立备份，云端已有备份保留。",
+  "backup.actions.restore": "恢复",
 } as const;

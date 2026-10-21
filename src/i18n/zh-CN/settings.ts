@@ -18,7 +18,7 @@ export default {
   "settings.sections.systemDetection": "SSH 系统识别",
   "settings.sections.search": "搜索",
   "settings.sections.security": "安全",
-  "settings.sections.backup": "备份 / 同步",
+  "settings.sections.backup": "备份 / 恢复",
   "settings.sections.shortcuts": "快捷键",
   "settings.tabPosition.top": "顶部",
   "settings.tabPosition.left": "左侧",

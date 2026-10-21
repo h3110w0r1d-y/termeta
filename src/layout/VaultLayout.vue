@@ -58,14 +58,6 @@ const emit = defineEmits<{
         :options="navigationOptions"
         @update:value="workbench.openVault($event)"
       />
-      <div class="vault-settings-entry">
-        <NButton block quaternary @click="commands.execute('settings.open')">
-          <template #icon>
-            <IconSettings :size="18" aria-hidden="true" />
-          </template>
-          {{ t("settings.title") }}
-        </NButton>
-      </div>
     </aside>
     <div class="vault-content">
       <!-- 显隐挂在原生容器上，避免滚动组件内部的观察器根节点丢失指令。 -->
@@ -140,11 +132,6 @@ const emit = defineEmits<{
   flex-direction: column;
   border-right: 1px solid var(--border);
   background: var(--surface);
-}
-.vault-settings-entry {
-  margin-top: auto;
-  padding: 12px 10px;
-  border-top: 1px solid var(--border);
 }
 .vault-content {
   display: flex;
