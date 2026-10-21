@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { t } from "../i18n";
-import { NMenu, NButton } from "naive-ui";
-import { IconSettings } from "@tabler/icons-vue";
-import { commands } from "../services/commands/registry";
+import { NMenu } from "naive-ui";
 import { computed, h } from "vue";
 import VaultNavigationIcon from "./VaultNavigationIcon.vue";
 import AppScrollArea from "../components/ui/AppScrollArea.vue";
