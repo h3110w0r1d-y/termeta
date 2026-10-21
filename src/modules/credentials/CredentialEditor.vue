@@ -5,7 +5,6 @@ import {
   NForm,
   NFormItem,
   type FormInst,
-  type FormItemInst,
   type FormRules,
 } from "naive-ui";
 import { computed, reactive, ref, useId, watch } from "vue";
@@ -13,6 +12,7 @@ import AppButton from "@/components/ui/AppButton.vue";
 import AppDialog from "@/components/ui/AppDialog.vue";
 import AppInput from "@/components/ui/AppInput.vue";
 import AppSelect from "@/components/ui/AppSelect.vue";
+import AppTextarea from "@/components/ui/AppTextarea.vue";
 import { requiredText, validateForm } from "@/services/forms/rules";
 import { desktop, errorMessage } from "@/services/desktop/client";
 
@@ -30,22 +30,23 @@ const emit = defineEmits<{
 
 const form = ref<FormInst>();
 const formId = useId();
-const keyFileItem = ref<FormItemInst>();
 const busy = ref(false);
 const error = ref("");
 const label = ref("");
 const secret = ref("");
 const passphrase = ref("");
-const keyFileRef = ref("");
-const keyName = ref("");
+const privateKey = ref("");
 const kind = ref<"password" | "privateKey">("password");
-const formModel = reactive({ label, kind, secret, keyFileRef, passphrase });
+const formModel = reactive({ label, kind, secret, privateKey, passphrase });
 
 watch(kind, clearSecrets, { flush: "sync" });
 watch(
   () => props.open,
   (open) => {
-    if (!open) return;
+    if (!open) {
+      clearSecrets();
+      return;
+    }
     label.value = "";
     kind.value = props.initialKind;
     clearSecrets();
@@ -64,34 +65,16 @@ const rules = computed<FormRules>(() => ({
           trigger: ["input", "blur"],
         }
       : [],
-  keyFileRef:
+  privateKey:
     kind.value === "privateKey"
-      ? requiredText("credentials.form.privateKeyFile")
+      ? requiredText("credentials.form.sshPrivateKey")
       : [],
 }));
 
 function clearSecrets() {
   secret.value = "";
   passphrase.value = "";
-  keyFileRef.value = "";
-  keyName.value = "";
-}
-
-async function selectKey() {
-  if (busy.value) return;
-  try {
-    const file = await desktop.selectKey();
-    if (file) {
-      keyFileRef.value = file.keyFileRef;
-      keyName.value = file.name;
-      // 系统文件选择没有表单控件的 change 事件，导入后主动重验该字段。
-      await keyFileItem.value
-        ?.validate({ trigger: "change" })
-        .catch(() => undefined);
-    }
-  } catch (e) {
-    error.value = errorMessage(e);
-  }
+  privateKey.value = "";
 }
 
 function close(open: boolean) {
@@ -111,12 +94,12 @@ async function save() {
       ...(kind.value === "password"
         ? { password: secret.value }
         : {
-            keyFileRef: keyFileRef.value,
+            privateKey: privateKey.value,
             passphrase: passphrase.value || undefined,
           }),
     });
     emit("saved", result.id);
-    close(false);
+    emit("update:open", false);
   } catch (e) {
     error.value = errorMessage(e);
   } finally {
@@ -180,18 +163,22 @@ async function save() {
       </NFormItem>
       <template v-else>
         <NFormItem
-          ref="keyFileItem"
           class="span-2"
-          :label="t('credentials.form.privateKeyFile')"
-          path="keyFileRef"
+          :label="t('credentials.form.sshPrivateKey')"
+          path="privateKey"
         >
-          <AppButton :disabled="busy" @click="selectKey">
-            {{ t("credentials.actions.importKey") }}
-          </AppButton>
-          <span class="muted">
-            {{ keyName || t("credentials.form.keyHint") }}
-          </span>
+          <AppTextarea
+            v-model="formModel.privateKey"
+            :disabled="busy"
+            :rows="8"
+            :maxlength="1048576"
+            autocomplete="off"
+            autocapitalize="off"
+            :spellcheck="false"
+            :placeholder="t('credentials.form.privateKeyPlaceholder')"
+          />
         </NFormItem>
+        <p class="muted span-2">{{ t("credentials.form.keyHint") }}</p>
         <NFormItem
           class="span-2"
           :label="t('credentials.form.passphrase')"

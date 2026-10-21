@@ -244,7 +244,7 @@ export interface CredentialDraft {
   kind: "password" | "privateKey";
   label: string;
   password?: string;
-  keyFileRef?: string;
+  privateKey?: string;
   passphrase?: string;
 }
 

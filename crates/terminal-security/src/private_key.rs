@@ -1,15 +1,15 @@
 use crate::SecurityError;
-use std::path::Path;
-use zeroize::Zeroizing;
-
-/// 注册与使用共享同一套限大小、no-follow 和权限核验，避免边界漂移。
-pub fn validate_key_file(path: &Path) -> Result<(), SecurityError> {
-    terminal_storage::read_key_file(path, None)
-        .map(|_| ())
-        .map_err(|_| SecurityError::KeyFile)
-}
-pub(crate) fn read_key(path: &Path, fingerprint: &str) -> Result<Zeroizing<String>, SecurityError> {
-    terminal_storage::read_key_file(path, Some(fingerprint))
-        .map(|(secret, _)| secret)
-        .map_err(|_| SecurityError::KeyFile)
+/// 保存时限制文本封装与大小；密钥解析和口令解密仍由 SSH 认证流程负责。
+pub(crate) fn validate_key_text(text: &str) -> Result<(), SecurityError> {
+    if text.len() > 1024 * 1024 || text.contains('\0') {
+        return Err(SecurityError::PrivateKey);
+    }
+    let mut lines = text.trim().lines();
+    if lines.next() != Some("-----BEGIN OPENSSH PRIVATE KEY-----")
+        || lines.next_back() != Some("-----END OPENSSH PRIVATE KEY-----")
+        || !lines.any(|line| !line.trim().is_empty())
+    {
+        return Err(SecurityError::PrivateKey);
+    }
+    Ok(())
 }

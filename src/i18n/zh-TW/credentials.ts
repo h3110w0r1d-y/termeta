@@ -1,7 +1,6 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
   "credentials.validation.passwordRequired": "請輸入密碼",
-  "credentials.form.privateKeyFile": "私鑰檔案",
   "credentials.confirmDelete":
     "刪除認證資訊“{label}”？此操作會從本機加密保險庫移除秘密，不能撤銷。",
   "credentials.description": "集中管理密碼和私鑰，在多臺主機之間安全複用。",
@@ -24,12 +23,19 @@ export default {
   "credentials.form.namePlaceholder": "例如：生產環境 SSH 密碼",
   "credentials.form.sshPassword": "SSH 密碼",
   "credentials.form.sshPrivateKey": "SSH 私鑰",
-  "credentials.actions.importKey": "選擇並匯入 OpenSSH 私鑰",
+  "credentials.form.privateKeyPlaceholder":
+    "貼上完整的 OpenSSH 私鑰，包含 BEGIN 和 END 行",
   "credentials.form.passphrase": "私鑰解密密碼（可選）",
   "credentials.form.passphraseHint": "留空時如需解密，將在連線時詢問",
   "credentials.actions.save": "儲存認證資訊",
   "credentials.delete.description":
     "刪除認證資訊前，請先在主機設定中解除引用。",
-  "credentials.form.keyHint": "選擇的私鑰將加密儲存在保險庫中。",
+  "credentials.form.keyHint": "私鑰將加密儲存在保險庫中，最大 1 MiB。",
   "credentials.referenceCount": "{count} 臺主機引用",
+  "credentials.actions.showPublicKey": "檢視公鑰",
+  "credentials.actions.copyPublicKey": "複製公鑰",
+  "credentials.publicKey.title": "SSH 公鑰",
+  "credentials.publicKey.loading": "正在讀取公鑰…",
+  "credentials.publicKey.hint": "可複製到伺服器的 authorized_keys 檔案中。",
+  "credentials.publicKey.copied": "公鑰已複製",
 } as const;

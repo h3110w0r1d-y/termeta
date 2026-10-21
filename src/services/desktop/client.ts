@@ -234,14 +234,12 @@ export const desktop = {
   getSettings: () => invoke<AppSettings | null>("get_settings"),
   saveSettings: (settings: SettingsPatch, defaults: AppSettings) =>
     invoke<AppSettings>("save_settings", { settings, defaults }),
-  selectKey: () =>
-    invoke<{ keyFileRef: string; name: string } | null>(
-      "select_private_key_file",
-    ),
   listKnownHosts: () => invoke<KnownHost[]>("list_known_hosts"),
   revokeKnownHost: (id: string) => invoke<void>("revoke_known_host", { id }),
   saveCredential: (payload: CredentialDraft) =>
     invoke<{ id: string }>("save_credential", { ...payload }),
+  credentialPublicKey: (id: string) =>
+    invoke<string>("credential_public_key", { id }),
   listSnippets: () => invoke<Snippet[]>("list_snippets"),
   saveSnippet: (draft: SnippetDraft) =>
     invoke<Snippet>("save_snippet", { draft }),

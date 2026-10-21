@@ -1,7 +1,6 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
   "credentials.validation.passwordRequired": "비밀번호를 입력하세요",
-  "credentials.form.privateKeyFile": "개인 키 파일",
   "credentials.confirmDelete":
     "보관함에서 자격 증명 “{label}”을(를) 삭제할까요? 이 작업은 취소할 수 없습니다.",
   "credentials.description":
@@ -29,7 +28,8 @@ export default {
   "credentials.form.namePlaceholder": "예: 프로덕션 SSH 비밀번호",
   "credentials.form.sshPassword": "SSH 비밀번호",
   "credentials.form.sshPrivateKey": "SSH 개인 키",
-  "credentials.actions.importKey": "OpenSSH 개인 키 가져오기",
+  "credentials.form.privateKeyPlaceholder":
+    "BEGIN 및 END 줄을 포함한 전체 OpenSSH 개인 키를 붙여넣으세요",
   "credentials.form.passphrase": "키 암호(선택 사항)",
   "credentials.form.passphraseHint":
     "비워 두면 필요한 경우 연결할 때 입력을 요청합니다",
@@ -37,6 +37,13 @@ export default {
   "credentials.delete.description":
     "삭제하기 전에 호스트 설정에서 자격 증명 사용을 해제하세요.",
   "credentials.form.keyHint":
-    "선택한 개인 키는 암호화되어 보관함에 저장됩니다.",
+    "개인 키는 암호화되어 보관함에 저장됩니다. 최대 크기: 1 MiB.",
   "credentials.referenceCount": "호스트 {count}개에서 사용 중",
+  "credentials.actions.showPublicKey": "공개 키 보기",
+  "credentials.actions.copyPublicKey": "공개 키 복사",
+  "credentials.publicKey.title": "SSH 공개 키",
+  "credentials.publicKey.loading": "공개 키 불러오는 중…",
+  "credentials.publicKey.hint":
+    "서버의 authorized_keys 파일에 추가할 수 있습니다.",
+  "credentials.publicKey.copied": "공개 키를 복사했습니다",
 } as const;

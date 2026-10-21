@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use serde::Deserialize;
-use std::{path::Path, sync::Arc};
+use std::sync::Arc;
 use terminal_core::{AuthStep, CredentialStore, PrivateKeyMaterial, SessionError};
 use terminal_storage::SqliteStore;
 use terminal_storage::{HostDraft, HostProfile};
@@ -18,8 +18,8 @@ pub enum SecurityError {
     Metadata(#[from] terminal_storage::StorageError),
     #[error("凭据不存在或尚未就绪")]
     NotReady,
-    #[error("私钥文件不可读、格式不受支持、权限过宽或内容已变更，请重新选择授权")]
-    KeyFile,
+    #[error("请输入完整的 OpenSSH 私钥正文，大小不能超过 1 MiB")]
+    PrivateKey,
     #[error("调用窗口无权使用该资源")]
     Forbidden,
 }
@@ -60,19 +60,14 @@ impl CredentialVault {
     pub async fn save_private_key(
         &self,
         label: &str,
-        key_file_ref: &str,
+        text: Zeroizing<String>,
         passphrase: Option<Zeroizing<String>>,
     ) -> Result<String, SecurityError> {
         if passphrase.as_ref().is_some_and(|value| value.len() > 65536) {
             return Err(SecurityError::NotReady);
         }
+        crate::private_key::validate_key_text(&text)?;
         let _guard = self.operations.lock().await;
-        let file = self.store.get_key_file(key_file_ref).await?;
-        let text = tokio::task::spawn_blocking(move || {
-            crate::private_key::read_key(Path::new(&file.path), file.content_fingerprint())
-        })
-        .await
-        .map_err(|_| SecurityError::KeyFile)??;
         // 整体存成单个加密数据库凭据项，口令不能成为可独立引用的凭据。
         // 按 JSON 最坏转义长度预留空间，避免扩容残留未擦除的私钥副本。
         let capacity = 6 * (text.len() + passphrase.as_ref().map_or(0, |value| value.len())) + 128;
@@ -84,9 +79,10 @@ impl CredentialVault {
                 passphrase: passphrase.as_ref().map(|value| value.as_str()),
             },
         )
-        .map_err(|_| SecurityError::KeyFile)?;
+        .map_err(|_| SecurityError::PrivateKey)?;
         let payload = Zeroizing::new(
-            String::from_utf8(std::mem::take(&mut *bytes)).map_err(|_| SecurityError::KeyFile)?,
+            String::from_utf8(std::mem::take(&mut *bytes))
+                .map_err(|_| SecurityError::PrivateKey)?,
         );
         Ok(self
             .store
@@ -225,7 +221,7 @@ fn session_error(_: SecurityError) -> SessionError {
     SessionError::new(
         "CREDENTIAL_UNAVAILABLE",
         "authentication",
-        "凭据或已授权私钥不可用，请重新选择或使用本次认证",
+        "凭据不可用，请重新选择凭据或使用本次认证",
     )
 }
 #[async_trait]
@@ -259,7 +255,7 @@ impl CredentialStore for CredentialVault {
             .await
             .map_err(|_| session_error(SecurityError::NotReady))?;
         let material: KeyPayload =
-            serde_json::from_str(&text).map_err(|_| session_error(SecurityError::KeyFile))?;
+            serde_json::from_str(&text).map_err(|_| session_error(SecurityError::PrivateKey))?;
         Ok(PrivateKeyMaterial {
             private_key: material.private_key,
             passphrase: material.passphrase,

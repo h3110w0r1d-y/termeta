@@ -1,7 +1,6 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
   "credentials.validation.passwordRequired": "请输入密码",
-  "credentials.form.privateKeyFile": "私钥文件",
   "credentials.confirmDelete":
     "删除凭据“{label}”？此操作会从本地加密保险库移除秘密，不能撤销。",
   "credentials.description": "集中管理密码和私钥，在多台主机之间安全复用。",
@@ -24,11 +23,18 @@ export default {
   "credentials.form.namePlaceholder": "例如：生产环境 SSH 密码",
   "credentials.form.sshPassword": "SSH 密码",
   "credentials.form.sshPrivateKey": "SSH 私钥",
-  "credentials.actions.importKey": "选择并导入 OpenSSH 私钥",
+  "credentials.form.privateKeyPlaceholder":
+    "粘贴完整的 OpenSSH 私钥，包含 BEGIN 和 END 行",
   "credentials.form.passphrase": "私钥解密密码（可选）",
   "credentials.form.passphraseHint": "留空时如需解密，将在连接时询问",
   "credentials.actions.save": "保存凭据",
   "credentials.delete.description": "删除凭据前，请先在主机设置中解除引用。",
-  "credentials.form.keyHint": "选择的私钥将加密保存在保险库中。",
+  "credentials.form.keyHint": "私钥将加密保存在保险库中，最大 1 MiB。",
   "credentials.referenceCount": "{count} 台主机引用",
+  "credentials.actions.showPublicKey": "查看公钥",
+  "credentials.actions.copyPublicKey": "复制公钥",
+  "credentials.publicKey.title": "SSH 公钥",
+  "credentials.publicKey.loading": "正在读取公钥…",
+  "credentials.publicKey.hint": "可复制到服务器的 authorized_keys 文件中。",
+  "credentials.publicKey.copied": "公钥已复制",
 } as const;

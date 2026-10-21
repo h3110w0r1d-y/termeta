@@ -5,9 +5,11 @@ mod connection;
 mod driver;
 mod forwarding;
 mod host_key;
+mod key_material;
 mod os_detection;
 mod socks;
 pub use channels::{EndpointIdentity, SshChannels};
+pub use key_material::public_key_from_private_key;
 
 use async_trait::async_trait;
 use std::sync::Arc;

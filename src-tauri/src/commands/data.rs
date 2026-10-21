@@ -1,6 +1,6 @@
 use crate::state::{AppState, owner, storage_error};
 use tauri::{Emitter, Manager, State, WebviewWindow};
-use terminal_core::{Result, SessionError};
+use terminal_core::{CredentialStore, Result, SessionError};
 use terminal_storage::{CredentialRecord, GroupDraft, HostDraft, HostGroup, HostProfile};
 
 #[tauri::command]
@@ -168,16 +168,30 @@ pub async fn list_credentials(
     state.store.list_credentials().await.map_err(storage_error)
 }
 #[tauri::command]
+pub async fn credential_public_key(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<String> {
+    let owner = owner(&window)?;
+    // 复用凭据端口校验公共、就绪、类型与 owner；正文和口令均不返回前端。
+    let text = state.vault.private_key(&owner, &id).await?.private_key;
+    tokio::task::spawn_blocking(move || terminal_ssh::public_key_from_private_key(&text))
+        .await
+        .map_err(|_| SessionError::new("KEY_READ_FAILED", "credentials", "无法读取公钥，请重试"))?
+}
+#[tauri::command]
 pub async fn save_credential(
     window: WebviewWindow,
     state: State<'_, AppState>,
     kind: String,
     label: String,
     password: Option<String>,
-    key_file_ref: Option<String>,
+    private_key: Option<String>,
     passphrase: Option<String>,
 ) -> Result<serde_json::Value> {
     let password = password.map(zeroize::Zeroizing::new);
+    let private_key = private_key.map(zeroize::Zeroizing::new);
     let passphrase = passphrase
         .map(zeroize::Zeroizing::new)
         .filter(|value| !value.is_empty());
@@ -194,19 +208,19 @@ pub async fn save_credential(
         ));
     }
     let id = match kind.as_str() {
-        "password" if key_file_ref.is_none() && passphrase.is_none() => {
+        "password" if private_key.is_none() && passphrase.is_none() => {
             state
                 .vault
                 .save_password(&label, password.unwrap_or_default())
                 .await
         }
         "privateKey" if password.is_none() => {
-            let key_file_ref = key_file_ref.ok_or_else(|| {
-                SessionError::new("INVALID_CONFIG", "validation", "缺少授权私钥引用")
+            let private_key = private_key.ok_or_else(|| {
+                SessionError::new("INVALID_CONFIG", "validation", "请输入 OpenSSH 私钥正文")
             })?;
             state
                 .vault
-                .save_private_key(&label, &key_file_ref, passphrase)
+                .save_private_key(&label, private_key, passphrase)
                 .await
         }
         _ => {

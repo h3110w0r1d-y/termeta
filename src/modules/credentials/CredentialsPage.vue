@@ -12,6 +12,7 @@ import type { CredentialMetadata } from "@/services/desktop/types";
 import { useHosts } from "../hosts/store";
 import { useBackupRestored } from "../backup/useBackupRestored";
 import CredentialEditor from "./CredentialEditor.vue";
+import CredentialPublicKeyDialog from "./CredentialPublicKeyDialog.vue";
 const hosts = useHosts();
 const items = ref<CredentialMetadata[]>([]),
   error = ref(""),
@@ -19,6 +20,7 @@ const items = ref<CredentialMetadata[]>([]),
   busy = ref(false),
   editorOpen = ref(false),
   query = ref("");
+const publicKeyCredential = ref<CredentialMetadata | null>(null);
 const visible = computed(() =>
   items.value.filter((item) =>
     item.label.toLowerCase().includes(query.value.toLowerCase()),
@@ -143,6 +145,13 @@ async function remove(item: CredentialMetadata) {
         <template #suffix>
           <div class="button-row">
             <AppButton
+              v-if="item.kind === 'privateKey' && item.status === 'ready'"
+              :disabled="busy"
+              @click="publicKeyCredential = item"
+            >
+              {{ t("credentials.actions.showPublicKey") }}
+            </AppButton>
+            <AppButton
               class="danger"
               :disabled="busy || references(item.id).length > 0"
               :title="
@@ -169,6 +178,10 @@ async function remove(item: CredentialMetadata) {
       :open="editorOpen"
       @update:open="editorOpen = $event"
       @saved="load"
+    />
+    <CredentialPublicKeyDialog
+      :credential="publicKeyCredential"
+      @close="publicKeyCredential = null"
     />
   </section>
 </template>

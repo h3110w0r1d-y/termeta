@@ -1,7 +1,7 @@
-use crate::state::{AppState, owner, storage_error};
+use crate::state::owner;
 #[cfg(target_os = "macos")]
 use tauri::Manager;
-use tauri::{State, WebviewWindow};
+use tauri::WebviewWindow;
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 use terminal_core::{Result, SessionError};
@@ -22,50 +22,6 @@ pub async fn set_native_menu_locale(
     Ok(())
 }
 
-#[tauri::command]
-pub async fn select_private_key_file(
-    window: WebviewWindow,
-    state: State<'_, AppState>,
-) -> Result<Option<serde_json::Value>> {
-    owner(&window)?;
-    let (sender, receiver) = tokio::sync::oneshot::channel();
-    window
-        .dialog()
-        .file()
-        .set_parent(&window)
-        .set_title("选择 OpenSSH 私钥")
-        .pick_file(move |file| {
-            let _ = sender.send(file);
-        });
-    let Some(file) = receiver.await.map_err(|_| {
-        SessionError::new("FILE_SELECTION_FAILED", "authentication", "文件选择已取消")
-    })?
-    else {
-        return Ok(None);
-    };
-    let path = file.into_path().map_err(|_| {
-        SessionError::new("INVALID_KEY_FILE", "authentication", "请选择本地私钥文件")
-    })?;
-    let checked = path.clone();
-    tokio::task::spawn_blocking(move || terminal_security::validate_key_file(&checked))
-        .await
-        .map_err(|_| SessionError::new("INVALID_KEY_FILE", "authentication", "无法检查私钥文件"))?
-        .map_err(super::data::security_error)?;
-    let name = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("私钥")
-        .to_owned();
-    let path = path.to_str().ok_or_else(|| {
-        SessionError::new("INVALID_KEY_FILE", "authentication", "私钥路径编码不受支持")
-    })?;
-    let key = state
-        .store
-        .register_key_file(path, &name)
-        .await
-        .map_err(storage_error)?;
-    Ok(Some(serde_json::json!({"keyFileRef":key.id,"name":name})))
-}
 #[tauri::command]
 pub fn open_external_url(window: WebviewWindow, url: String) -> Result<()> {
     owner(&window)?;

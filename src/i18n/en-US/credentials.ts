@@ -1,7 +1,6 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
   "credentials.validation.passwordRequired": "Enter a password",
-  "credentials.form.privateKeyFile": "Private key file",
   "credentials.confirmDelete":
     "Delete credential “{label}” from your vault? This cannot be undone.",
   "credentials.description":
@@ -29,7 +28,8 @@ export default {
   "credentials.form.namePlaceholder": "e.g. Production SSH password",
   "credentials.form.sshPassword": "SSH password",
   "credentials.form.sshPrivateKey": "SSH private key",
-  "credentials.actions.importKey": "Import OpenSSH private key",
+  "credentials.form.privateKeyPlaceholder":
+    "Paste the complete OpenSSH private key, including the BEGIN and END lines",
   "credentials.form.passphrase": "Key passphrase (optional)",
   "credentials.form.passphraseHint":
     "Leave blank to be asked when connecting, if needed",
@@ -37,6 +37,13 @@ export default {
   "credentials.delete.description":
     "Remove credentials from host settings before deleting them.",
   "credentials.form.keyHint":
-    "The selected private key will be encrypted and saved in your vault.",
+    "The private key will be encrypted and saved in your vault. Maximum size: 1 MiB.",
   "credentials.referenceCount": "Used by {count} hosts",
+  "credentials.actions.showPublicKey": "View public key",
+  "credentials.actions.copyPublicKey": "Copy public key",
+  "credentials.publicKey.title": "SSH public key",
+  "credentials.publicKey.loading": "Loading public key…",
+  "credentials.publicKey.hint":
+    "You can add this key to the server’s authorized_keys file.",
+  "credentials.publicKey.copied": "Public key copied",
 } as const;
