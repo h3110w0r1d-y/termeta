@@ -17,7 +17,6 @@ import resvg_py
 
 
 ROOT = Path(__file__).resolve().parent.parent
-SOURCE = ROOT / "resources/brand/termeta-icon.svg"
 NS = "http://www.w3.org/2000/svg"
 ET.register_namespace("", NS)
 PROFILE = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
@@ -27,8 +26,8 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def master_svg(macos):
-    tree = ET.parse(SOURCE)
+def master_svg(macos, source_path):
+    tree = ET.parse(source_path)
     root = tree.getroot()
     # 只调整取景，不改动已确认图稿的形体、层间关系、渐变或阴影。
     # 通用版去掉外部空白；macOS 版底板宽度占 824/1024，并等比居中。
@@ -117,16 +116,23 @@ def verify_icons(directory):
         assert (directory / Path(icon).name).is_file(), icon
 
 
-def generate(artifacts):
+def generate(artifacts, theme):
     artifacts.mkdir(parents=True, exist_ok=True)
-    for name in ["termeta-icon.svg", "termeta-symbol.svg"]:
+    icon_name = "termeta-icon-light.svg" if theme == "light" else "termeta-icon.svg"
+    source_path = ROOT / "resources/brand" / icon_name
+    destination = ROOT / "src-tauri/icons"
+    favicon = ROOT / "public/terminal.svg"
+    if theme == "light":
+        destination /= "light"
+        favicon = ROOT / "public/terminal-light.svg"
+    for name in [icon_name, "termeta-symbol.svg"]:
         shutil.copy2(ROOT / "resources/brand" / name, artifacts / name)
     masters = artifacts / "masters"
     masters.mkdir(exist_ok=True)
-    source_hash = digest(SOURCE)
-    sources = {"standard": master_svg(False), "macos": master_svg(True)}
+    source_hash = digest(source_path)
+    sources = {"standard": master_svg(False, source_path), "macos": master_svg(True, source_path)}
     # 平台母图仅改变根画布，内部元素必须与终版完全一致。
-    approved = ET.parse(SOURCE).getroot()
+    approved = ET.parse(source_path).getroot()
     for name, source in sources.items():
         variant = ET.fromstring(source)
         assert [ET.tostring(e) for e in approved] == [ET.tostring(e) for e in variant]
@@ -147,15 +153,14 @@ def generate(artifacts):
         shutil.copy2(staging / "macos/icon.icns", generated / "icon.icns")
         order = write_ico(sources["standard"], generated / "icon.ico")
         verify_icons(generated)
-        destination = ROOT / "src-tauri/icons"
         destination.mkdir(exist_ok=True)
         for path in generated.iterdir():
             if path.is_file():
                 shutil.copy2(path, destination / path.name)
 
-    (ROOT / "public/terminal.svg").write_text(sources["standard"] + "\n")
-    verify_icons(ROOT / "src-tauri/icons")
-    assert digest(SOURCE) == source_hash
+    favicon.write_text(sources["standard"] + "\n")
+    verify_icons(destination)
+    assert digest(source_path) == source_hash
     preview = Image.new("RGB", (1024, 570), "#101827")
     draw = ImageDraw.Draw(preview)
     for i, name in enumerate(["standard", "macos"]):
@@ -164,27 +169,44 @@ def generate(artifacts):
         draw.text((24 + i * 512, 18), name.upper(), fill="#bfd0e5")
     preview.save(artifacts / "preview.png")
     manifest = {
-        "source": "resources/brand/termeta-icon.svg", "source_sha256": source_hash,
+        "theme": theme,
+        "source": str(source_path.relative_to(ROOT)), "source_sha256": source_hash,
         "tools": {"tauri_cli": json.loads((ROOT / "node_modules/@tauri-apps/cli/package.json").read_text())["version"],
                   "Pillow": version("Pillow"), "resvg-py": version("resvg-py")},
         "ico_order": order, "ico_first_bit_depth": 32,
         "macos_max_size": [1024, 1024], "macos_tile_width_fraction": 824 / 1024,
         "files": {str(path.relative_to(ROOT)): digest(path)
-                  for path in sorted((ROOT / "src-tauri/icons").iterdir()) if path.is_file()},
-        "favicon_sha256": digest(ROOT / "public/terminal.svg"),
+                  for path in sorted(destination.iterdir()) if path.is_file()},
+        "favicon_sha256": digest(favicon),
         "validation": "已静态解码各尺寸与检查透明通道；未构建、启动或进行系统展示验收",
     }
     (artifacts / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
-    print(json.dumps({"icons": len(manifest["files"]), "ico_order": order,
+    print(json.dumps({"theme": theme, "icons": len(manifest["files"]), "ico_order": order,
                       "artifacts": str(artifacts)}, ensure_ascii=False))
+
+
+def generate_themes(artifacts, theme):
+    if theme in {"dark", "all"}:
+        generate(artifacts, "dark")
+    if theme in {"light", "all"}:
+        generate(artifacts / "light" if theme == "all" else artifacts, "light")
+    if theme == "all":
+        preview = Image.new("RGB", (1024, 570), "#9babc1")
+        draw = ImageDraw.Draw(preview)
+        for i, (folder, label) in enumerate([(artifacts, "DARK"), (artifacts / "light", "LIGHT")]):
+            image = Image.open(folder / "masters/app-icon-macos-1024.png").resize((512, 512))
+            preview.paste(image, (i * 512, 45), image)
+            draw.text((24 + i * 512, 18), label, fill="#14243a")
+        preview.save(artifacts / "theme-comparison.png")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--artifacts-dir", type=Path, help="可选的母图、预览和生成报告输出目录")
+    parser.add_argument("--theme", choices=["dark", "light", "all"], default="all", help="默认生成深浅两套；项目默认入口使用深色版")
     args = parser.parse_args()
     if args.artifacts_dir:
-        generate(args.artifacts_dir.resolve())
+        generate_themes(args.artifacts_dir.resolve(), args.theme)
     else:
         with tempfile.TemporaryDirectory(prefix="termeta-icon-artifacts-") as temp:
-            generate(Path(temp))
+            generate_themes(Path(temp), args.theme)

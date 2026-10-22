@@ -1,19 +1,38 @@
 {
   "confirmed_on": "2026-10-22",
-  "decision": "用户确认柔和扩散阴影版为终版，生成桌面图标并应用到当前项目。",
-  "design": "三层正交终端面板，等尺寸、竖直侧边，间距从第一层背面计算。",
+  "decision": "用户选定 G / 8-dark 作为当前项目 Logo；亮色备选同步相同描边与面板形体，默认入口使用深色版。",
+  "design": "三层正交终端面板，等尺寸、竖直侧边；底板与面板已有描边统一为 8，第一层底面按半描边宽度外扩 4，以圆角外沿公共切线连续连接厚度。",
   "files": [
     {
+      "path": "resources/brand/termeta-icon-light.svg",
+      "sha256": "2cd6ffb4d8402407778cf97c0f3da228293d7834884ef30cccecec3f37c8a4ff",
+      "derivation": "统一描边为 8，底面填充轮廓外扩 4 并沿圆角外沿公共切线连接厚度；深色为选定默认，亮色仅作为备选。"
+    },
+    {
       "path": "resources/brand/termeta-icon.svg",
-      "sha256": "7e6ec3c22d652f72a125857185aa713b0f5bd997b9de1e7b77fc24af889b3367",
-      "source": "variants/shadow-soft/termeta-icon.svg"
+      "sha256": "0ce082b44251116582c62bd8988cc9ec2b80496548fdf5ea12327d5b0deddc8d",
+      "derivation": "统一描边为 8，底面填充轮廓外扩 4 并沿圆角外沿公共切线连接厚度；深色为选定默认，亮色仅作为备选。"
     },
     {
       "path": "resources/brand/termeta-symbol.svg",
-      "sha256": "f70b18d1e31c333f3286ff2e26dff6cdb1f6bab5c9b4bc6a36739efb0bb5713e",
-      "source": "variants/shadow-soft/termeta-symbol.svg"
+      "sha256": "9a8a46bbf6e70ca2796433b166673df5a074770b613dd18936771e9b2c4774db",
+      "derivation": "统一描边为 8，底面填充轮廓外扩 4 并沿圆角外沿公共切线连接厚度；深色为选定默认，亮色仅作为备选。"
     }
   ],
   "generation_script": "scripts/generate-app-icons.py",
-  "licensing_note": "用户提供并确认的项目品牌图稿；来源记录不替代发布许可审核。"
+  "licensing_note": "用户提供并确认的项目品牌图稿；来源记录不替代发布许可审核。",
+  "based_on": {
+    "source": "variants/shadow-soft/",
+    "icon_sha256": "7e6ec3c22d652f72a125857185aa713b0f5bd997b9de1e7b77fc24af889b3367",
+    "symbol_sha256": "f70b18d1e31c333f3286ff2e26dff6cdb1f6bab5c9b4bc6a36739efb0bb5713e"
+  },
+  "refinement_script": "scripts/refine-brand-icons.py",
+  "selected_candidate": {
+    "id": "G",
+    "name": "8-dark",
+    "stroke_width": 8,
+    "source": "variants/stroke-comparison-6-8/G-stroke-8-dark/",
+    "icon_sha256": "0ce082b44251116582c62bd8988cc9ec2b80496548fdf5ea12327d5b0deddc8d",
+    "symbol_sha256": "9a8a46bbf6e70ca2796433b166673df5a074770b613dd18936771e9b2c4774db"
+  }
 }

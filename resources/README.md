@@ -4,7 +4,7 @@
 
 ## 桌面应用品牌图标
 
-2026-10-22 确认的终版为三层正交终端面板与柔和扩散阴影，源文件纳入 [完整图稿](brand/termeta-icon.svg) 和 [透明标志](brand/termeta-symbol.svg)，来源及 SHA-256 见 [品牌来源](brand/provenance.json)。桌面资源和网页入口统一由此图稿生成，不再依赖外部工作目录中的旧版母图。
+当前默认采用用户选定的 **8-dark** 品牌图稿（三层正交终端面板与柔和扩散阴影），提供 [深色底图稿](brand/termeta-icon.svg)、[亮色底图稿](brand/termeta-icon-light.svg) 和共用的 [透明标志](brand/termeta-symbol.svg)，来源及 SHA-256 见 [品牌来源](brand/provenance.json)。第一层底面按正面描边外沿等距扩大，厚度采用扩大后的前后轮廓与公共切线组成的单一连续包络，在左上、右下圆角外沿切点连接。亮色版只调整底板配色，三层面板共用相同形体、渐变与阴影。
 
 [生成脚本](../scripts/generate-app-icons.py) 只调整终版图稿的画布取景，不改面板、配色或阴影。通用版去除底板外留白，用于 PNG、ICO 和 [网页图标](../public/terminal.svg)；macOS 专用版将原图稿等比居中，底板宽度占画布的 824/1024，保留原底板长宽比与平台留白，不用通用 ICNS 覆盖。
 
@@ -15,6 +15,8 @@ python scripts/generate-app-icons.py
 ```
 
 可选 `--artifacts-dir <目录>` 保留平台母图、图标副本、预览及摘要报告。脚本执行 `tauri icon`，不触发项目编译、启动或打包。Windows ICO 显式按尺寸降序排列，首项必须是 256×256、32 位高清图，并校验每项可解码；ICNS 包含 1024×1024。静态资源校验不代表系统图标缓存、Dock/任务栏、高 DPI 或安装包展示验收通过。
+
+默认同时生成深浅两套，`--theme dark|light|all` 可限定输出。深色版应用于 `src-tauri/icons/` 与 `public/terminal.svg`；亮色备选套装位于 `src-tauri/icons/light/` 与 `public/terminal-light.svg`，不自动切换应用图标。需要修改正面轮廓时，先运行 [厚度修整脚本](../scripts/refine-brand-icons.py)，它读取正面描边宽度、外扩底面圆角并求公共切线，同步生成亮色底 SVG，再生成平台资源。
 
 ## 终端配色
 
