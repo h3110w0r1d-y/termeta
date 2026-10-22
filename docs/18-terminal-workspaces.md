@@ -1,12 +1,12 @@
 # 终端工作台与工作区存档
 
-更新：2026-10-21。工作台管理运行标签、分屏与输入广播；工作区存档只保存布局和连接引用。当前没有自动恢复打开标签、跨窗口拖动或整体工作区合并；源码完成不代表桌面与三平台验收通过。
+更新：2026-10-22。工作台管理运行标签、分屏与输入广播；工作区存档只保存布局和连接引用。当前没有自动恢复打开标签、跨窗口拖动或整体工作区合并；源码完成不代表桌面与三平台验收通过。
 
 ## 1. 运行模型与生命周期
 
 `Workbench` 管理全部终端；`TerminalTabGroup` 是一个动态标签的布局；`TerminalItem` 保存单终端轻量状态；`Workspace` 表示多终端工作区及其显式存档。已保存工作区只剩一个窗格时仍保留存档身份。
 
-[工作台 Store](../src/modules/workbench/store.ts) 分离 terminals 与 groups：activeId 指固定页或标签组，activeTerminal 指聚焦终端。布局树仅含终端叶子与带方向、比例的分割节点，不保存会话句柄、秘密或输出。每个 terminalId 只属于一组，焦点须指向组内叶子，删除叶子自动收缩空分支。
+[工作台 Store](../src/modules/workbench/store.ts) 分离 terminals、groups 与只读日志标签：activeId 指固定页、终端标签组或日志标签，activeTerminal 只在终端组中指向聚焦终端。布局树仅含终端叶子与带方向、比例的分割节点，不保存会话句柄、秘密或输出。每个 terminalId 只属于一组，焦点须指向组内叶子，删除叶子自动收缩空分支。
 
 三种用途的控制投影、认证/信任挑战与心跳登记归 [sessions 模块](../src/modules/sessions/store.ts)，文件和转发不借工作台终端承载控制状态。每次请求独立核对版本、身份、事件序号和快照 revision；首次事件可先于打开响应，终态不会被迟到响应覆盖。
 
@@ -24,7 +24,9 @@ Registry 的 `closeAndRemove` 统一单窗格、整组和窗口退出的终端�
 
 普通标签支持复制连接或向右拆分，创建独立会话并认证，不复制历史或输入；串口禁止复制，SFTP 侧栏开启时禁止拆分。标签双击可配置无动作、关闭、复制、拆分；工作区仅支持关闭。分组批量打开可创建独立标签或均分布局，不改动已有终端。
 
-布局操作见 [layout.ts](../src/modules/workbench/layout.ts)，标签布局拖动见 [useTabDrag.ts](../src/modules/workbench/useTabDrag.ts)，Header 窗口拖动见 [useWindowDrag.ts](../src/modules/workbench/useWindowDrag.ts)，关闭协调见 [useTerminalClose.ts](../src/modules/workbench/useTerminalClose.ts)。文件原生拖放与标签布局拖动彼此独立。
+[AppTabs](../src/modules/workbench/tabs/AppTabs.vue) 负责固定页、动态标签、键盘导航及拖动协调；[WorkbenchTab](../src/modules/workbench/tabs/WorkbenchTab.vue) 只呈现单个终端/日志标签并发出操作事件。窗口控件与导航外观由 layout 装配，标签组件不持有终端资源。工具侧栏内部主题/Snippets 页签使用 Naive UI，与窗口级标签导航分开。
+
+布局操作见 [layout.ts](../src/modules/workbench/layout.ts)，标签布局拖动见 [useTabDrag.ts](../src/modules/workbench/tabs/useTabDrag.ts)，导航窗口拖动见 [useWindowDrag.ts](../src/modules/workbench/tabs/useWindowDrag.ts)，关闭协调见 [useTerminalClose.ts](../src/modules/workbench/useTerminalClose.ts)。文件原生拖放与标签布局拖动彼此独立。
 
 ## 3. 输入广播
 

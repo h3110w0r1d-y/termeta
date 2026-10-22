@@ -48,7 +48,7 @@ function settingsStoreFixture(saveSettings) {
     "@/i18n": { normalizeLanguage: (value) => value, setLanguage() {} },
     "@/services/desktop/client": { desktop: { saveSettings } },
     "@/services/commands/registry": { defaults: () => [] },
-    "./themes": { defaultSchemeId: "default" },
+    "@/theme/schemes": { defaultSchemeId: "default" },
     "./fonts": {
       defaultTerminalFont: "default",
       normalizeTerminalFont: (value) => value,

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { resolveTerminalScheme } from "@/theme/schemes";
 import { useSettings } from "../settings/store";
 import { t } from "@/i18n";
 import { IconSitemap, IconX } from "@tabler/icons-vue";
@@ -13,10 +14,10 @@ import {
 import AppButton from "@/components/ui/AppButton.vue";
 import { useWorkbenchStore, type TerminalItem } from "../workbench/store";
 import { stateLabels } from "../workbench/store";
-import { schemeForTerminal, terminalRegistry } from "./registry";
+import { terminalRegistry } from "./registry";
 import { terminalBaseTitle, terminalDisplayTitle } from "./title";
 import SftpPanel from "../files/SftpPanel.vue";
-import { colorOverlay, isLightBackground } from "./appearance";
+import { colorOverlay, isLightBackground } from "@/theme/colors";
 const props = defineProps<{
   terminal: TerminalItem;
   active: boolean;
@@ -50,7 +51,9 @@ const broadcastTitle = computed(() =>
             broadcastCount: broadcastCount.value,
           }),
 );
-const colors = computed(() => schemeForTerminal(props.terminal).colors);
+const colors = computed(
+  () => resolveTerminalScheme(props.terminal, settings.value).colors,
+);
 const uiColor = computed(() => colors.value.ui || colors.value.foreground);
 const headingTheme = computed(() =>
   isLightBackground(colors.value.background) ? lightTheme : darkTheme,

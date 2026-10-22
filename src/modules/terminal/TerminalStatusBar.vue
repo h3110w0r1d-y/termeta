@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import { resolveTerminalScheme } from "@/theme/schemes";
+import { useSettings } from "../settings/store";
 import { NConfigProvider } from "naive-ui";
 import { t } from "@/i18n";
 import AppButton from "@/components/ui/AppButton.vue";
 import { stateLabels, type TerminalItem } from "../workbench/store";
-import { schemeForTerminal } from "./registry";
 import { useTerminalSurface } from "./useTerminalSurface";
 
 const props = defineProps<{
@@ -12,8 +13,9 @@ const props = defineProps<{
   dragging: boolean;
 }>();
 const emit = defineEmits<{ toggleSftp: [] }>();
+const settings = useSettings();
 const { theme, themeOverrides, style } = useTerminalSurface(
-  () => schemeForTerminal(props.terminal).colors,
+  () => resolveTerminalScheme(props.terminal, settings.value).colors,
 );
 </script>
 

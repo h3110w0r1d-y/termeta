@@ -10,7 +10,7 @@ import type {
   HostsViewSettings,
   HostSearchSettings,
 } from "./model";
-import { defaultSchemeId } from "./themes";
+import { defaultSchemeId } from "@/theme/schemes";
 import { defaultTerminalFont, normalizeTerminalFont } from "./fonts";
 export function defaultSettings(): AppSettings {
   return {

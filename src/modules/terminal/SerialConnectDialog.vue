@@ -36,7 +36,7 @@ import { useHosts } from "../hosts/store";
 import { uniqueHostNameRule } from "../hosts/validation";
 import { groupChoices } from "../hosts/groups";
 import { useSettings } from "../settings/store";
-import { builtinSchemes } from "../settings/themes";
+import { builtinSchemes } from "@/theme/schemes";
 
 const props = defineProps<{
   open: boolean;

@@ -24,7 +24,7 @@ Termeta 是 Tauri 2 + Rust + Vue 3 + TypeScript 桌面终端客户端，目标 W
 - 壳的 `commands/` 负责 DTO、窗口/资源所有权、Channel 和编排，`files/` 负责文件服务，协议核心留在 crate。九个领域 crate 为 core、ssh、telnet、local、serial、storage、security、files、sftp；core 不依赖 Tauri/Vue/具体协议库。security 当前直接依赖 storage，云 provider 位于壳的 backup 模块。
 - 每会话 actor、有界字节队列和独立取消；输出二进制 Channel、控制类型化 Channel，消费后 ACK。全局锁不跨网络/数据库/Channel 等待，ACK 不得阻塞关闭、KeepAlive 或信任响应。凭据、信任、网络与设备由 Rust 管理。
 - terminalId 跨重连稳定，sessionId 每次连接更新；TerminalRegistry 持有 xterm。断线/失败/终态保留标签、实例与历史，只有用户关闭视图才 dispose；重连隔离旧流，不自动重放输入。
-- Workbench 是整个工作台，TerminalTabGroup 是运行标签组，Workspace 专指可保存的工作区。useWorkbenchStore 分离 terminals/groups，activeId 指固定页或组，activeTerminal 指聚焦终端；布局树计算矩形，TerminalStage 以稳定 key 承载终端，不因排序、分屏、交换或迁移重建。
+- Workbench 是整个工作台，TerminalTabGroup 是运行标签组，Workspace 专指可保存的工作区。useWorkbenchStore 分离 terminals/groups，activeId 指固定页、终端组或日志标签，activeTerminal 指聚焦终端；布局树计算矩形，TerminalStage 以稳定 key 承载终端，不因排序、分屏、交换或迁移重建。
 - 终端、文件、转发分别使用 sessions/file_sessions/forward_sessions；独立文件/转发不申请 PTY/Shell 或执行终端启动命令。通用连接租约、完整 TransferManager 尚未实现。
 
 ## 4. 实现规则

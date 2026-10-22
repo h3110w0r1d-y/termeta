@@ -6,7 +6,7 @@ import { createInputRouter, type InputKind } from "./inputRouter";
 import { confirmPaste } from "./paste";
 import { terminalIds } from "../workbench/layout";
 import { useSettings } from "../settings/store";
-import { builtinSchemes, resolveScheme } from "../settings/themes";
+import { builtinSchemes, resolveScheme } from "@/theme/schemes";
 import { useWorkbenchStore, type TerminalItem } from "../workbench/store";
 import type { Entry } from "./runtime/entry";
 import { input } from "./runtime/stream";
@@ -18,7 +18,6 @@ import {
   settings,
   fit,
 } from "./runtime/view";
-export { schemeForTerminal } from "./runtime/view";
 
 const entries = new Map<string, Entry>();
 let archiving = 0;

@@ -3,7 +3,7 @@ import { t } from "@/i18n";
 import { computed, nextTick, ref } from "vue";
 import { confirmAction } from "@/components/ui/confirmation";
 import { useSettings } from "../settings/store";
-import { builtinSchemes as builtinThemeOptions } from "../settings/themes";
+import { builtinSchemes as builtinThemeOptions } from "@/theme/schemes";
 import { terminalRegistry } from "../terminal/registry";
 import { useWorkbenchStore, isActive } from "./store";
 

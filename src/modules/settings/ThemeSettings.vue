@@ -29,21 +29,21 @@ import {
 } from "vue";
 import { Terminal } from "@xterm/xterm";
 import ColorField from "./ColorField.vue";
-import SchemeThumbnail from "./SchemeThumbnail.vue";
+import SchemeThumbnail from "@/theme/SchemeThumbnail.vue";
 import { applyTerminalTheme } from "../terminal/theme";
-import type { Scheme } from "./model";
+import type { Scheme } from "@/theme/types";
 import {
   builtinSchemes,
   defaultScheme,
   defaultSchemeId,
   resolveScheme,
   parseScheme,
-  downloadJson,
-} from "./themes";
+} from "@/theme/schemes";
 import { parseJson } from "@/services/data/json";
 import { clone } from "@/services/data/clone";
 import { confirmAction } from "@/components/ui/confirmation";
-import { errorMessage } from "@/services/desktop/client";
+import { desktop, errorMessage } from "@/services/desktop/client";
+import { colorLuminance } from "@/theme/colors";
 import type { AppSettings } from "./model";
 let syncingEditor = false;
 const themeFile = ref<HTMLInputElement>();
@@ -78,14 +78,8 @@ const colorLabels = computed(() => ({
   active: t("themes.colors.active"),
 }));
 const contrast = computed(() => {
-  const luminance = (hex: string) => {
-    const values = [1, 3, 5]
-      .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
-      .map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
-    return values[0]! * 0.2126 + values[1]! * 0.7152 + values[2]! * 0.0722;
-  };
-  const a = luminance(editor.value.colors.foreground),
-    b = luminance(editor.value.colors.background);
+  const a = colorLuminance(editor.value.colors.foreground),
+    b = colorLuminance(editor.value.colors.background);
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 });
 const baseKeys = [
@@ -264,7 +258,7 @@ async function importFile(event: Event) {
 }
 async function exportTheme() {
   try {
-    await downloadJson(editor.value.name + ".json", editor.value);
+    await desktop.exportJson(editor.value.name + ".json", editor.value);
   } catch (e) {
     error.value = errorMessage(e);
   }

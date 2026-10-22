@@ -7,6 +7,7 @@
 | 层 | 入口 | 职责 |
 | --- | --- | --- |
 | 界面 | `src/layout/`、`src/modules/` | 根布局与窗口生命周期装配；按领域管理轻量状态、布局和操作 |
+| 主题 | `src/theme/` | 配色类型、目录、继承解析、导入校验、颜色运算与 xterm 格式映射；界面和终端共享，不依赖业务模块 |
 | 前端服务 | `src/services/desktop/`、`src/services/commands/` | 唯一 IPC 门面；统一按钮、菜单和快捷键命令 |
 | 桌面壳 | `src-tauri/src/commands/`、`state.rs`、`lib.rs` | DTO 校验、窗口/资源授权、Channel、依赖装配与原生交互 |
 | 会话核心 | `crates/terminal-core/` | 协议无关模型、端口、会话 actor、有界队列、取消与 ACK |
@@ -17,7 +18,11 @@
 
 网络、设备、信任、数据库及保存的秘密均由 Rust 管理。Vue/Pinia 仅保存元数据，不保存终端输出、文件正文、备份数据库正文或转发载荷。xterm 实例和缓冲由终端注册表管理。
 
-App 保留根布局和稳定终端宿主；layout 组合函数分别装配连接入口、窗口退出/心跳与外观。工作台 Store 管理终端展示和布局，工作区存档的校验和布局映射独立于 Store。`src/modules/sessions/` 统一终端、文件和转发的轻量控制投影、挑战队列与心跳登记，不持有输出或连接资源。终端注册表统一持有实例和广播入口，内部 runtime 按视图、流、事件与会话生命周期分责，不让布局操作管理底层连接。
+App 保留根布局和稳定终端宿主；layout 装配窗口导航、连接入口、退出/心跳与外观。工作台 Store 管理终端展示和布局，工作区存档的校验和布局映射独立于 Store。`src/modules/sessions/` 统一终端、文件和转发的轻量控制投影、挑战队列与心跳登记，不持有输出或连接资源。终端注册表统一持有实例和广播入口，内部 runtime 按视图、流、事件与会话生命周期分责，不让布局操作管理底层连接。
+
+2026-10-22：窗口 Header 与应用标签导航按页面职责分开装配，避免标签组件同时拥有窗口控件和主题策略。[WorkbenchNavigation](../src/layout/WorkbenchNavigation.vue) 统一两种标签方向的主题和事件接线，[WorkbenchHeader](../src/layout/WorkbenchHeader.vue) 只排列窗口菜单、导航插槽、工具栏开关和窗口按钮。顶部模式将导航放在 Header 内，左侧模式放在 Header 后的左栏；App 将窗口导航与工作台主体并列，主体内由内容区和右侧工具栏并列，TerminalStage 不随导航位置迁移。导航主题作用域不包裹内容，终端内的 SFTP 侧栏仍归对应窗格。
+
+同日，共享配色模型归入 `src/theme/`，使运行工作台和终端按主题能力依赖，设置页面负责编辑与保存。纯配色读取直接使用共享解析，不经过终端 Registry/runtime。`useAppAppearance` 装配应用根主题，`theme/xterm.ts` 映射 xterm 格式，`terminal/theme.ts` 应用实际终端主题与选区渲染，`useTerminalSurface` 为状态栏、SFTP 与工具侧栏提供局部控件主题及弹层 CSS 变量桥。派生颜色共用纯运算，局部 Provider 保留其明确作用域，热应用继续复用现有终端实例。
 
 ## 2. Rust 依赖方向
 

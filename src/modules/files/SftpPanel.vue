@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { resolveTerminalScheme } from "@/theme/schemes";
 import { t } from "@/i18n";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
@@ -28,7 +29,6 @@ import SftpTransferFooter from "./SftpTransferFooter.vue";
 import type { SftpTransferActivity } from "./transferActivity";
 import { IconUpload, IconDownload, IconX } from "@tabler/icons-vue";
 import { useSettings } from "../settings/store";
-import { schemeForTerminal } from "../terminal/registry";
 import { useTerminalSurface } from "../terminal/useTerminalSurface";
 import { sftpWorkingDirectory } from "../terminal/workingDirectory";
 import { useSftpDirectoryFollow } from "./useSftpDirectoryFollow";
@@ -41,11 +41,14 @@ const props = defineProps<{
 const emit = defineEmits<{
   pastePaths: [sessionId: string, text: string];
 }>();
+const settings = useSettings();
 const {
   theme,
   themeOverrides,
   style: surfaceStyle,
-} = useTerminalSurface(() => schemeForTerminal(props.terminal).colors);
+} = useTerminalSurface(
+  () => resolveTerminalScheme(props.terminal, settings.value).colors,
+);
 const panel = ref<HTMLElement>();
 const workbench = useWorkbenchStore();
 const panelWidth = ref(380);
@@ -117,7 +120,6 @@ const selected = computed(() =>
 const mutationBusy = ref(false);
 const fileActions = ref<InstanceType<typeof SftpFileActions>>();
 const atRoot = computed(() => directory.value === "/");
-const settings = useSettings();
 const hidden = computed(() => settings.sftpShowHidden);
 const followDirectory = ref(false);
 async function updateHidden(show: boolean) {

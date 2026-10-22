@@ -1,10 +1,9 @@
 import { t } from "@/i18n";
-import { desktop } from "@/services/desktop/client";
 import { parseJson } from "@/services/data/json";
 import { clone } from "@/services/data/clone";
-import type { ITheme } from "@xterm/xterm";
-import type { AppSettings, Scheme } from "./model";
+import type { Scheme, SchemePreferences } from "./types";
 import type { OpenTarget } from "@/services/desktop/types";
+import { ansiColorKeys, toXtermTheme } from "./xterm";
 import palettes from "@resources/terminal-palettes.json";
 // 名称和终端色值由用户提供的配色数组静态提取，映射及摘要见 resources 中的来源记录。
 export const builtinSchemes: Scheme[] = palettes.map((palette): Scheme => ({
@@ -24,7 +23,7 @@ export function resolveScheme(id: string, custom: Scheme[]) {
 /** 合并工作区与终端渲染共用同一配色优先级，不依赖 xterm 实例。 */
 export function resolveTerminalScheme(
   terminal: { schemeId?: string; target: OpenTarget },
-  settings: AppSettings,
+  settings: SchemePreferences,
 ): Scheme {
   return resolveScheme(
     terminal.schemeId ??
@@ -34,57 +33,6 @@ export function resolveTerminalScheme(
       settings.defaultSchemeId,
     settings.customSchemes,
   );
-}
-export function toXtermTheme(scheme: Scheme): ITheme {
-  const c = scheme.colors;
-  const keys = [
-    "black",
-    "red",
-    "green",
-    "yellow",
-    "blue",
-    "magenta",
-    "cyan",
-    "white",
-    "brightBlack",
-    "brightRed",
-    "brightGreen",
-    "brightYellow",
-    "brightBlue",
-    "brightMagenta",
-    "brightCyan",
-    "brightWhite",
-  ];
-  const theme: ITheme = {
-    foreground: c.foreground,
-    background: c.background,
-    cursor: c.cursor,
-    cursorAccent: c.cursorAccent,
-    selectionBackground: c.selectionBackground,
-    selectionForeground: c.selectionForeground,
-    selectionInactiveBackground: c.selectionInactiveBackground,
-    scrollbarSliderBackground: c.scrollbar?.normal,
-    scrollbarSliderHoverBackground: c.scrollbar?.hover,
-    scrollbarSliderActiveBackground: c.scrollbar?.active,
-  };
-  keys.forEach((key, i) => Object.assign(theme, { [key]: c.ansi[i] }));
-  if (c.indexedOverrides) {
-    const extended = new Array<string>(240);
-    for (let n = 16; n < 256; n++) {
-      const i = n - 16;
-      const rgb =
-        n < 232
-          ? [Math.floor(i / 36), Math.floor(i / 6) % 6, i % 6].map((v) =>
-              v === 0 ? 0 : 55 + 40 * v,
-            )
-          : [8 + 10 * (n - 232), 8 + 10 * (n - 232), 8 + 10 * (n - 232)];
-      extended[i] =
-        c.indexedOverrides[String(n)] ??
-        `#${rgb.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
-    }
-    theme.extendedAnsi = extended;
-  }
-  return theme;
 }
 const colorPattern = /^#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?$/;
 export function parseScheme(text: string): Scheme {
@@ -106,24 +54,7 @@ export function parseScheme(text: string): Scheme {
       ...base.colors,
       ui: undefined,
       ...converted,
-      ansi: [
-        "black",
-        "red",
-        "green",
-        "yellow",
-        "blue",
-        "magenta",
-        "cyan",
-        "white",
-        "brightBlack",
-        "brightRed",
-        "brightGreen",
-        "brightYellow",
-        "brightBlue",
-        "brightMagenta",
-        "brightCyan",
-        "brightWhite",
-      ].map((k) => converted[k]),
+      ansi: ansiColorKeys.map((key) => converted[key]),
     };
   }
   const c = colors as Scheme["colors"];
@@ -185,11 +116,4 @@ export function parseScheme(text: string): Scheme {
       scrollbar: c.scrollbar,
     },
   };
-}
-// 由原生保存对话框授予输出路径，前端不构造任意文件写入授权。
-export async function downloadJson(
-  name: string,
-  value: unknown,
-): Promise<boolean> {
-  return desktop.exportJson(name, value);
 }

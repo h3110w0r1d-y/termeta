@@ -9,7 +9,7 @@ import type { SessionLogDraft } from "@/services/desktop/types";
 import { useHosts } from "@/modules/hosts/store";
 import { useSettings } from "@/modules/settings/store";
 import { loadTerminalFont, terminalFontFamily } from "@/modules/settings/fonts";
-import { resolveTerminalScheme } from "@/modules/settings/themes";
+import { resolveTerminalScheme } from "@/theme/schemes";
 import {
   useWorkbenchStore,
   type TerminalItem,
@@ -24,7 +24,11 @@ import type { Entry } from "./entry";
 
 export function settings(entry: Entry, terminal: TerminalItem) {
   const s = useSettings().value;
-  applyTerminalTheme(entry.term, entry.host, schemeForTerminal(terminal));
+  applyTerminalTheme(
+    entry.term,
+    entry.host,
+    resolveTerminalScheme(terminal, s),
+  );
   const family = terminalFontFamily(s.fontFamily);
   const request = `${s.fontSize}px ${family}`;
   if (entry.fontRequest !== request) {
@@ -44,9 +48,6 @@ export function settings(entry: Entry, terminal: TerminalItem) {
   }
   entry.term.options.fontSize = s.fontSize;
   entry.term.options.scrollback = s.scrollback;
-}
-export function schemeForTerminal(terminal: TerminalItem) {
-  return resolveTerminalScheme(terminal, useSettings().value);
 }
 export function fit(entry: Entry, terminal: TerminalItem) {
   if (entry.host.clientWidth < 10 || entry.host.clientHeight < 10) return;

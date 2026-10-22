@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { darkTheme, lightTheme } from "naive-ui";
-import { colorOverlay, mixColors } from "../src/modules/terminal/appearance.ts";
+import { colorOverlay, mixColors } from "../src/theme/colors.ts";
 
 test("终端表面颜色为具体 RGBA，保留透明通道及混合边界", () => {
   assert.equal(mixColors("#9D9D9D", "#000000", 4), "rgba(6, 6, 6, 1)");

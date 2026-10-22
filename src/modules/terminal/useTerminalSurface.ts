@@ -7,8 +7,8 @@ import {
   type ComputedRef,
 } from "vue";
 import { darkTheme, lightTheme, type GlobalThemeOverrides } from "naive-ui";
-import type { Scheme } from "../settings/model";
-import { colorOverlay, isLightBackground, mixColors } from "./appearance";
+import type { Scheme } from "@/theme/types";
+import { colorOverlay, isLightBackground, mixColors } from "@/theme/colors";
 
 const surfaceStyleKey: InjectionKey<ComputedRef<CSSProperties>> = Symbol(
   "terminal-surface-style",
@@ -104,8 +104,8 @@ export function useTerminalSurface(colors: () => Scheme["colors"]) {
         },
       },
       Button: {
-        colorHover: mixColors(p.ui, p.background, 12),
-        colorPressed: mixColors(p.ui, p.background, 18),
+        colorHover: p.hover,
+        colorPressed: p.pressed,
         textColorHover: p.foreground,
         textColorPressed: p.foreground,
         borderHover: `1px solid ${colorOverlay(p.ui, 60)}`,

@@ -31,7 +31,7 @@ function fixture(archive) {
     "./paste": {},
     "../workbench/layout": {},
     "../settings/store": {},
-    "../settings/themes": {},
+    "@/theme/schemes": {},
     "../workbench/store": { useWorkbenchStore: () => workbench },
     "./runtime/stream": {},
     "./runtime/session": {

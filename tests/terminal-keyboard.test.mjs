@@ -63,7 +63,7 @@ function fixture(state = "disconnected") {
       }),
     },
     "@/modules/settings/fonts": { terminalFontFamily: () => "monospace" },
-    "@/modules/settings/themes": { resolveTerminalScheme: () => ({}) },
+    "@/theme/schemes": { resolveTerminalScheme: () => ({}) },
     "@/modules/workbench/store": { useWorkbenchStore: () => workbench },
     "@/modules/sessions/control": { isSessionTerminal },
     "../activity": {},

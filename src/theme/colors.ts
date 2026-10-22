@@ -1,7 +1,7 @@
 type Rgba = readonly [number, number, number, number];
 
 // 方案入口已限制为六位或八位十六进制颜色。
-function parseColor(color: string): Rgba {
+export function parseColor(color: string): Rgba {
   return [
     parseInt(color.slice(1, 3), 16),
     parseInt(color.slice(3, 5), 16),
@@ -10,7 +10,7 @@ function parseColor(color: string): Rgba {
   ];
 }
 
-function rgba([r, g, b, alpha]: Rgba): string {
+export function rgba([r, g, b, alpha]: Rgba): string {
   return `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, ${alpha})`;
 }
 
@@ -18,7 +18,7 @@ function weight(percent: number): number {
   return Math.min(100, Math.max(0, percent)) / 100;
 }
 
-/** 终端周边控件共用的透明状态层，保留原色的透明通道。 */
+/** 界面共用的透明状态层，保留原色的透明通道。 */
 export function colorOverlay(color: string, percent: number): string {
   const [r, g, b, alpha] = parseColor(color);
   return rgba([r, g, b, alpha * weight(percent)]);
@@ -45,14 +45,20 @@ export function mixColors(
   ]);
 }
 
+/** 亮度按 sRGB 通道计算；透明度由各表面的合成规则处理。 */
+export function colorLuminance(color: string): number {
+  const channels = parseColor(color)
+    .slice(0, 3)
+    .map((channel) => {
+      const value = channel / 255;
+      return value <= 0.04045
+        ? value / 12.92
+        : ((value + 0.055) / 1.055) ** 2.4;
+    });
+  return channels[0]! * 0.2126 + channels[1]! * 0.7152 + channels[2]! * 0.0722;
+}
+
 /** 仅决定局部控件表面的明暗，不改变终端或应用配色。 */
 export function isLightBackground(background: string): boolean {
-  const channels = [1, 3, 5].map((offset) => {
-    const value = parseInt(background.slice(offset, offset + 2), 16) / 255;
-    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
-  });
-  return (
-    channels[0]! * 0.2126 + channels[1]! * 0.7152 + channels[2]! * 0.0722 >
-    0.179
-  );
+  return colorLuminance(background) > 0.179;
 }

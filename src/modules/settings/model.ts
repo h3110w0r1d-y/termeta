@@ -1,26 +1,7 @@
 import type { Language } from "@/i18n";
 import type { Keymap } from "@/services/commands/types";
+import type { SchemePreferences } from "@/theme/types";
 
-export interface Scheme {
-  schemaVersion: 1;
-  id: string;
-  name: string;
-  source: "builtin" | "user" | "imported";
-  colors: {
-    foreground: string;
-    background: string;
-    // 终端标签、状态栏与侧栏的辅助色；旧方案缺失时回退前景色。
-    ui?: string;
-    cursor: string;
-    cursorAccent: string;
-    selectionBackground: string;
-    selectionForeground?: string;
-    selectionInactiveBackground: string;
-    ansi: string[];
-    indexedOverrides?: Record<string, string>;
-    scrollbar?: { normal?: string; hover?: string; active?: string };
-  };
-}
 export type { Binding, Modifier } from "@/services/commands/types";
 export interface HostsViewSettings {
   includeChildren: boolean;
@@ -35,7 +16,7 @@ export interface HostSearchSettings {
   fields: HostSearchField[];
 }
 export type TerminalMouseAction = "none" | "paste";
-export interface AppSettings {
+export interface AppSettings extends SchemePreferences {
   schemaVersion: 1;
   language: Language;
   primaryColor: string;
@@ -51,14 +32,11 @@ export interface AppSettings {
   fontFamily: string;
   fontSize: number;
   scrollback: number;
-  defaultSchemeId: string;
-  hostSchemes: Record<string, string>;
   confirmClose: boolean;
   multilinePaste: boolean;
   terminalRightClickAction: TerminalMouseAction;
   terminalMiddleClickAction: TerminalMouseAction;
   keymap: Keymap;
-  customSchemes: Scheme[];
 }
 
 // 即时偏好允许字段级更新，避免不同窗口覆盖同一对象中的其他字段。

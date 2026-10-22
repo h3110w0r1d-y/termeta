@@ -1,6 +1,7 @@
 import { computed, watch } from "vue";
 import { darkTheme, type GlobalThemeOverrides } from "naive-ui";
-import { useSettings } from "../modules/settings/store";
+import { useSettings } from "@/modules/settings/store";
+import { mixColors } from "@/theme/colors";
 
 export function useAppAppearance() {
   const settings = useSettings();
@@ -13,23 +14,13 @@ export function useAppAppearance() {
     const common = { borderRadius: "6px", borderRadiusSmall: "4px" };
     if (!settings.value.primaryColor) return { common };
     const color = primaryColor.value;
-    // 从主色分别混入白色和黑色，为库控件派生悬停和按下状态。
-    const mix = (target: number, ratio: number) =>
-      "#" +
-      [1, 3, 5]
-        .map((offset) => {
-          const channel = parseInt(color.slice(offset, offset + 2), 16);
-          return Math.round(channel + (target - channel) * ratio)
-            .toString(16)
-            .padStart(2, "0");
-        })
-        .join("");
+    // 从主色分别混入白色和黑色，与局部表面共用颜色混合规则。
     return {
       common: {
         ...common,
         primaryColor: color,
-        primaryColorHover: mix(255, 0.16),
-        primaryColorPressed: mix(0, 0.16),
+        primaryColorHover: mixColors(color, "#ffffff", 84),
+        primaryColorPressed: mixColors(color, "#000000", 84),
         primaryColorSuppl: color,
       },
     };

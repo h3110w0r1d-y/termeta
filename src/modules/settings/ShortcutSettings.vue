@@ -15,12 +15,11 @@ import {
   conflict,
   isMac,
 } from "@/services/commands/registry";
-import { downloadJson } from "./themes";
 import { parseJson } from "@/services/data/json";
 import type { Binding, Modifier } from "./model";
 import { clone } from "@/services/data/clone";
 import { confirmAction } from "@/components/ui/confirmation";
-import { errorMessage } from "@/services/desktop/client";
+import { desktop, errorMessage } from "@/services/desktop/client";
 import type { AppSettings } from "./model";
 const keyFile = ref<HTMLInputElement>();
 const draft = defineModel<AppSettings>("settings", { required: true });
@@ -67,7 +66,7 @@ function removeBinding(binding: Binding) {
 }
 async function exportKeys() {
   try {
-    await downloadJson("termeta-keymap.json", draft.value.keymap);
+    await desktop.exportJson("termeta-keymap.json", draft.value.keymap);
   } catch (e) {
     error.value = errorMessage(e);
   }

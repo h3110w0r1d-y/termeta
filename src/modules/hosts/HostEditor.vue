@@ -35,7 +35,7 @@ import type {
   SshStartup,
 } from "@/services/desktop/types";
 import { useSettings } from "../settings/store";
-import { builtinSchemes } from "../settings/themes";
+import { builtinSchemes } from "@/theme/schemes";
 import { useHosts } from "./store";
 import { uniqueHostNameRule } from "./validation";
 import { groupChoices } from "./groups";

@@ -1,14 +1,12 @@
 import type { Terminal } from "@xterm/xterm";
-import type { Scheme } from "../settings/model";
-import { toXtermTheme } from "../settings/themes";
+import type { Scheme } from "@/theme/types";
+import { parseColor, rgba } from "@/theme/colors";
+import { toXtermTheme } from "@/theme/xterm";
 
 function selectionOverlayColor(hex: string): string {
-  const red = parseInt(hex.slice(1, 3), 16);
-  const green = parseInt(hex.slice(3, 5), 16);
-  const blue = parseInt(hex.slice(5, 7), 16);
-  const alpha = hex.length === 9 ? parseInt(hex.slice(7, 9), 16) / 255 : 1;
+  const [red, green, blue, alpha] = parseColor(hex);
   // 与 xterm 保持一致：不透明选色按 30% 透明度显示，避免完全遮住正文。
-  return `rgba(${red}, ${green}, ${blue}, ${alpha === 1 ? 0.3 : alpha})`;
+  return rgba([red, green, blue, alpha === 1 ? 0.3 : alpha]);
 }
 
 /** 为终端及预览统一应用主题；选区几何、鼠标和复制仍由 xterm 管理。 */

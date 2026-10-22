@@ -6,13 +6,13 @@ import {
   type CSSProperties,
   type Ref,
 } from "vue";
-import { tabInsertionAt } from "./tabInsertion";
-import { edgeAtPoint } from "./layout";
+import { tabInsertionAt } from "../tabInsertion";
+import { edgeAtPoint } from "../layout";
 import {
   useWorkbenchStore,
   type TabDragSource,
   type TabDropTarget,
-} from "./store";
+} from "../store";
 
 interface TabDragOptions {
   root: Ref<HTMLElement | undefined>;
@@ -83,7 +83,6 @@ export function useTabDrag(options: TabDragOptions) {
     const strip = options.viewport.value;
     const end = options.end.value;
     if (!bar || !strip || !end || !element || !bar.contains(element)) return {};
-    if (element.closest(".window-controls")) return {};
     const bounds = bar.getBoundingClientRect();
     if (
       x < bounds.left ||
@@ -100,9 +99,6 @@ export function useTabDrag(options: TabDragOptions) {
     const finish = vertical ? visible.bottom : visible.right;
     const fixedZone = !!element.closest(".fixed-tabs");
     if (point < start && !fixedZone) return {};
-    const controls = bar.querySelector<HTMLElement>(".window-controls");
-    if (!vertical && controls && x >= controls.getBoundingClientRect().left)
-      return {};
     const tabs = Array.from(
       strip.querySelectorAll<HTMLElement>("[data-sort-tab]"),
       (tab) => {

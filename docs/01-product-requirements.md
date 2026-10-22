@@ -112,7 +112,7 @@ M2 的 P0 需求完整实现，且三平台连接、认证、信任拒绝、resi
 
 | 领域 | 主要入口 | 领域契约 |
 | --- | --- | --- |
-| 主机与界面 | [hosts](../src/modules/hosts/HostsPage.vue)、[layout](../src/layout/VaultLayout.vue) | [桌面交互](09-desktop-ux.md) |
+| 主机与界面 | [hosts](../src/modules/hosts/HostsPage.vue)、[导航装配](../src/layout/WorkbenchNavigation.vue)、[主题域](../src/theme/schemes.ts) | [桌面交互](09-desktop-ux.md) |
 | 终端与工作台 | [registry](../src/modules/terminal/registry.ts)、[workbench](../src/modules/workbench/store.ts) | [会话](04-session-model.md)、[工作区](18-terminal-workspaces.md) |
 | SSH/Local/Serial/Telnet | `crates/terminal-{ssh,local,serial,telnet}/` | [SSH](05-ssh-design.md)、[Serial](19-serial-terminal.md)、[Telnet](20-telnet-terminal.md) |
 | 存储与保险库 | [storage](../crates/terminal-storage/src/lib.rs)、[vault](../crates/terminal-security/src/vault.rs) | [存储](07-storage.md)、[安全](08-security.md) |

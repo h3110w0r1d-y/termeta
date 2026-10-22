@@ -7,7 +7,7 @@ import { terminalBaseTitle, terminalDisplayTitle } from "../terminal/title";
 import { moveTabBefore } from "./tabInsertion";
 import { broadcastTargets, type InputKind } from "../terminal/inputRouter";
 import { useSettings } from "../settings/store";
-import { resolveTerminalScheme } from "../settings/themes";
+import { resolveTerminalScheme } from "@/theme/schemes";
 import {
   terminalIds,
   balancedLayout,

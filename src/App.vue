@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { resolveTerminalScheme } from "@/theme/schemes";
 import WorkbenchSidebar from "./modules/workbench/WorkbenchSidebar.vue";
-import WorkbenchSidebarToggle from "./modules/workbench/WorkbenchSidebarToggle.vue";
+import WorkbenchNavigation from "./layout/WorkbenchNavigation.vue";
 import { t } from "./i18n";
 import { naiveLocale, naiveDateLocale } from "./i18n";
 import { IconX } from "@tabler/icons-vue";
@@ -18,9 +19,6 @@ import { useConnectionActions } from "./layout/useConnectionActions";
 import { useMainWindowLifecycle } from "./layout/useMainWindowLifecycle";
 import VaultLayout from "./layout/VaultLayout.vue";
 import VaultGate from "./components/VaultGate.vue";
-import ApplicationMenu from "./components/ApplicationMenu.vue";
-import WindowControls from "./components/WindowControls.vue";
-import { isMac } from "./services/commands/registry";
 import AppButton from "./components/ui/AppButton.vue";
 import AppInput from "./components/ui/AppInput.vue";
 import AppDialog from "./components/ui/AppDialog.vue";
@@ -33,7 +31,6 @@ import {
   watch,
 } from "vue";
 import ConfirmationDialog from "./components/ui/ConfirmationDialog.vue";
-import AppTabs from "./modules/workbench/AppTabs.vue";
 import SftpBrowser from "./modules/files/SftpBrowser.vue";
 import SessionLogStage from "./modules/session-logs/SessionLogStage.vue";
 import NewTabDialog from "./modules/hosts/NewTabDialog.vue";
@@ -50,10 +47,7 @@ import { useHosts } from "./modules/hosts/store";
 import { usePortForwards } from "./modules/forwarding/store";
 import { useSettings } from "./modules/settings/store";
 import { useWorkbenchStore } from "./modules/workbench/store";
-import {
-  schemeForTerminal,
-  terminalRegistry,
-} from "./modules/terminal/registry";
+import { terminalRegistry } from "./modules/terminal/registry";
 import { commands } from "./services/commands/registry";
 import { desktop, errorMessage } from "./services/desktop/client";
 import { useSettingsSync } from "./modules/settings/useSettingsSync";
@@ -117,12 +111,10 @@ async function loadUnlocked() {
   await Promise.all([hosts.load(), portForwards.load(), settingsSync.start()]);
   vaultReady.value = true;
 }
-const connected = computed(
-  () => workbench.terminals.filter((t) => t.state === "connected").length,
-);
 const terminalBackground = computed(() =>
   workbench.activeTerminal
-    ? schemeForTerminal(workbench.activeTerminal).colors.background
+    ? resolveTerminalScheme(workbench.activeTerminal, settings.value).colors
+        .background
     : undefined,
 );
 const activeTerminalError = computed(() => {
@@ -270,30 +262,10 @@ onBeforeUnmount(() => {
         :inert="savingLogs || undefined"
         :class="{
           'tabs-left': settings.value.tabPosition === 'left',
-          'platform-mac': isMac,
         }"
       >
-        <header
-          v-if="settings.value.tabPosition === 'left'"
-          class="window-titlebar"
-          data-tauri-drag-region
-          :style="{
-            background: terminalBackground ?? 'var(--surface)',
-          }"
-        >
-          <ApplicationMenu v-if="!isMac" />
-          <span data-tauri-drag-region>Termeta</span>
-          <div class="window-drag-space" data-tauri-drag-region />
-          <WorkbenchSidebarToggle />
-          <WindowControls @error="initError = $event" />
-        </header>
-        <AppTabs
-          :tabs="workbench.tabBarItems"
-          :active-id="workbench.activeId"
-          :position="settings.value.tabPosition"
-          :connected="connected"
+        <WorkbenchNavigation
           @window-error="initError = $event"
-          @activate="workbench.activateTab($event)"
           @focus-terminal="focusTerminal"
           @close="closeTab"
           @double-click="doubleClickTab"
@@ -492,24 +464,6 @@ onBeforeUnmount(() => {
 .find-bar .ui-input {
   max-width: 300px;
 }
-.window-titlebar {
-  grid-column: 1 / -1;
-  grid-row: 1;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 0 12px;
-  background: var(--surface);
-  border-top: 1px solid transparent;
-  border-bottom: 1px solid var(--border);
-  color: var(--muted);
-  font-size: 13px;
-  box-sizing: border-box;
-}
-.window-drag-space {
-  flex: 1;
-  align-self: stretch;
-}
 .tabs-left {
   --terminal-host-top-margin: 10px;
   display: grid;
@@ -519,8 +473,5 @@ onBeforeUnmount(() => {
 .tabs-left > .workbench-body {
   grid-column: 2;
   grid-row: 2;
-}
-.platform-mac .window-titlebar {
-  padding-left: 88px;
 }
 </style>

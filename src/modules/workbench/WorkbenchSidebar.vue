@@ -25,9 +25,13 @@ import { requiredText } from "@/services/forms/rules";
 import { terminalFontOptions } from "../settings/fonts";
 import { useSettings } from "../settings/store";
 import { useLiveSettings } from "../settings/useLiveSettings";
-import { builtinSchemes, resolveScheme } from "../settings/themes";
-import SchemeThumbnail from "../settings/SchemeThumbnail.vue";
-import { schemeForTerminal, terminalRegistry } from "../terminal/registry";
+import {
+  builtinSchemes,
+  resolveScheme,
+  resolveTerminalScheme,
+} from "@/theme/schemes";
+import SchemeThumbnail from "@/theme/SchemeThumbnail.vue";
+import { terminalRegistry } from "../terminal/registry";
 import { useTerminalSurface } from "../terminal/useTerminalSurface";
 import { useBackupRestored } from "../backup/useBackupRestored";
 import { useWorkbenchStore } from "./store";
@@ -41,7 +45,7 @@ const {
 } = useTerminalSurface(
   () =>
     (workbench.activeTerminal
-      ? schemeForTerminal(workbench.activeTerminal)
+      ? resolveTerminalScheme(workbench.activeTerminal, settings.value)
       : resolveScheme(
           settings.value.defaultSchemeId,
           settings.value.customSchemes,

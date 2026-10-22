@@ -8,10 +8,11 @@ Tauri 2 + Rust + Vue 3/TS 分层适合现有功能。结构优化按资源生命
 
 | 功能职责 | 当前归属 | 边界 |
 | --- | --- | --- |
-| 窗口与连接入口 | `src/layout/` | 装配门禁、订阅、外观和窗口操作，不持有终端正文 |
-| 工作台 | `src/modules/workbench/` | 标签、布局、焦点；隐藏页面不结束连接或任务 |
+| 窗口与连接入口 | `src/layout/` | 装配门禁、订阅、Header、导航外观和窗口操作，不持有终端正文 |
+| 工作台 | `src/modules/workbench/` | AppTabs 协调标签，WorkbenchTab 呈现单项；布局与焦点独立于窗口装配 |
 | 终端运行期 | `src/modules/terminal/registry.ts`、`runtime/` | 稳定实例、流和统一关闭；成功归档后才移除视图 |
 | 通用控制 | `src/modules/sessions/` | 三种用途的轻量投影、挑战和心跳，不持连接资源 |
+| 主题 | `src/theme/` | 共享配色模型、解析与格式映射；根应用、局部控件和实际 xterm 渲染各留在消费边界 |
 | 文件交互 | `src/modules/files/` | 共享目录控制与任务摘要；侧栏和双栏各自保留连接与布局策略 |
 | 桌面入口 | `src-tauri/src/commands/` | DTO、调用窗口、owner、Channel 与原生适配 |
 | 文件服务 | `src-tauri/src/files/` | 浏览器获取、上传下载及传输登记清理；正文留在 Rust |

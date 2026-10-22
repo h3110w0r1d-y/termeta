@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Scheme } from "./model";
+import type { Scheme } from "./types";
 defineProps<{ scheme: Scheme }>();
 </script>
 
