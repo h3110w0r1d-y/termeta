@@ -52,6 +52,8 @@ pub fn validate(settings: &Value) -> Result<()> {
         "defaultSchemeId",
         "confirmClose",
         "multilinePaste",
+        "terminalRightClickAction",
+        "terminalMiddleClickAction",
         "keymap",
         "customSchemes",
         "hostSchemes",
@@ -87,6 +89,12 @@ pub fn validate(settings: &Value) -> Result<()> {
         // 旧设置缺失时由前端默认隐藏；已保存的值必须是布尔值。
         || object.get("sftpShowHidden").is_some_and(|value| !value.is_boolean())
         || object.get("detectSshSystem").is_some_and(|value| !value.is_boolean())
+        // 旧设置缺失时不执行本地鼠标动作；仅允许内置的粘贴行为。
+        || ["terminalRightClickAction", "terminalMiddleClickAction"].iter().any(|key| {
+            object.get(*key).is_some_and(|value| {
+                !matches!(value.as_str(), Some("none" | "paste"))
+            })
+        })
         || !settings["fontSize"]
             .as_f64()
             .is_some_and(|n| (10.0..=32.0).contains(&n))
@@ -423,6 +431,28 @@ mod tests {
             "trigger": {"type": "key", "key": "F8", "modifiers": ["Alt"]},
             "platform": "all", "enabled": false
         })
+    }
+
+    #[test]
+    fn terminal_mouse_actions_accept_legacy_and_only_builtin_actions() {
+        assert!(validate(&baseline()).is_ok());
+        for key in ["terminalRightClickAction", "terminalMiddleClickAction"] {
+            for action in [json!("none"), json!("paste")] {
+                let mut settings = baseline();
+                settings[key] = action;
+                assert!(validate(&settings).is_ok());
+            }
+            for action in [
+                json!(null),
+                json!(true),
+                json!("copy"),
+                json!("echo unsafe"),
+            ] {
+                let mut settings = baseline();
+                settings[key] = action;
+                assert!(validate(&settings).is_err());
+            }
+        }
     }
 
     #[test]

@@ -34,6 +34,7 @@ export interface HostSearchSettings {
   pinyin: boolean;
   fields: HostSearchField[];
 }
+export type TerminalMouseAction = "none" | "paste";
 export interface AppSettings {
   schemaVersion: 1;
   language: Language;
@@ -54,6 +55,8 @@ export interface AppSettings {
   hostSchemes: Record<string, string>;
   confirmClose: boolean;
   multilinePaste: boolean;
+  terminalRightClickAction: TerminalMouseAction;
+  terminalMiddleClickAction: TerminalMouseAction;
   keymap: Keymap;
   customSchemes: Scheme[];
 }

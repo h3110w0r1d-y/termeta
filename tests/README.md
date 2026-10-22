@@ -19,6 +19,8 @@ Node 用例要求 Node 22.18+；纯逻辑用例直接导入 TypeScript，保险�
 | [state-races.test.mjs](state-races.test.mjs) | 主机旧读与成功写入（含批量排序/迁组）交错、设置订阅单飞/失败重试/卸载、隐藏文件即时过滤与保存失败回退 |
 | [session-control.test.mjs](session-control.test.mjs) | 控制信封、早于响应的事件、旧流与迟到挑战隔离 |
 | [terminal-lifecycle.test.mjs](terminal-lifecycle.test.mjs) | 统一关闭、重复调用、归档失败重试和共享并发预算 |
+| [terminal-keyboard.test.mjs](terminal-keyboard.test.mjs) | 终态回车重连、连接状态白名单、焦点/IME/长按/弹层/快捷键边界及回车消费 |
+| [terminal-mouse.test.mjs](terminal-mouse.test.mjs) | 右键/中键独立动作、粘贴单次消费、远端鼠标协议互斥、原生菜单/选区粘贴抑制和监听清理 |
 | [terminal-stream.test.mjs](terminal-stream.test.mjs) | 终态先于尾帧时等待解析、缺帧超时与重试 |
 | [vault-gate.test.mjs](vault-gate.test.mjs) | 本机保险库初始化、自动解锁、密码解锁与失败重试 |
 

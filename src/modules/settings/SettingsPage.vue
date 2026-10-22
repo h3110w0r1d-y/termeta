@@ -90,6 +90,10 @@ function selectSection(key: string) {
   visitedSections.add(item.key);
 }
 const primaryColorItem = ref<FormItemInst>();
+const mouseActionOptions = computed(() => [
+  { value: "none", label: t("settings.mouseAction.none") },
+  { value: "paste", label: t("terminal.actions.paste") },
+]);
 function resetPrimaryColor() {
   draft.value.primaryColor = "";
   // 按钮直接更新共享字段后，使用表单项公开接口重新校验。
@@ -118,6 +122,10 @@ const rules = computed<FormRules>(() => ({
     trigger: ["blur", "change"],
   },
   scrollback: integerRange("settings.terminal.scrollback", 1000, 50000),
+  terminalRightClickAction: requiredText("settings.terminal.rightClickAction"),
+  terminalMiddleClickAction: requiredText(
+    "settings.terminal.middleClickAction",
+  ),
 }));
 </script>
 
@@ -257,6 +265,24 @@ const rules = computed<FormRules>(() => ({
                   v-model="draft.scrollback"
                   :min="1000"
                   :max="50000"
+                />
+              </NFormItem>
+              <NFormItem
+                :label="t('settings.terminal.rightClickAction')"
+                path="terminalRightClickAction"
+              >
+                <AppSelect
+                  v-model="draft.terminalRightClickAction"
+                  :options="mouseActionOptions"
+                />
+              </NFormItem>
+              <NFormItem
+                :label="t('settings.terminal.middleClickAction')"
+                path="terminalMiddleClickAction"
+              >
+                <AppSelect
+                  v-model="draft.terminalMiddleClickAction"
+                  :options="mouseActionOptions"
                 />
               </NFormItem>
               <AppCheckbox v-model="draft.confirmClose" class="span-2">

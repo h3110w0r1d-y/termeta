@@ -42,5 +42,6 @@ export interface Entry {
   lastSize: string;
   canResize: boolean;
   inputOrigin?: ReturnType<typeof observeTerminalInput>;
+  disposeMouseActions?: () => void;
   fontRequest?: string;
 }

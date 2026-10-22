@@ -10,10 +10,15 @@ import { useHosts } from "@/modules/hosts/store";
 import { useSettings } from "@/modules/settings/store";
 import { loadTerminalFont, terminalFontFamily } from "@/modules/settings/fonts";
 import { resolveTerminalScheme } from "@/modules/settings/themes";
-import type { TerminalItem } from "@/modules/workbench/store";
+import {
+  useWorkbenchStore,
+  type TerminalItem,
+} from "@/modules/workbench/store";
+import { isSessionTerminal } from "@/modules/sessions/control";
 import { updateActivityTitle, updateShellActivity } from "../activity";
 import { updateWorkingDirectory } from "../workingDirectory";
 import { observeTerminalInput, type TerminalInput } from "../inputOrigin";
+import { bindTerminalMouseActions } from "../mouseActions";
 import { applyTerminalTheme } from "../theme";
 import type { Entry } from "./entry";
 
@@ -179,6 +184,8 @@ export function mountTerminalView(
   handlers: {
     data: (packet: TerminalInput) => void;
     paste: (text: string) => Promise<void>;
+    reconnect: () => Promise<void>;
+    pasteClipboard: () => Promise<void>;
   },
 ) {
   const { term, host } = entry;
@@ -220,6 +227,34 @@ export function mountTerminalView(
     if (commands.route(e, useSettings().value.keymap.bindings, true))
       return false;
     if (
+      e.key === "Enter" &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.altKey &&
+      !e.shiftKey &&
+      !e.repeat &&
+      !e.isComposing &&
+      e.keyCode !== 229 &&
+      !e.defaultPrevented &&
+      !e.getModifierState("AltGraph") &&
+      !entry.disposed &&
+      !entry.closing &&
+      !entry.connection &&
+      isSessionTerminal(terminal.state) &&
+      useWorkbenchStore().activeTerminal?.terminalId === terminal.terminalId &&
+      document.activeElement === term.textarea &&
+      !document.querySelector("[data-modal-open], [data-ui-popup-open]") &&
+      !term.textarea?.closest("[data-shortcut-recorder]")
+    ) {
+      // 只消费终态下真实按下的回车；不编码为输入，避免发送或广播到新会话。
+      e.preventDefault();
+      e.stopPropagation();
+      void handlers.reconnect().catch((error) => {
+        if (!entry.disposed) terminal.error = errorMessage(error);
+      });
+      return false;
+    }
+    if (
       isMac &&
       e.altKey &&
       !e.ctrlKey &&
@@ -240,6 +275,24 @@ export function mountTerminalView(
     return true;
   });
   entry.inputOrigin = observeTerminalInput(term, handlers.data);
+  entry.disposeMouseActions = bindTerminalMouseActions(host, {
+    isMac,
+    action: (button) =>
+      button === 2
+        ? useSettings().value.terminalRightClickAction
+        : useSettings().value.terminalMiddleClickAction,
+    canPaste: () =>
+      !entry.disposed &&
+      !entry.closing &&
+      terminal.state === "connected" &&
+      useWorkbenchStore().activeTerminal?.terminalId === terminal.terminalId &&
+      !document.querySelector("[data-modal-open], [data-ui-popup-open]"),
+    focus: () => term.focus(),
+    paste: handlers.pasteClipboard,
+    onError: (error) => {
+      if (!entry.disposed) terminal.error = errorMessage(error);
+    },
+  });
   term.attachCustomWheelEventHandler((event) => {
     // 只标记即将编码的来源，等实际 onData/onBinary 生成输入后才广播最终动作。
     if (remoteWheel(term) && event.deltaY !== 0)

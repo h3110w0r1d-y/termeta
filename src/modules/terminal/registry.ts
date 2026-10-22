@@ -90,6 +90,8 @@ export const terminalRegistry = {
     mountTerminalView(entry, terminal, {
       data: (packet) => inputRouter.data(terminal.terminalId, packet),
       paste: (text) => this.pasteText(terminal.terminalId, text),
+      reconnect: () => this.connect(terminal),
+      pasteClipboard: () => this.paste(terminal.terminalId),
     });
     void this.connect(terminal);
   },

@@ -157,5 +157,6 @@ export async function archiveAndDispose(entry: Entry, terminal: TerminalItem) {
   entry.observer.disconnect();
   if (stream?.ackTimer) clearTimeout(stream.ackTimer);
   entry.inputOrigin?.dispose();
+  entry.disposeMouseActions?.();
   entry.term.dispose();
 }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useSettings } from "../settings/store";
 import { t } from "@/i18n";
-import { IconGitBranch, IconX } from "@tabler/icons-vue";
+import { IconSitemap, IconX } from "@tabler/icons-vue";
 import { computed, onMounted, ref, watch } from "vue";
 import {
   NConfigProvider,
@@ -169,7 +169,7 @@ function menuKey(event: KeyboardEvent) {
           @click="terminalRegistry.toggleBroadcast()"
         >
           <NIcon :size="16" aria-hidden="true">
-            <IconGitBranch />
+            <IconSitemap />
           </NIcon>
         </AppButton>
         <AppButton

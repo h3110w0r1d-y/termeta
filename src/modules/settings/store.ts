@@ -40,6 +40,8 @@ export function defaultSettings(): AppSettings {
     hostSchemes: {},
     confirmClose: true,
     multilinePaste: true,
+    terminalRightClickAction: "none",
+    terminalMiddleClickAction: "none",
     keymap: { schemaVersion: 2, bindings: defaults() },
     customSchemes: [],
   };
