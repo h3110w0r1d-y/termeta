@@ -1,6 +1,6 @@
 # 桌面交互、设置与外观
 
-更新：2026-10-21。本文维护用户可见行为与前端边界；功能状态及运行验收见 [产品需求](01-product-requirements.md)。组件流程、样式数值和默认值以源码为准。
+更新：2026-10-22。本文维护用户可见行为与前端边界；功能状态及运行验收见 [产品需求](01-product-requirements.md)。组件流程、样式数值和默认值以源码为准。
 
 ## 1. 页面与窗口
 
@@ -79,6 +79,8 @@ Naive UI 控件通过根主题统一使用较大的常规及小号圆角，主�
 使用 Vue Composition API、严格 TypeScript、Pinia 和 Naive UI 薄适配；通用控件优先公开库能力，业务布局自行管理。表单 model、v-model、rules/path 共享响应式字段，程序更新用公开 API 重验；可选字段保持可选。弹窗操作区和滚动正文分离，图标按钮保留可访问名称。
 
 通用图标使用 Tabler，AssetIcon 只做语义映射；用户指定的 28 个 SSH 系统 SVG 使用静态白名单并保留原样，品牌资源保留品牌图稿。来源和许可见 [资源说明](../resources/README.md)。
+
+2026-10-22：桌面与网页入口统一采用用户确认的三层终端终版品牌图稿。Windows ICO 将高清图排在首项，macOS 保留平台留白；平台母图仅改变画布取景，保持终版形体、配色与阴影，避免各入口继续使用旧版图标。
 
 前端仅保存轻量状态，IPC 统一经过 desktop 门面，秘密、文件正文、网络、设备和加密留在 Rust。装配入口为 [App.vue](../src/App.vue)、[设置](../src/modules/settings/SettingsWindow.vue) 和 [外观](../src/layout/useAppAppearance.ts)，具体分层见 [架构](03-architecture.md)。
 

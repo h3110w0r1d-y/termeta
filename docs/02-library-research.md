@@ -1,6 +1,6 @@
 # 依赖选型与核查边界
 
-更新：2026-10-21。版本和 features 以 manifest、Cargo.lock、pnpm-lock.yaml 为准。本文保留选型依据与升级注意事项，不记录逐轮调研/API 排查过程；静态核对不代表编译、兼容性或安全审计通过。
+更新：2026-10-22。版本和 features 以 manifest、Cargo.lock、pnpm-lock.yaml 为准。本文保留选型依据与升级注意事项，不记录逐轮调研/API 排查过程；静态核对不代表编译、兼容性或安全审计通过。
 
 ## 1. 主要依赖
 
@@ -38,6 +38,8 @@ macOS 文件承诺与原生菜单使用 objc2 0.6.5、block2 0.6.2、objc2-app-k
 Windows 文件/目录拖出使用固定 [windows 0.62.2](https://docs.rs/crate/windows/0.62.2/source/) 与 [windows-core 0.62.2](https://docs.rs/crate/windows-core/0.62.2/source/)（MIT OR Apache-2.0，声明 MSRV 1.82），按目标启用 Shell/OLE、COM/存储、内存、文件属性、事件与窗口消息 API。自行实现目录描述符、只读内容流及异步生命周期，不依赖 `virtual-file-transfer` 或预下载临时文件；文件内容读取留在 Rust，STA 等待通过 COM 消息泵分派窗口/COM 调用。API 依据为 [Shell 数据格式](https://learn.microsoft.com/en-us/windows/win32/shell/clipboard)、[FILEDESCRIPTORW](https://learn.microsoft.com/en-us/windows/win32/api/shlobj_core/ns-shlobj_core-filedescriptorw)、[异步数据传输](https://learn.microsoft.com/en-us/windows/win32/shell/datascenarios#dragging-and-dropping-shell-objects-asynchronously) 和 [CoWaitForMultipleHandles](https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-cowaitformultiplehandles)，已按固定 release 的生成接口核对签名。2026-10-21 查询 GitHub Advisory 的 Rust 包索引未返回这两个固定版本的匹配公告；这不代表完整依赖安全审计或 Windows 运行验收通过。Linux 原生拖出与系统后台热键尚未引入，见 [路线](10-roadmap.md)。
 
 12 家族字体的固定版本、来源、许可和摘要集中在 [字体清单](../resources/fonts/README.md)；配色、拼音表和用户指定 SSH 系统图标集中在 [资源来源](../resources/README.md)。资源来源记录不等同发布许可审查通过，不重复维护尺寸、提取过程或组件样式。
+
+品牌资源生成使用已锁定的 Tauri CLI 2.12.3，以及独立 Python ≥3.10 工具环境中的 Pillow 12.3.0、resvg-py 0.5.0，版本固定在 [图标工具依赖](../scripts/icon-requirements.txt)。按这些 release 的 `svg_to_bytes`、PNG 保存、ICO/ICNS 解码接口生成和静态校验，工具库不进入应用运行依赖，也不改变 Cargo/pnpm 锁文件。复现入口与平台留白、ICO 顺序约束见 [品牌资源](../resources/README.md#桌面应用品牌图标)。
 
 ## 3. 升级时必须复核的边界
 

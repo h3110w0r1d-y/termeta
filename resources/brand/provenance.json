@@ -1,0 +1,19 @@
+{
+  "confirmed_on": "2026-10-22",
+  "decision": "用户确认柔和扩散阴影版为终版，生成桌面图标并应用到当前项目。",
+  "design": "三层正交终端面板，等尺寸、竖直侧边，间距从第一层背面计算。",
+  "files": [
+    {
+      "path": "resources/brand/termeta-icon.svg",
+      "sha256": "7e6ec3c22d652f72a125857185aa713b0f5bd997b9de1e7b77fc24af889b3367",
+      "source": "variants/shadow-soft/termeta-icon.svg"
+    },
+    {
+      "path": "resources/brand/termeta-symbol.svg",
+      "sha256": "f70b18d1e31c333f3286ff2e26dff6cdb1f6bab5c9b4bc6a36739efb0bb5713e",
+      "source": "variants/shadow-soft/termeta-symbol.svg"
+    }
+  ],
+  "generation_script": "scripts/generate-app-icons.py",
+  "licensing_note": "用户提供并确认的项目品牌图稿；来源记录不替代发布许可审核。"
+}

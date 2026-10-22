@@ -4,14 +4,17 @@
 
 ## 桌面应用品牌图标
 
-`src-tauri/icons/` 来自用户确认的 Termeta 标志母图，由锁定 Tauri CLI 2.12.3 生成。通用母图用于 PNG/ICO，macOS 专用母图用于 ICNS；后者按 [Apple 资源](https://developer.apple.com/design/resources/)保留平台留白，不能用通用 ICNS 覆盖。
+2026-10-22 确认的终版为三层正交终端面板与柔和扩散阴影，源文件纳入 [完整图稿](brand/termeta-icon.svg) 和 [透明标志](brand/termeta-symbol.svg)，来源及 SHA-256 见 [品牌来源](brand/provenance.json)。桌面资源和网页入口统一由此图稿生成，不再依赖外部工作目录中的旧版母图。
 
-母图与可编辑 SVG 位于用户外部工作目录。重新生成后，将通用 PNG/ICO 与专用 ICNS 合并到 `src-tauri/icons/`，不纳入移动端输出：
+[生成脚本](../scripts/generate-app-icons.py) 只调整终版图稿的画布取景，不改面板、配色或阴影。通用版去除底板外留白，用于 PNG、ICO 和 [网页图标](../public/terminal.svg)；macOS 专用版将原图稿等比居中，底板宽度占画布的 824/1024，保留原底板长宽比与平台留白，不用通用 ICNS 覆盖。
+
+Python 工具环境需 Python ≥3.10，Pillow 12.3.0 与 resvg-py 0.5.0 固定在 [工具依赖](../scripts/icon-requirements.txt)；只用于资源生成，不加入应用依赖。桌面 PNG/ICNS 由仓库锁定的 Tauri CLI 2.12.3 生成，ICO 各尺寸由矢量直接渲染并封装，不纳入移动端输出：
 
 ```sh
-pnpm tauri icon "$ICON_STANDARD_SOURCE" --output "$ICON_STANDARD_OUTPUT"
-pnpm tauri icon "$ICON_MACOS_SOURCE" --output "$ICON_MACOS_OUTPUT"
+python scripts/generate-app-icons.py
 ```
+
+可选 `--artifacts-dir <目录>` 保留平台母图、图标副本、预览及摘要报告。脚本执行 `tauri icon`，不触发项目编译、启动或打包。Windows ICO 显式按尺寸降序排列，首项必须是 256×256、32 位高清图，并校验每项可解码；ICNS 包含 1024×1024。静态资源校验不代表系统图标缓存、Dock/任务栏、高 DPI 或安装包展示验收通过。
 
 ## 终端配色
 

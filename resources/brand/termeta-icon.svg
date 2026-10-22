@@ -1,0 +1,161 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1254" height="1254" viewBox="0 0 1254 1254" role="img"
+  aria-labelledby="title">
+  <title id="title">Termeta 三层终端图标 · 柔和扩散阴影版</title>
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2=".72" y2="1">
+      <stop stop-color="#142545" />
+      <stop offset=".46" stop-color="#0a1429" />
+      <stop offset="1" stop-color="#060e1d" />
+    </linearGradient>
+    <linearGradient id="tileRim" x1="0" y1="0" x2=".7" y2="1">
+      <stop stop-color="#5578ac" stop-opacity=".8" />
+      <stop offset=".4" stop-color="#223b65" stop-opacity=".6" />
+      <stop offset="1" stop-color="#142443" stop-opacity=".5" />
+    </linearGradient>
+    <linearGradient id="rear" x1=".25" y1="0" x2=".75" y2="1">
+      <stop stop-color="#63ffe4" />
+      <stop offset=".18" stop-color="#27e4d4" />
+      <stop offset=".55" stop-color="#0cb8c7" />
+      <stop offset="1" stop-color="#037c9f" />
+    </linearGradient>
+    <linearGradient id="middle" x1=".28" y1="0" x2=".74" y2="1">
+      <stop stop-color="#33cbff" />
+      <stop offset=".2" stop-color="#139cf0" />
+      <stop offset=".56" stop-color="#0762ce" />
+      <stop offset="1" stop-color="#043b9e" />
+    </linearGradient>
+    <linearGradient id="bevel" x1="0" y1="0" x2=".85" y2="1">
+      <stop stop-color="#9cddff" />
+      <stop offset=".32" stop-color="#6dbaff" />
+      <stop offset=".5" stop-color="#4eeaff" />
+      <stop offset=".72" stop-color="#1585e0" />
+      <stop offset="1" stop-color="#0b438a" />
+    </linearGradient>
+    <linearGradient id="screen" x1=".1" y1="0" x2=".85" y2="1">
+      <stop stop-color="#204c74" />
+      <stop offset=".24" stop-color="#102947" />
+      <stop offset=".55" stop-color="#09172c" />
+      <stop offset="1" stop-color="#071123" />
+    </linearGradient>
+    <linearGradient id="screenRim" x1="0" y1="0" x2=".85" y2="1">
+      <stop stop-color="#9ddfff" stop-opacity=".85" />
+      <stop offset=".25" stop-color="#427cab" stop-opacity=".35" />
+      <stop offset="1" stop-color="#1a3b67" stop-opacity=".5" />
+    </linearGradient>
+    <linearGradient id="prompt" gradientUnits="userSpaceOnUse" x1="350" y1="560" x2="665" y2="770">
+      <stop stop-color="#47bcff" />
+      <stop offset=".45" stop-color="#36d8ee" />
+      <stop offset="1" stop-color="#57ffda" />
+    </linearGradient>
+    <linearGradient id="edgeLight" x1="0" y1="0" x2=".8" y2="1">
+      <stop stop-color="#d0fff8" stop-opacity=".65" />
+      <stop offset=".45" stop-color="#7ceeff" stop-opacity=".4" />
+      <stop offset="1" stop-color="#36bbff" stop-opacity=".08" />
+    </linearGradient>
+    <radialGradient id="ambient">
+      <stop stop-color="#1657a1" stop-opacity=".17" />
+      <stop offset="1" stop-color="#123660" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="frontGloss" gradientUnits="userSpaceOnUse" cx="285" cy="400" r="535">
+      <stop stop-color="#4089be" stop-opacity=".32" />
+      <stop offset=".4" stop-color="#23548c" stop-opacity=".12" />
+      <stop offset="1" stop-color="#10233e" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="blueGloss" gradientUnits="userSpaceOnUse" cx="571" cy="339" r="485"
+      gradientTransform="translate(0 110) scale(1 .7)">
+      <stop stop-color="#48dfff" stop-opacity=".44" />
+      <stop offset=".42" stop-color="#1ec4ff" stop-opacity=".12" />
+      <stop offset="1" stop-color="#169aff" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="tealGloss" gradientUnits="userSpaceOnUse" cx="667" cy="276" r="500"
+      gradientTransform="translate(0 90) scale(1 .7)">
+      <stop stop-color="#b4fff1" stop-opacity=".4" />
+      <stop offset=".42" stop-color="#73ffe8" stop-opacity=".15" />
+      <stop offset="1" stop-color="#5cffe4" stop-opacity="0" />
+    </radialGradient>
+    <filter id="cast" x="-.35" y="-.35" width="1.8" height="1.85" color-interpolation-filters="sRGB">
+      <feMorphology operator="dilate" radius="3" />
+      <feGaussianBlur stdDeviation="22" />
+    </filter>
+    <filter id="ground" x="-.5" y="-.8" width="2" height="2.6">
+      <feGaussianBlur stdDeviation="27" />
+    </filter>
+    <clipPath id="clip-tile">
+      <rect x="122" y="109" width="1008" height="987" rx="239" />
+    </clipPath>
+    <clipPath id="clip-front">
+      <path
+        d="M 342.298 371.273 L 727.702 478.727 C 769.840 490.476 804.000 534.922 804.000 578.000 L 804.000 897.000 C 804.000 940.078 769.840 965.476 727.702 953.727 L 342.298 846.273 C 300.160 834.524 266.000 790.078 266.000 747.000 L 266.000 428.000 C 266.000 384.922 300.160 359.524 342.298 371.273 Z" />
+    </clipPath>
+    <clipPath id="clip-middle">
+      <path
+        d="M 442.298 309.273 L 827.702 416.727 C 869.840 428.476 904.000 472.922 904.000 516.000 L 904.000 835.000 C 904.000 878.078 869.840 903.476 827.702 891.727 L 442.298 784.273 C 400.160 772.524 366.000 728.078 366.000 685.000 L 366.000 366.000 C 366.000 322.922 400.160 297.524 442.298 309.273 Z" />
+    </clipPath>
+    <clipPath id="clip-rear">
+      <path
+        d="M 524.298 258.433 L 909.702 365.887 C 951.840 377.636 986.000 422.082 986.000 465.160 L 986.000 784.160 C 986.000 827.238 951.840 852.636 909.702 840.887 L 524.298 733.433 C 482.160 721.684 448.000 677.238 448.000 634.160 L 448.000 315.160 C 448.000 272.082 482.160 246.684 524.298 258.433 Z" />
+    </clipPath>
+  </defs>
+  <g clip-path="url(#clip-tile)">
+    <g id="icon-base">
+      <rect x="122" y="109" width="1008" height="987" rx="239" fill="url(#tile)" stroke="url(#tileRim)"
+        stroke-width="2" />
+      <ellipse cx="623" cy="534" rx="490" ry="440" fill="url(#ambient)" />
+    </g>
+    <g id="panels">
+      <path
+        d="M 342.298 371.273 L 727.702 478.727 C 769.840 490.476 804.000 534.922 804.000 578.000 L 804.000 897.000 C 804.000 940.078 769.840 965.476 727.702 953.727 L 342.298 846.273 C 300.160 834.524 266.000 790.078 266.000 747.000 L 266.000 428.000 C 266.000 384.922 300.160 359.524 342.298 371.273 Z"
+        transform="translate(18 40)" fill="#00040c" opacity=".48" filter="url(#ground)" />
+      <g id="panel-rear">
+        <path
+          d="M 524.298 258.433 L 909.702 365.887 C 951.840 377.636 986.000 422.082 986.000 465.160 L 986.000 784.160 C 986.000 827.238 951.840 852.636 909.702 840.887 L 524.298 733.433 C 482.160 721.684 448.000 677.238 448.000 634.160 L 448.000 315.160 C 448.000 272.082 482.160 246.684 524.298 258.433 Z"
+          fill="url(#rear)" />
+        <path
+          d="M 524.298 258.433 L 909.702 365.887 C 951.840 377.636 986.000 422.082 986.000 465.160 L 986.000 784.160 C 986.000 827.238 951.840 852.636 909.702 840.887 L 524.298 733.433 C 482.160 721.684 448.000 677.238 448.000 634.160 L 448.000 315.160 C 448.000 272.082 482.160 246.684 524.298 258.433 Z"
+          fill="url(#tealGloss)" />
+        <g clip-path="url(#clip-rear)">
+          <path
+            d="M 442.298 309.273 L 827.702 416.727 C 869.840 428.476 904.000 472.922 904.000 516.000 L 904.000 835.000 C 904.000 878.078 869.840 903.476 827.702 891.727 L 442.298 784.273 C 400.160 772.524 366.000 728.078 366.000 685.000 L 366.000 366.000 C 366.000 322.922 400.160 297.524 442.298 309.273 Z"
+            transform="translate(27 10)" fill="#001c41" opacity=".52" filter="url(#cast)" />
+        </g>
+        <path
+          d="M 524.298 258.433 L 909.702 365.887 C 951.840 377.636 986.000 422.082 986.000 465.160 L 986.000 784.160 C 986.000 827.238 951.840 852.636 909.702 840.887 L 524.298 733.433 C 482.160 721.684 448.000 677.238 448.000 634.160 L 448.000 315.160 C 448.000 272.082 482.160 246.684 524.298 258.433 Z"
+          fill="none" stroke="url(#edgeLight)" stroke-width="2" />
+      </g>
+      <g id="panel-middle">
+        <path
+          d="M 442.298 309.273 L 827.702 416.727 C 869.840 428.476 904.000 472.922 904.000 516.000 L 904.000 835.000 C 904.000 878.078 869.840 903.476 827.702 891.727 L 442.298 784.273 C 400.160 772.524 366.000 728.078 366.000 685.000 L 366.000 366.000 C 366.000 322.922 400.160 297.524 442.298 309.273 Z"
+          fill="url(#middle)" />
+        <path
+          d="M 442.298 309.273 L 827.702 416.727 C 869.840 428.476 904.000 472.922 904.000 516.000 L 904.000 835.000 C 904.000 878.078 869.840 903.476 827.702 891.727 L 442.298 784.273 C 400.160 772.524 366.000 728.078 366.000 685.000 L 366.000 366.000 C 366.000 322.922 400.160 297.524 442.298 309.273 Z"
+          fill="url(#blueGloss)" />
+        <g clip-path="url(#clip-middle)">
+          <path
+            d="M 342.298 371.273 L 727.702 478.727 C 769.840 490.476 804.000 534.922 804.000 578.000 L 804.000 897.000 C 804.000 940.078 769.840 965.476 727.702 953.727 L 342.298 846.273 C 300.160 834.524 266.000 790.078 266.000 747.000 L 266.000 428.000 C 266.000 384.922 300.160 359.524 342.298 371.273 Z"
+            transform="translate(27 10)" fill="#001c41" opacity=".52" filter="url(#cast)" />
+        </g>
+        <path
+          d="M 442.298 309.273 L 827.702 416.727 C 869.840 428.476 904.000 472.922 904.000 516.000 L 904.000 835.000 C 904.000 878.078 869.840 903.476 827.702 891.727 L 442.298 784.273 C 400.160 772.524 366.000 728.078 366.000 685.000 L 366.000 366.000 C 366.000 322.922 400.160 297.524 442.298 309.273 Z"
+          fill="none" stroke="url(#edgeLight)" stroke-width="2" />
+      </g>
+      <g id="panel-front">
+        <path
+          d="M 360.298 360.113 L 745.702 467.567 C 787.840 479.316 822.000 523.762 822.000 566.840 L 822.000 885.840 C 822.000 928.918 787.840 954.316 745.702 942.567 L 360.298 835.113 C 318.160 823.364 284.000 778.918 284.000 735.840 L 284.000 416.840 C 284.000 373.762 318.160 348.364 360.298 360.113 Z"
+          fill="url(#bevel)" />
+        <path
+          d="M 342.298 371.273 L 727.702 478.727 C 769.840 490.476 804.000 534.922 804.000 578.000 L 804.000 897.000 C 804.000 940.078 769.840 965.476 727.702 953.727 L 342.298 846.273 C 300.160 834.524 266.000 790.078 266.000 747.000 L 266.000 428.000 C 266.000 384.922 300.160 359.524 342.298 371.273 Z"
+          fill="url(#screen)" />
+        <path
+          d="M 342.298 371.273 L 727.702 478.727 C 769.840 490.476 804.000 534.922 804.000 578.000 L 804.000 897.000 C 804.000 940.078 769.840 965.476 727.702 953.727 L 342.298 846.273 C 300.160 834.524 266.000 790.078 266.000 747.000 L 266.000 428.000 C 266.000 384.922 300.160 359.524 342.298 371.273 Z"
+          fill="url(#frontGloss)" stroke="url(#screenRim)" stroke-width="1.8" />
+        <g id="terminal-prompt" fill="url(#prompt)">
+          <path
+            d="M 394.805 523.234 L 474.037 626.325 C 485.565 641.325 485.565 653.110 474.037 661.681 L 394.805 720.590 C 385.255 727.690 369.771 723.373 360.221 710.947 C 350.671 698.522 350.671 682.692 360.221 675.592 L 422.162 629.539 L 360.221 548.947 C 350.671 536.522 350.671 520.692 360.221 513.592 C 369.771 506.492 385.255 510.809 394.805 523.234 Z" />
+          <path
+            d="M 518.371 726.364 L 632.818 758.273 C 644.703 761.586 654.338 774.122 654.338 786.273 L 654.338 786.273 C 654.338 798.423 644.703 805.586 632.818 802.273 L 518.371 770.364 C 506.486 767.050 496.851 754.514 496.851 742.364 L 496.851 742.364 C 496.851 730.213 506.486 723.050 518.371 726.364 Z" />
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>
