@@ -20,7 +20,7 @@ use zeroize::Zeroizing;
 const MAGIC: &[u8; 8] = b"TMETABK1";
 const HEADER_BYTES: usize = 8 + 16 + 12;
 const MAX_METADATA_BYTES: usize = 16 * 1024;
-const BASE64_LINE_CHARS: usize = 64;
+const BASE64_LINE_CHARS: usize = 120;
 pub const MAX_PACKAGE_BYTES: usize = 192 * 1024 * 1024;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
