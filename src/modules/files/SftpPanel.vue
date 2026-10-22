@@ -20,6 +20,7 @@ import type { TerminalItem } from "../workbench/store";
 import { confirmAction } from "@/components/ui/confirmation";
 import { isDirectory } from "./fileEntries";
 import { useSftpTransferQueue } from "./useSftpTransferQueue";
+import { useSftpDirectory } from "./useSftpDirectory";
 import SftpToolbar from "./SftpToolbar.vue";
 import SftpFileTable from "./SftpFileTable.vue";
 import SftpFileActions from "./SftpFileActions.vue";
@@ -92,12 +93,23 @@ function resizeKey(event: KeyboardEvent) {
     ),
   );
 }
-const directory = ref(".");
-const entries = ref<FileEntry[]>([]);
-const checkedNames = ref<string[]>([]);
-const selectedEntries = computed(() => {
-  const names = new Set(checkedNames.value);
-  return entries.value.filter((entry) => names.has(entry.name));
+const {
+  directory,
+  entries,
+  selectedNames: checkedNames,
+  selectedEntries,
+  loading,
+  hasMore,
+  error,
+  stale,
+  load,
+  sameSession,
+  invalidate,
+} = useSftpDirectory({
+  sessionId: () => props.terminal.sessionId,
+  connected: () => connected.value,
+  busy: () => transferring.value || mutationBusy.value,
+  beforeLoad: () => fileDrag.cancel(),
 });
 const selected = computed(() =>
   selectedEntries.value.length === 1 ? selectedEntries.value[0] : undefined,
@@ -115,9 +127,6 @@ async function updateHidden(show: boolean) {
     error.value = errorMessage(cause);
   }
 }
-const loading = ref(false);
-const hasMore = ref(false);
-const error = ref("");
 const {
   tasks,
   visibleTasks,
@@ -128,7 +137,9 @@ const {
   cancel,
   cancelActive,
 } = useSftpTransferQueue({
-  terminal: () => props.terminal,
+  setTransferring: (value) => {
+    props.terminal.sftpTransferring = value;
+  },
   busy: () => busy.value,
   disposed: () => disposed,
   connected: () => connected.value,
@@ -141,12 +152,8 @@ const dropTarget = ref<string>();
 const consumedDrops = new Set<string>();
 const eventUnlisteners: (() => void)[] = [];
 const pendingDrop = ref(false);
-const listSession = ref<string>();
 const connected = computed(
   () => props.terminal.state === "connected" && !!props.terminal.sessionId,
-);
-const stale = computed(
-  () => !connected.value || listSession.value !== props.terminal.sessionId,
 );
 const busy = computed(
   () => loading.value || transferring.value || mutationBusy.value,
@@ -170,25 +177,33 @@ const fileDrag = useSftpFileDrag({
     enqueue({
       sessionId: selection.sessionId,
       path: selection.path,
-      upload: false,
-      name: selection.names.join("、"),
-      dragNames: selection.names,
-      dragDirectories: selection.directories,
+      kind: "nativeDrag",
+      names: selection.names,
+      directories: selection.directories,
     }),
 });
 const dragFeedback = fileDrag.feedback;
 const dragPreviewStyle = fileDrag.previewStyle;
 const activity = computed<SftpTransferActivity[]>(() =>
-  visibleTasks.value.map((task) => ({
-    id: task.id,
-    label: `${task.upload ? t("files.actions.upload") : t("files.actions.download")} · ${task.name || task.path}`,
-    path: task.path,
-    status: task.status,
-    progress: task.progress,
-    message: task.message,
-    messageKey: task.messageKey,
-    cancelling: task.cancelRequested,
-  })),
+  visibleTasks.value.map((task) => {
+    const upload = task.kind === "upload" || task.kind === "dropUpload";
+    const name =
+      task.kind === "download"
+        ? task.name
+        : task.kind === "nativeDrag"
+          ? task.names.join("、")
+          : null;
+    return {
+      id: task.id,
+      label: `${upload ? t("files.actions.upload") : t("files.actions.download")} · ${name || task.path}`,
+      path: task.path,
+      status: task.status,
+      progress: task.progress,
+      message: task.message,
+      messageKey: task.messageKey,
+      cancelling: task.cancelRequested,
+    };
+  }),
 );
 function cancelTask(id: string) {
   const task = tasks.value.find((task) => task.id === id);
@@ -200,45 +215,7 @@ function clearFinished() {
     (task) => task.status === "queued" || task.status === "running",
   );
 }
-let generation = 0;
 let disposed = false;
-async function load(path = directory.value, more = false) {
-  const sessionId = props.terminal.sessionId;
-  if (!connected.value || !sessionId || busy.value || disposed) return;
-  fileDrag.cancel();
-  const current = ++generation;
-  loading.value = true;
-  error.value = "";
-  try {
-    const page = await desktop.sftpList(sessionId, path, more);
-    if (
-      disposed ||
-      current !== generation ||
-      sessionId !== props.terminal.sessionId
-    )
-      return;
-    directory.value = page.path;
-    entries.value = more ? [...entries.value, ...page.entries] : page.entries;
-    hasMore.value = page.hasMore;
-    listSession.value = sessionId;
-    if (!more) checkedNames.value = [];
-  } catch (cause) {
-    if (!disposed && current === generation) {
-      error.value = errorMessage(cause);
-      listSession.value = undefined;
-    }
-  } finally {
-    if (current === generation) loading.value = false;
-  }
-}
-function sameSession(sessionId: string | undefined) {
-  return (
-    !disposed &&
-    connected.value &&
-    sessionId === props.terminal.sessionId &&
-    listSession.value === sessionId
-  );
-}
 async function transfer(upload: boolean) {
   if (
     stale.value ||
@@ -247,12 +224,15 @@ async function transfer(upload: boolean) {
     (!upload && selected.value?.kind !== "file")
   )
     return;
-  enqueue({
+  const target = {
     sessionId: props.terminal.sessionId!,
     path: directory.value,
-    upload,
-    name: upload ? null : selected.value!.name,
-  });
+  };
+  enqueue(
+    upload
+      ? { ...target, kind: "upload" }
+      : { ...target, kind: "download", name: selected.value!.name },
+  );
 }
 function targetAt(position: SftpDropPosition): string | undefined {
   if (
@@ -262,7 +242,9 @@ function targetAt(position: SftpDropPosition): string | undefined {
     mutationBusy.value ||
     loading.value ||
     fileDrag.dragging.value ||
-    tasks.value.some((task) => task.dragNames && task.status === "running")
+    tasks.value.some(
+      (task) => task.kind === "nativeDrag" && task.status === "running",
+    )
   )
     return;
   // 原生桥已统一为WebView逻辑坐标，不能再次按Retina倍率缩小。
@@ -302,8 +284,7 @@ async function receiveDrop(drop: SftpLocalDrop) {
         enqueue({
           sessionId,
           path: target,
-          upload: true,
-          name: null,
+          kind: "dropUpload",
           dropId: drop.dropId,
         });
     }
@@ -333,8 +314,7 @@ watch(
   () => [props.terminal.sessionId, props.terminal.state] as const,
   () => {
     fileDrag.cancel();
-    generation++;
-    loading.value = false;
+    invalidate();
     dropTarget.value = undefined;
     for (const task of tasks.value)
       if (task.status === "queued") cancelQueued(task);
@@ -389,7 +369,6 @@ onBeforeUnmount(() => {
   fileDrag.cancel();
   for (const unlisten of eventUnlisteners) unlisten();
   disposed = true;
-  generation++;
   cancelActive();
 });
 </script>

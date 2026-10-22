@@ -194,8 +194,6 @@ export const desktop = {
     >[0],
   ) => getCurrentWindow().onCloseRequested(callback),
   closeWindow: () => getCurrentWindow().close(),
-  // 关闭请求已完成确认后直接销毁窗口，避免再次触发 close-requested 重入。
-  destroyWindow: () => getCurrentWindow().destroy(),
   onAppExitRequested: (handler: () => void) =>
     listen("app-exit-requested", handler),
   finishAppExit: () => invoke<void>("finish_app_exit"),
@@ -209,7 +207,6 @@ export const desktop = {
   ) => getCurrentWindow().onResized(callback),
   toggleMaximizeWindow: () => getCurrentWindow().toggleMaximize(),
   startWindowDragging: () => getCurrentWindow().startDragging(),
-  listHosts: () => invoke<HostProfile[]>("list_hosts"),
   listHostInventory: () => invoke<HostInventory>("list_host_inventory"),
   arrangeHosts: (draft: HostArrangement) =>
     invoke<HostInventory>("arrange_hosts", { draft }),
@@ -220,7 +217,6 @@ export const desktop = {
   ) => invoke<HostProfile>("save_host", { host, expectedRevision, password }),
   deleteHost: (id: string, revision: number) =>
     invoke<void>("delete_host", { id, revision }),
-  listGroups: () => invoke<HostGroup[]>("list_host_groups"),
   saveGroup: (
     group: Omit<HostGroup, "id" | "revision"> & { id: string | null },
     expectedRevision: number | null,

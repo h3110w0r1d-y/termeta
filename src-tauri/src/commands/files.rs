@@ -1,13 +1,12 @@
-use crate::files::{browser, connected, download_to_path, upload_paths};
+use crate::files::{TransferRegistration, browser, connected, download_to_path, upload_paths};
 use crate::state::{AppState, owner};
-use std::{path::PathBuf, sync::Arc};
+use std::path::PathBuf;
 use tauri::{Manager, State, WebviewWindow, ipc::Channel};
 use tauri_plugin_dialog::DialogExt;
 use terminal_core::{Result, SessionError};
 use terminal_files::{
     DirectoryPage, FileProvider, TransferProgress, child_path, file_error, validate_name,
 };
-use terminal_sftp::SftpBrowser;
 
 #[tauri::command]
 pub async fn sftp_list(
@@ -44,14 +43,6 @@ pub fn sftp_cancel(
         browser.cancel_transfer(&transfer_id);
     }
     Ok(())
-}
-struct TransferGuard(Arc<SftpBrowser>);
-impl Drop for TransferGuard {
-    fn drop(&mut self) {
-        if let Some((_, cancel)) = self.0.transfer.lock().unwrap().take() {
-            cancel.cancel();
-        }
-    }
 }
 #[tauri::command]
 pub async fn sftp_drop_upload(
@@ -107,8 +98,7 @@ async fn transfer_paths(
         .try_acquire_owned()
         .map_err(|_| file_error("传输队列已满，请稍后重试"))?;
     let cancel = browser.transfer_cancellation();
-    browser.register_transfer(&transfer_id, cancel.clone());
-    let _transfer = TransferGuard(browser.clone());
+    let _transfer = TransferRegistration::new(&transfer_id, cancel.clone(), [browser.clone()]);
     if on_progress
         .send(TransferProgress {
             transferred: "0".into(),
@@ -212,8 +202,7 @@ pub async fn sftp_transfer(
     let name = name.ok_or_else(|| file_error("请选择下载文件"))?;
     let destination = child_path(&directory, &name)?;
     let cancel = browser.transfer_cancellation();
-    browser.register_transfer(&transfer_id, cancel.clone());
-    let _transfer = TransferGuard(browser.clone());
+    let _transfer = TransferRegistration::new(&transfer_id, cancel.clone(), [browser.clone()]);
     let (tx, rx) = tokio::sync::oneshot::channel();
     window
         .dialog()

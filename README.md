@@ -12,7 +12,7 @@
 
 Rust 领域核心位于 `crates/`，桌面装配与权限位于 `src-tauri/`，Vue 业务模块位于 `src/modules/`，唯一 IPC 门面位于 `src/services/desktop/`。
 
-数据库采用 SQLCipher 加密格式 2、schema 8，可升级同格式 schema 2–7。物理备份必须配套保留 vault 元数据；第三方备份仅导出白名单业务快照。升级、改密和中断恢复见 [存储](docs/07-storage.md)，第三方备份与新增合并边界见 [数据备份](docs/22-data-backup.md)。
+数据库采用 SQLCipher 加密，物理备份必须配套保留 vault 元数据；第三方备份仅导出白名单业务快照。当前格式、升级范围、改密和中断恢复统一见 [存储](docs/07-storage.md)，第三方备份与新增合并边界见 [数据备份](docs/22-data-backup.md)。
 
 ## 静态检查
 

@@ -31,23 +31,6 @@ pub async fn arrange_hosts(
 }
 
 #[tauri::command]
-pub async fn list_hosts(
-    window: WebviewWindow,
-    state: State<'_, AppState>,
-    search: Option<String>,
-) -> Result<Vec<HostProfile>> {
-    owner(&window)?;
-    let search = search.unwrap_or_default();
-    if search.len() > 256 {
-        return Err(SessionError::new(
-            "INVALID_CONFIG",
-            "validation",
-            "搜索文本过长",
-        ));
-    }
-    state.store.list_hosts(&search).await.map_err(storage_error)
-}
-#[tauri::command]
 pub async fn save_host(
     window: WebviewWindow,
     state: State<'_, AppState>,
@@ -93,14 +76,6 @@ pub async fn delete_host(
     // 主机删除已提交；孤立秘密保留待清理状态，后续解锁重试回收。
     let _ = state.vault.reconcile_deletions().await;
     Ok(())
-}
-#[tauri::command]
-pub async fn list_host_groups(
-    window: WebviewWindow,
-    state: State<'_, AppState>,
-) -> Result<Vec<HostGroup>> {
-    owner(&window)?;
-    state.store.list_groups().await.map_err(storage_error)
 }
 #[tauri::command]
 pub async fn save_host_group(

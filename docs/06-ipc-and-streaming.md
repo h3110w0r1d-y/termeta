@@ -1,6 +1,6 @@
 # IPC 契约与终端数据流
 
-更新：2026-10-21。当前终端协议版本为 1。本文维护跨语言和流控约束，具体 DTO 与命令签名以源码为准，不复制完整类型定义。
+更新：2026-10-22。当前终端协议版本为 1。本文维护跨语言和流控约束，具体 DTO 与命令签名以源码为准，不复制完整类型定义。
 
 ## 1. 契约入口与授权
 
@@ -89,6 +89,6 @@ forwarder 停止后冻结 finalOffset，并在 ended 中返回 outputComplete、
 
 ## 7. 非终端接口
 
-主机/分组/工作区写入使用 revision 事务；`list_host_inventory` 一次返回同事务读取的 hosts/groups，主机标签与认证摘要也属于该快照，避免拼接不同时间的关联。秘密仅作为受控写入参数，不随读取 DTO 返回。设置采用局部合并、完整快照返回及无秘密失效通知，快捷键仅接受当前 keymap 版本 2。Snippets 使用带 revision 的管理命令；会话日志保存仅用于视图关闭时的 xterm 带样式缓冲快照（版本封装保存在 content，兼容旧纯文本），列表只返回摘要，回看按 ID 读取正文，均要求已解锁本地 main。应用退出由 Rust 拦截并通知 main，main 等待归档后通过专用完成命令放行，锁定页仅可完成退出握手，不开放日志数据权限。文件使用独立命令和进度 Channel，正文不进入 IPC；转发只发送控制状态。
+主机/分组/工作区写入使用 revision 事务；主机清单的唯一读取命令 `list_host_inventory` 返回同事务读取的 hosts/groups，主机标签与认证摘要也属于该快照，避免拼接不同时间的关联。秘密仅作为受控写入参数，不随读取 DTO 返回。设置采用局部合并、完整快照返回及无秘密失效通知，快捷键仅接受当前 keymap 版本 2。Snippets 使用带 revision 的管理命令；会话日志保存仅用于视图关闭时的 xterm 带样式缓冲快照（版本封装保存在 content，兼容旧纯文本），列表只返回摘要，回看按 ID 读取正文，均要求已解锁本地 main。应用退出由 Rust 拦截并通知 main，main 等待归档后通过专用完成命令放行，锁定页仅可完成退出握手，不开放日志数据权限。文件使用独立命令和进度 Channel，正文不进入 IPC；转发只发送控制状态。
 
 模块接口边界分别见 [存储](07-storage.md)、[桌面交互](09-desktop-ux.md)、[快捷键](14-shortcuts.md)、[SFTP](16-sftp-workspace.md)、[工作区存档](18-terminal-workspaces.md)、[转发](21-port-forwarding.md)、[备份](22-data-backup.md) 和 [Snippets/日志](23-snippets-and-session-logs.md)。不要在本文重复维护全部字段或组件调用流程。

@@ -1,4 +1,4 @@
-use crate::files::{browser, connected};
+use crate::files::{TransferRegistration, browser, connected};
 use crate::state::{AppState, owner, storage_error};
 use std::sync::Arc;
 use tauri::{State, WebviewWindow, ipc::Channel};
@@ -76,17 +76,6 @@ pub struct CopyRequest {
     transfer_id: String,
 }
 
-struct CopyGuard(Vec<Arc<terminal_sftp::SftpBrowser>>);
-impl Drop for CopyGuard {
-    fn drop(&mut self) {
-        for browser in &self.0 {
-            if let Some((_, cancel)) = browser.transfer.lock().unwrap().take() {
-                cancel.cancel();
-            }
-        }
-    }
-}
-
 #[tauri::command]
 pub async fn sftp_copy(
     window: WebviewWindow,
@@ -130,10 +119,11 @@ pub async fn sftp_copy(
         .try_acquire_owned()
         .map_err(|_| file_error("传输队列已满"))?;
     let cancel = source.transfer_cancellation();
-    for browser in [&source, &target] {
-        browser.register_transfer(&transfer_id, cancel.clone());
-    }
-    let _guard = CopyGuard(vec![source.clone(), target.clone()]);
+    let _transfer = TransferRegistration::new(
+        &transfer_id,
+        cancel.clone(),
+        [source.clone(), target.clone()],
+    );
     let operation = async {
         // 仅同一文件端点比较真实目录；标题省略端口，共享主机密钥也不能证明同一命名空间。
         if source.identity() == target.identity() {

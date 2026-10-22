@@ -2,10 +2,29 @@ import { t, type PlainMessageKey } from "@/i18n";
 import { computed, ref, type Ref } from "vue";
 import { desktop, errorMessage } from "@/services/desktop/client";
 import type { TransferProgress } from "@/services/desktop/types";
-import type { TerminalItem } from "../workbench/store";
+
+type TransferRequest = {
+  sessionId: string;
+  path: string;
+} & (
+  | { kind: "upload" }
+  | { kind: "download"; name: string }
+  | { kind: "dropUpload"; dropId: string }
+  | { kind: "nativeDrag"; names: string[]; directories: string[] }
+);
+
+type TransferTask = TransferRequest & {
+  id: string;
+  started?: boolean;
+  status: "queued" | "running" | "done" | "cancelled" | "failed";
+  progress?: TransferProgress;
+  message?: string;
+  messageKey?: PlainMessageKey;
+  cancelRequested?: boolean;
+};
 
 export function useSftpTransferQueue(options: {
-  terminal: () => TerminalItem;
+  setTransferring: (value: boolean) => void;
   busy: () => boolean;
   disposed: () => boolean;
   connected: () => boolean;
@@ -15,38 +34,21 @@ export function useSftpTransferQueue(options: {
 }) {
   const { error } = options;
   const transferring = ref(false);
-  const progress = ref<TransferProgress>();
   let currentTransfer: { sessionId: string; id: string } | undefined;
-  type TransferTask = {
-    id: string;
-    sessionId: string;
-    path: string;
-    upload: boolean;
-    name: string | null;
-    dropId?: string;
-    dragNames?: string[];
-    dragDirectories?: string[];
-    started?: boolean;
-    status: "queued" | "running" | "done" | "cancelled" | "failed";
-    progress?: TransferProgress;
-    message?: string;
-    messageKey?: PlainMessageKey;
-    cancelRequested?: boolean;
-  };
   const tasks = ref<TransferTask[]>([]);
   // 拖动手势不是传输；外部目标请求内容后才显示任务和下载进度。
   const visibleTasks = computed(() =>
-    tasks.value.filter((task) => !task.dragNames || task.started),
+    tasks.value.filter((task) => task.kind !== "nativeDrag" || task.started),
   );
   const visibleTransfer = computed(
     () =>
       transferring.value &&
       visibleTasks.value.some((task) => task.status === "running"),
   );
-  function enqueue(task: Omit<TransferTask, "id" | "status">) {
+  function enqueue(task: TransferRequest) {
     // 原生拖动依赖当前鼠标手势，绝不排队到鼠标释放后再启动。
     if (
-      task.dragNames &&
+      task.kind === "nativeDrag" &&
       (options.busy() ||
         tasks.value.some(
           (item) => item.status === "queued" || item.status === "running",
@@ -72,14 +74,14 @@ export function useSftpTransferQueue(options: {
         ),
       { ...task, id: crypto.randomUUID(), status: "queued" },
     ];
-    if (!task.dragNames) options.terminal().sftpTransferring = true;
+    if (task.kind !== "nativeDrag") options.setTransferring(true);
     void runQueue();
   }
   async function runQueue() {
     if (transferring.value || options.disposed()) return;
     const task = tasks.value.find((item) => item.status === "queued");
     if (!task) {
-      options.terminal().sftpTransferring = false;
+      options.setTransferring(false);
       return;
     }
     if (!options.sameSession(task.sessionId)) {
@@ -91,13 +93,11 @@ export function useSftpTransferQueue(options: {
     task.status = "running";
     transferring.value = true;
     currentTransfer = { sessionId: task.sessionId, id: task.id };
-    progress.value = undefined;
     const onProgress = (value: TransferProgress) => {
       if (currentTransfer?.id === task.id) {
         task.started = true;
-        options.terminal().sftpTransferring = true;
+        options.setTransferring(true);
         task.progress = value;
-        progress.value = value;
         // 若取消早于后端任务登记，首次进度到达后补发取消。
         if (task.cancelRequested) {
           task.cancelRequested = false;
@@ -106,31 +106,32 @@ export function useSftpTransferQueue(options: {
       }
     };
     try {
-      const saved = task.dragNames
-        ? await desktop.sftpStartDrag(
-            task.sessionId,
-            task.id,
-            task.path,
-            task.dragNames,
-            task.dragDirectories ?? [],
-            onProgress,
-          )
-        : task.dropId
-          ? await desktop.sftpDropUpload(
+      const saved =
+        task.kind === "nativeDrag"
+          ? await desktop.sftpStartDrag(
               task.sessionId,
               task.id,
-              task.dropId,
               task.path,
+              task.names,
+              task.directories,
               onProgress,
             )
-          : await desktop.sftpTransfer(
-              task.sessionId,
-              task.id,
-              task.path,
-              task.name,
-              task.upload,
-              onProgress,
-            );
+          : task.kind === "dropUpload"
+            ? await desktop.sftpDropUpload(
+                task.sessionId,
+                task.id,
+                task.dropId,
+                task.path,
+                onProgress,
+              )
+            : await desktop.sftpTransfer(
+                task.sessionId,
+                task.id,
+                task.path,
+                task.kind === "download" ? task.name : null,
+                task.kind === "upload",
+                onProgress,
+              );
       task.status = saved ? "done" : "cancelled";
       task.messageKey = saved
         ? "files.transfer.complete"
@@ -144,14 +145,14 @@ export function useSftpTransferQueue(options: {
       task.status = cancelled ? "cancelled" : "failed";
       if (cancelled) task.messageKey = "common.status.cancelled";
       else task.message = errorMessage(cause);
-      if (task.dragNames && !task.started && !cancelled)
+      if (task.kind === "nativeDrag" && !task.started && !cancelled)
         error.value = task.message ?? "";
     } finally {
       task.cancelRequested = false;
       transferring.value = false;
       currentTransfer = undefined;
     }
-    if (task.dragNames && !task.started) {
+    if (task.kind === "nativeDrag" && !task.started) {
       tasks.value = tasks.value.filter((item) => item.id !== task.id);
     } else if (options.sameSession(task.sessionId)) await options.refresh();
     else if (!options.disposed() && options.connected())
@@ -166,7 +167,7 @@ export function useSftpTransferQueue(options: {
       !transferring.value &&
       !tasks.value.some((item) => item.status === "queued")
     )
-      options.terminal().sftpTransferring = false;
+      options.setTransferring(false);
   }
   async function cancel() {
     const transfer = currentTransfer;
@@ -190,7 +191,6 @@ export function useSftpTransferQueue(options: {
     visibleTasks,
     visibleTransfer,
     transferring,
-    progress,
     enqueue,
     cancelQueued,
     cancel,

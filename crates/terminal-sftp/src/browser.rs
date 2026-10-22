@@ -22,7 +22,7 @@ pub struct SftpBrowser {
     listing: Mutex<Option<Listing>>,
     // 壳使用此门限序列化每个浏览器的操作，不阻塞终端 actor。
     pub operation: Mutex<()>,
-    pub transfer: std::sync::Mutex<Option<(String, terminal_core::CancellationToken)>>,
+    transfer: std::sync::Mutex<Option<(String, terminal_core::CancellationToken)>>,
 }
 impl Drop for SftpBrowser {
     fn drop(&mut self) {
@@ -74,6 +74,16 @@ impl SftpBrowser {
             cancel.cancel();
         }
         *transfer = Some((id.into(), cancel));
+    }
+    /// 仅移除本次登记，避免旧操作收尾时清除后续传输。
+    pub fn unregister_transfer(&self, id: &str) {
+        let mut transfer = self.transfer.lock().unwrap();
+        if transfer
+            .as_ref()
+            .is_some_and(|(active_id, _)| active_id == id)
+        {
+            transfer.take();
+        }
     }
     pub fn cancel(&self) {
         self.lifetime.cancel();

@@ -1,4 +1,6 @@
-use crate::files::{browser, connected, download_directory_to_path, download_to_path};
+use crate::files::{
+    TransferRegistration, browser, connected, download_directory_to_path, download_to_path,
+};
 use crate::{
     file_drag::PromisedFile,
     state::{AppState, owner},
@@ -8,25 +10,8 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 use tauri::{Manager, State, WebviewWindow, ipc::Channel};
-use terminal_core::{CancellationToken, Result};
+use terminal_core::Result;
 use terminal_files::{TransferProgress, child_path, file_error};
-use terminal_sftp::SftpBrowser;
-
-struct DragTransfer {
-    browser: Arc<SftpBrowser>,
-    id: String,
-    cancel: CancellationToken,
-}
-impl Drop for DragTransfer {
-    fn drop(&mut self) {
-        // 原生拖放取消、异常或窗口退出后，迟到的文件承诺不得继续读取远端。
-        self.cancel.cancel();
-        let mut active = self.browser.transfer.lock().unwrap();
-        if active.as_ref().is_some_and(|(id, _)| id == &self.id) {
-            active.take();
-        }
-    }
-}
 
 #[tauri::command]
 pub async fn sftp_start_drag(
@@ -57,12 +42,7 @@ pub async fn sftp_start_drag(
         .try_acquire_owned()
         .map_err(|_| file_error("传输队列已满，请稍后重试"))?;
     let cancel = browser.transfer_cancellation();
-    browser.register_transfer(&transfer_id, cancel.clone());
-    let _transfer = DragTransfer {
-        browser: browser.clone(),
-        id: transfer_id,
-        cancel: cancel.clone(),
-    };
+    let _transfer = TransferRegistration::new(&transfer_id, cancel.clone(), [browser.clone()]);
     let directories: std::collections::HashSet<_> = directories.into_iter().collect();
     if directories.iter().any(|name| !names.contains(name)) {
         return Err(file_error("文件夹标记与拖出条目不匹配"));

@@ -1,6 +1,6 @@
 # SFTP 浏览、上传下载与双栏对拷
 
-更新：2026-10-21。本文维护连接、文件授权和传输边界；当前范围与完整验收状态见 [产品需求](01-product-requirements.md#8-当前实现与限制)。
+更新：2026-10-22。本文维护连接、文件授权和传输边界；当前范围与完整验收状态见 [产品需求](01-product-requirements.md)。
 
 ## 1. 连接与生命周期
 
@@ -84,7 +84,7 @@ Rust 的内部 EndpointIdentity 使用规范 host、port 和 username，不使�
 
 命令为 `sftp_connect`、`sftp_list`、`sftp_copy`、`sftp_transfer`、`sftp_drop_upload`、`sftp_start_drag`、`sftp_cancel`、`sftp_delete`、`sftp_set_permissions`；均需命令 ACL、main 窗口及会话 owner 校验，本地路径只能来自原生授权。
 
-源码入口：[文件管理命令](../src-tauri/src/commands/file_management.rs)、[共享文件表格](../src/modules/files/SftpFileTable.vue)、[文件命令](../src-tauri/src/commands/files.rs)、[独立连接与对拷](../src-tauri/src/commands/file_workspace.rs)、[文件服务](../src-tauri/src/files/)、[terminal-files](../crates/terminal-files/src/lib.rs)、[terminal-sftp](../crates/terminal-sftp/src/lib.rs)、[macOS 拖出](../src-tauri/src/file_drag_macos.rs)、[Windows 拖出](../src-tauri/src/file_drag_windows.rs)。
+源码入口：[共享目录控制](../src/modules/files/useSftpDirectory.ts)、[共享文件表格](../src/modules/files/SftpFileTable.vue)、[文件管理命令](../src-tauri/src/commands/file_management.rs)、[文件命令](../src-tauri/src/commands/files.rs)、[独立连接与对拷](../src-tauri/src/commands/file_workspace.rs)、[文件服务](../src-tauri/src/files/)、[统一传输登记](../src-tauri/src/files/transfer.rs)、[terminal-files](../crates/terminal-files/src/lib.rs)、[terminal-sftp](../crates/terminal-sftp/src/lib.rs)、[macOS 拖出](../src-tauri/src/file_drag_macos.rs)、[Windows 拖出](../src-tauri/src/file_drag_windows.rs)。
 
 ## 8. 验证与资料
 

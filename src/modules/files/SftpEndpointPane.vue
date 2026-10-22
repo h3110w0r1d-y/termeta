@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { t } from "@/i18n";
-import { computed, ref, watch, onBeforeUnmount } from "vue";
+import { computed, ref, watch } from "vue";
 import { NAlert, NButton, NText } from "naive-ui";
-import { desktop, errorMessage } from "@/services/desktop/client";
+import { errorMessage } from "@/services/desktop/client";
 import type { FileEntry } from "@/services/desktop/types";
 import { useHosts } from "../hosts/store";
 import HostProfileIcon from "../hosts/HostProfileIcon.vue";
@@ -10,6 +10,7 @@ import { hostEndpoint } from "../hosts/presentation";
 import { isSessionTerminal } from "../sessions/control";
 import type { SftpEndpoint, SftpSelection } from "./types";
 import { isDirectory } from "./fileEntries";
+import { useSftpDirectory } from "./useSftpDirectory";
 import SftpToolbar from "./SftpToolbar.vue";
 import SftpFileTable from "./SftpFileTable.vue";
 import SftpFileActions from "./SftpFileActions.vue";
@@ -39,13 +40,6 @@ const connecting = computed(
       !ready.value &&
       !isSessionTerminal(props.endpoint.state)),
 );
-const directory = ref(".");
-const entries = ref<FileEntry[]>([]);
-const checked = ref<string[]>([]);
-const loading = ref(false);
-const error = ref("");
-const hasMore = ref(false);
-const listSession = ref<string>();
 const settings = useSettings();
 const hidden = computed(() => settings.sftpShowHidden);
 async function updateHidden(show: boolean) {
@@ -63,51 +57,26 @@ const ready = computed(
 const disabled = computed(
   () => !ready.value || loading.value || props.busy || mutationBusy.value,
 );
-const stale = computed(() => listSession.value !== props.endpoint.sessionId);
-const chosen = computed(() => {
-  const names = new Set(checked.value);
-  return entries.value.filter((entry) => names.has(entry.name));
+const {
+  directory,
+  entries,
+  selectedNames: checked,
+  selectedEntries: chosen,
+  loading,
+  error,
+  hasMore,
+  stale,
+  load,
+  reset,
+} = useSftpDirectory({
+  sessionId: () => props.endpoint.sessionId,
+  connected: () => ready.value,
+  busy: () => props.busy || mutationBusy.value,
 });
-let generation = 0;
-let disposed = false;
-async function load(path = directory.value, more = false) {
-  const sessionId = props.endpoint.sessionId;
-  if (!sessionId || disabled.value || disposed) return;
-  const current = ++generation;
-  loading.value = true;
-  error.value = "";
-  try {
-    const page = await desktop.sftpList(sessionId, path, more);
-    if (
-      disposed ||
-      generation !== current ||
-      props.endpoint.sessionId !== sessionId
-    )
-      return;
-    listSession.value = sessionId;
-    directory.value = page.path;
-    entries.value = more ? [...entries.value, ...page.entries] : page.entries;
-    if (!more) checked.value = [];
-    hasMore.value = page.hasMore;
-  } catch (cause) {
-    if (generation === current) {
-      error.value = errorMessage(cause);
-      listSession.value = undefined;
-    }
-  } finally {
-    if (generation === current) loading.value = false;
-  }
-}
 watch(
   () => [props.endpoint.sessionId, props.endpoint.state] as const,
   () => {
-    generation++;
-    listSession.value = undefined;
-    loading.value = false;
-    entries.value = [];
-    checked.value = [];
-    hasMore.value = false;
-    directory.value = ".";
+    reset();
     if (ready.value) void load(".");
   },
   { immediate: true },
@@ -142,10 +111,6 @@ const available = computed(
   () => !disabled.value && !stale.value && directory.value.startsWith("/"),
 );
 defineExpose({ refresh: () => load(), path: directory, available });
-onBeforeUnmount(() => {
-  disposed = true;
-  generation++;
-});
 </script>
 
 <template>
