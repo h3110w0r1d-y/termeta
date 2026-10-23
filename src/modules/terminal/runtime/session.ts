@@ -65,9 +65,8 @@ async function open(entry: Entry, terminal: TerminalItem) {
         throw new Error(t("workspaces.errors.singleConnection"));
       if (profile) {
         terminal.kind = profile.kind;
-        terminal.serialConfig = profile.serialConfig
-          ? { ...profile.serialConfig }
-          : undefined;
+        terminal.serialConfig =
+          profile.kind === "serial" ? { ...profile.serialConfig } : undefined;
       }
     }
     resetTerminalActivity(terminal);

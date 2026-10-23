@@ -12,7 +12,7 @@ import AppInput from "@/components/ui/AppInput.vue";
 import { validateForm } from "@/services/forms/rules";
 import { computed, nextTick, ref, watch } from "vue";
 import AppDialog from "@/components/ui/AppDialog.vue";
-import { useSessions } from "../sessions/store";
+import { useSessions } from "./store";
 import { desktop, errorMessage } from "@/services/desktop/client";
 const emit = defineEmits<{ "after-leave": [] }>();
 const sessions = useSessions();

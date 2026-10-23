@@ -1,26 +1,12 @@
 # 代码结构评估与渐进重构方案
 
-更新：2026-10-22。本文维护职责归属与剩余结构问题；当前分层见 [系统架构](03-architecture.md)，功能状态、运行验收和交付顺序分别见 [产品需求](01-product-requirements.md)、[路线](10-roadmap.md)。源码存在不代表编译或运行验证通过。
+更新：2026-10-23。本文只维护剩余结构问题与演进边界；当前分层见 [系统架构](03-architecture.md)，功能状态、运行验收和交付顺序分别见 [产品需求](01-product-requirements.md)、[路线](10-roadmap.md)。源码存在不代表编译或运行验证通过。
 
-## 1. 组织原则与当前职责
+## 1. 组织原则
 
 Tauri 2 + Rust + Vue 3/TS 分层适合现有功能。结构优化按资源生命周期和事务职责进行，优先提取重复控制逻辑，不按文件行数拆透传组件，也不为未实现能力建立空目录、通用服务或新 crate。
 
-| 功能职责 | 当前归属 | 边界 |
-| --- | --- | --- |
-| 窗口与连接入口 | `src/layout/` | 装配门禁、订阅、Header、导航外观和窗口操作，不持有终端正文 |
-| 工作台 | `src/modules/workbench/` | AppTabs 协调标签，WorkbenchTab 呈现单项；布局与焦点独立于窗口装配 |
-| 终端运行期 | `src/modules/terminal/registry.ts`、`runtime/` | 稳定实例、流和统一关闭；成功归档后才移除视图 |
-| 通用控制 | `src/modules/sessions/` | 三种用途的轻量投影、挑战和心跳，不持连接资源 |
-| 主题 | `src/theme/` | 共享配色模型、解析与格式映射；根应用、局部控件和实际 xterm 渲染各留在消费边界 |
-| 文件交互 | `src/modules/files/` | 共享目录控制与任务摘要；侧栏和双栏各自保留连接与布局策略 |
-| 桌面入口 | `src-tauri/src/commands/` | DTO、调用窗口、owner、Channel 与原生适配 |
-| 文件服务 | `src-tauri/src/files/` | 浏览器获取、上传下载及传输登记清理；正文留在 Rust |
-| 协议、数据与事务 | `crates/` | core 保持协议无关；协议适配、存储和保险库按既有端口协作 |
-
 页面拥有展示，控制器拥有操作期，Store 保存轻量投影。目录导航、输入顺序和订阅重试等共享控制逻辑应集中；不把终端条目变成通用文件任务容器，也不以复制响应式字段来拆分 NForm。简单转发命令无需再包一层无行为 Service。
-
-已有一致快照、独立输入泵、原子凭据写入、统一关闭和附属资源撤销的契约分别由 [存储](07-storage.md)、[会话模型](04-session-model.md)、[IPC](06-ipc-and-streaming.md) 与 [日志](23-snippets-and-session-logs.md) 维护，不在本文重复历史修复清单。
 
 ## 2. 文件工作区：端点、任务与执行
 
@@ -28,13 +14,15 @@ Tauri 2 + Rust + Vue 3/TS 分层适合现有功能。结构优化按资源生命
 
 壳的 [TransferRegistration](../src-tauri/src/files/transfer.rs) 统一普通传输、对拷及原生拖出的登记与 RAII 清理；commands 仍负责 owner、操作锁、全局许可和 Channel，不表示已具备完整任务执行器。
 
+上传与对拷的目标元数据、真实目录合并、覆盖决策和写句柄集中于 [SFTP 写入边界](../crates/terminal-sftp/src/upload.rs)，原生确认通过窄回调留在壳。源扫描与打开复核仍按本地授权和远端协议分别处理，不能为共用目标而混同源端路径与取消语义。
+
 剩余结构问题是 [FileProvider](../crates/terminal-files/src/lib.rs) 仅提供目录读取，[SFTP copy](../crates/terminal-sftp/src/copy.rs) 的两端固定为 SftpBrowser；本地上传、下载及远端对拷的扫描和执行分散。增加本地文件栏前，应按真实复制方向逐步完善下列职责：
 
 | 层 | 演进职责 | 保留边界 |
 | --- | --- | --- |
 | Vue 文件界面 | 端点引用、共享任务摘要及导航/选择投影 | 侧栏和双栏布局分开；原生拖出兑现前不显示任务 |
 | 壳内文件服务 | 本地授权、操作占用、任务许可、取消和确认适配 | commands 保留授权入口，不接受任意本地路径 |
-| terminal-files | 按需求补 metadata、目录及 reader/writer 端口，共享扫描计划和流式执行 | 复用现有有界复制，不依赖 Tauri |
+| terminal-files | 补 metadata、目录操作端口，复用现有 FileReader/FileWriter 与有界复制，收敛扫描和执行 | 不依赖 Tauri |
 | local/SFTP 适配 | 平台访问、协议请求、句柄关闭及各自路径语义 | 本地路径不使用远端字符串拼接规则 |
 
 统一任务摘要后再收敛关闭确认，避免长期同时依赖全局和每终端的传输布尔投影。原生覆盖确认用窄回调注入；先一个实际复制方向，再扩展共享执行，不一次构造覆盖所有未来功能的大接口。
@@ -45,13 +33,13 @@ Tauri 2 + Rust + Vue 3/TS 分层适合现有功能。结构优化按资源生命
 
 ## 3. 区分 wire DTO、领域配置与展示摘要
 
-[TS HostProfile](../src/services/desktop/types.ts) 继承 SSH 配置，Serial/Telnet/Workspace 被迫携带无关 SSH 字段，kind 不能保证可选配置存在；Rust [model](../crates/terminal-storage/src/model.rs) 同样使用扁平结构和自由字符串 kind，[工作区存储](../crates/terminal-storage/src/workspaces.rs) 因而要构造并校验空 SSH 字段。混合展示连接和工作区只需要公共元数据，无需共用完整 SSH 领域形状。
+[TS 保存项模型](../src/modules/hosts/model.ts) 使用共享元数据与 SSH/Telnet/Serial/Workspace 判别联合，串口配置和工作区布局在对应类型中必填；连接展开排除工作区，网络与串口编辑器只投影对应草稿。排序、名称等公共操作使用窄元数据形状。
 
-保留现有数据库及 IPC 兼容表示，先在单一适配层映射为“共享保存项元数据 + SSH/Telnet/Serial/Workspace 判别联合”。编辑器使用对应草稿，连接展开仅接受真实连接，工作区布局在类型上必须存在。分组、排序等公共操作逐步使用窄命令或明确映射，不反复提交完整旧配置。已有 OpenTarget 判别联合可作为方向。
+数据库与 [wire DTO](../src/services/desktop/types.ts) 保留原兼容表示，[desktop 适配](../src/services/desktop/hosts.ts) 集中双向映射、必需配置缺失与跨协议字段拒绝；空 SSH 占位字段只在兼容出口构造。映射不替代完整运行时 schema 校验，也不跳过损坏清单项。
 
-TS 业务模型归对应领域，wire 契约留 desktop 层；Rust 在序列化和存储读取边界显式映射，并提供旧配置、损坏字段、工作区引用和备份往返兼容样例。变更 wire 时同步 Rust/TS 与版本处理；Local cwd/env/argv、Serial HEX 不继续堆入 SSH 默认字段。
+剩余问题在 Rust [model](../crates/terminal-storage/src/model.rs) 的扁平结构和自由字符串 kind，[工作区存储](../crates/terminal-storage/src/workspaces.rs) 仍需构造空 SSH 字段。后续在序列化和存储边界显式映射，保留现有 schema、备份与 IPC 表示，补业务数据往返兼容证据。变更 wire 时同步 Rust/TS 与版本处理；Local cwd/env/argv、Serial HEX 不继续堆入 SSH 默认字段。
 
-设置的兼容规则也分散于 [Rust 校验](../src-tauri/src/settings.rs)、[局部保存](../src-tauri/src/commands/settings.rs) 和 [TS 归一化](../src/modules/settings/store.ts)。保留串行局部保存与多窗口热应用，将 normalize/validate/patch 规则集中为可复用入口，逐步采用类型化 patch 或共享契约样例；不改回整份草稿覆盖，也不将前端主题展示数据整体搬进 Rust。
+设置的 Rust 归一化、校验和 patch 合并集中于 [设置规则](../src-tauri/src/settings.rs)，[命令](../src-tauri/src/commands/settings.rs) 负责授权、版本、串行读写和通知；[TS 状态规则](../src/modules/settings/state.ts) 负责默认值和 UI 归一，[Store](../src/modules/settings/store.ts) 只管理状态与局部保存队列。两端回归源码消费同一 [兼容样例](../tests/fixtures/settings-contract.json)，覆盖旧设置、嵌套合并与按 ID 删除；规则仍需各自维护，样例不能证明完整契约一致。保持多窗口热应用，不恢复整份草稿覆盖。
 
 ## 4. 契约与验证边界
 

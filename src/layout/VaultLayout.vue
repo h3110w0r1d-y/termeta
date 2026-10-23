@@ -15,7 +15,7 @@ import {
   type VaultSection,
   type TerminalOpenMode,
 } from "../modules/workbench/store";
-import type { HostKind, HostProfile } from "../services/desktop/types";
+import type { HostKind, HostProfile } from "@/modules/hosts/model";
 const workbench = useWorkbenchStore();
 const navigationOptions = computed(() => {
   const items: { key: VaultSection; label: string }[] = [

@@ -1,11 +1,26 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
+import { loadTypeScript } from "./helpers/load-typescript.mjs";
+
+const title = loadTypeScript(
+  new URL("../src/modules/terminal/title.ts", import.meta.url),
+  {
+    "@/i18n": {
+      t() {
+        assert.fail("终端活动判断不应调用界面翻译");
+      },
+    },
+  },
+);
+const {
   needsCloseConfirmation,
   resetTerminalActivity,
   updateActivityTitle,
   updateShellActivity,
-} from "../src/modules/terminal/activity.ts";
+} = loadTypeScript(
+  new URL("../src/modules/terminal/activity.ts", import.meta.url),
+  { "./title.ts": title },
+);
 
 test("命令模式无标题也提醒，远端 Shell 标记不能解除实际命令状态", () => {
   const activity = { state: "connected", sshCommand: true };

@@ -15,16 +15,20 @@ import {
   setSplitRatio,
   swapSplit,
   relocateTerminal,
+  type LayoutNode,
   type SplitEdge,
 } from "./layout";
 import type {
   OpenTarget,
   SessionState,
-  HostProfile,
-  HostKind,
-  SavedWorkspace,
   SessionLogSummary,
 } from "@/services/desktop/types";
+import type {
+  HostProfile,
+  ConnectionProfile,
+  WorkspaceProfile,
+  SavedWorkspace,
+} from "@/modules/hosts/model";
 export type {
   TerminalOpenMode,
   TerminalItem,
@@ -225,17 +229,15 @@ export const useWorkbenchStore = defineStore("workbench", () => {
     for (const host of savedWorkspaces)
       validateSavedWorkspace(host, useHosts().hosts);
     const created = unique
-      .filter(
-        (host): host is HostProfile & { kind: HostKind } =>
-          host.kind !== "workspace",
-      )
+      .filter((host): host is ConnectionProfile => host.kind !== "workspace")
       .map((host) =>
         add(
           host.name,
           { source: "saved", profileId: host.id },
           {
             kind: host.kind,
-            serialConfig: host.serialConfig ?? undefined,
+            serialConfig:
+              host.kind === "serial" ? host.serialConfig : undefined,
           },
         ),
       );
@@ -257,7 +259,7 @@ export const useWorkbenchStore = defineStore("workbench", () => {
     savedWorkspaces.forEach(openSavedWorkspace);
     activeId.value = first.terminalId;
   }
-  function openSavedWorkspace(host: HostProfile) {
+  function openSavedWorkspace(host: WorkspaceProfile) {
     const workspace = validateSavedWorkspace(host, useHosts().hosts);
     const created: TerminalItem[] = [];
     const root = restoreWorkspaceLayout(workspace.root, (profileId) => {
@@ -269,7 +271,8 @@ export const useWorkbenchStore = defineStore("workbench", () => {
         { source: "saved", profileId: profile.id },
         {
           kind: profile.kind,
-          serialConfig: profile.serialConfig ?? undefined,
+          serialConfig:
+            profile.kind === "serial" ? profile.serialConfig : undefined,
         },
       );
       created.push(terminal);
@@ -357,19 +360,13 @@ export const useWorkbenchStore = defineStore("workbench", () => {
     terminals.value = terminals.value.filter((t) => t.terminalId !== id);
     if (group) {
       resetBroadcast(group);
+      const at = groups.value.indexOf(group);
       const root = removeTerminal(group.root, id);
-      if (root) {
-        group.root = root;
-        if (group.focusedTerminalId === id)
-          group.focusedTerminalId = terminalIds(root)[0]!;
-      } else {
-        const at = groups.value.indexOf(group);
-        groups.value = groups.value.filter((g) => g.id !== group.id);
-        if (activeId.value === group.id)
-          activateTab(
-            groups.value[Math.min(at, groups.value.length - 1)]?.id ?? "home",
-          );
-      }
+      commitGroupLayout(group, root, id);
+      if (!root && activeId.value === group.id)
+        activateTab(
+          groups.value[Math.min(at, groups.value.length - 1)]?.id ?? "home",
+        );
     }
     if (removed) {
       const key = connectionKey(removed.target);
@@ -415,13 +412,15 @@ export const useWorkbenchStore = defineStore("workbench", () => {
       !groupIsClosing(target)
     );
   }
-  // 仅移除布局归属，不调用 remove/dispose，避免删除终端元数据或重置重复编号。
-  function extractTerminal(group: TerminalTabGroup, id: string) {
-    resetBroadcast(group);
-    const root = removeTerminal(group.root, id);
+  // 布局变更统一修复来源组焦点与空组；不删除终端元数据或重置连接编号。
+  function commitGroupLayout(
+    group: TerminalTabGroup,
+    root: LayoutNode | undefined,
+    removedTerminalId: string,
+  ) {
     if (root) {
       group.root = root;
-      if (group.focusedTerminalId === id)
+      if (group.focusedTerminalId === removedTerminalId)
         group.focusedTerminalId = terminalIds(root)[0]!;
     } else groups.value = groups.value.filter((g) => g.id !== group.id);
   }
@@ -448,12 +447,7 @@ export const useWorkbenchStore = defineStore("workbench", () => {
     resetBroadcast(incoming.group);
     if (incoming.group !== target) resetBroadcast(target);
     // 两棵树先计算后提交；同组移动使用同一结果，始终保持叶子归属唯一。
-    if (moved.sourceRoot) {
-      incoming.group.root = moved.sourceRoot;
-      if (incoming.group.focusedTerminalId === incoming.terminalId)
-        incoming.group.focusedTerminalId = terminalIds(moved.sourceRoot)[0]!;
-    } else
-      groups.value = groups.value.filter((g) => g.id !== incoming.group.id);
+    commitGroupLayout(incoming.group, moved.sourceRoot, incoming.terminalId);
     target.root = moved.targetRoot;
     unifyGroupScheme(target, targetTerminal);
     target.focusedTerminalId = incoming.terminalId;
@@ -488,7 +482,12 @@ export const useWorkbenchStore = defineStore("workbench", () => {
       broadcast: false,
       broadcastRevision: 0,
     };
-    extractTerminal(incoming.group, incoming.terminalId);
+    resetBroadcast(incoming.group);
+    commitGroupLayout(
+      incoming.group,
+      removeTerminal(incoming.group.root, incoming.terminalId),
+      incoming.terminalId,
+    );
     const index =
       beforeGroupId === null
         ? groups.value.length

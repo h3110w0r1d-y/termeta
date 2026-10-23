@@ -16,7 +16,7 @@ import {
 } from "naive-ui";
 import AppDialog from "@/components/ui/AppDialog.vue";
 import SearchPreferences from "../settings/SearchPreferences.vue";
-import type { HostKind, HostProfile } from "@/services/desktop/types";
+import type { HostKind, HostProfile } from "@/modules/hosts/model";
 import { useHosts } from "./store";
 import { groupPath } from "./groups";
 import { useHostSearch } from "./useHostSearch";

@@ -10,7 +10,7 @@ import {
   type SelectOption,
 } from "naive-ui";
 import SearchPreferences from "../settings/SearchPreferences.vue";
-import type { HostProfile } from "@/services/desktop/types";
+import type { HostProfile } from "@/modules/hosts/model";
 import { useHosts } from "./store";
 import { hostEndpoint, hostKindLabel } from "./presentation";
 import { groupPath } from "./groups";

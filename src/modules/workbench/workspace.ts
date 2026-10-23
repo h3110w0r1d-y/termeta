@@ -1,18 +1,18 @@
 import { t } from "@/i18n";
 import type {
   HostProfile,
+  WorkspaceProfile,
   SavedLayout,
   SavedWorkspace,
-} from "@/services/desktop/types";
+} from "@/modules/hosts/model";
 import { terminalIds, type LayoutNode } from "./layout";
 import type { TerminalItem, TerminalTabGroup } from "./types";
 
 /** 整份校验先于会话创建，批量打开不能留下部分恢复的终端。 */
 export function validateSavedWorkspace(
-  host: HostProfile,
+  host: WorkspaceProfile,
   profiles: readonly HostProfile[],
 ): SavedWorkspace {
-  if (!host.workspace) throw new Error(t("workspaces.errors.missingLayout"));
   const connectionIds = new Set(
     profiles
       .filter((profile) => profile.kind !== "workspace")

@@ -1,11 +1,11 @@
 import { ref, type Ref } from "vue";
 import { errorMessage } from "../services/desktop/client";
+import type { OpenTarget, SerialConfig } from "../services/desktop/types";
 import type {
   HostKind,
   HostProfile,
-  OpenTarget,
-  SerialConfig,
-} from "../services/desktop/types";
+  ConnectionProfile,
+} from "@/modules/hosts/model";
 import {
   useWorkbenchStore,
   type TerminalOpenMode,
@@ -23,7 +23,7 @@ export function useConnectionActions(
   const editorKind = ref<"ssh" | "telnet">("ssh");
   const editorOpen = ref(false);
   const quick = ref(false);
-  const editing = ref<HostProfile>();
+  const editing = ref<ConnectionProfile>();
   const duplicate = ref(false);
   const newHostGroup = ref<string | null>(null);
 

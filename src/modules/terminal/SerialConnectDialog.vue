@@ -24,14 +24,13 @@ import {
 } from "naive-ui";
 import AppDialog from "@/components/ui/AppDialog.vue";
 import { desktop, errorMessage } from "@/services/desktop/client";
+import type { SerialConfig, SerialPortInfo } from "@/services/desktop/types";
 import type {
-  HostDraft,
+  SerialHostDraft,
   HostProfile,
-  SerialConfig,
-  SerialPortInfo,
-} from "@/services/desktop/types";
+  SerialHostProfile,
+} from "@/modules/hosts/model";
 import { requiredText, validateForm } from "@/services/forms/rules";
-import { clone } from "@/services/data/clone";
 import { useHosts } from "../hosts/store";
 import { uniqueHostNameRule } from "../hosts/validation";
 import { groupChoices } from "../hosts/groups";
@@ -41,7 +40,7 @@ import { builtinSchemes } from "@/theme/schemes";
 const props = defineProps<{
   open: boolean;
   save?: boolean;
-  host?: HostProfile;
+  host?: SerialHostProfile;
   duplicate?: boolean;
   initialGroupId?: string | null;
 }>();
@@ -234,7 +233,7 @@ async function connect() {
       parity: draft.parity,
     };
     if (props.save) {
-      const host: HostDraft = {
+      const host: SerialHostDraft = {
         id: props.host && !props.duplicate ? props.host.id : null,
         kind: "serial",
         icon: props.host?.icon ?? "ssh",
@@ -244,10 +243,6 @@ async function connect() {
           .split(/[,，]/)
           .map((tag) => tag.trim())
           .filter(Boolean),
-        address: "",
-        port: 0,
-        username: "",
-        authPlan: [],
         serialConfig: config,
       };
       // 设备枚举只辅助选择；保存仅提交配置，不打开串口设备。
@@ -258,10 +253,9 @@ async function connect() {
           props.host && !props.duplicate ? props.host.revision : null,
         ));
       committedHost.value = saved;
-      const next = clone(settings.value);
-      if (draft.hostScheme) next.hostSchemes[saved.id] = draft.hostScheme;
-      else delete next.hostSchemes[saved.id];
-      await settings.save(next);
+      await settings.patch({
+        hostSchemes: { [saved.id]: draft.hostScheme || null },
+      });
       emit("saved");
     } else {
       emit("connect", config);

@@ -1,5 +1,6 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
+  "hosts.errors.invalidConfiguration": "保存的连接配置无效，无法读取或修改。",
   "hosts.batch.title": "批量连接",
   "hosts.batch.confirm":
     "“{groupName}”中共有 {count} 台主机（包含子分组），是否批量连接？",

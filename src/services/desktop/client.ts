@@ -4,6 +4,12 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import type { AppSettings, SettingsPatch } from "@/modules/settings/model";
+import type { HostDraft } from "@/modules/hosts/model";
+import {
+  hostDraftToDto,
+  hostInventoryFromDto,
+  hostProfileFromDto,
+} from "./hosts";
 import type {
   BackupConfigDraft,
   BackupConfigView,
@@ -29,12 +35,11 @@ import type {
   SessionLog,
   SessionLogDraft,
   SessionLogSummary,
-  HostDraft,
   HostArrangement,
   WorkspaceDraft,
   HostGroup,
-  HostInventory,
-  HostProfile,
+  HostInventoryDto,
+  HostProfileDto,
   KnownHost,
   OpenTarget,
   SessionEvent,
@@ -61,7 +66,9 @@ export const desktop = {
     invoke<BackupImportSummary>("apply_cloud_restore", { token }),
   onBackupRestored: (handler: () => void) => listen("backup-restored", handler),
   saveWorkspace: (draft: WorkspaceDraft) =>
-    invoke<HostProfile>("save_workspace", { draft }),
+    invoke<HostProfileDto>("save_workspace", { draft }).then(
+      hostProfileFromDto,
+    ),
   listPortForwards: () =>
     invoke<{ profiles: ForwardProfile[]; sessions: SessionSnapshot[] }>(
       "list_port_forwards",
@@ -208,14 +215,22 @@ export const desktop = {
   ) => getCurrentWindow().onResized(callback),
   toggleMaximizeWindow: () => getCurrentWindow().toggleMaximize(),
   startWindowDragging: () => getCurrentWindow().startDragging(),
-  listHostInventory: () => invoke<HostInventory>("list_host_inventory"),
+  listHostInventory: () =>
+    invoke<HostInventoryDto>("list_host_inventory").then(hostInventoryFromDto),
   arrangeHosts: (draft: HostArrangement) =>
-    invoke<HostInventory>("arrange_hosts", { draft }),
+    invoke<HostInventoryDto>("arrange_hosts", { draft }).then(
+      hostInventoryFromDto,
+    ),
   saveHost: (
     host: HostDraft,
     expectedRevision: number | null,
     password?: string,
-  ) => invoke<HostProfile>("save_host", { host, expectedRevision, password }),
+  ) =>
+    invoke<HostProfileDto>("save_host", {
+      host: hostDraftToDto(host),
+      expectedRevision,
+      password,
+    }).then(hostProfileFromDto),
   deleteHost: (id: string, revision: number) =>
     invoke<void>("delete_host", { id, revision }),
   saveGroup: (

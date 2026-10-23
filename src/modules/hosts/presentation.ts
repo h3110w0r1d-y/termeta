@@ -1,5 +1,5 @@
 import { t } from "@/i18n";
-import type { HostProfile } from "@/services/desktop/types";
+import type { HostProfile } from "@/modules/hosts/model";
 
 export function hostKindLabel(host: Pick<HostProfile, "kind">): string {
   return host.kind === "workspace"
@@ -14,24 +14,18 @@ export function hostAddress(host: HostProfile): string {
   return host.kind === "workspace"
     ? t("workspaces.title")
     : host.kind === "serial"
-      ? (host.serialConfig?.path ?? "")
+      ? host.serialConfig.path
       : host.address;
 }
 export function hostEndpoint(host: HostProfile): string {
   if (host.kind === "workspace") {
-    const count = (
-      node: import("@/services/desktop/types").SavedLayout,
-    ): number =>
+    const count = (node: import("./model").SavedLayout): number =>
       node.kind === "connection" ? 1 : count(node.first) + count(node.second);
-    return host.workspace
-      ? t("common.count.connections", { count: count(host.workspace.root) })
-      : t("workspaces.errors.missingLayout");
+    return t("common.count.connections", { count: count(host.workspace.root) });
   }
   if (host.kind === "serial") {
     const config = host.serialConfig;
-    return config
-      ? `${config.path} · ${config.baudRate} baud · ${config.charset}`
-      : t("serial.errors.missingConfiguration");
+    return `${config.path} · ${config.baudRate} baud · ${config.charset}`;
   }
   const address = host.address.includes(":")
     ? `[${host.address}]`

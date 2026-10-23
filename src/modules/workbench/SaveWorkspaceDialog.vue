@@ -15,7 +15,7 @@ import {
 import AppDialog from "@/components/ui/AppDialog.vue";
 import { errorMessage } from "@/services/desktop/client";
 import { requiredText, validateForm } from "@/services/forms/rules";
-import type { SavedWorkspace } from "@/services/desktop/types";
+import type { SavedWorkspace } from "@/modules/hosts/model";
 import { useHosts } from "../hosts/store";
 import { useWorkbenchStore } from "./store";
 const props = defineProps<{ groupId: string }>();

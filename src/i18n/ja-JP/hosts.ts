@@ -1,5 +1,7 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
+  "hosts.errors.invalidConfiguration":
+    "保存した接続設定が無効なため、読み込みや編集ができません。",
   "hosts.batch.title": "複数のホストに接続",
   "hosts.batch.confirm":
     "サブグループを含め、「{groupName}」内の全{count}ホストに接続しますか？",

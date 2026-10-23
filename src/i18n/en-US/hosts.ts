@@ -1,5 +1,7 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
+  "hosts.errors.invalidConfiguration":
+    "The saved connection configuration is invalid and cannot be read or edited.",
   "hosts.batch.title": "Connect multiple hosts",
   "hosts.batch.confirm":
     "Connect to all {count} hosts in “{groupName}”, including subgroups?",

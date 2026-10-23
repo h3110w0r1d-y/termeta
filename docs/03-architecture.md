@@ -6,7 +6,7 @@
 
 | 层 | 入口 | 职责 |
 | --- | --- | --- |
-| 界面 | `src/layout/`、`src/modules/` | 根布局与窗口生命周期装配；按领域管理轻量状态、布局和操作 |
+| 界面 | `src/App.vue`、`src/layout/`、`src/modules/` | App 保留根布局和稳定终端宿主；layout 装配窗口，modules 按领域管理轻量状态和操作 |
 | 主题 | `src/theme/` | 配色类型、目录、继承解析、导入校验、颜色运算与 xterm 格式映射；界面和终端共享，不依赖业务模块 |
 | 前端服务 | `src/services/desktop/`、`src/services/commands/` | 唯一 IPC 门面；统一按钮、菜单和快捷键命令 |
 | 桌面壳 | `src-tauri/src/commands/`、`state.rs`、`lib.rs` | DTO 校验、窗口/资源授权、Channel、依赖装配与原生交互 |
@@ -18,11 +18,13 @@
 
 网络、设备、信任、数据库及保存的秘密均由 Rust 管理。Vue/Pinia 仅保存元数据，不保存终端输出、文件正文、备份数据库正文或转发载荷。xterm 实例和缓冲由终端注册表管理。
 
-App 保留根布局和稳定终端宿主；layout 装配窗口导航、连接入口、退出/心跳与外观。工作台 Store 管理终端展示和布局，工作区存档的校验和布局映射独立于 Store。`src/modules/sessions/` 统一终端、文件和转发的轻量控制投影、挑战队列与心跳登记，不持有输出或连接资源。终端注册表统一持有实例和广播入口，内部 runtime 按视图、流、事件与会话生命周期分责，不让布局操作管理底层连接。
+保存项业务模型归 hosts，按 SSH/Telnet/Serial/Workspace 区分，公共展示只依赖元数据；desktop 在单一适配边界转换兼容 DTO，编辑器不承担空协议字段拼装。数据库与 Rust wire 保持原表示，领域类型不能代替边界校验。
 
-2026-10-22：窗口 Header 与应用标签导航按页面职责分开装配，避免标签组件同时拥有窗口控件和主题策略。[WorkbenchNavigation](../src/layout/WorkbenchNavigation.vue) 统一两种标签方向的主题和事件接线，[WorkbenchHeader](../src/layout/WorkbenchHeader.vue) 只排列窗口菜单、导航插槽、工具栏开关和窗口按钮。顶部模式将导航放在 Header 内，左侧模式放在 Header 后的左栏；App 将窗口导航与工作台主体并列，主体内由内容区和右侧工具栏并列，TerminalStage 不随导航位置迁移。导航主题作用域不包裹内容，终端内的 SFTP 侧栏仍归对应窗格。
+App 保留根布局和稳定终端宿主；layout 装配窗口导航、连接入口、退出/心跳与外观。工作台 Store 管理终端展示和布局，工作区存档的校验和布局映射独立于 Store。`src/modules/sessions/` 统一终端、文件和转发的轻量控制投影、挑战队列/弹窗与心跳登记，不持有输出或连接资源。终端注册表统一持有实例和广播入口，内部 runtime 按视图、流、事件与会话生命周期分责；终端模块拥有搜索界面和查询，App 只协调开关与焦点，不让窗口/布局操作管理领域细节。
 
-同日，共享配色模型归入 `src/theme/`，使运行工作台和终端按主题能力依赖，设置页面负责编辑与保存。纯配色读取直接使用共享解析，不经过终端 Registry/runtime。`useAppAppearance` 装配应用根主题，`theme/xterm.ts` 映射 xterm 格式，`terminal/theme.ts` 应用实际终端主题与选区渲染，`useTerminalSurface` 为状态栏、SFTP 与工具侧栏提供局部控件主题及弹层 CSS 变量桥。派生颜色共用纯运算，局部 Provider 保留其明确作用域，热应用继续复用现有终端实例。
+窗口导航与工作台内容分开装配：[WorkbenchNavigation](../src/layout/WorkbenchNavigation.vue) 统一顶部/左侧标签的主题和事件接线，[WorkbenchHeader](../src/layout/WorkbenchHeader.vue) 排列窗口菜单、导航插槽、工具栏开关和窗口按钮。导航位置切换不移动 TerminalStage；导航主题作用域不包裹内容，终端 SFTP 侧栏仍归对应窗格。
+
+共享配色模型归 `src/theme/`，运行工作台和终端按主题能力依赖，设置页面负责编辑与保存；纯配色读取不经过 Registry/runtime。`useAppAppearance` 装配根主题，终端模块应用实际 xterm 渲染，局部控件主题留在消费边界，热应用复用现有实例。
 
 ## 2. Rust 依赖方向
 
@@ -43,9 +45,7 @@ sftp → core + files + ssh
 
 core 通过窄资源撤销回调及独立取消令牌通知壳：驱动结束或关闭请求立即撤销附属资源，终端尾输出可继续排空。壳统一移除 SFTP 浏览器并取消传输与原生等待，定时扫描只兜底；core 不依赖 Tauri 或 SFTP。
 
-`terminalId` 标识跨重连稳定的视图，`sessionId` 标识一次后端连接。断线、失败和远端退出释放连接，保留终端与历史；用户关闭视图时先排空尾输出并将 xterm 现存缓冲和配色归档为本机加密会话日志，提交成功才销毁实例。重连排空旧流、清理未发送输入并隔离迟到回调，然后向同一终端绑定新会话。
-
-普通关闭和窗口退出共用 Registry 的 `closeAndRemove`，同一视图合并在途关闭，所有入口共享最多两个归档任务。连接、终态与解析进度使用完成信号协调；归档失败保留视图及错误，允许重试。
+`terminalId` 标识跨重连稳定的视图，`sessionId` 标识一次后端连接。断线、失败和远端退出保留终端与历史；重连隔离旧流，不重放输入。普通关闭和窗口退出共用 Registry 的关闭入口，归档成功才销毁实例，失败保留视图供重试；尾输出、幂等关闭与归档预算统一见 [日志契约](23-snippets-and-session-logs.md#3-关闭与退出)。
 
 Workbench 表示整个工作台，TerminalTabGroup 表示运行标签组，Workspace 表示多终端工作区及其显式存档。`useWorkbenchStore()` 分离终端和标签组；TerminalStage 以稳定 terminalId 承载终端，布局树只决定几何位置。标签切换、分屏、交换和迁移不重建终端。存档只保存布局与连接引用，打开创建新会话，不自动恢复退出前标签。详见 [工作台与工作区](18-terminal-workspaces.md)。
 
@@ -65,7 +65,9 @@ Workbench 表示整个工作台，TerminalTabGroup 表示运行标签组，Works
 
 文件前端共享目录控制，连接切换策略由侧栏和双栏各自保留；任务队列通过窄回调更新终端投影。壳内 `files/transfer.rs` 统一传输登记及作用域清理，commands 保留 owner、操作锁、许可和 Channel；这些复用不等于完整任务执行器。
 
-原生文件授权与平台拖放适配位于壳，应用内布局和对拷由前端交互处理。原生拖入使用绑定 owner 的一次性引用，macOS 拖出使用文件承诺；Windows 使用包含目录/空目录的 Shell 描述符、按需文件流及异步完成通知，取消后收回远端句柄并在 STA 线程释放原生对象。Linux 使用 GTK3 原生 Copy 与 URI 列表，外部请求时在 Rust 私有暂存中完成下载；收尾等待后台退出，成功交付与目标最终复制分开表达，暂存保留和清理见 SFTP 契约。不能将 Web 拖动等同于系统拖出。
+上传与对拷共用 terminal-sftp 的目标写入边界，原生覆盖确认留在壳；本地授权/源复核与远端扫描分别保留，正文仍使用 terminal-files 的有界复制。
+
+原生文件授权与平台拖放适配位于壳，应用内布局和对拷由前端交互处理。原生拖入使用绑定 owner 的一次性引用；macOS 文件承诺、Windows Shell 流和 Linux GTK/URI 暂存各自处理原生生命周期，具体授权、取消及清理见 [SFTP 契约](16-sftp-workspace.md)。
 
 ## 6. 关键设计取舍
 

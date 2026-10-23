@@ -128,20 +128,12 @@ pub(crate) async fn upload_paths(
                 let attrs = tokio::fs::symlink_metadata(&item.local).await.map_err(|_| file_error("无法复核上传源目录"))?;
                 validate_local_source(&attrs)?;
                 if !attrs.is_dir() { return Err(file_error("上传源目录已变化，请重新拖入")); }
-                // 合并已有目录，不删除或替换任何目录；树内链接不是递归上传目标。
-                if browser.upload_metadata(&item.remote).await?.is_some_and(|attrs| attrs.file_type().is_symlink()) {
-                    return Err(file_error("上传树中的同名目标是链接，不自动合并，请直接打开目标目录后上传"));
-                }
                 browser.merge_directory(&item.remote).await?;
                 continue;
             }
-            let existing = browser.upload_metadata(&item.remote).await?;
-            let overwrite = if let Some(attrs) = existing {
-                if !attrs.file_type().is_file() {
-                    return Err(file_error("同名目标是目录、链接或特殊文件，不予覆盖"));
-                }
+            let overwrite = browser.confirm_upload(&item.remote, |path| async move {
                 let (tx, rx) = tokio::sync::oneshot::channel();
-                window.dialog().message(format!("远端文件已存在：\n{}\n\n覆盖会直接截断并写入文件；中断后可能保留不完整内容。是否覆盖？", item.remote))
+                window.dialog().message(format!("远端文件已存在：\n{}\n\n覆盖会直接截断并写入文件；中断后可能保留不完整内容。是否覆盖？", path))
                     .title("确认覆盖文件").kind(MessageDialogKind::Warning)
                     .buttons(MessageDialogButtons::YesNoCancelCustom("保留并停止".into(), "覆盖".into(), "取消".into()))
                     .parent(window).show_with_result(move |answer| {
@@ -158,8 +150,8 @@ pub(crate) async fn upload_paths(
                     return Err(error);
                 }
                 connected(state, owner_id, session_id)?;
-                true
-            } else { false };
+                Ok(true)
+            }).await?;
             if cancel.is_cancelled() { return Err(SessionError::cancelled()); }
             let attrs = tokio::fs::symlink_metadata(&item.local).await.map_err(|_| file_error("无法读取上传源"))?;
             validate_local_source(&attrs)?;

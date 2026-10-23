@@ -2,10 +2,14 @@
 
 Node 用例要求 Node 22.18+；纯逻辑用例直接导入 TypeScript，保险库门禁用例使用内存 Vue 宿主与模拟 IPC。Rust 测试会编译。遵循 [协作规则](../AGENTS.md)，未经用户明确授权不执行项目测试、构建/启动应用或连接主机/设备。
 
+Node 不读取 Vite/TypeScript 的路径别名配置。带有界面或别名依赖的纯逻辑用例可使用 [源码加载辅助函数](helpers/load-typescript.mjs) 显式注入依赖；主机搜索保留真实拼音表，终端活动保留真实标题归一化逻辑，并阻止意外调用界面翻译。
+
 ## Node 用例
 
 | 文件 | 覆盖领域 |
 | --- | --- |
+| [host-model.test.mjs](host-model.test.mjs) | 四类保存项 DTO/领域转换、协议字段隔离、缺失配置拒绝及工作区引用保留 |
+| [settings-contract.test.mjs](settings-contract.test.mjs) | 与 Rust 共用兼容样例，检查 UI 默认补齐、归一化投影及主机配色差量 |
 | [tab-insertion.test.mjs](tab-insertion.test.mjs) | 标签命中、排序与坐标换算 |
 | [workbench-layout.test.mjs](workbench-layout.test.mjs) | 分屏、迁移、收缩、比例与不变性 |
 | [terminal-broadcast.test.mjs](terminal-broadcast.test.mjs) | 用户输入/自动应答隔离、滚轮编码与广播边界 |
@@ -39,5 +43,7 @@ node --test tests/*.test.mjs
 历史授权调试仅有 macOS core/Serial 的定向编译及 15 项测试、指定 ESP32-C3 输出/关闭和 xterm 无界面缓冲比较等局部证据，见 [串口记录](../docs/19-serial-terminal.md#5-已有验证与诊断入口)。其他新增回归源码尚未完成编译/运行验收，测试存在不等于通过。
 
 `pnpm check:types`、`pnpm check:structure`、`pnpm check:i18n`、`pnpm check:format:vue` 和 `cargo fmt --all -- --check` 只做静态检查，不构建/启动项目。静态解析、内存 SQLite 迁移模型或历史检查不能证明当前 SQLCipher/桌面运行通过。
+
+[设置兼容样例](fixtures/settings-contract.json) 由 Rust 设置回归源码验证存储归一/局部合并，再由 Node 用例对同一预期快照检查 UI 投影；两端各有职责，不表示 Node 执行了 Rust，也不覆盖全部设置规则。
 
 当前运行门槛只维护在 [产品需求](../docs/01-product-requirements.md#11-运行验收边界)，领域文档维护独特行为。运行证据记录日期、代码版本、平台/架构、工具链、服务端/设备、步骤及结果，不含凭据或敏感输出。

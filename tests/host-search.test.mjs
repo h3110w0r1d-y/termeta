@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  matchesText,
-  searchWords,
-  toSearchableName,
-} from "../src/modules/hosts/search.ts";
+import { PINYIN_CONF } from "../src/assets/conf/PINYIN_CONF.ts";
+import { loadTypeScript } from "./helpers/load-typescript.mjs";
+
+const { matchesText, searchWords, toSearchableName } = loadTypeScript(
+  new URL("../src/modules/hosts/search.ts", import.meta.url),
+  { "@/assets/conf/PINYIN_CONF.ts": { PINYIN_CONF } },
+);
 
 const matches = (text, query) =>
   matchesText(toSearchableName(text), searchWords(query));

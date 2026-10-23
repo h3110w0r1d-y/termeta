@@ -1,5 +1,7 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
+  "hosts.errors.invalidConfiguration":
+    "저장된 연결 구성이 잘못되어 읽거나 편집할 수 없습니다.",
   "hosts.batch.title": "여러 호스트 연결",
   "hosts.batch.confirm":
     "하위 그룹을 포함하여 “{groupName}”의 호스트 {count}개 모두에 연결할까요?",

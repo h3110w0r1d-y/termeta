@@ -17,7 +17,7 @@ export function useHostSearch(query: Ref<string>, includeAllWhenEmpty = false) {
         const values = {
           name: [host.name],
           address: [hostAddress(host)],
-          username: [host.username],
+          username: host.kind === "ssh" ? [host.username] : [],
           tags: host.tags,
           group: [groupPath(store.groups, host.groupId)],
         }[field];

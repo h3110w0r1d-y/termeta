@@ -351,7 +351,64 @@ fn builtin(id: &str) -> bool {
         .iter()
         .any(|palette| palette.id == id)
 }
-pub fn normalize_legacy_schemes(settings: &mut Value) {
+/// 读取只归一旧记录的兼容字段，不将结果写回存储。
+pub fn normalize_saved(mut settings: Value) -> Result<Value> {
+    normalize_legacy_font(&mut settings);
+    normalize_legacy_schemes(&mut settings);
+    validate(&settings)?;
+    Ok(settings)
+}
+
+/// 在最新快照上合并局部设置；调用方负责串行读取和提交。
+pub fn apply_patch(mut settings: Value, patch: &Value) -> Result<Value> {
+    let patch = patch
+        .as_object()
+        .ok_or_else(|| SessionError::new("INVALID_CONFIG", "validation", "设置必须为对象"))?;
+    for (key, value) in patch {
+        // 旧记录可能没有 hostsView，首次局部更新先补齐原有必需字段。
+        if key == "hostsView" && settings.get(key).is_none() && value.is_object() {
+            settings[key] = serde_json::json!({
+                "includeChildren": false,
+                "expandedGroupIds": []
+            });
+        }
+        if matches!(key.as_str(), "hostSchemes" | "hostsView" | "hostSearch") {
+            if let (Some(target), Some(fields)) = (settings[key].as_object_mut(), value.as_object())
+            {
+                for (field, value) in fields {
+                    // 主机配色的 null 仅删除指定引用，其他局部字段按值合并。
+                    if key == "hostSchemes" && value.is_null() {
+                        target.remove(field);
+                    } else {
+                        target.insert(field.clone(), value.clone());
+                    }
+                }
+                continue;
+            }
+        }
+        settings[key] = value.clone();
+    }
+    // 只迁移沿用的旧字体；显式提交非法字体仍须拒绝。
+    if !patch.contains_key("fontFamily") {
+        normalize_legacy_font(&mut settings);
+    }
+    normalize_legacy_schemes(&mut settings);
+    validate(&settings)?;
+    Ok(settings)
+}
+
+fn normalize_legacy_font(settings: &mut Value) {
+    if let Some(font) = settings.get_mut("fontFamily") {
+        if font
+            .as_str()
+            .is_some_and(|name| !TERMINAL_FONTS.contains(&name))
+        {
+            *font = Value::String(DEFAULT_TERMINAL_FONT.into());
+        }
+    }
+}
+
+fn normalize_legacy_schemes(settings: &mut Value) {
     fn replacement(id: &str) -> Option<&'static str> {
         match id {
             "light" | "contrast-light" => Some("nord-light"),
@@ -413,14 +470,59 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    // 两端消费相同的存储输入、Rust 输出及 UI 默认投影，避免各自维护“正确”样例。
+    fn contract() -> Value {
+        serde_json::from_str(include_str!("../../tests/fixtures/settings-contract.json"))
+            .expect("设置兼容契约必须为有效 JSON")
+    }
+
     fn baseline() -> Value {
-        json!({
-            "schemaVersion": 1, "appearance": "dark", "fontFamily": DEFAULT_TERMINAL_FONT,
-            "fontSize": 14, "scrollback": 5000, "defaultSchemeId": "pro",
-            "confirmClose": true, "multilinePaste": true,
-            "customSchemes": [], "hostSchemes": {},
-            "keymap": {"schemaVersion": 2, "bindings": []}
-        })
+        contract()["baseline"].clone()
+    }
+
+    fn snapshot(baseline: &Value, fields: &Value) -> Value {
+        let mut value = baseline.clone();
+        value
+            .as_object_mut()
+            .unwrap()
+            .extend(fields.as_object().unwrap().clone());
+        value
+    }
+
+    #[test]
+    fn shared_settings_compatibility_contract() {
+        let contract = contract();
+        let baseline = &contract["baseline"];
+        for case in contract["cases"].as_array().unwrap() {
+            let name = case["name"].as_str().unwrap();
+            let saved = snapshot(baseline, &case["saved"]);
+            assert_eq!(
+                normalize_saved(saved.clone()).unwrap(),
+                snapshot(baseline, &case["normalized"]),
+                "{name}: 读取兼容归一"
+            );
+            let mut current = saved.clone();
+            for step in case["patches"].as_array().unwrap() {
+                current = apply_patch(current, &step["patch"]).unwrap();
+                assert_eq!(
+                    current,
+                    snapshot(baseline, &step["normalized"]),
+                    "{name}: 局部合并"
+                );
+            }
+            for patch in case["rejectedPatches"].as_array().unwrap() {
+                assert!(
+                    apply_patch(saved.clone(), patch).is_err(),
+                    "{name}: {patch}"
+                );
+            }
+        }
+        for fields in contract["rejectedSaved"].as_array().unwrap() {
+            assert!(
+                normalize_saved(snapshot(baseline, fields)).is_err(),
+                "{fields}"
+            );
+        }
     }
 
     fn key_binding(command_id: &str, context: &str) -> Value {

@@ -3,6 +3,7 @@ mod browser;
 mod copy;
 mod mutations;
 mod remote_file;
+mod upload;
 pub use browser::SftpBrowser;
 pub use copy::copy_between;
 pub use remote_file::RemoteFile;

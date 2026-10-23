@@ -31,11 +31,10 @@ export interface TelnetConfig {
   address: string;
   port: number;
 }
-export type HostKind = "ssh" | "serial" | "telnet";
-export interface HostProfile extends Omit<SshConfig, "configVersion"> {
+export interface HostProfileDto extends Omit<SshConfig, "configVersion"> {
   sortOrder: number;
   id: string;
-  kind: HostKind | "workspace";
+  kind: "ssh" | "serial" | "telnet" | "workspace";
   serialConfig?: SerialConfig | null;
   workspace?: SavedWorkspace | null;
   name: string;
@@ -46,8 +45,8 @@ export interface HostProfile extends Omit<SshConfig, "configVersion"> {
   icon: string;
   systemDetectionAttempted: boolean;
 }
-export type HostDraft = Omit<
-  HostProfile,
+export type HostDraftDto = Omit<
+  HostProfileDto,
   "id" | "revision" | "hasPassword" | "systemDetectionAttempted" | "sortOrder"
 > & {
   id: string | null;
@@ -77,8 +76,8 @@ export interface HostGroup {
   sortOrder: number;
   revision: number;
 }
-export interface HostInventory {
-  hosts: HostProfile[];
+export interface HostInventoryDto {
+  hosts: HostProfileDto[];
   groups: HostGroup[];
 }
 export interface SerialConfig {

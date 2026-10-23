@@ -26,7 +26,7 @@ import AppDialog from "@/components/ui/AppDialog.vue";
 import { confirmAction } from "@/components/ui/confirmation";
 import { desktop, errorMessage } from "@/services/desktop/client";
 import HostProfileIcon from "./HostProfileIcon.vue";
-import type { HostGroup, HostProfile } from "@/services/desktop/types";
+import type { HostGroup, HostProfile } from "@/modules/hosts/model";
 import { descendantIds, groupChoices, groupPath } from "./groups";
 import { useHosts } from "./store";
 import { useSettings } from "../settings/store";

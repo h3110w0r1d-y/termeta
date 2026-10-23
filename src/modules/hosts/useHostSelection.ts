@@ -1,5 +1,5 @@
 import { computed, nextTick, ref, watch, type Ref } from "vue";
-import type { HostProfile } from "@/services/desktop/types";
+import type { HostProfile } from "@/modules/hosts/model";
 
 // 选区只属于当前浏览范围；锚点与键盘焦点分开，Shift 可连续扩展同一范围。
 export function useHostSelection(

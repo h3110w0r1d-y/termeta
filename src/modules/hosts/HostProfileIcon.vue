@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { IconCpu, IconWorld, IconLayoutGrid } from "@tabler/icons-vue";
 import { NAvatar, NIcon } from "naive-ui";
-import type { HostProfile } from "@/services/desktop/types";
+import type { HostProfile } from "@/modules/hosts/model";
 import HostSystemBadge from "./HostSystemBadge.vue";
 withDefaults(defineProps<{ host: HostProfile; size?: number }>(), { size: 40 });
 </script>

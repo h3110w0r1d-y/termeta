@@ -1,6 +1,6 @@
 import { t } from "@/i18n";
 import { onBeforeUnmount, ref, type Ref } from "vue";
-import type { HostProfile } from "@/services/desktop/types";
+import type { HostProfile } from "@/modules/hosts/model";
 import { errorMessage } from "@/services/desktop/client";
 import { compareHostOrder } from "./ordering";
 import { descendantIds } from "./groups";

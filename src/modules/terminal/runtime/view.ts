@@ -85,7 +85,9 @@ function connectionLog(
   const config =
     target.source === "ephemeral" || target.source === "telnet"
       ? target.config
-      : profile;
+      : profile?.kind === "ssh" || profile?.kind === "telnet"
+        ? profile
+        : undefined;
   const protocol = terminal.kind === "forwarding" ? "ssh" : terminal.kind;
   return {
     id: terminal.terminalId,

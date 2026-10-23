@@ -4,7 +4,8 @@ import type { FormInst } from "naive-ui";
 import { clone } from "@/services/data/clone";
 import { errorMessage } from "@/services/desktop/client";
 import { validateBindings } from "@/services/commands/registry";
-import { hostSchemePatch, useSettings } from "./store";
+import { useSettings } from "./store";
+import { hostSchemePatch } from "./state";
 import type { AppSettings, SettingsPatch } from "./model";
 
 export function useLiveSettings(form: { value: FormInst | undefined }) {

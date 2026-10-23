@@ -7,7 +7,7 @@ import type {
   HostGroup,
   HostProfile,
   WorkspaceDraft,
-} from "@/services/desktop/types";
+} from "@/modules/hosts/model";
 export const useHosts = defineStore("hosts", () => {
   const managementBusy = ref(false);
   const hosts = ref<HostProfile[]>([]),

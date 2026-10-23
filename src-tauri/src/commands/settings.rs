@@ -23,19 +23,7 @@ pub async fn get_settings(
             "设置来自不支持的版本，已停止写入",
         ));
     }
-    let mut value = setting.value;
-    // 旧版自定义字体串收敛到内置默认项，只改本次返回值，保存仍走完整校验。
-    if let Some(font) = value.get_mut("fontFamily") {
-        if font
-            .as_str()
-            .is_some_and(|name| !crate::settings::TERMINAL_FONTS.contains(&name))
-        {
-            *font = serde_json::Value::String(crate::settings::DEFAULT_TERMINAL_FONT.into());
-        }
-    }
-    crate::settings::normalize_legacy_schemes(&mut value);
-    crate::settings::validate(&value)?;
-    Ok(Some(value))
+    crate::settings::normalize_saved(setting.value).map(Some)
 }
 #[tauri::command]
 pub async fn save_settings(
@@ -53,7 +41,7 @@ pub async fn save_settings(
         .get_setting("app")
         .await
         .map_err(storage_error)?;
-    let mut merged = if let Some(current) = current {
+    let current = if let Some(current) = current {
         if current.value_version != 1 || current.value["schemaVersion"] != 1 {
             return Err(SessionError::new(
                 "UNSUPPORTED_SETTINGS_VERSION",
@@ -66,49 +54,7 @@ pub async fn save_settings(
         crate::settings::validate(&defaults)?;
         defaults
     };
-    let patch = settings
-        .as_object()
-        .ok_or_else(|| SessionError::new("INVALID_CONFIG", "validation", "设置必须为对象"))?;
-    for (key, value) in patch {
-        // 旧 app 记录可能没有 hostsView，首次局部更新先补齐原有必需字段。
-        if key == "hostsView" && merged.get(key).is_none() && value.is_object() {
-            merged[key] = serde_json::json!({
-                "includeChildren": false,
-                "expandedGroupIds": []
-            });
-        }
-        // 主机配色按引用局部合并，null 只删除指定主机的覆盖。
-        if key == "hostSchemes" {
-            if let (Some(target), Some(fields)) = (merged[key].as_object_mut(), value.as_object()) {
-                for (id, scheme) in fields {
-                    if scheme.is_null() {
-                        target.remove(id);
-                    } else {
-                        target.insert(id.clone(), scheme.clone());
-                    }
-                }
-                continue;
-            }
-        }
-        if matches!(key.as_str(), "hostsView" | "hostSearch") {
-            if let (Some(target), Some(fields)) = (merged[key].as_object_mut(), value.as_object()) {
-                target.extend(fields.clone());
-                continue;
-            }
-        }
-        merged[key] = value.clone();
-    }
-    if merged
-        .get("fontFamily")
-        .and_then(|value| value.as_str())
-        .is_some_and(|name| !crate::settings::TERMINAL_FONTS.contains(&name))
-        && !patch.contains_key("fontFamily")
-    {
-        merged["fontFamily"] =
-            serde_json::Value::String(crate::settings::DEFAULT_TERMINAL_FONT.into());
-    }
-    crate::settings::normalize_legacy_schemes(&mut merged);
-    crate::settings::validate(&merged)?;
+    let merged = crate::settings::apply_patch(current, &settings)?;
     state
         .store
         .set_setting("app", 1, &merged)

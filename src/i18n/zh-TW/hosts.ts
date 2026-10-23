@@ -1,5 +1,6 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
+  "hosts.errors.invalidConfiguration": "儲存的連線設定無效，無法讀取或修改。",
   "hosts.batch.title": "批次連線",
   "hosts.batch.confirm":
     "“{groupName}”中共有 {count} 臺主機（包含子分組），是否批次連線？",

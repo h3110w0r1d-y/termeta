@@ -4,15 +4,8 @@ import WorkbenchSidebar from "./modules/workbench/WorkbenchSidebar.vue";
 import WorkbenchNavigation from "./layout/WorkbenchNavigation.vue";
 import { t } from "./i18n";
 import { naiveLocale, naiveDateLocale } from "./i18n";
-import { IconX } from "@tabler/icons-vue";
 import { closeContextMenuOnOutside } from "./components/ui/contextMenu";
-import {
-  NIcon,
-  NConfigProvider,
-  NGlobalStyle,
-  NAlert,
-  NDropdown,
-} from "naive-ui";
+import { NConfigProvider, NGlobalStyle, NAlert, NDropdown } from "naive-ui";
 import { useAppAppearance } from "./layout/useAppAppearance";
 import { useNativeMenuLocale } from "./layout/useNativeMenuLocale";
 import { useConnectionActions } from "./layout/useConnectionActions";
@@ -20,7 +13,6 @@ import { useMainWindowLifecycle } from "./layout/useMainWindowLifecycle";
 import VaultLayout from "./layout/VaultLayout.vue";
 import VaultGate from "./components/VaultGate.vue";
 import AppButton from "./components/ui/AppButton.vue";
-import AppInput from "./components/ui/AppInput.vue";
 import AppDialog from "./components/ui/AppDialog.vue";
 import {
   computed,
@@ -39,10 +31,11 @@ import HostEditor from "./modules/hosts/HostEditor.vue";
 import SerialConnectDialog from "./modules/terminal/SerialConnectDialog.vue";
 import TerminalStage from "./modules/workbench/TerminalStage.vue";
 import TerminalStatusBar from "./modules/terminal/TerminalStatusBar.vue";
+import TerminalSearch from "./modules/terminal/TerminalSearch.vue";
 import { useTerminalMenu } from "./modules/workbench/useTerminalMenu";
 import { useTerminalClose } from "./modules/workbench/useTerminalClose";
 import PasteDialog from "./modules/terminal/PasteDialog.vue";
-import ChallengeDialog from "./modules/terminal/ChallengeDialog.vue";
+import ChallengeDialog from "./modules/sessions/ChallengeDialog.vue";
 import { useHosts } from "./modules/hosts/store";
 import { usePortForwards } from "./modules/forwarding/store";
 import { useSettings } from "./modules/settings/store";
@@ -60,7 +53,6 @@ const hosts = useHosts(),
 const portForwards = usePortForwards();
 const initError = ref("");
 const findOpen = ref(false);
-const query = ref("");
 watch(settingsSync.error, (message) => {
   if (message) initError.value = message;
 });
@@ -187,7 +179,6 @@ watch(
   () => {
     tabMenu.value.show = false;
     findOpen.value = false;
-    query.value = "";
   },
   { flush: "post" },
 );
@@ -313,50 +304,12 @@ onBeforeUnmount(() => {
               class="terminal-area"
               :aria-label="t('terminal.regions.area')"
             >
-              <div v-if="findOpen && workbench.activeTerminal" class="find-bar">
-                <AppInput
-                  v-model="query"
-                  autofocus
-                  :aria-label="t('terminal.search.label')"
-                  :placeholder="t('terminal.search.placeholder')"
-                  @keydown.enter.prevent="
-                    terminalRegistry.find(
-                      workbench.activeTerminal.terminalId,
-                      query,
-                      $event.shiftKey,
-                    )
-                  "
-                  @keydown.esc="closeFind()"
-                />
-                <AppButton
-                  @click="
-                    terminalRegistry.find(
-                      workbench.activeTerminal.terminalId,
-                      query,
-                      true,
-                    )
-                  "
-                >
-                  {{ t("common.actions.previous") }}
-                </AppButton>
-                <AppButton
-                  @click="
-                    terminalRegistry.find(
-                      workbench.activeTerminal.terminalId,
-                      query,
-                    )
-                  "
-                >
-                  {{ t("common.actions.next") }}
-                </AppButton>
-                <AppButton
-                  class="icon-button"
-                  :aria-label="t('terminal.search.close')"
-                  @click="closeFind()"
-                >
-                  <NIcon :size="16" aria-hidden="true"><IconX /></NIcon>
-                </AppButton>
-              </div>
+              <TerminalSearch
+                :key="`${workbench.activeId}:${workbench.activeTerminal?.terminalId}`"
+                :open="findOpen"
+                :terminal-id="workbench.activeTerminal?.terminalId"
+                @close="closeFind"
+              />
               <NAlert v-if="activeTerminalError" type="error">
                 {{ activeTerminalError }}
               </NAlert>
@@ -387,7 +340,7 @@ onBeforeUnmount(() => {
         />
         <HostEditor
           v-model:open="editorOpen"
-          :host="editing"
+          :host="editing?.kind === 'serial' ? undefined : editing"
           :kind="editorKind"
           :initial-group-id="newHostGroup"
           :quick="quick"
@@ -404,7 +357,7 @@ onBeforeUnmount(() => {
         <SerialConnectDialog
           v-model:open="serialOpen"
           :save="serialSave"
-          :host="editing"
+          :host="editing?.kind === 'serial' ? editing : undefined"
           :duplicate="duplicate"
           :initial-group-id="newHostGroup"
           @connect="openSerial"
@@ -453,16 +406,6 @@ onBeforeUnmount(() => {
   min-height: 0;
   overflow: hidden;
   background: var(--terminal-background);
-}
-.find-bar {
-  display: flex;
-  gap: 6px;
-  justify-content: flex-end;
-  padding: 8px;
-  border-bottom: 1px solid var(--border);
-}
-.find-bar .ui-input {
-  max-width: 300px;
 }
 .tabs-left {
   --terminal-host-top-margin: 10px;

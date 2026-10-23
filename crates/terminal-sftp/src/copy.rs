@@ -83,26 +83,10 @@ where
                 return Err(SessionError::cancelled());
             }
             if item.directory {
-                if target
-                    .upload_metadata(&item.target)
-                    .await?
-                    .is_some_and(|attrs| attrs.file_type().is_symlink())
-                {
-                    return Err(file_error("同名目录是软链接，不自动合并"));
-                }
                 target.merge_directory(&item.target).await?;
                 continue;
             }
-            let overwrite = match target.upload_metadata(&item.target).await? {
-                Some(attrs) if attrs.file_type().is_file() => {
-                    if !confirm(item.target.clone()).await? {
-                        return Err(SessionError::cancelled());
-                    }
-                    true
-                }
-                Some(_) => return Err(file_error("同名目标是目录、链接或特殊文件，不予覆盖")),
-                None => false,
-            };
+            let overwrite = target.confirm_upload(&item.target, &confirm).await?;
             if cancel.is_cancelled() {
                 return Err(SessionError::cancelled());
             }

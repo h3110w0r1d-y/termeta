@@ -3,7 +3,7 @@ import { t } from "@/i18n";
 import { watch } from "vue";
 import { NButton, NSpace, NText } from "naive-ui";
 import AppDialog from "@/components/ui/AppDialog.vue";
-import type { HostProfile } from "@/services/desktop/types";
+import type { HostProfile } from "@/modules/hosts/model";
 import type { TerminalOpenMode } from "../workbench/store";
 
 const props = defineProps<{

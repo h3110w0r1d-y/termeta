@@ -29,11 +29,15 @@ import { desktop, errorMessage } from "@/services/desktop/client";
 import type {
   AuthStep,
   CredentialMetadata,
-  HostDraft,
-  HostProfile,
   OpenTarget,
   SshStartup,
 } from "@/services/desktop/types";
+import type {
+  HostDraft,
+  HostProfile,
+  NetworkHostProfile,
+  SshHostDraft,
+} from "@/modules/hosts/model";
 import { useSettings } from "../settings/store";
 import { builtinSchemes } from "@/theme/schemes";
 import { useHosts } from "./store";
@@ -63,7 +67,7 @@ const renderSystemLabel: SelectRenderLabel = (option) =>
   );
 const props = defineProps<{
   open: boolean;
-  host?: HostProfile;
+  host?: NetworkHostProfile;
   quick?: boolean;
   kind?: "ssh" | "telnet";
   duplicate?: boolean;
@@ -93,10 +97,10 @@ const hosts = useHosts(),
 const createCredentialValue = "__create_credential__";
 const startupType = ref<SshStartup["type"]>("shell");
 const startupCommand = ref("");
-const blank = (): HostDraft => ({
+// 表单同时编辑网络地址和 SSH 选项；提交时显式投影实际协议，避免保存隐藏字段。
+type NetworkEditorDraft = Omit<SshHostDraft, "kind">;
+const blank = (): NetworkEditorDraft => ({
   id: null,
-  kind: isTelnet.value ? "telnet" : "ssh",
-  serialConfig: undefined,
   icon: "ssh",
   name: "",
   address: "",
@@ -106,7 +110,7 @@ const blank = (): HostDraft => ({
   groupId: props.initialGroupId ?? null,
   authPlan: isTelnet.value ? [] : [{ type: "privateKey", credentialId: "" }],
 });
-const draft = ref<HostDraft>(blank());
+const draft = ref<NetworkEditorDraft>(blank());
 const fieldsLocked = computed(() => busy.value || !!committedHost.value);
 watch(
   () => props.open,
@@ -115,13 +119,22 @@ watch(
       committedHost.value = null;
       draft.value = props.host
         ? (() => {
-            const {
-              hasPassword: _hasPassword,
-              systemDetectionAttempted: _systemDetectionAttempted,
-              revision: _revision,
-              ...profile
-            } = clone(props.host);
-            return { ...profile, id: props.duplicate ? null : props.host.id };
+            const host = props.host!;
+            return {
+              id: props.duplicate ? null : host.id,
+              name: host.name,
+              icon: host.icon,
+              groupId: host.groupId,
+              tags: clone(host.tags),
+              address: host.address,
+              port: host.port,
+              username: host.kind === "ssh" ? host.username : "",
+              authPlan: host.kind === "ssh" ? clone(host.authPlan) : [],
+              startup:
+                host.kind === "ssh" && host.startup
+                  ? clone(host.startup)
+                  : undefined,
+            };
           })()
         : blank();
       if (props.duplicate)
@@ -341,10 +354,14 @@ async function submit() {
       );
     else {
       // 主机提交后重试仅保存配色，不能因输入已清空再次覆盖专属密码。
+      const { id, name, icon, groupId, tags, address, port } = draft.value;
+      const host: HostDraft = isTelnet.value
+        ? { id, name, icon, groupId, tags, address, port, kind: "telnet" }
+        : { ...draft.value, kind: "ssh" };
       const saved =
         committedHost.value ??
         (await hosts.save(
-          draft.value,
+          host,
           savedRevision.value,
           isTelnet.value
             ? undefined
@@ -355,10 +372,9 @@ async function submit() {
       committedHost.value = saved;
       savedRevision.value = saved.revision;
       draft.value.id = saved.id;
-      const next = clone(settings.value);
-      if (hostScheme.value) next.hostSchemes[saved.id] = hostScheme.value;
-      else delete next.hostSchemes[saved.id];
-      await settings.save(next);
+      await settings.patch({
+        hostSchemes: { [saved.id]: hostScheme.value || null },
+      });
       emit("saved");
     }
     emit("update:open", false);

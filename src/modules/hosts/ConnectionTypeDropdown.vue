@@ -8,7 +8,7 @@ import {
   IconTerminal2,
   IconWorld,
 } from "@tabler/icons-vue";
-import type { HostKind } from "@/services/desktop/types";
+import type { HostKind } from "@/modules/hosts/model";
 
 const props = withDefaults(
   defineProps<{ label: string; primary?: boolean; disabled?: boolean }>(),

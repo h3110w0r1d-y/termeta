@@ -39,20 +39,24 @@ function deferred() {
 
 function settingsStoreFixture(saveSettings) {
   pinia.setActivePinia(pinia.createPinia());
-  const { useSettings } = load("../src/modules/settings/store.ts", {
-    vue,
-    pinia,
-    "@/services/data/clone": {
-      clone: (value) => JSON.parse(JSON.stringify(value)),
-    },
-    "@/i18n": { normalizeLanguage: (value) => value, setLanguage() {} },
-    "@/services/desktop/client": { desktop: { saveSettings } },
+  const state = load("../src/modules/settings/state.ts", {
+    "@/i18n": { normalizeLanguage: (value) => value },
     "@/services/commands/registry": { defaults: () => [] },
     "@/theme/schemes": { defaultSchemeId: "default" },
     "./fonts": {
       defaultTerminalFont: "default",
       normalizeTerminalFont: (value) => value,
     },
+  });
+  const { useSettings } = load("../src/modules/settings/store.ts", {
+    vue,
+    pinia,
+    "@/services/data/clone": {
+      clone: (value) => JSON.parse(JSON.stringify(value)),
+    },
+    "@/i18n": { setLanguage() {} },
+    "@/services/desktop/client": { desktop: { saveSettings } },
+    "./state": state,
   });
   return useSettings();
 }

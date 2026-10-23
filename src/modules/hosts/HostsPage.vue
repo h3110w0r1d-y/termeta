@@ -45,7 +45,7 @@ import {
 import { validateForm } from "@/services/forms/rules";
 import AppDialog from "@/components/ui/AppDialog.vue";
 import { errorMessage } from "@/services/desktop/client";
-import type { HostKind, HostProfile } from "@/services/desktop/types";
+import type { HostKind, HostProfile } from "@/modules/hosts/model";
 import HostGroupTree from "./HostGroupTree.vue";
 import GroupConnectDialog from "./GroupConnectDialog.vue";
 import type { TerminalOpenMode } from "../workbench/store";
