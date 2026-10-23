@@ -26,6 +26,8 @@ pub struct LocalDropRegistry {
     drops: Mutex<HashMap<String, LocalDrop>>,
     outgoing: Mutex<Weak<OutgoingDrag>>,
     external_entries: Mutex<HashSet<String>>,
+    #[cfg(target_os = "linux")]
+    exports: linux::Exports,
 }
 
 /// 原生内部落点可直接终止拖出，不依赖平台源结束回调或对象析构。
@@ -38,7 +40,7 @@ impl OutgoingDrag {
     pub async fn cancelled(&self) {
         self.cancel.cancelled().await;
     }
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
     pub fn is_cancelled(&self) -> bool {
         self.cancel.is_cancelled()
     }
@@ -61,6 +63,7 @@ impl LocalDropRegistry {
             return Err("原生拖动正在进行，请稍后重试".into());
         }
         let token = Arc::new(OutgoingDrag::default());
+        self.external_entries.lock().unwrap().clear();
         *active = Arc::downgrade(&token);
         Ok(token)
     }
@@ -150,14 +153,14 @@ pub fn on_window_event(window: &tauri::Window, event: &tauri::WindowEvent) {
     }
     if let tauri::WindowEvent::DragDrop(event) = event {
         let outgoing = registry.outgoing.lock().unwrap().upgrade();
-        if let Some(outgoing) = outgoing.filter(|token| !token.cancel.is_cancelled()) {
+        if let Some(outgoing) = outgoing {
             registry
                 .external_entries
                 .lock()
                 .unwrap()
                 .remove(window.label());
             if matches!(event, tauri::DragDropEvent::Drop { .. }) {
-                // 软件内松开的Drop是明确取消信号，即使AppKit回报Copy也不等待兑现。
+                // 软件内松开的 Drop 是明确取消信号，平台回报 Copy 也不能授权上传。
                 outgoing.finish();
             }
             let _ = window.emit("sftp-local-leave", ());
@@ -175,6 +178,10 @@ pub fn on_window_event(window: &tauri::Window, event: &tauri::WindowEvent) {
                 .remove(window.label());
             // 文件承诺等无本地路径的拖动不是上传源；必须先有真实外部Enter授权。
             if paths.is_empty() {
+                return;
+            }
+            #[cfg(target_os = "linux")]
+            if registry.exports.contains(paths) {
                 return;
             }
             registry
@@ -213,6 +220,10 @@ pub fn on_window_event(window: &tauri::Window, event: &tauri::WindowEvent) {
             if !external || paths.is_empty() {
                 return;
             }
+            #[cfg(target_os = "linux")]
+            if registry.exports.contains(paths) {
+                return;
+            }
             if let Some(drop_id) = registry.register(window.label(), paths) {
                 let _ = window.emit(
                     "sftp-local-drop",
@@ -241,7 +252,12 @@ pub fn on_window_event(window: &tauri::Window, event: &tauri::WindowEvent) {
                 .remove(window.label());
             let _ = window.emit("sftp-local-leave", ());
         }
-        tauri::WindowEvent::Destroyed => registry.clear_owner(window.label()),
+        tauri::WindowEvent::Destroyed => {
+            if let Some(outgoing) = registry.outgoing.lock().unwrap().upgrade() {
+                outgoing.finish();
+            }
+            registry.clear_owner(window.label());
+        }
         _ => {}
     }
 }
@@ -249,13 +265,17 @@ pub fn on_window_event(window: &tauri::Window, event: &tauri::WindowEvent) {
 pub struct PromisedFile {
     pub name: String,
     pub directory: bool,
-    /// 目标来自原生文件承诺，回调在后台队列执行，不阻塞主线程。
+    /// 目标来自原生文件承诺或壳生成的私有暂存目录，回调仅在后台执行。
     pub write: Arc<dyn Fn(PathBuf) -> Result<(), String> + Send + Sync>,
 }
 
 #[cfg(target_os = "macos")]
 #[path = "file_drag_macos.rs"]
 mod macos;
+
+#[cfg(target_os = "linux")]
+#[path = "file_drag_linux.rs"]
+mod linux;
 
 pub async fn start_drag(
     window: tauri::WebviewWindow,
@@ -266,7 +286,11 @@ pub async fn start_drag(
     {
         macos::start_drag(window, files, outgoing).await
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "linux")]
+    {
+        linux::start_drag(window, files, outgoing).await
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     {
         let _ = (window, files, outgoing);
         Err("当前平台尚不支持原生文件拖出，请使用下载按钮选择目录".into())
@@ -282,6 +306,50 @@ pub async fn finish_drag(
     if outgoing.needs_mouse_release() {
         return macos::finish_drag(window).await;
     }
-    let _ = (window, outgoing);
-    Ok(())
+    #[cfg(target_os = "linux")]
+    {
+        let _ = outgoing;
+        return linux::finish_drag(window).await;
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (window, outgoing);
+        Ok(())
+    }
+}
+
+#[cfg(target_os = "linux")]
+pub fn clear_exports(app: &tauri::AppHandle) {
+    app.state::<LocalDropRegistry>().exports.clear();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn drop_authorization_is_owner_bound_and_consumed_once() {
+        let registry = LocalDropRegistry::default();
+        let paths = vec![PathBuf::from("/external/file")];
+        let id = registry.register("main", &paths).unwrap();
+        assert!(registry.take("settings", &id).is_err());
+        assert_eq!(registry.take("main", &id).unwrap(), paths);
+        assert!(registry.take("main", &id).is_err());
+    }
+
+    #[test]
+    fn cancelled_gesture_remains_exclusive_until_cleanup_releases_it() {
+        let registry = LocalDropRegistry::default();
+        registry
+            .external_entries
+            .lock()
+            .unwrap()
+            .insert("main".into());
+        let outgoing = registry.begin_outgoing().unwrap();
+        assert!(registry.external_entries.lock().unwrap().is_empty());
+        outgoing.finish();
+        assert!(registry.begin_outgoing().is_err());
+        drop(outgoing);
+        assert!(registry.begin_outgoing().is_ok());
+    }
 }

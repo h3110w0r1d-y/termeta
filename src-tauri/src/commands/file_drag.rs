@@ -13,6 +13,25 @@ use tauri::{Manager, State, WebviewWindow, ipc::Channel};
 use terminal_core::Result;
 use terminal_files::{TransferProgress, child_path, file_error};
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum NativeDragOutcome {
+    Completed,
+    HandedOff,
+    Cancelled,
+}
+
+fn drag_outcome(accepted: bool) -> NativeDragOutcome {
+    if !accepted {
+        NativeDragOutcome::Cancelled
+    } else if cfg!(target_os = "linux") {
+        // URI 协议只确认源文件交付，不能声称接收端已完成复制。
+        NativeDragOutcome::HandedOff
+    } else {
+        NativeDragOutcome::Completed
+    }
+}
+
 #[tauri::command]
 pub async fn sftp_start_drag(
     window: WebviewWindow,
@@ -23,9 +42,13 @@ pub async fn sftp_start_drag(
     names: Vec<String>,
     directories: Vec<String>,
     on_progress: Channel<TransferProgress>,
-) -> Result<bool> {
+) -> Result<NativeDragOutcome> {
     let owner = owner(&window)?;
-    if !cfg!(any(target_os = "macos", target_os = "windows")) {
+    if !cfg!(any(
+        target_os = "macos",
+        target_os = "windows",
+        target_os = "linux"
+    )) {
         return Err(file_error("此平台尚未支持原生文件拖出，请使用下载按钮"));
     }
     if uuid::Uuid::parse_str(&transfer_id).is_err() || names.is_empty() || names.len() > 100 {
@@ -70,7 +93,8 @@ pub async fn sftp_start_drag(
             cancel.clone(),
             on_progress,
         )
-        .await;
+        .await
+        .map(drag_outcome);
     }
     #[cfg(not(target_os = "windows"))]
     {
@@ -167,6 +191,6 @@ pub async fn sftp_start_drag(
         crate::file_drag::finish_drag(&window, &outgoing)
             .await
             .map_err(|error| file_error(&error))?;
-        result
+        result.map(drag_outcome)
     }
 }

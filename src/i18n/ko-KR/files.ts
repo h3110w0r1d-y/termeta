@@ -41,6 +41,8 @@ export default {
   "files.transfer.active": "전송 중",
   "files.transfer.progress": "전송 중 {completed}/{total}",
   "files.transfer.complete": "전송 완료",
+  "files.transfer.handedOff":
+    "파일을 전달했습니다. 대상 앱의 복사가 끝날 때까지 Termeta를 열어 두세요.",
   "files.transfer.queue": "전송 대기열",
   "files.types.other": "기타 파일",
   "files.copy.preparing": "복사 준비 중…",

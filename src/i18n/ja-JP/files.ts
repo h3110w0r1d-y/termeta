@@ -40,6 +40,8 @@ export default {
   "files.transfer.active": "転送中",
   "files.transfer.progress": "転送中 {completed}/{total}",
   "files.transfer.complete": "転送完了",
+  "files.transfer.handedOff":
+    "ファイルを引き渡しました。コピーが終わるまで Termeta を開いたままにしてください。",
   "files.transfer.queue": "転送キュー",
   "files.types.other": "その他のファイル",
   "files.copy.preparing": "コピーを準備中…",

@@ -37,6 +37,8 @@ export default {
   "files.transfer.active": "傳輸中",
   "files.transfer.progress": "傳輸中 {completed}/{total}",
   "files.transfer.complete": "傳輸完成",
+  "files.transfer.handedOff":
+    "檔案已交付，目標應用程式繼續複製；複製完成前請保持 Termeta 開啟",
   "files.transfer.queue": "傳輸佇列",
   "files.types.other": "其他檔案",
   "files.copy.preparing": "準備跨欄複製…",

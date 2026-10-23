@@ -132,10 +132,13 @@ export function useSftpTransferQueue(options: {
                 task.kind === "upload",
                 onProgress,
               );
-      task.status = saved ? "done" : "cancelled";
-      task.messageKey = saved
-        ? "files.transfer.complete"
-        : "common.status.cancelled";
+      const accepted = saved !== false && saved !== "cancelled";
+      task.status = accepted ? "done" : "cancelled";
+      task.messageKey = !accepted
+        ? "common.status.cancelled"
+        : saved === "handedOff"
+          ? "files.transfer.handedOff"
+          : "files.transfer.complete";
     } catch (cause) {
       const cancelled =
         typeof cause === "object" &&

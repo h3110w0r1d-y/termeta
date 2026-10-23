@@ -1,6 +1,6 @@
 # 依赖选型与核查边界
 
-更新：2026-10-22。版本和 features 以 manifest、Cargo.lock、pnpm-lock.yaml 为准。本文保留选型依据与升级注意事项，不记录逐轮调研/API 排查过程；静态核对不代表编译、兼容性或安全审计通过。
+更新：2026-10-23。版本和 features 以 manifest、Cargo.lock、pnpm-lock.yaml 为准。本文保留选型依据与升级注意事项，不记录逐轮调研/API 排查过程；静态核对不代表编译、兼容性或安全审计通过。
 
 ## 1. 主要依赖
 
@@ -35,7 +35,9 @@ SerializeAddon 0.14.0（MIT，未声明独立 engines/features/MSRV）与 xterm 
 
 macOS 文件承诺与原生菜单使用 objc2 0.6.5、block2 0.6.2、objc2-app-kit/foundation 0.3.2，仅 macOS target 按需启用 features。objc2/foundation/block2 为 MIT，AppKit 为 Zlib OR Apache-2.0 OR MIT，声明 MSRV 1.71。AppKit 对象及通知令牌在主线程管理，文件承诺后台兑现；API 来源见 [NSFilePromiseProvider](https://docs.rs/objc2-app-kit/0.3.2/objc2_app_kit/struct.NSFilePromiseProvider.html) 和 [菜单](https://github.com/tauri-apps/muda/issues/235)。串口角色枚举另用 core-foundation 0.10.1、io-kit-sys 0.4.1（MIT/Apache-2.0）。
 
-Windows 文件/目录拖出使用固定 [windows 0.62.2](https://docs.rs/crate/windows/0.62.2/source/) 与 [windows-core 0.62.2](https://docs.rs/crate/windows-core/0.62.2/source/)（MIT OR Apache-2.0，声明 MSRV 1.82），按目标启用 Shell/OLE、COM/存储、内存、文件属性、事件与窗口消息 API。自行实现目录描述符、只读内容流及异步生命周期，不依赖 `virtual-file-transfer` 或预下载临时文件；文件内容读取留在 Rust，STA 等待通过 COM 消息泵分派窗口/COM 调用。API 依据为 [Shell 数据格式](https://learn.microsoft.com/en-us/windows/win32/shell/clipboard)、[FILEDESCRIPTORW](https://learn.microsoft.com/en-us/windows/win32/api/shlobj_core/ns-shlobj_core-filedescriptorw)、[异步数据传输](https://learn.microsoft.com/en-us/windows/win32/shell/datascenarios#dragging-and-dropping-shell-objects-asynchronously) 和 [CoWaitForMultipleHandles](https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-cowaitformultiplehandles)，已按固定 release 的生成接口核对签名。2026-10-21 查询 GitHub Advisory 的 Rust 包索引未返回这两个固定版本的匹配公告；这不代表完整依赖安全审计或 Windows 运行验收通过。Linux 原生拖出与系统后台热键尚未引入，见 [路线](10-roadmap.md)。
+Windows 文件/目录拖出使用固定 [windows 0.62.2](https://docs.rs/crate/windows/0.62.2/source/) 与 [windows-core 0.62.2](https://docs.rs/crate/windows-core/0.62.2/source/)（MIT OR Apache-2.0，声明 MSRV 1.82），按目标启用 Shell/OLE、COM/存储、内存、文件属性、事件与窗口消息 API。自行实现目录描述符、只读内容流及异步生命周期，不依赖 `virtual-file-transfer` 或预下载临时文件；文件内容读取留在 Rust，STA 等待通过 COM 消息泵分派窗口/COM 调用。API 依据为 [Shell 数据格式](https://learn.microsoft.com/en-us/windows/win32/shell/clipboard)、[FILEDESCRIPTORW](https://learn.microsoft.com/en-us/windows/win32/api/shlobj_core/ns-shlobj_core-filedescriptorw)、[异步数据传输](https://learn.microsoft.com/en-us/windows/win32/shell/datascenarios#dragging-and-dropping-shell-objects-asynchronously) 和 [CoWaitForMultipleHandles](https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-cowaitformultiplehandles)，已按固定 release 的生成接口核对签名。2026-10-21 查询 GitHub Advisory 的 Rust 包索引未返回这两个固定版本的匹配公告；这不代表完整依赖安全审计或 Windows 运行验收通过。系统后台热键尚未引入，见 [路线](10-roadmap.md)。
+
+Linux 拖出直接固定使用已在 Tauri/Wry 锁图中的 [gtk 0.18.2](https://docs.rs/crate/gtk/0.18.2/source/)（MIT，声明 MSRV 1.70），仅 Linux target 使用默认 features，不启用额外版本特性；复用其 gdk 0.18.2 / glib 0.18.5 重导出，未引入第二套 GTK 版本。固定 release 源码已核对 `drag_begin_with_coordinates`、`drag-data-get/end/failed`、`SelectionData::set_uris`、主循环及信号撤销接口，URI 编码复用 url 2.5.8；GTK3 系统工具链和 X11/Wayland 兼容性待验证。gtk3-rs 已停止维护，既有 glib 0.18.5 公告及其他桌面传递风险仍见 [风险记录](01-product-requirements.md#10-依赖与公告核查)，直接引用不代表公告已修复。实现选择 URI 私有暂存的原因、保留期、清理及最终复制边界见 [SFTP](16-sftp-workspace.md#4-下载与原生拖出)。
 
 12 家族字体的固定版本、来源、许可和摘要集中在 [字体清单](../resources/fonts/README.md)；配色、拼音表和用户指定 SSH 系统图标集中在 [资源来源](../resources/README.md)。资源来源记录不等同发布许可审查通过，不重复维护尺寸、提取过程或组件样式。
 

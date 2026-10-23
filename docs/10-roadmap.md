@@ -9,7 +9,7 @@
 | M0 选型与架构 | 技术栈、领域分层、依赖锁定 | 固定 release API、原生工具链、许可和公告复核 |
 | M1 SSH 纵向切片 | actor、信任/认证、PTY、Channel/ACK、取消 | 真实认证/信任、流控、尾输出和资源回收验收 |
 | M2 SSH 工作台 | 加密保险库、主机管理、稳定终端/分屏广播、设置、第三方备份 | 睡眠恢复、第三方自动备份/双向同步、本地备份入口；集成、安全和性能验收 |
-| M3 文件与连接工具 | SFTP 侧栏/双远端/对拷、面包屑/多选/文件操作与底部传输反馈、macOS 拖出、Windows 文件/目录拖出源码、转发、工作区存档、Snippets、关闭归档与日志回看 | 本地文件端点、通用租约/完整传输管理、Linux 拖出、Windows OLE 运行验收、ProxyJump/Agent；运行验收 |
+| M3 文件与连接工具 | SFTP 侧栏/双远端/对拷、面包屑/多选/文件操作与底部传输反馈、macOS/Windows/Linux 文件与目录拖出源码、转发、工作区存档、Snippets、关闭归档与日志回看 | 本地文件端点、通用租约/完整传输管理、Linux GTK/URI 暂存与 X11/Wayland、Windows OLE 运行验收、ProxyJump/Agent；运行验收 |
 | M4 Local/Serial/Telnet | 系统 Shell、串口文本终端、Telnet | Local 自定义启动/完整进程树清理、串口控制线/HEX、启动偏好/CLI；平台设备矩阵 |
 | M5 发布与产品化 | Windows 多语言/安装范围配置、已选定深色默认的深浅两套品牌图标及同源生成入口 | 两套图标系统展示/缓存与高 DPI、安装/卸载/UAC、签名/公证/updater、恢复演练及发布许可 |
 

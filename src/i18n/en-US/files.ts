@@ -40,6 +40,8 @@ export default {
   "files.transfer.active": "Transferring",
   "files.transfer.progress": "Transferring {completed}/{total}",
   "files.transfer.complete": "Transfer complete",
+  "files.transfer.handedOff":
+    "Files handed off; the destination app continues copying. Keep Termeta open until copying finishes.",
   "files.transfer.queue": "Transfer queue",
   "files.types.other": "Other file",
   "files.copy.preparing": "Preparing to copy…",

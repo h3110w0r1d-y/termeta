@@ -18,6 +18,7 @@ import type {
   SftpCopyRequest,
   SftpEntryRequest,
   SftpLocalDrop,
+  NativeDragOutcome,
   SftpDropPosition,
   TransferProgress,
   AuthChallenge,
@@ -175,7 +176,7 @@ export const desktop = {
   ) {
     const onProgress = new Channel<TransferProgress>();
     onProgress.onmessage = progress;
-    return invoke<boolean>("sftp_start_drag", {
+    return invoke<NativeDragOutcome>("sftp_start_drag", {
       sessionId,
       transferId,
       directory,

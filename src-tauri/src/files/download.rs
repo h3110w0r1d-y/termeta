@@ -18,7 +18,7 @@ pub(crate) async fn download_to_path(
     }
     let attrs = browser.metadata(remote).await?;
     let mut source = browser.reader(remote).await?;
-    // 由本次原生对话框授权精确目标；不接收 WebView 提供的任意本地路径。
+    // 目标来自原生授权或壳生成的私有暂存；不接收 WebView 提供的任意本地路径。
     let parent = local.parent().ok_or_else(|| file_error("保存目录无效"))?;
     let temporary = parent.join(format!(".termeta-{}.part", uuid::Uuid::new_v4()));
     let mut options = tokio::fs::OpenOptions::new();
@@ -53,7 +53,7 @@ pub(crate) async fn download_to_path(
     Ok(())
 }
 
-/// 只写入Finder本次授权的新目录，递归失败保留已完成内容；不跟随远端链接。
+/// 只写入原生授权或私有暂存中的新目录，递归失败保留已完成内容；不跟随远端链接。
 pub(crate) async fn download_directory_to_path(
     browser: &SftpBrowser,
     remote: &str,
@@ -67,7 +67,7 @@ pub(crate) async fn download_directory_to_path(
     if !browser.metadata(remote).await?.file_type().is_dir() {
         return Err(file_error("拖出目标不是普通目录，不递归下载软连接"));
     }
-    // create_dir本身拒绝所有已存在目标，绝不删除Finder目录后再写入。
+    // create_dir 本身拒绝所有已存在目标，绝不删除已有目录后再写入。
     tokio::fs::create_dir(local)
         .await
         .map_err(|_| file_error("下载根目录已存在或无法创建，不替换任何已有目录"))?;

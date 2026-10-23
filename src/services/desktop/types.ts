@@ -273,6 +273,7 @@ export interface SftpLocalDrop {
   dropId: string;
   position: SftpDropPosition;
 }
+export type NativeDragOutcome = "completed" | "handedOff" | "cancelled";
 export interface TransferProgress {
   currentName?: string;
   completedFiles?: number;

@@ -211,6 +211,10 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("Termeta 初始化失败；请检查应用数据目录与桌面环境")
         .run(|app, event| {
+            #[cfg(target_os = "linux")]
+            if matches!(event, tauri::RunEvent::Exit) {
+                file_drag::clear_exports(app);
+            }
             if let tauri::RunEvent::ExitRequested { api, .. } = event {
                 shutdown::intercept(app, api);
             }

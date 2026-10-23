@@ -1,6 +1,6 @@
 # SFTP 浏览、上传下载与双栏对拷
 
-更新：2026-10-22。本文维护连接、文件授权和传输边界；当前范围与完整验收状态见 [产品需求](01-product-requirements.md)。
+更新：2026-10-23。本文维护连接、文件授权和传输边界；当前范围与完整验收状态见 [产品需求](01-product-requirements.md)。
 
 ## 1. 连接与生命周期
 
@@ -48,7 +48,7 @@ READLINK 获取链接目标，STAT 尽力判断目标类型，失败不阻断列
 
 macOS 支持最多 100 个普通文件/真实目录拖到 Finder，通过 NSFilePromiseProvider 按需下载。Finder 请求兑现后才创建任务；无效落点、Esc 或应用内松开取消手势，不留下下载记录。成功要求 Copy 会话结束且全部承诺兑现；收尾拒绝迟到请求，内部落点不能转为上传。
 
-目录递归独立于列表游标，最多 64 层、10000 项；不跟随链接或特殊文件，只创建 Finder 授权的新目录，不覆盖已有目标。失败保留已完成部分。链接拖出、Linux 原生拖出及按钮目录下载尚未实现。
+目录递归独立于列表游标，最多 64 层、10000 项；不跟随链接或特殊文件，只创建 Finder 授权的新目录，不覆盖已有目标。失败保留已完成部分。链接拖出及按钮目录下载尚未实现。
 
 Windows 终端侧栏支持最多 100 个普通文件/真实目录混合拖到资源管理器，包括嵌套目录、空目录和空文件。使用 Shell `FILEGROUPDESCRIPTORW` / `FILECONTENTS`：目录显式标记为目录属性，父目录在子项之前；内容索引与描述符索引一致。接收端请求时才生成有界清单，最多 64 层、合计 10000 项，独立于浏览器分页，不预下载到临时文件。
 
@@ -57,6 +57,14 @@ Windows 终端侧栏支持最多 100 个普通文件/真实目录混合拖到资
 OLE 松键不代表传输完成：异步目标的 `EndOperation`、Copy 结果与文件交付状态共同决定完成；空目录由目录描述符和目标成功结果确认。接收端接受前的描述符查询不显示下载任务；无效落点、Esc 和应用内落点取消，不产生上传授权。取消/断线后阻断迟到打开与读取，排空在途 I/O 并关闭远端句柄，再在创建它们的 STA 线程释放原生保活引用。同步 COM 回调将远端请求交给后台，等待期间继续分派窗口/COM 消息，同一流的重入操作拒绝阻塞。
 
 Windows 外部接收端负责创建目标、冲突交互和部分文件清理；源端只提供 Copy，不删除远端源，不承诺外部目标的无覆盖发布或失败回滚。目录预扫描不构成远端快照，不能普遍消除 SFTPv3 并发路径替换；本地上传同样不承诺完整目录树的并发替换防护。Windows 实际拖入/拖出和其他接收端兼容性仍待运行验收。
+
+2026-10-23 决策：Linux 终端侧栏采用 GTK3 原生 Copy 拖动和 `text/uri-list`，支持最多 100 个普通文件/真实目录混合拖出（含空目录、空文件）。Linux 文件管理器没有通用的多文件/目录承诺接口，故在首次外部 URI 请求时由 Rust 下载到独占创建的私有暂存目录，再整批交付编码后的本地 URI；不向 WebView 传递文件正文或本地路径，也不从前端接受暂存目标。目录递归与文件下载复用上述限额、链接拒绝和无覆盖发布规则。GTK 同步 selection 回调期间泵送主循环，后台执行下载；重复请求复用完整结果，拒绝重入和收尾后的请求。
+
+暂存根权限为 0700，文件为 0600，失败或取消在后台写入退出后清理本批全部暂存内容，不触碰外部目标。尚未请求 URI 的 Esc、无效落点及应用内松开不显示任务；接收端若在悬浮期间请求 URI，任务从该请求开始，后续取消仍清理。全程只提供 Copy，不删除远端源。GTK 只确认 URI 交付和拖动成功，不能证明目标已复制完成，界面明确显示“文件已交付”并提示复制结束前保持 Termeta 打开；目标应用负责落盘、冲突和部分失败。
+
+成功交付的批次保留 24 小时或至 Termeta 正常退出，最多保留 16 批，达到上限拒绝新暂存；到期不依赖 SSH 会话仍存活。取消清理失败会报告精确目录并保留登记；到期清理失败保留登记，退出重试。异常退出残留由操作系统临时目录策略处理，成功交付不保证超出保留期的目标读取。只删除当前进程独占创建的精确目录，不扫描其他进程的暂存。
+
+拖动期间及收尾中屏蔽本机上传授权；GTK 限制外部应用并复核本进程目标窗口，暂存 URI 回流也不签发 dropId。真实外部拖入继续使用原有 owner-bound 一次性 dropId。Esc、内部落点、前端取消、会话撤销和断线均阻断新请求，撤销 GTK 信号/拖动抓取，排空后台写入后清理失败批次；真实松键后补齐 WebKit 鼠标序列，不抢夺外部焦点。X11/Wayland、GNOME/KDE 接收端、大文件等待及取消交互均待 Linux 运行验收。
 
 ## 5. 双远端对拷
 
@@ -82,12 +90,12 @@ Rust 的内部 EndpointIdentity 使用规范 host、port 和 username，不使�
 
 传输入口与日志位于浏览区底部，点击弹出轻量任务列表，展示进度条、状态、文件/字节进度并允许取消或清理已结束记录。多文件批次的整体进度按已完成文件数占比展示，字节数描述当前文件；单文件可按字节展示进度。递归下载尚未确定文件总数时保持未知进度，不能以当前文件完成代表整个目录完成。侧栏保留有界队列，双栏保留有界对拷历史；准备阶段或总量未知时不伪造完成百分比，原生拖动未兑现时不产生任务记录。
 
-命令为 `sftp_connect`、`sftp_list`、`sftp_copy`、`sftp_transfer`、`sftp_drop_upload`、`sftp_start_drag`、`sftp_cancel`、`sftp_delete`、`sftp_set_permissions`；均需命令 ACL、main 窗口及会话 owner 校验，本地路径只能来自原生授权。
+命令为 `sftp_connect`、`sftp_list`、`sftp_copy`、`sftp_transfer`、`sftp_drop_upload`、`sftp_start_drag`、`sftp_cancel`、`sftp_delete`、`sftp_set_permissions`；均需命令 ACL、main 窗口及会话 owner 校验，本地目标只能来自原生授权或 Rust 私有暂存。`sftp_start_drag` 的 Rust/TS 结果统一为 `completed`、`handedOff`、`cancelled`：Linux 成功为 URI 交付，其余两平台保留各自完成判据，错误仍走类型化命令错误。
 
-源码入口：[共享目录控制](../src/modules/files/useSftpDirectory.ts)、[共享文件表格](../src/modules/files/SftpFileTable.vue)、[文件管理命令](../src-tauri/src/commands/file_management.rs)、[文件命令](../src-tauri/src/commands/files.rs)、[独立连接与对拷](../src-tauri/src/commands/file_workspace.rs)、[文件服务](../src-tauri/src/files/)、[统一传输登记](../src-tauri/src/files/transfer.rs)、[terminal-files](../crates/terminal-files/src/lib.rs)、[terminal-sftp](../crates/terminal-sftp/src/lib.rs)、[macOS 拖出](../src-tauri/src/file_drag_macos.rs)、[Windows 拖出](../src-tauri/src/file_drag_windows.rs)。
+源码入口：[共享目录控制](../src/modules/files/useSftpDirectory.ts)、[共享文件表格](../src/modules/files/SftpFileTable.vue)、[文件管理命令](../src-tauri/src/commands/file_management.rs)、[文件命令](../src-tauri/src/commands/files.rs)、[独立连接与对拷](../src-tauri/src/commands/file_workspace.rs)、[文件服务](../src-tauri/src/files/)、[统一传输登记](../src-tauri/src/files/transfer.rs)、[terminal-files](../crates/terminal-files/src/lib.rs)、[terminal-sftp](../crates/terminal-sftp/src/lib.rs)、[macOS 拖出](../src-tauri/src/file_drag_macos.rs)、[Windows 拖出](../src-tauri/src/file_drag_windows.rs)、[Linux 拖出](../src-tauri/src/file_drag_linux.rs)。
 
 ## 8. 验证与资料
 
 历史仅有用户确认 macOS 原生拖出取消后交互恢复的局部证据；不能外推为 Finder 全矩阵、双栏对拷或三平台通过。编译、真实 SSH、路径溢出/编辑焦点、多选/框选与名称拖动互斥、递归删除/权限修改、传输弹层、文件冲突/中断、无 ACK 关闭及原生拖放仍待完整验收，统一见 [运行验收边界](01-product-requirements.md#11-运行验收边界)。
 
-参考：[Windows Shell 数据格式](https://learn.microsoft.com/en-us/windows/win32/shell/clipboard)、[FILEDESCRIPTORW](https://learn.microsoft.com/en-us/windows/win32/api/shlobj_core/ns-shlobj_core-filedescriptorw)、[IDataObjectAsyncCapability](https://learn.microsoft.com/en-us/windows/win32/api/shldisp/nn-shldisp-idataobjectasynccapability)、[russh-sftp 3.0.1](https://docs.rs/russh-sftp/3.0.1/russh_sftp/)、[NSFilePromiseProvider](https://developer.apple.com/documentation/appkit/nsfilepromiseprovider)。
+参考：[Windows Shell 数据格式](https://learn.microsoft.com/en-us/windows/win32/shell/clipboard)、[FILEDESCRIPTORW](https://learn.microsoft.com/en-us/windows/win32/api/shlobj_core/ns-shlobj_core-filedescriptorw)、[IDataObjectAsyncCapability](https://learn.microsoft.com/en-us/windows/win32/api/shldisp/nn-shldisp-idataobjectasynccapability)、[russh-sftp 3.0.1](https://docs.rs/russh-sftp/3.0.1/russh_sftp/)、[NSFilePromiseProvider](https://developer.apple.com/documentation/appkit/nsfilepromiseprovider)、[GTK3 原生拖动](https://docs.gtk.org/gtk3/method.Widget.drag_begin_with_coordinates.html)、[GTK selection 数据请求](https://docs.gtk.org/gtk3/signal.Widget.drag-data-get.html)、[URI 列表](https://docs.gtk.org/gtk3/method.SelectionData.set_uris.html)。
