@@ -1,6 +1,6 @@
 # 统一会话模型与生命周期
 
-更新：2026-10-22。本文维护协议无关的身份、状态与资源契约。功能及验收状态见 [产品需求](01-product-requirements.md#8-当前实现与限制)，字节流协议见 [IPC](06-ipc-and-streaming.md)。
+更新：2026-10-27。本文维护协议无关的身份、状态与资源契约。功能状态见 [产品需求](01-product-requirements.md)，字节流协议见 [IPC](06-ipc-and-streaming.md)。
 
 ## 1. 身份与所有权
 
@@ -15,7 +15,7 @@
 
 当前没有公开 ConnectionId 或跨功能共享连接租约。终端、独立文件、转发分别使用 `sessions`、`file_sessions`、`forward_sessions`。
 
-前端 [sessions 模块](../src/modules/sessions/store.ts) 统一三种用途的轻量控制投影、挑战队列与心跳登记；工作台仅保留终端展示和布局。投影按协议版本、RequestId、SessionId、事件序号和状态 revision 过滤迟到数据，不持有输出、秘密或协议资源。
+前端 [sessions 模块](../src/modules/sessions/store.ts) 统一三种用途的轻量控制投影、状态展示、终态判断、挑战队列与心跳登记；工作台仅保留终端展示和布局。投影按协议版本、RequestId、SessionId、事件序号和状态 revision 过滤迟到数据，不持有输出、秘密或协议资源。
 
 ## 2. 状态机
 
@@ -33,7 +33,7 @@ Closed、Failed、Disconnected 都要求释放协议资源，不是保留后台�
 
 每个会话由驱动持有连接或设备，`DriverContext` 提供独立取消信号、输入接收器、最新尺寸、输出发送器、状态事件和挑战 broker。输入有界且按序单写；resize 合并为最新值；取消与挑战响应不进入可能被输入堵塞的队列。信任与凭据端口由具体工厂持有，core 不访问数据库或钥匙串。
 
-输出 forwarder 独立等待消费信用；控制事件不依赖输出 ACK。驱动暂停读取时仍须响应取消，耗时写入可取消，交付不确定时不得自动重发。SSH 库内部窗口和队列的公平性仍需运行验收。
+输出 forwarder 独立等待消费信用；控制事件不依赖输出 ACK。驱动暂停读取时仍须响应取消，耗时写入可取消，交付不确定时不得自动重发。
 
 每个 manager 最多 20 个活动会话、4 个建立并发；独立文件入口另限两条连接。活动 RequestId 保留至终态，终态摘要最多保留 10 分钟、1024 条，按需淘汰；摘要不保存终端输出或完整配置。
 
@@ -47,7 +47,7 @@ Closed、Failed、Disconnected 都要求释放协议资源，不是保留后台�
 
 “断开”只关闭连接；“关闭标签/窗格”才额外释放视图。重连使用新的 RequestId、SessionId 和 Channel，保留 TerminalId、xterm 与历史；清空旧输入队列，不重放输入。旧流先完成结束协调，新旧回调按 SessionId 和绑定代次隔离；重复重连须合并为一次操作。
 
-2026-10-22：聚焦终端在 Closed、Failed、Disconnected 终态下可按无修饰键的回车复用手动重连流程；Created、连接/认证/打开中、Connected、Closing 均不触发。重连期间不重复请求，长按连发、输入法确认、粘贴及程序输入不触发；该回车被消费，不发送到新会话或广播到其他窗格。
+聚焦终端在 Closed、Failed、Disconnected 终态下可按无修饰键的回车复用手动重连流程；Created、连接/认证/打开中、Connected、Closing 均不触发。重连期间不重复请求，长按连发、输入法确认、粘贴及程序输入不触发；该回车被消费，不发送到新会话或广播到其他窗格。
 
 视图关闭由 Registry 的 `closeAndRemove` 合并普通关闭与退出请求，等待在途连接、终态完成信号、输出解析和日志提交；全局归档并发最多两个。任一步失败保留视图及错误供重试，成功才移除布局和销毁 xterm，详见 [工作台](18-terminal-workspaces.md)。
 
@@ -72,4 +72,4 @@ Local 使用阻塞读写线程和有界桥，独立输入泵等待写线程容�
 
 `SessionError` 包含 `code`、`phase`、`retryable`、`message`，关联身份由事件或命令信封携带；不直接序列化原始错误。retryable 表示允许重新尝试连接，不授权重放 write。
 
-源码入口：[types](../crates/terminal-core/src/types.rs)、[manager](../crates/terminal-core/src/manager.rs)、[session](../crates/terminal-core/src/session.rs)、[stream](../crates/terminal-core/src/stream.rs)。core/Serial 的历史局部测试不覆盖当前全部集成；当前验收边界统一见 [产品需求](01-product-requirements.md#11-运行验收边界)。
+源码入口：[types](../crates/terminal-core/src/types.rs)、[manager](../crates/terminal-core/src/manager.rs)、[session](../crates/terminal-core/src/session.rs)、[stream](../crates/terminal-core/src/stream.rs)。

@@ -1,6 +1,6 @@
 # Telnet 文本终端
 
-更新：2026-10-27。TCP 与基础 Telnet 协商、保存及临时连接已有源码；真实服务兼容性和三平台验收尚未完成。
+更新：2026-10-27。支持 TCP 与基础 Telnet 协商、保存及临时连接。
 
 ## 1. 配置与安全边界
 
@@ -35,8 +35,6 @@ DNS/TCP 共用 30 秒截止，单次 socket 写入也限 30 秒，均可取消�
 
 能力为 `resize=true`、`pty=false`、`binaryOutput=true`、`serialControl=false`；resize 表示 NAWS 通知，不能保证服务器接受。支持独立复制连接、分屏与广播，各连接手动登录，不共享或重放输入。
 
-## 4. 源码与验证边界
+## 4. 源码入口
 
 入口：[配置校验](../crates/terminal-core/src/telnet.rs)、[TCP 驱动](../crates/terminal-telnet/src/lib.rs)、[流式协议](../crates/terminal-telnet/src/protocol.rs)、[会话命令](../src-tauri/src/commands/sessions.rs)。
-
-协议分片、协商、NVT/BINARY、NAWS、限额及 TCP 取消尚未完成运行验收。真实设备登录/回显、全屏与尺寸变化、恶意协商、慢消费者取消、重连资源回收和加密库集成仍待验证，见 [运行验收边界](01-product-requirements.md#11-运行验收边界)。

@@ -4,7 +4,8 @@ import { useSettings } from "../settings/store";
 import { NConfigProvider } from "naive-ui";
 import { t } from "@/i18n";
 import AppButton from "@/components/ui/AppButton.vue";
-import { stateLabels, type TerminalItem } from "../workbench/store";
+import type { TerminalItem } from "../workbench/types";
+import { stateLabels } from "../sessions/presentation";
 import { useTerminalSurface } from "./useTerminalSurface";
 
 const props = defineProps<{

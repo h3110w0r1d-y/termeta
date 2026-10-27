@@ -1,6 +1,6 @@
 # 终端工作台与工作区存档
 
-更新：2026-10-23。工作台管理运行标签、分屏与输入广播；工作区存档只保存布局和连接引用。当前没有自动恢复打开标签、跨窗口拖动或整体工作区合并；源码完成不代表桌面与三平台验收通过。
+更新：2026-10-27。工作台管理运行标签、分屏与输入广播；工作区存档只保存布局和连接引用。当前没有自动恢复打开标签、跨窗口拖动或整体工作区合并。
 
 ## 1. 运行模型与生命周期
 
@@ -62,4 +62,4 @@ SFTP 侧栏仅面向单 SSH 终端，左右停靠由全局偏好选择，工具�
 
 SSH 交互 Shell 与命令模式可保存为不同名称的连接后组合存档，例如操作 Shell 与监控程序并排。存档仍只引用 profileId，命令取最新保存配置；活动会话使用后端 sshCommand 快照，不受编辑影响。命令退出保留输出，手动重新运行，不自动进入 Shell 或重启。
 
-入口为 [SaveWorkspaceDialog](../src/modules/workbench/SaveWorkspaceDialog.vue)、[Store](../src/modules/workbench/store.ts) 与 [workspaces.rs](../crates/terminal-storage/src/workspaces.rs)。保存命令仅允许已解锁主窗口，存储模型见 [存储设计](07-storage.md)。SQLCipher 真实升级、保存/替换、重新打开认证及布局/广播的三平台行为仍需运行验收，统一见 [产品需求](01-product-requirements.md)。
+入口为 [SaveWorkspaceDialog](../src/modules/workbench/SaveWorkspaceDialog.vue)、[Store](../src/modules/workbench/store.ts) 与 [workspaces.rs](../crates/terminal-storage/src/workspaces.rs)。保存命令仅允许已解锁主窗口，存储模型见 [存储设计](07-storage.md)。

@@ -1,50 +1,39 @@
-# 代码结构评估与渐进重构方案
+# 架构对照与重构方向
 
-更新：2026-10-27。本文只维护剩余结构问题与演进边界；当前分层见 [系统架构](03-architecture.md)，功能状态、运行验收和交付顺序分别见 [产品需求](01-product-requirements.md)、[路线](10-roadmap.md)。源码存在不代表编译或运行验证通过。
+更新：2026-10-27。功能状态见 [产品需求](01-product-requirements.md)，实现顺序见 [路线](10-roadmap.md)，现有分层见 [系统架构](03-architecture.md)。本文只维护架构差异和需要继续收敛的职责，不保留实施日志。
 
-## 1. 组织原则
+## 1. 架构对照结论
 
-Tauri 2 + Rust + Vue 3/TS 分层适合现有功能。结构优化按资源生命周期和事务职责进行，优先提取重复控制逻辑，不按文件行数拆透传组件，也不为未实现能力建立空目录、通用服务或新 crate。
+项目主干与文档一致：界面经唯一 desktop 门面访问 Tauri，壳负责权限与编排，九个领域 crate 承担协议、会话、数据和文件能力。稳定终端视图与连接身份分离，终端、文件、转发使用各自的 SessionManager，正文留在 Rust 或 xterm，Store 只保存轻量投影。
 
-页面拥有展示，控制器拥有操作期，Store 保存轻量投影。目录导航、输入顺序和订阅重试等共享控制逻辑应集中；不把终端条目变成通用文件任务容器，也不以复制响应式字段来拆分 NForm。简单转发命令无需再包一层无行为 Service。
+| 范围 | 实际边界与结论 |
+| --- | --- |
+| 窗口、工作台与会话 | App/layout 装配窗口；Workbench 管理布局和焦点；sessions 管理控制投影、挑战与状态呈现。终态判断和状态文案统一归会话域，避免其他功能依赖工作台展示工具 |
+| 终端生命周期 | Registry 持有 xterm；runtime 管理连接、流与输入。断开保留视图，关闭归档后才销毁；布局迁移不重建终端 |
+| 数据与安全 | core 不依赖 Tauri/SQLx；security 直接依赖 storage 协调保险库事务。这是现有依赖，不能描述为完全反转的存储端口 |
+| 设置与备份 | 设置由 Rust 串行合并局部 patch，各窗口重读热应用；备份按 storage 快照、security 加密、壳 provider 分层 |
+| 文件工作区 | 侧栏与双远端、共享目录控制、流式复制及传输登记已经存在；FileProvider 仍只有目录读取，通用连接租约与完整任务执行器属于后续能力 |
+| 保存项模型 | TS 使用判别联合，desktop 适配兼容 DTO；Rust 仍使用自由字符串 kind 和扁平字段，领域不变量分散在读写边界 |
 
-## 2. 文件工作区：端点、任务与执行
+因此优先收敛残余跨域耦合与重复规则，保留现有技术栈和模块主干；不需要增加 HTTP/WebSocket 后端或重新划分 crate。
 
-目录分页、选择及迟到读取隔离由 [useSftpDirectory](../src/modules/files/useSftpDirectory.ts) 共享；侧栏保留断线前列表，独立端点在切换连接时清空，不能因共用控制器而混同这两种交互。侧栏 [任务队列](../src/modules/files/useSftpTransferQueue.ts) 使用判别联合，传输状态通过窄回调投影，不依赖 TerminalItem。双栏 [SftpBrowser](../src/modules/files/SftpBrowser.vue) 仍独立持有对拷取消与进度。
+## 2. 继续做减法的重点
 
-壳的 [TransferRegistration](../src-tauri/src/files/transfer.rs) 统一普通传输、对拷及原生拖出的登记与 RAII 清理；commands 仍负责 owner、操作锁、全局许可和 Channel，不表示已具备完整任务执行器。
-
-上传与对拷的目标元数据、真实目录合并、覆盖决策和写句柄集中于 [SFTP 写入边界](../crates/terminal-sftp/src/upload.rs)，原生确认通过窄回调留在壳。源扫描与打开复核仍按本地授权和远端协议分别处理，不能为共用目标而混同源端路径与取消语义。
-
-剩余结构问题是 [FileProvider](../crates/terminal-files/src/lib.rs) 仅提供目录读取，[SFTP copy](../crates/terminal-sftp/src/copy.rs) 的两端固定为 SftpBrowser；本地上传、下载及远端对拷的扫描和执行分散。增加本地文件栏前，应按真实复制方向逐步完善下列职责：
-
-| 层 | 演进职责 | 保留边界 |
+| 问题 | 重构方向 | 保留约束 |
 | --- | --- | --- |
-| Vue 文件界面 | 端点引用、共享任务摘要及导航/选择投影 | 侧栏和双栏布局分开；原生拖出兑现前不显示任务 |
-| 壳内文件服务 | 本地授权、操作占用、任务许可、取消和确认适配 | commands 保留授权入口，不接受任意本地路径 |
-| terminal-files | 补 metadata、目录操作端口，复用现有 FileReader/FileWriter 与有界复制，收敛扫描和执行 | 不依赖 Tauri |
-| local/SFTP 适配 | 平台访问、协议请求、句柄关闭及各自路径语义 | 本地路径不使用远端字符串拼接规则 |
+| Rust 保存项的扁平配置 | 在业务入口区分 SSH/Telnet/Serial/Workspace，集中必需配置与跨协议字段校验；公共操作只依赖元数据 | 在存储、备份和序列化边界显式映射，保留现有 schema 与 wire 格式，不改写已应用迁移 |
+| 文件源扫描与执行分散 | 先围绕一个实际复制方向收敛扫描、进度、取消和句柄关闭，再扩展文件端口 | 本地授权/路径与远端路径各自保留；覆盖确认通过窄回调留在壳 |
+| 传输状态投影重复 | 后续统一任务摘要后，再消除全局与每终端的传输布尔投影及重复关闭判断 | 不把 TerminalItem 变成通用任务容器；侧栏随终端关闭，固定双栏保持独立连接 |
+| Rust/TS 设置规则分别维护 | 明确默认值、旧格式归一化、显式更新校验和局部合并的唯一职责；前端保留 UI 默认值与响应式编辑 | 两端同步契约，多窗口不恢复整份旧草稿覆盖；主机配色按 ID 合并与删除 |
+| 共享控制逻辑残留在消费模块 | 状态呈现、终态判断、目录读取及有序输入归各自所属域，调用方只消费窄接口 | 不以拆透传组件或增加无行为 Service 代替职责收敛 |
 
-统一任务摘要后再收敛关闭确认，避免长期同时依赖全局和每终端的传输布尔投影。原生覆盖确认用窄回调注入；先一个实际复制方向，再扩展共享执行，不一次构造覆盖所有未来功能的大接口。
+文件执行层现有基础为 [FileReader/FileWriter](../crates/terminal-files/src/lib.rs)、[SFTP 目标写入](../crates/terminal-sftp/src/upload.rs) 和 [传输登记](../src-tauri/src/files/transfer.rs)。本地源复核与远端扫描不能因目标写入共享而混同；通用租约先明确 owner、用途、配置快照和最后持有者，再考虑连接池化。
 
-连接租约先解决独立连接的持有与释放：明确 owner、用途、配置快照、身份、最后持有者及断线传播后，再考虑 SSH 池化。侧栏仍随终端关闭，固定双栏仍为独立连接。通用 TransferManager、本地文件端点、持久化队列、断点续传及跨重启恢复尚未实现；完整文件工作区不作为验收现有 SFTP 的前置。
+保存项收敛入口为 [Rust model](../crates/terminal-storage/src/model.rs)、[TS model](../src/modules/hosts/model.ts) 与 [desktop 适配](../src/services/desktop/hosts.ts)。后续 Local 参数和 Serial 原始字节工具不继续堆入 SSH 默认字段。
 
-行为和安全边界以 [SFTP](16-sftp-workspace.md) 为准。后续执行层调整须保留反向对拷不死锁、许可释放、进度通道失效、取消早于登记及部分完成结果；上传合并不承诺回滚，下载拒绝覆盖。
+## 3. 代码质量管理
 
-## 3. 区分 wire DTO、领域配置与展示摘要
-
-[TS 保存项模型](../src/modules/hosts/model.ts) 使用共享元数据与 SSH/Telnet/Serial/Workspace 判别联合，串口配置和工作区布局在对应类型中必填；连接展开排除工作区，网络与串口编辑器只投影对应草稿。排序、名称等公共操作使用窄元数据形状。
-
-数据库与 [wire DTO](../src/services/desktop/types.ts) 保留原兼容表示，[desktop 适配](../src/services/desktop/hosts.ts) 集中双向映射、必需配置缺失与跨协议字段拒绝；空 SSH 占位字段只在兼容出口构造。映射不替代完整运行时 schema 校验，也不跳过损坏清单项。
-
-剩余问题在 Rust [model](../crates/terminal-storage/src/model.rs) 的扁平结构和自由字符串 kind，[工作区存储](../crates/terminal-storage/src/workspaces.rs) 仍需构造空 SSH 字段。后续在序列化和存储边界显式映射，保留现有 schema、备份与 IPC 表示，补业务数据往返兼容证据。变更 wire 时同步 Rust/TS 与版本处理；Local cwd/env/argv、Serial HEX 不继续堆入 SSH 默认字段。
-
-设置的 Rust 归一化、校验和 patch 合并集中于 [设置规则](../src-tauri/src/settings.rs)，[命令](../src-tauri/src/commands/settings.rs) 负责授权、版本、串行读写和通知；[TS 状态规则](../src/modules/settings/state.ts) 负责默认值和 UI 归一，[Store](../src/modules/settings/store.ts) 只管理状态与局部保存队列。两端规则分别维护，变更时须同步核对旧设置、嵌套合并与按 ID 删除的契约，并通过授权运行验收确认。保持多窗口热应用，不恢复整份草稿覆盖。
-
-## 4. 契约与验证边界
-
-[结构守卫](../scripts/check-structure.mjs) 检查命令清单、handler、字面量 invoke 和 capability 入口，自定义权限组按显式 `commands.allow` 解析；它不生成类型，也不证明序列化一致、最小权限或运行时 owner 校验正确。`Channel<T>` / `invoke<T>` 泛型不提供运行时验证。
-
-Rust/TS 序列化表示和兼容输入须按领域同步维护，继续保持唯一 desktop 门面。是否生成 TS 取决于维护成本，并须核对具体依赖 release/API/MSRV/许可，不为生成器预先新增依赖。
-
-当前仓库不保留自动测试源码；保留的静态检查入口见 [验证说明](../tests/README.md)。真实 SSH/PTY/Serial、SQLCipher、云备份、原生对话框及三平台退出/压力的门槛统一见 [运行验收边界](01-product-requirements.md#11-运行验收边界)。归档等并发预算仍是保守边界，须实测后调整。所有编译、启动及连接遵循 [协作规则](../AGENTS.md)，静态检查不能替代运行证据。
+- 结构守卫维护 desktop 单一门面、模块导入方向，以及 AppManifest、handler、capability 的命令登记一致性；运行时 owner 和边界输入校验仍由 Rust 实现。
+- Rust/TS 序列化表示按领域同步维护。是否引入类型生成取决于实际维护成本，不为生成器预先新增依赖。
+- 重构按资源生命周期、事务职责与重复行为划界，保持取消独立、锁外等待、有界缓冲和旧流隔离；简单转发命令不再包装无行为服务。
+- 功能状态只写产品需求，领域文档只留有效行为和安全约束，字段、常量、组件接线与临时记录留在源码；完成实现就更新完成状态。

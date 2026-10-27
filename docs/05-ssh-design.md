@@ -1,6 +1,6 @@
 # SSH 连接、安全信任与认证
 
-更新：2026-10-21。直连 SSH2、PTY Shell/exec 和系统识别已有源码；认证互通、流控及三平台完整验收尚未完成。统一生命周期见 [会话模型](04-session-model.md)，依赖风险见 [产品需求](01-product-requirements.md)。
+更新：2026-10-27。支持直连 SSH2、PTY Shell/exec 和系统识别。统一生命周期见 [会话模型](04-session-model.md)，依赖风险见 [产品需求](01-product-requirements.md)。
 
 ## 1. 连接配置
 
@@ -54,7 +54,7 @@ KeepAlive 间隔 30 秒、max=3，不设用户活动空闲断线；russh 收包�
 
 ## 7. 算法与资源
 
-使用锁定 russh release 的算法列表，显式移除主机密钥 `ssh-rsa/SHA-1`，RSA 用户认证只允许 SHA-2；不自动启用弱算法。每 SSH channel 配置 256 KiB 窗口、32 KiB 最大包和 16 条消息缓冲。取消通过底层 transport shutdown 生效，不依赖输出 ACK；库内部队列满时的公平性仍待实测。
+使用锁定 russh release 的算法列表，显式移除主机密钥 `ssh-rsa/SHA-1`，RSA 用户认证只允许 SHA-2；不自动启用弱算法。每 SSH channel 配置 256 KiB 窗口、32 KiB 最大包和 16 条消息缓冲。取消通过底层 transport shutdown 生效，不依赖输出 ACK。
 
 ## 8. 重连与扩展边界
 
@@ -62,9 +62,9 @@ KeepAlive 间隔 30 秒、max=3，不设用户活动空闲断线；russh 收包�
 
 ProxyJump、ProxyCommand、Agent、SSH config 导入与通用连接租约尚未实现。保留终端显示历史不代表恢复远端进程；远端任务恢复依赖 tmux/screen 等能力。
 
-## 9. 源码与验证边界
+## 9. 源码入口
 
-实现入口：[connection](../crates/terminal-ssh/src/connection.rs)、[host_key](../crates/terminal-ssh/src/host_key.rs)、[auth](../crates/terminal-ssh/src/auth.rs)、[driver](../crates/terminal-ssh/src/driver.rs)。真实密码/私钥/OTP/PAM、取消/超时、快速退出尾输出、全屏程序与资源回收仍待完整运行验收；静态核对 API 不等于服务端兼容性通过。
+实现入口：[connection](../crates/terminal-ssh/src/connection.rs)、[host_key](../crates/terminal-ssh/src/host_key.rs)、[auth](../crates/terminal-ssh/src/auth.rs)、[driver](../crates/terminal-ssh/src/driver.rs)。
 
 ## 10. 一次性主机系统识别
 
@@ -72,4 +72,4 @@ ProxyJump、ProxyCommand、Agent、SSH config 导入与通用连接租约尚未�
 
 先读取受界的 SSH 服务端标识，必要时通过独立 exec 执行 [固定只读命令](../resources/ssh-os-detection.json)。所有探测共用 5 秒、32 KiB 输出预算，同一时刻仅一个探测 channel；只解析 stdout，不 source 远端文件或将返回文本拼入命令，不写 PTY、不进入广播。失败不影响终端状态，探测可能被服务器审计。
 
-结果仅用于白名单图标；提交时重查令牌、目标和默认图标，避免覆盖用户修改或复活已删主机。目标或图标变化作废旧令牌，不清除尝试标记；复制主机独立计算尝试状态。设置只提供开关及用途说明，不开放脚本编辑或任意 exec IPC。实现见 [os_detection](../crates/terminal-ssh/src/os_detection.rs)，兼容性待运行验收。
+结果仅用于白名单图标；提交时重查令牌、目标和默认图标，避免覆盖用户修改或复活已删主机。目标或图标变化作废旧令牌，不清除尝试标记；复制主机独立计算尝试状态。设置只提供开关及用途说明，不开放脚本编辑或任意 exec IPC。实现见 [os_detection](../crates/terminal-ssh/src/os_detection.rs)。

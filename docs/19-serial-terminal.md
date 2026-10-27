@@ -1,6 +1,6 @@
 # Serial 串口终端
 
-更新：2026-10-27。基础文本终端与保存配置已有源码；历史 macOS 局部验证不覆盖完整桌面集成及三平台验收。
+更新：2026-10-27。支持基础文本终端、保存配置与临时连接。
 
 ## 1. 配置与范围
 
@@ -30,20 +30,14 @@ Unix 路径须为绝对路径，规范化符号链接后是 `/dev` 下的字符�
 
 打开时 DTR 初始化为 false；None/Software 流控下尽力设置 RTS=false，Hardware 模式由驱动管理 RTS。初始化可能导致设备重启或启动输出，不增加设备特例和额外复位脉冲；不支持控制线的设备仍可建立文本连接。
 
-阻塞读写使用 100ms I/O 超时、有界读取桥和单块输入桥，取消独立于输入及输出 ACK；单块写入总预算 5 秒，交付不确定即停止，不重发、不调用可能无限等待的 flush。系统打开调用和异常驱动不承诺可强行中断，设备回收时限需平台实测。
+阻塞读写使用 100ms I/O 超时、有界读取桥和单块输入桥，取消独立于输入及输出 ACK；单块写入总预算 5 秒，交付不确定即停止，不重发、不调用可能无限等待的 flush。系统打开调用和异常驱动不承诺可强行中断，设备回收受平台驱动约束。
 
 所有设备输出均流式解码为有效 UTF-8，非法或结束时未完成的序列显示 U+FFFD；保留 NUL、BEL、CR/LF、ESC 等控制字节语义。UTF-8 输入直传，其他字符集流式转换，无法表示的输入报错并结束连接，不静默替换。帧和 ACK 统计转码后的字节，不代表物理串口字节数；未来 HEX/原始捕获需要独立通道。
 
 设备错误先停读写，再排空已读数据和转码尾部；用户取消允许放弃尾部。错误脱敏，不能承诺检测所有硬件 FIFO 溢出；应用背压和硬件流控不能保证外设永不丢字节。
 
-## 4. 源码与待验收
+## 4. 源码与诊断入口
 
 入口：[参数校验](../crates/terminal-core/src/serial.rs)、[SerialFactory](../crates/terminal-serial/src/lib.rs)、[设备路径](../crates/terminal-serial/src/device_path.rs)、[字符集](../crates/terminal-serial/src/codec.rs)、[macOS 枚举](../crates/terminal-serial/src/macos.rs)。通用生命周期见 [会话模型](04-session-model.md)。
 
-三平台枚举/手输/权限/占用、控制线及高级参数、插拔重开、字符集双向输入、阻塞取消和持久化集成仍待运行验收。
-
-## 5. 已有验证与诊断入口
-
-2026-10-16 历史授权调试在 macOS 定向编译 terminal-core/terminal-serial，15 项测试通过；指定 ESP32-C3 以 115200/8N1、None 流控经真实会话与 ACK 链路验证启动输出和正常关闭。xterm 无界面缓冲对比验证非法 UTF-8 替换；该修复后未重新连接设备。
-
-未构建或启动完整桌面应用；证据不覆盖后续保存配置集成、其他设备/参数、硬件流控或 Windows/Linux。真实设备诊断工具 [serial_monitor](../crates/terminal-serial/examples/serial_monitor.rs) 仅接收并转义预览数据，须用户明确授权后运行；授权边界见 [验证说明](../tests/README.md)。
+真实设备诊断工具 [serial_monitor](../crates/terminal-serial/examples/serial_monitor.rs) 仅接收并转义预览数据，运行遵循 [协作规则](../AGENTS.md#2-执行与数据保护)。

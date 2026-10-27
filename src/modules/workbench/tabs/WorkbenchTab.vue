@@ -3,7 +3,7 @@ import { computed } from "vue";
 import { NIcon } from "naive-ui";
 import { IconFileText, IconX } from "@tabler/icons-vue";
 import { t } from "@/i18n";
-import { stateLabels } from "../store";
+import { stateLabels } from "@/modules/sessions/presentation";
 import type { TabBarItem } from "../types";
 
 const props = defineProps<{

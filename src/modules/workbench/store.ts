@@ -1,4 +1,4 @@
-import { t, type PlainMessageKey } from "@/i18n";
+import { t } from "@/i18n";
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { useHosts } from "../hosts/store";
@@ -18,11 +18,7 @@ import {
   type LayoutNode,
   type SplitEdge,
 } from "./layout";
-import type {
-  OpenTarget,
-  SessionState,
-  SessionLogSummary,
-} from "@/services/desktop/types";
+import type { OpenTarget, SessionLogSummary } from "@/services/desktop/types";
 import type {
   HostProfile,
   ConnectionProfile,
@@ -619,19 +615,3 @@ export const useWorkbenchStore = defineStore("workbench", () => {
     openVault,
   };
 });
-export const stateLabels = {
-  created: "terminal.state.created",
-  connecting: "terminal.state.connecting",
-  awaitingHostKey: "terminal.state.awaitingHostKey",
-  authenticating: "terminal.state.authenticating",
-  awaitingAuth: "terminal.state.awaitingAuth",
-  opening: "terminal.state.opening",
-  connected: "terminal.state.connected",
-  closing: "terminal.state.closing",
-  closed: "terminal.state.closed",
-  failed: "terminal.state.failed",
-  disconnected: "terminal.state.disconnected",
-} as const satisfies Record<SessionState, PlainMessageKey>;
-export function isActive(state: SessionState) {
-  return !["closed", "failed", "disconnected"].includes(state);
-}

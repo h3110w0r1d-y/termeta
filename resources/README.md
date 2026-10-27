@@ -24,7 +24,7 @@
 python scripts/generate-app-icons.py
 ```
 
-支持 `--theme dark|light|all`，可用 `--artifacts-dir <目录>` 保存预览和摘要报告。该脚本调用 `tauri icon`，不编译、启动或打包应用。[轮廓修整工具](../scripts/refine-brand-icons.py) 用于同步调整源图厚度与亮色版本。平台图标展示、高 DPI 和缓存行为仍需实际验收。
+支持 `--theme dark|light|all`，可用 `--artifacts-dir <目录>` 保存预览和摘要报告。该脚本调用 `tauri icon`，不编译、启动或打包应用。[轮廓修整工具](../scripts/refine-brand-icons.py) 用于同步调整源图厚度与亮色版本。
 
 ## 终端配色
 

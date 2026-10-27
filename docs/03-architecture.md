@@ -1,30 +1,28 @@
 # 系统架构与模块边界
 
-更新：2026-10-23。本文描述当前实现及其设计取舍；功能状态见 [产品需求](01-product-requirements.md)。
+更新：2026-10-27。本文维护当前分层、依赖方向与设计取舍；功能状态见 [产品需求](01-product-requirements.md)，剩余结构问题见 [重构评估](27-architecture-refactoring.md)。
 
 ## 1. 分层与代码入口
 
 | 层 | 入口 | 职责 |
 | --- | --- | --- |
-| 界面 | `src/App.vue`、`src/layout/`、`src/modules/` | App 保留根布局和稳定终端宿主；layout 装配窗口，modules 按领域管理轻量状态和操作 |
-| 主题 | `src/theme/` | 配色类型、目录、继承解析、导入校验、颜色运算与 xterm 格式映射；界面和终端共享，不依赖业务模块 |
-| 前端服务 | `src/services/desktop/`、`src/services/commands/` | 唯一 IPC 门面；统一按钮、菜单和快捷键命令 |
+| 界面与窗口 | `src/App.vue`、`src/layout/`、`src/modules/` | App 保留根布局和稳定终端宿主；layout 装配导航、连接、退出与外观；modules 按业务管理展示和操作 |
+| 主题 | `src/theme/` | 共享配色模型、继承解析、导入校验、颜色运算与 xterm 映射，不依赖业务模块 |
+| 前端服务 | `src/services/desktop/`、`src/services/commands/` | 唯一原生 API/IPC 门面；统一按钮、菜单和快捷键命令 |
 | 桌面壳 | `src-tauri/src/commands/`、`state.rs`、`lib.rs` | DTO 校验、窗口/资源授权、Channel、依赖装配与原生交互 |
 | 会话核心 | `crates/terminal-core/` | 协议无关模型、端口、会话 actor、有界队列、取消与 ACK |
 | 协议适配 | `terminal-ssh`、`terminal-telnet`、`terminal-local`、`terminal-serial` | SSH、Telnet、本地 PTY 和串口驱动 |
 | 数据与安全 | `terminal-storage`、`terminal-security` | SQLCipher、迁移、凭据、保险库、白名单备份与加密 |
 | 文件 | `terminal-files`、`terminal-sftp`、壳的 `files/` | 文件端口、有界复制、SFTP 浏览与传输编排 |
-| 云备份 | 壳的 `backup/`、`backup_runtime.rs` | Gist/WebDAV provider、操作预算和预览令牌 |
+| 云备份 | 壳的 `backup/`、`backup_runtime.rs` | Gist/WebDAV provider、操作预算和恢复令牌 |
 
-网络、设备、信任、数据库及保存的秘密均由 Rust 管理。Vue/Pinia 仅保存元数据，不保存终端输出、文件正文、备份数据库正文或转发载荷。xterm 实例和缓冲由终端注册表管理。
+网络、设备、信任、数据库及保存的秘密由 Rust 管理。Vue/Pinia 保存轻量投影，不保存终端输出、文件/备份正文或转发载荷。xterm 实例和缓冲归终端 Registry/runtime，Workbench Store 只管理终端展示、标签与布局，工作区存档校验和布局映射独立于 Store。
 
-保存项业务模型归 hosts，按 SSH/Telnet/Serial/Workspace 区分，公共展示只依赖元数据；desktop 在单一适配边界转换兼容 DTO，编辑器不承担空协议字段拼装。数据库与 Rust wire 保持原表示，领域类型不能代替边界校验。
+`src/modules/sessions/` 统一终端、文件和转发的控制投影、状态展示、终态判断、挑战与心跳登记，不持有连接资源，也不反向依赖具体业务或窗口布局。`src/services/desktop/` 集中协议 DTO 与原生 API 适配，组件不直接调用 Tauri。
 
-App 保留根布局和稳定终端宿主；layout 装配窗口导航、连接入口、退出/心跳与外观。工作台 Store 管理终端展示和布局，工作区存档的校验和布局映射独立于 Store。`src/modules/sessions/` 统一终端、文件和转发的轻量控制投影、挑战队列/弹窗与心跳登记，不持有输出或连接资源。终端注册表统一持有实例和广播入口，内部 runtime 按视图、流、事件与会话生命周期分责；终端模块拥有搜索界面和查询，App 只协调开关与焦点，不让窗口/布局操作管理领域细节。
+前端保存项归 hosts，以共享元数据和 SSH/Telnet/Serial/Workspace 判别联合表达；desktop 在兼容 wire DTO 与领域类型之间集中转换。Rust 持久化/公开 DTO 仍采用扁平配置与字符串 kind，业务入口负责校验必需字段与协议适用性；这部分类型收敛尚未完成。
 
-窗口导航与工作台内容分开装配：[WorkbenchNavigation](../src/layout/WorkbenchNavigation.vue) 统一顶部/左侧标签的主题和事件接线，[WorkbenchHeader](../src/layout/WorkbenchHeader.vue) 排列窗口菜单、导航插槽、工具栏开关和窗口按钮。导航位置切换不移动 TerminalStage；导航主题作用域不包裹内容，终端 SFTP 侧栏仍归对应窗格。
-
-共享配色模型归 `src/theme/`，运行工作台和终端按主题能力依赖，设置页面负责编辑与保存；纯配色读取不经过 Registry/runtime。`useAppAppearance` 装配根主题，终端模块应用实际 xterm 渲染，局部控件主题留在消费边界，热应用复用现有实例。
+窗口导航、内容和终端宿主分开装配，顶部/左侧导航切换不移动 TerminalStage。共享主题不依赖 Registry；根外观、终端渲染和局部控件各自在消费边界应用配色，热应用复用现有实例。用户可见规则见 [桌面交互](09-desktop-ux.md)。
 
 ## 2. Rust 依赖方向
 
@@ -35,51 +33,41 @@ security → core + storage
 sftp → core + files + ssh
 ```
 
-九个领域 crate 共用根 Cargo workspace、resolver 3 和 edition 2024。core 不依赖 Tauri、Vue、SQLx 或具体协议库。壳将凭据、信任、系统识别等端口实现注入适配器。security 当前直接依赖 storage 协调凭据和保险库事务，不能将完全反转的存储依赖写成已有实现。
+九个领域 crate 共用根 Cargo workspace、resolver 3 和 edition 2024。core 不依赖 Tauri、Vue、SQLx 或具体协议库；壳向适配器注入凭据、信任和系统识别端口。security 直接依赖 storage 协调凭据与保险库事务，当前不引入额外仓储抽象。
 
 ## 3. 会话与终端生命周期
 
-壳分别持有 `sessions`、`file_sessions`、`forward_sessions` 三个 SessionManager。终端使用四种协议工厂；文件与转发使用专用 SSH 工厂，复用认证/信任，不申请 PTY/Shell，也不执行主机的终端启动命令。资源归属、挑战响应和关闭按所属 manager 路由。
+壳分别持有 `sessions`、`file_sessions`、`forward_sessions` 三个 SessionManager。终端使用四种协议工厂；独立文件和转发使用专用 SSH 工厂，复用认证/信任，不申请 PTY/Shell，也不执行终端启动命令。
 
-每会话 actor 持有驱动，有界队列限制数据，独立取消信号保证输出背压不阻塞关闭。全局表锁只查询或复制轻量句柄，不跨网络、数据库或 Channel 等待。详见 [会话](04-session-model.md) 与 [IPC](06-ipc-and-streaming.md)。
+每会话 actor 持有驱动，有界字节队列限制积压，独立取消与挑战通路避免输出背压阻塞关闭或认证。全局表锁只查询或复制轻量句柄，不跨网络、数据库或 Channel 等待。驱动结束或请求关闭时，core 通过窄撤销回调和独立令牌通知壳取消附属文件资源，正常结束仍可排空终端尾输出。详见 [会话](04-session-model.md) 与 [IPC](06-ipc-and-streaming.md)。
 
-core 通过窄资源撤销回调及独立取消令牌通知壳：驱动结束或关闭请求立即撤销附属资源，终端尾输出可继续排空。壳统一移除 SFTP 浏览器并取消传输与原生等待，定时扫描只兜底；core 不依赖 Tauri 或 SFTP。
+`terminalId` 跨重连稳定，`sessionId` 每次连接更新。断线、失败和远端退出保留终端与历史；重连隔离旧流，不重放输入。关闭标签/窗格及窗口退出共用 Registry 入口，等待结束与归档成功后才销毁实例，失败保留视图供重试，见 [日志契约](23-snippets-and-session-logs.md#3-关闭与退出)。
 
-`terminalId` 标识跨重连稳定的视图，`sessionId` 标识一次后端连接。断线、失败和远端退出保留终端与历史；重连隔离旧流，不重放输入。普通关闭和窗口退出共用 Registry 的关闭入口，归档成功才销毁实例，失败保留视图供重试；尾输出、幂等关闭与归档预算统一见 [日志契约](23-snippets-and-session-logs.md#3-关闭与退出)。
-
-Workbench 表示整个工作台，TerminalTabGroup 表示运行标签组，Workspace 表示多终端工作区及其显式存档。`useWorkbenchStore()` 分离终端和标签组；TerminalStage 以稳定 terminalId 承载终端，布局树只决定几何位置。标签切换、分屏、交换和迁移不重建终端。存档只保存布局与连接引用，打开创建新会话，不自动恢复退出前标签。详见 [工作台与工作区](18-terminal-workspaces.md)。
+Workbench 是整个工作台，TerminalTabGroup 是运行标签组，Workspace 是多终端工作区及其显式存档。TerminalStage 以稳定 terminalId 承载终端，布局树只决定几何位置；标签切换、分屏、交换和迁移不重建终端。存档只保存布局和连接引用，打开创建新会话。详见 [工作台与工作区](18-terminal-workspaces.md)。
 
 ## 4. 数据、设置与权限
 
-保险库解锁后才允许业务操作；全新保险库在本机初始化，已有锁定库须先解锁。storage 完成迁移与外键检查后发布数据库池。改密通过可切换连接池和数据库生命周期门闩协调加密副本及元数据切换，不重建活动终端。主密钥模块分离解锁协调、认证元数据和密钥切换；逻辑备份分离固定 schema、快照读写、业务校验与 ID 映射，事务提交由外层协调。格式与故障恢复见 [存储](07-storage.md)。
+保险库解锁后才允许业务操作。storage 完成迁移及外键检查后发布数据库池；主密钥模块协调认证元数据、解锁和密钥切换。改密在加密副本上执行，通过数据库生命周期门闩和可切换连接池协调发布，不重建活动终端。已应用迁移保持原始字节，格式与恢复规则见 [存储](07-storage.md)。
 
-主机清单仅通过 `list_host_inventory` 一次读取主机与分组的同一事务快照，主机附属标签和认证摘要也在该快照内读取；前端读写代次拒绝覆盖已提交修改的旧响应，不能替代 Rust revision 校验。
+主机清单通过 `list_host_inventory` 读取同一事务中的主机、分组、标签和认证摘要；清单、单项读取和普通保存返回共用同一投影，写后投影在提交前完成；单项读取不组装整份清单。前端读写代次隔离迟到响应，Rust revision 与事务保证并发写入边界。
 
-设置使用独立单实例窗口。Rust 串行合并局部设置并发出失效通知，各窗口重读后热应用；即时偏好不能被旧设置草稿覆盖；主机配色映射按主机 ID 合并，局部删除只移除指定覆盖，终端工具侧栏在同次提交中更新当前主机继承与全局配色。settings 窗口仅获得设置、专用改密、JSON 导出和备份权限，通用会话所有权仍仅 main。ACL、来源和资源归属共同构成授权，见 [安全](08-security.md)。
+设置为独立单实例窗口。Rust 串行合并局部设置并发出失效通知，各窗口重读后热应用，旧草稿不能覆盖即时偏好。settings 窗口仅获设置、专用改密、JSON 导出与备份权限，通用会话 owner 仍仅 main；命令 ACL、本地来源和资源归属共同授权，见 [安全](08-security.md)。
 
-备份分为 storage 的白名单快照/合并、security 的压缩/加密、壳的云 provider/编排三层。provider 只处理不透明包；增加云厂商不改变终端核心。详见 [第三方备份](22-data-backup.md)。
+备份分为 storage 的白名单快照/新增合并、security 的压缩/加密、壳的 provider/编排三层；provider 仅处理不透明包，增加云厂商不改变终端核心。详见 [备份](22-data-backup.md)。
 
 ## 5. 文件与转发边界
 
-单 SSH 终端侧栏通过该终端连接申请 SFTP 子系统，生命周期跟随终端；固定双栏使用两个独立文件会话。端口转发使用独立转发会话。文件正文和转发载荷不经过 WebView；文件命令及进度不复用终端帧/ACK。通用连接租约、本地文件 provider 和完整 TransferManager 尚未实现。详见 [SFTP](16-sftp-workspace.md) 与 [转发](21-port-forwarding.md)。
+单 SSH 终端侧栏借用该终端的 SFTP 子系统并随其关闭；固定双栏使用两个独立文件会话，转发使用独立转发会话。文件正文与转发载荷不经过 WebView，文件命令/进度不复用终端帧或 ACK。
 
-文件前端共享目录控制，连接切换策略由侧栏和双栏各自保留；任务队列通过窄回调更新终端投影。壳内 `files/transfer.rs` 统一传输登记及作用域清理，commands 保留 owner、操作锁、许可和 Channel；这些复用不等于完整任务执行器。
+文件前端共享目录控制，侧栏与双栏保留各自连接切换策略。壳的 `files/transfer.rs` 统一任务登记和作用域清理，commands 保留 owner、操作锁、许可及 Channel。上传与对拷共享 SFTP 目标写入边界；本地授权/源复核与远端扫描仍按端点语义分别处理。
 
-上传与对拷共用 terminal-sftp 的目标写入边界，原生覆盖确认留在壳；本地授权/源复核与远端扫描分别保留，正文仍使用 terminal-files 的有界复制。
+原生文件授权和平台拖放在壳内，应用内布局/对拷在前端。通用连接租约、本地文件 provider 和完整 TransferManager 尚未实现；现有登记复用不等于统一扫描/执行层。行为与路径安全见 [SFTP](16-sftp-workspace.md)，监听与流生命周期见 [转发](21-port-forwarding.md)。
 
-原生文件授权与平台拖放适配位于壳，应用内布局和对拷由前端交互处理。原生拖入使用绑定 owner 的一次性引用；macOS 文件承诺、Windows Shell 流和 Linux GTK/URI 暂存各自处理原生生命周期，具体授权、取消及清理见 [SFTP 契约](16-sftp-workspace.md)。
+## 6. 关键取舍
 
-## 6. 关键设计取舍
-
-| 决策 | 理由与代价 |
-| --- | --- |
-| Tauri + Rust + Vue，协议核心独立 | 桌面权限集中于壳，复用会话通路；桌面本地不引入 HTTP/WebSocket 后端 |
-| 消费后 ACK 与有界字节队列 | 防止 WebView 无限制积压；满额时允许反压远端输出，取消独立运行 |
-| 稳定终端与布局/连接分离 | 保留历史和视图；需要旧流排空及代次隔离，不能用清屏规避 |
-| 全库加密、OS 仅缓存主密钥 | 数据文件与秘密统一保护；缓存失败用密码恢复，数据库和元数据必须配对 |
-| 改密在加密副本上执行 | 可恢复地切换数据库与元数据；需要额外磁盘空间及短暂数据库等待 |
-| 文件/转发使用专用连接 | 不依赖终端 Shell；代价是尚无通用连接复用租约 |
-| 白名单逻辑快照 | 排除本机设置与日志；第三方恢复新 ID 新增合并 |
-| Naive UI 薄适配，应用主题与终端配色独立 | 通用控件沿用库能力，终端布局由应用管理，热应用保留实例 |
-
-前端规则见 [桌面交互](09-desktop-ux.md) 和 [协作指南](../AGENTS.md)；依赖依据见 [依赖说明](02-library-research.md)。
+- 桌面本地采用 Tauri + Rust + Vue，协议核心独立，不引入 HTTP/WebSocket 后端。
+- 消费后 ACK 与有界队列允许反压远端输出；取消独立运行，稳定终端需要旧流排空和代次隔离。
+- 全库加密，OS 仅缓存主密钥；数据库与元数据配对，改密使用额外磁盘上的加密副本。
+- 文件/转发专用连接避免依赖终端 Shell，代价是尚无通用连接复用租约。
+- 白名单逻辑备份排除本机设置和日志，恢复使用新 ID 新增合并。
+- Naive UI 采用薄适配，应用主色与终端配色独立；只按实际职责收敛重复，不按行数机械拆分或为未来能力预建抽象。

@@ -1,6 +1,36 @@
 use crate::*;
 use sqlx::Row;
 
+// 工作区写入沿用保存项的兼容表示，两个保存入口共用空协议字段。
+fn workspace_profile(
+    id: String,
+    revision: i64,
+    name: String,
+    group_id: Option<String>,
+    sort_order: i64,
+    workspace: SavedWorkspace,
+) -> HostProfile {
+    HostProfile {
+        id,
+        revision,
+        name,
+        group_id,
+        sort_order,
+        workspace: Some(workspace),
+        kind: "workspace".into(),
+        startup: terminal_core::SshStartup::default(),
+        serial_config: None,
+        icon: "ssh".into(),
+        system_detection_attempted: false,
+        address: String::new(),
+        port: 0,
+        username: String::new(),
+        tags: vec![],
+        auth_plan: vec![],
+        has_password: false,
+    }
+}
+
 pub(crate) async fn ensure_unique_profile_name(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     name: &str,
@@ -68,25 +98,14 @@ impl SqliteStore {
                 .bind(&id)
                 .fetch_one(&mut *tx)
                 .await?;
-        let saved = HostProfile {
-            sort_order,
-            startup: terminal_core::SshStartup::default(),
+        let saved = workspace_profile(
             id,
             revision,
-            kind: "workspace".into(),
-            name: draft.name.trim().into(),
-            workspace: Some(draft.workspace),
-            serial_config: None,
-            icon: "ssh".into(),
-            system_detection_attempted: false,
-            address: String::new(),
-            port: 0,
-            username: String::new(),
+            draft.name.trim().into(),
             group_id,
-            tags: vec![],
-            auth_plan: vec![],
-            has_password: false,
-        };
+            sort_order,
+            draft.workspace,
+        );
         tx.commit().await?;
         Ok(saved)
     }
@@ -131,25 +150,14 @@ impl SqliteStore {
                 .bind(&id)
                 .fetch_one(&mut *tx)
                 .await?;
-        let saved = HostProfile {
+        let saved = workspace_profile(
+            id.into(),
+            revision + 1,
+            draft.name,
+            draft.group_id,
             sort_order,
-            startup: terminal_core::SshStartup::default(),
-            id: id.into(),
-            revision: revision + 1,
-            kind: "workspace".into(),
-            name: draft.name,
-            workspace: Some(workspace),
-            serial_config: None,
-            icon: "ssh".into(),
-            system_detection_attempted: false,
-            address: String::new(),
-            port: 0,
-            username: String::new(),
-            group_id: draft.group_id,
-            tags: vec![],
-            auth_plan: vec![],
-            has_password: false,
-        };
+            workspace,
+        );
         tx.commit().await?;
         Ok(saved)
     }

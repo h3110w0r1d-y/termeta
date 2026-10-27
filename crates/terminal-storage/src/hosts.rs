@@ -17,13 +17,13 @@ fn ssh_startup(config: &serde_json::Value) -> Result<SshStartup> {
 impl SqliteStore {
     pub async fn list_hosts(&self, search: &str) -> Result<Vec<HostProfile>> {
         let mut tx = self.pool().await?.begin().await?;
-        let hosts = Self::list_hosts_from(&mut tx, search).await?;
+        let hosts = Self::list_hosts_from(&mut tx, search, None).await?;
         tx.commit().await?;
         Ok(hosts)
     }
     pub async fn list_host_inventory(&self) -> Result<HostInventory> {
         let mut tx = self.pool().await?.begin().await?;
-        let hosts = Self::list_hosts_from(&mut tx, "").await?;
+        let hosts = Self::list_hosts_from(&mut tx, "", None).await?;
         let groups = Self::list_groups_from(&mut tx).await?;
         tx.commit().await?;
         Ok(HostInventory { hosts, groups })
@@ -31,9 +31,16 @@ impl SqliteStore {
     async fn list_hosts_from(
         connection: &mut sqlx::SqliteConnection,
         search: &str,
+        profile_id: Option<&str>,
     ) -> Result<Vec<HostProfile>> {
-        let rows = sqlx::query("SELECT p.*,s.address,s.port,s.username FROM connection_profiles p LEFT JOIN ssh_profiles s ON s.profile_id=p.id WHERE p.kind IN ('ssh','serial','telnet','workspace') ORDER BY p.sort_order,p.name COLLATE NOCASE,p.id")
-            .fetch_all(&mut *connection).await?;
+        let mut query = sqlx::QueryBuilder::new(
+            "SELECT p.*,s.address,s.port,s.username FROM connection_profiles p LEFT JOIN ssh_profiles s ON s.profile_id=p.id WHERE p.kind IN ('ssh','serial','telnet','workspace')",
+        );
+        if let Some(id) = profile_id {
+            query.push(" AND p.id=").push_bind(id);
+        }
+        query.push(" ORDER BY p.sort_order,p.name COLLATE NOCASE,p.id");
+        let rows = query.build().fetch_all(&mut *connection).await?;
         let mut profiles = Vec::with_capacity(rows.len());
         let search = search.to_lowercase();
         for row in rows {
@@ -211,16 +218,25 @@ impl SqliteStore {
                     .bind(position as i64).bind(group_id).bind(timestamp).bind(&entry.id).execute(&mut *tx).await?;
             }
         }
-        let hosts = Self::list_hosts_from(&mut tx, "").await?;
+        let hosts = Self::list_hosts_from(&mut tx, "", None).await?;
         let groups = Self::list_groups_from(&mut tx).await?;
         tx.commit().await?;
         Ok(HostInventory { hosts, groups })
     }
     pub async fn get_host(&self, id: &str) -> Result<HostProfile> {
-        self.list_hosts("")
+        let mut tx = self.pool().await?.begin().await?;
+        let host = Self::get_host_from(&mut tx, id).await?;
+        tx.commit().await?;
+        Ok(host)
+    }
+    async fn get_host_from(
+        connection: &mut sqlx::SqliteConnection,
+        id: &str,
+    ) -> Result<HostProfile> {
+        // 单项读取也复用完整投影，但不水合其他保存项的标签和认证摘要。
+        Self::list_hosts_from(connection, "", Some(id))
             .await?
-            .into_iter()
-            .find(|h| h.id == id)
+            .pop()
             .ok_or(StorageError::NotFound)
     }
     /// 连接配置只供后端使用，主机专属引用不得经公共主机 DTO 返回。
@@ -487,46 +503,7 @@ impl SqliteStore {
                 .bind(&id).bind(tag.trim()).execute(&mut *tx).await?;
         }
         // 在事务内取得本次保存的准确结果，提交后不再执行可失败的重读。
-        let revision: i64 =
-            sqlx::query_scalar("SELECT revision FROM connection_profiles WHERE id=?")
-                .bind(&id)
-                .fetch_one(&mut *tx)
-                .await?;
-        let tags = sqlx::query_scalar::<_, String>("SELECT t.name FROM tags t JOIN profile_tags p ON p.tag_id=t.id WHERE p.profile_id=? ORDER BY t.name")
-            .bind(&id).fetch_all(&mut *tx).await?;
-        let config_json: String =
-            sqlx::query_scalar("SELECT config_json FROM connection_profiles WHERE id=?")
-                .bind(&id)
-                .fetch_one(&mut *tx)
-                .await?;
-        let metadata: serde_json::Value = serde_json::from_str(&config_json)?;
-        let sort_order =
-            sqlx::query_scalar("SELECT sort_order FROM connection_profiles WHERE id=?")
-                .bind(&id)
-                .fetch_one(&mut *tx)
-                .await?;
-        let saved = HostProfile {
-            sort_order,
-            startup: draft.startup,
-            workspace: None,
-            kind: draft.kind,
-            serial_config: draft.serial_config,
-            icon: draft.icon,
-            system_detection_attempted: metadata["systemDetectionAttempted"]
-                .as_bool()
-                .unwrap_or(false),
-            id,
-            revision,
-            name: draft.name.trim().to_owned(),
-            address: draft.address,
-            port: draft.port,
-            username: draft.username,
-            group_id: draft.group_id,
-            tags,
-            // draft 只允许公共引用或空密码引用，专属定位符不进入返回值。
-            auth_plan: draft.auth_plan,
-            has_password: password_ref.is_some(),
-        };
+        let saved = Self::get_host_from(&mut tx, &id).await?;
         tx.commit().await?;
         Ok(saved)
     }

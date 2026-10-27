@@ -9,7 +9,11 @@ import type {
   SessionSnapshot,
 } from "@/services/desktop/types";
 import { useSessions } from "../sessions/store";
-import { createSessionControl, type SessionControl } from "../sessions/control";
+import {
+  createSessionControl,
+  isSessionTerminal,
+  type SessionControl,
+} from "../sessions/control";
 
 interface Runtime extends SessionControl {
   error: string;
@@ -22,11 +26,7 @@ export const usePortForwards = defineStore("port-forwards", () => {
   const generations = new Map<string, number>();
   const active = (id: string) => {
     const runtime = runtimes[id];
-    return (
-      !!runtime &&
-      (runtime.busy ||
-        !["closed", "failed", "disconnected"].includes(runtime.state))
-    );
+    return !!runtime && (runtime.busy || !isSessionTerminal(runtime.state));
   };
   const hasActive = computed(() => Object.keys(runtimes).some(active));
   // Channel负责即时状态；读取摘要补偿WebView恢复、丢失响应或控制接收端中断。
@@ -78,9 +78,7 @@ export const usePortForwards = defineStore("port-forwards", () => {
     for (const snapshot of result.sessions) {
       const id = snapshot.terminalId;
       if ((generations.get(id) ?? 0) !== (attempts.get(id) ?? 0)) continue;
-      const terminal = ["closed", "failed", "disconnected"].includes(
-        snapshot.state,
-      );
+      const terminal = isSessionTerminal(snapshot.state);
       if (terminal && runtimes[id]?.sessionId !== snapshot.sessionId) continue;
       if (
         !runtimes[id] ||

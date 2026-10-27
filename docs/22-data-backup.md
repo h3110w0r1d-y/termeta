@@ -1,12 +1,10 @@
 # 数据备份与云端恢复
 
-更新：2026-10-21。当前支持在已解锁后的设置中使用 Gist / WebDAV 手动上传、版本选择与验证后直接新增合并。第三方自动备份、版本清理、双向同步、逐项恢复、本地备份文件入口与主动取消 IPC 尚未实现；本功能尚未完成编译、真实云服务和跨设备运行验收。
+更新：2026-10-27。当前支持在已解锁后的设置中使用 Gist / WebDAV 手动上传、版本选择与验证后直接新增合并。第三方自动备份、版本清理、双向同步、逐项恢复、本地备份文件入口与主动取消 IPC 尚未实现。
 
 ## 1. 范围与操作语义
 
 设置的“备份 / 恢复”页面顶部直接提供带图标的“备份”“恢复”按钮。备份点击后创建独立对象，不修改旧备份；恢复先列出已解密的时间、设备、应用版本和数量，选定版本并点击“恢复”后验证并直接新增合并。两种操作均无二次确认；恢复不按远端时间覆盖本机，也不启动导入的连接或转发。
-
-2026-10-21：恢复继续采用非覆盖的新增合并，因此移除额外的预览确认弹窗，合并与重复导入说明放在版本列表中；后端包验证、一次性令牌及事务边界保留。
 
 | 包含 | 排除 |
 | --- | --- |
@@ -48,7 +46,7 @@ Base64(
 )
 ```
 
-2026-10-21：Base64 文本改为每行最多 64 个字符，每行末尾写入 LF（`\n`），包括最后一行，便于云端文本查看。读取兼容旧的单行包及 LF/CRLF 分行包，仅忽略换行字符；包大小限制包含换行字节，内部二进制包格式与加密方式保持不变。
+Base64 文本每行最多 64 个字符，每行末尾写入 LF（`\n`），包括最后一行。读取兼容旧的单行包及 LF/CRLF 分行包，仅忽略换行字符；包大小限制包含换行字节，内部二进制包格式与加密方式保持不变。
 
 先以 Zstd level 3 压缩快照，再将其与元数据一起加密。元数据为备份 UUID、毫秒 Unix 时间、设备名称、应用版本及主机/分组/凭据/转发/信任数量，全部位于密文内；云方仍可观察大小、请求和平台创建时间。
 
@@ -83,7 +81,7 @@ Gist 文件名/描述不写设备和备份时间；Secret Gist 的保密依赖�
 
 七个命令均经 AppManifest、ACL 与已解锁的本地 main/settings 调用窗口校验，不扩大通用会话 owner。数据库、已存凭据和包正文不经过前端。单操作信号量在忙碌时直接拒绝，不排队积累大数据；短期表锁不跨网络或数据库等待。当前没有逐字节进度或主动取消命令。
 
-## 6. 源码与验证边界
+## 6. 源码与参考资料
 
 | 入口 | 职责 |
 | --- | --- |
@@ -91,7 +89,5 @@ Gist 文件名/描述不写设备和备份时间；Secret Gist 的保密依赖�
 | [security backup.rs](../crates/terminal-security/src/backup.rs) | 压缩、密码派生、加密包及凭据门闩 |
 | [壳 backup](../src-tauri/src/backup/) / [backup_runtime.rs](../src-tauri/src/backup_runtime.rs) | Gist/WebDAV、网络限额、配置及恢复令牌 |
 | [commands/backup.rs](../src-tauri/src/commands/backup.rs) | IPC、权限及备份编排 |
-
-真实云服务、跨设备往返、恶意数据库/大包、认证限流/超时、恢复令牌失效、事务中断及三平台恢复仍待验收，见 [路线](10-roadmap.md)。
 
 实现参考 Termora `2.x` 的[统一接口思路](https://github.com/TermoraDev/termora/blob/f0acbb40845c4ab2ddeb588951204ee9a9f727a9/plugins/sync/src/main/kotlin/app/termora/plugins/sync/Syncer.kt)；其[插件许可](https://github.com/TermoraDev/termora/blob/f0acbb40845c4ab2ddeb588951204ee9a9f727a9/plugins/LICENSE)另有限制。本项目按 [GitHub REST](https://docs.github.com/en/rest/gists/gists)、[RFC4918](https://www.rfc-editor.org/rfc/rfc4918) 与 [SQLite serialize](https://www.sqlite.org/c3ref/serialize.html) 独立实现，未复制/翻译插件代码，也不兼容其备份格式。

@@ -24,7 +24,7 @@
 
 脚本会隐藏输入当前保险库密码，按照项目相同的 Argon2id 参数派生密钥，并用配套 `vault.json` 的 AES-GCM 校验记录确认密码及文件配对。不会打印或保存密码/主密钥，不访问或修改系统钥匙串。不要把密码写入命令行、环境变量或聊天。Python 和第三方库的内存副本不保证可擦除。
 
-独立依赖版本已核对 PyPI 元数据：[argon2-cffi 25.1.0](https://pypi.org/project/argon2-cffi/25.1.0/)（MIT）和 [cryptography 50.0.2](https://pypi.org/project/cryptography/50.0.2/)（Apache-2.0 或 BSD-3-Clause）。脚本使用其公开的 `hash_secret_raw` 和 `AESGCM` API；运行环境需 Python 3.10+，不修改项目依赖清单或锁文件。
+独立依赖：[argon2-cffi 25.1.0](https://pypi.org/project/argon2-cffi/25.1.0/)（MIT）和 [cryptography 50.0.2](https://pypi.org/project/cryptography/50.0.2/)（Apache-2.0 或 BSD-3-Clause）。脚本使用其公开的 `hash_secret_raw` 和 `AESGCM` API；运行环境需 Python 3.10+，不修改项目依赖清单或锁文件。
 
 ## 预览
 
@@ -68,9 +68,7 @@ uv run scripts/repair-local-keymap.py --apply
 
 ## 失败与恢复
 
-- 密码错误、库文件不匹配、非当前 schema、数据库损坏、改密恢复目录存在或应用尚未退出，均停止处理。
+- 密码错误、库文件不匹配、非 schema 6、数据库损坏、改密恢复目录存在或应用尚未退出，均停止处理。
 - 若输出“加密备份已保存”后失败，保留该备份及当前数据库/元数据/侧文件，不要只恢复单个主文件。
 - 需要恢复时，先完全退出应用，将当前数据库、元数据和现存侧文件整体移到另一目录保留，再把备份中的同名文件整组复制回原位置。不要将旧备份主文件与当前 WAL/SHM 混用。
 - 此脚本不改数据库密钥、元数据或 SQLx 迁移，不处理改密恢复状态，也不绕过应用校验。
-
-已通过脚本语法、帮助与格式静态检查，以及独立合成数据检查：转换范围、自定义配置保留、幂等、非法输入拒绝、普通 SQLite 内存库中的条件更新/回滚和迁移记录保留、Argon2id 派生及 AES-GCM 元数据校验。未对实际本地数据库执行预览或写入，也未进行 SQLCipher 运行验证；这些检查没有构建或启动 Termeta。

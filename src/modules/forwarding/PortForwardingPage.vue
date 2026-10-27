@@ -20,7 +20,7 @@ import { confirmAction } from "@/components/ui/confirmation";
 import { errorMessage } from "@/services/desktop/client";
 import type { ForwardProfile } from "@/services/desktop/types";
 import { useHosts } from "../hosts/store";
-import { stateLabels } from "../workbench/store";
+import { stateLabels } from "../sessions/presentation";
 import { usePortForwards } from "./store";
 import ForwardEditor from "./ForwardEditor.vue";
 const forwards = usePortForwards(),

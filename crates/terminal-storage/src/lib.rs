@@ -61,8 +61,6 @@ pub struct SqliteStore {
     unlocked: AtomicBool,
     path: PathBuf,
 }
-pub type Repository = SqliteStore;
-
 impl SqliteStore {
     /// 构造阶段不打开数据库；解锁前任何仓库访问都明确返回 Locked。
     pub fn locked(path: impl AsRef<Path>) -> Self {

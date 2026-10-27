@@ -1,6 +1,6 @@
 # 快捷键设置与输入路由
 
-更新：2026-10-22。应用内快捷键支持分类编辑、录制、多绑定、禁用、恢复默认与 JSON 导入导出。当前没有系统后台热键、多段 chord、按平台独立覆盖或原生菜单 accelerator 的通用同步。
+更新：2026-10-27。应用内快捷键支持分类编辑、录制、多绑定、禁用、恢复默认与 JSON 导入导出。当前没有系统后台热键、多段 chord、按平台独立覆盖或原生菜单 accelerator 的通用同步。
 
 ## 1. 默认动作
 
@@ -48,10 +48,10 @@ SFTP 侧栏拖至所属终端的路径插入复用同一粘贴入口和长度/�
 
 模态中 Cmd+W 被消费，不关闭标签或主窗口，保护独立于关闭标签的用户绑定。原生文件/窗口菜单的关闭项没有 Cmd+W，显式菜单及窗口按钮继续走关闭确认。日志 TAB 的关闭快捷键只关闭回看页；Cmd+Q/应用退出由 Rust 拦截，等待主窗口保存终端日志后才退出，保存失败保留窗口。设置窗口不注册终端或工作台命令，Cmd/Ctrl+W 等待设置写入后关闭，录制和模态优先。
 
-原生入口见 [macos_menu](../src-tauri/src/macos_menu.rs) 和 [settings_window](../src-tauri/src/settings_window.rs)。原生行为变化需要桌面壳编译生效，前端热更新不能验证。
+原生入口见 [macos_menu](../src-tauri/src/macos_menu.rs) 和 [settings_window](../src-tauri/src/settings_window.rs)。
 
-## 4. 终端链接与验证
+## 4. 终端链接与配置入口
 
 自动 URL 与 OSC 8 链接均须匹配配置的修饰键主键点击；普通点击/拖动保留选择及远端鼠标语义。Rust 再校验 http/https、长度与控制字符，拒绝 file/javascript 等协议；输出不得自动打开链接。
 
-配置校验位于 [settings.rs](../src-tauri/src/settings.rs)，终端粘贴与链接执行位于 [registry.ts](../src/modules/terminal/registry.ts)。IME、AltGr、原生菜单、焦点、选区及一次动作只执行一次仍需运行验收，范围统一见 [产品需求](01-product-requirements.md)。
+配置校验位于 [settings.rs](../src-tauri/src/settings.rs)，终端粘贴与链接执行位于 [registry.ts](../src/modules/terminal/registry.ts)。

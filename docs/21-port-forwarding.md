@@ -1,6 +1,6 @@
 # SSH 端口转发
 
-更新：2026-10-27。本地、远程和动态 SOCKS5 已有源码；真实 SSH 三模式及平台验收尚未完成。
+更新：2026-10-27。支持本地、远程和动态 SOCKS5 转发。
 
 ## 1. 模式与网络边界
 
@@ -32,6 +32,6 @@ SOCKS5 无认证且仅限回环、TCP CONNECT；支持 IPv4/IPv6/ASCII 或 IDNA 
 
 入口：[规则类型](../crates/terminal-core/src/forwarding.rs)、[SSH 转发](../crates/terminal-ssh/src/forwarding.rs)、[SOCKS](../crates/terminal-ssh/src/socks.rs)、[壳命令](../src-tauri/src/commands/forwarding.rs)。迁移与外键规则见 [存储](07-storage.md)。
 
-## 4. 验证边界
+## 4. 未实现范围
 
-规则校验、监听端点、SOCKS 协商与存储仍待运行验收；三平台绑定、真实服务器策略、信任/认证、DNS、半关闭/大流量、并发上限、停止释放及断网回收同样待验收，见 [产品需求](01-product-requirements.md#11-运行验收边界)。跳板、Agent、UDP、自动启动及自动重连尚未实现。
+跳板、Agent、UDP、自动启动及自动重连尚未实现。

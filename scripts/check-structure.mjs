@@ -1,6 +1,6 @@
 // 仅读取源码和清单，不导入业务模块，也不触发编译或运行。
 import { readdir, readFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 async function walk(directory) {
@@ -49,6 +49,37 @@ for (const path of (await walk("src")).filter((path) =>
   ].map((match) => match[1]);
   if (imports.some((name) => name.startsWith("../../"))) {
     errors.push(`${path}: 跨越两层及以上的导入须使用 @/ 或 @resources/ 别名`);
+  }
+  // 按实际源路径约束共享模块，别名与相对导入遵循同一依赖方向。
+  const sourceImports = imports.map((name) =>
+    name.startsWith("@/")
+      ? `src/${name.slice(2)}`
+      : name.startsWith(".")
+        ? relative(root, resolve(root, dirname(path), name)).replaceAll(
+            "\\",
+            "/",
+          )
+        : name,
+  );
+  if (
+    path.startsWith("src/theme/") &&
+    sourceImports.some(
+      (name) =>
+        name.startsWith("src/modules/") || name.startsWith("src/layout/"),
+    )
+  ) {
+    errors.push(`${path}: 共享主题不得反向依赖业务模块或窗口装配`);
+  }
+  if (
+    path.startsWith("src/modules/sessions/") &&
+    sourceImports.some(
+      (name) =>
+        name.startsWith("src/layout/") ||
+        (name.startsWith("src/modules/") &&
+          !name.startsWith("src/modules/sessions/")),
+    )
+  ) {
+    errors.push(`${path}: 通用会话模块不得反向依赖布局或具体会话用途`);
   }
   if (
     !path.startsWith("src/services/desktop/") &&

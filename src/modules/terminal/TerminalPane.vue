@@ -13,7 +13,7 @@ import {
 } from "naive-ui";
 import AppButton from "@/components/ui/AppButton.vue";
 import { useWorkbenchStore, type TerminalItem } from "../workbench/store";
-import { stateLabels } from "../workbench/store";
+import { stateLabels } from "../sessions/presentation";
 import { terminalRegistry } from "./registry";
 import { terminalBaseTitle, terminalDisplayTitle } from "./title";
 import SftpPanel from "../files/SftpPanel.vue";

@@ -5,7 +5,8 @@ import { confirmAction } from "@/components/ui/confirmation";
 import { useSettings } from "../settings/store";
 import { builtinSchemes as builtinThemeOptions } from "@/theme/schemes";
 import { terminalRegistry } from "../terminal/registry";
-import { useWorkbenchStore, isActive } from "./store";
+import { useWorkbenchStore } from "./store";
+import { isSessionTerminal } from "../sessions/control";
 
 export function useTerminalMenu(options: {
   perform: (action: () => void | Promise<void>) => void;
@@ -78,7 +79,7 @@ export function useTerminalMenu(options: {
               ),
             ],
           },
-          isActive(menuTerminal.value?.state ?? "closed")
+          !isSessionTerminal(menuTerminal.value?.state ?? "closed")
             ? { label: t("terminal.actions.disconnect"), key: "disconnect" }
             : {
                 label: menuTerminal.value?.sshCommand
