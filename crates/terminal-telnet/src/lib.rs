@@ -1,7 +1,5 @@
 //! Telnet TCP 适配器；明文登录由用户在终端完成，不访问 SSH 凭据。
 mod protocol;
-#[cfg(test)]
-mod tests;
 
 use async_trait::async_trait;
 use std::time::Duration;

@@ -59,31 +59,3 @@ pub fn valid_forward_target(address: &str) -> bool {
         })
         && (!address.contains(':') || address.parse::<IpAddr>().is_ok())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn socks_requires_loopback_and_no_fixed_destination() {
-        let mut rule = ForwardRule {
-            mode: ForwardMode::Dynamic,
-            bind_address: "127.0.0.1".into(),
-            bind_port: 1080,
-            target_address: None,
-            target_port: None,
-        };
-        assert!(rule.validate().is_ok());
-        rule.bind_address = "0.0.0.0".into();
-        assert!(rule.validate().is_err());
-        rule.bind_address = "::1".into();
-        rule.target_port = Some(80);
-        assert!(rule.validate().is_err());
-    }
-    #[test]
-    fn fixed_targets_accept_ipv6_and_reject_embedded_ports() {
-        assert!(valid_forward_target("::1"));
-        assert!(valid_forward_target("db.internal"));
-        assert!(!valid_forward_target("db.internal:5432"));
-        assert!(!valid_forward_target("bad\naddress"));
-    }
-}

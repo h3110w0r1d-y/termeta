@@ -1,6 +1,6 @@
 # Termeta 文档导航
 
-更新：2026-10-23。文档描述当前代码的行为与有效约束，不保留逐轮实现日志。源码完成与运行验收分开记录，当前版本尚未完成完整集成、三平台和发布验收。
+更新：2026-10-27。文档描述当前代码的行为与有效约束，不保留逐轮实现日志。源码完成与运行验收分开记录，当前版本尚未完成完整集成、三平台和发布验收。
 
 ## 阅读入口
 
@@ -35,4 +35,4 @@
 - profile/保存项是持久化配置；session 是一次后端连接；terminalId 是跨重连稳定的视图标识。
 - Workbench 是整个工作台，TerminalTabGroup 是运行标签组，Workspace 是多终端工作区及其显式存档。
 - IPC 命令使用 snake_case，JSON 字段使用 camelCase；接口以 Rust/TS 同步类型为准。
-- 字体、许可证与摘要见 [字体清单](../resources/fonts/README.md)；其他素材来源见 [资源说明](../resources/README.md)；用例入口与证据边界见 [测试说明](../tests/README.md)。
+- 字体、许可证与摘要见 [字体清单](../resources/fonts/README.md)；其他素材来源见 [资源说明](../resources/README.md)；静态检查与运行验收边界见 [验证说明](../tests/README.md)，当前仓库不保留自动测试源码。

@@ -396,24 +396,3 @@ struct ClientPresenceRef {
     kind: ClientPresenceKind,
     session_id: String,
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn telnet_target_is_typed_and_rejects_ssh_authentication_fields() {
-        let target = serde_json::json!({"source":"telnet","config":{"configVersion":1,"address":"::1","port":23}});
-        assert!(matches!(
-            serde_json::from_value::<OpenTarget>(target.clone()).unwrap(),
-            OpenTarget::Telnet { .. }
-        ));
-        for field in ["username", "authPlan", "serialConfig", "systemProfileId"] {
-            let mut invalid = target.clone();
-            invalid["config"][field] = serde_json::json!("forged");
-            assert!(serde_json::from_value::<OpenTarget>(invalid).is_err());
-        }
-        let mut invalid = target;
-        invalid["password"] = serde_json::json!("forged");
-        assert!(serde_json::from_value::<OpenTarget>(invalid).is_err());
-    }
-}

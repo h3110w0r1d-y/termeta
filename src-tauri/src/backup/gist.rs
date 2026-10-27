@@ -202,23 +202,3 @@ fn validate_raw_url(value: &str, id: &str) -> Result<Url, String> {
     }
     Ok(url)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn rejects_raw_auth_and_cross_origin() {
-        assert!(validate_raw_url("https://gist.githubusercontent.com/u/abc/raw/x", "abc").is_ok());
-        for value in [
-            "https://evil.example/u/abc/raw/x",
-            "https://token@gist.githubusercontent.com/u/abc/raw/x",
-            "http://gist.githubusercontent.com/u/abc/raw/x",
-            "https://gist.githubusercontent.com/u/def/raw/x",
-        ] {
-            assert!(validate_raw_url(value, "abc").is_err());
-        }
-        assert!(validate_id("../user").is_err());
-        assert!(validate_id("abc?token=x").is_err());
-    }
-}

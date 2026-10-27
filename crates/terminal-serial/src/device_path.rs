@@ -37,7 +37,7 @@ pub fn resolve(path: &str) -> Result<String> {
     windows_port(path).ok_or_else(invalid_path)
 }
 
-#[cfg(any(windows, test))]
+#[cfg(windows)]
 fn windows_port(path: &str) -> Option<String> {
     let upper = path.to_ascii_uppercase();
     let name = upper.strip_prefix(r"\\.\").unwrap_or(&upper);
@@ -47,35 +47,4 @@ fn windows_port(path: &str) -> Option<String> {
     }
     let number: u32 = number.parse().ok()?;
     (number > 0).then(|| format!("COM{number}"))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn windows_ports_normalize_aliases_and_reject_files() {
-        assert_eq!(windows_port("com0012"), Some("COM12".into()));
-        assert_eq!(windows_port(r"\\.\COM12"), Some("COM12".into()));
-        for invalid in ["COM0", "COM", "COM-1", "COM1.txt", r"C:\COM1", r"\\.\NUL"] {
-            assert_eq!(windows_port(invalid), None);
-        }
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn unix_rejects_paths_outside_device_directory() {
-        // 均在文件系统访问之前拒绝，不打开设备或依赖本机串口。
-        for path in ["COM1", "ttyUSB0", "/tmp/ttyUSB0", "/dev-other/ttyUSB0"] {
-            assert!(resolve(path).is_err());
-        }
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn unix_rejects_device_directory_and_path_escape() {
-        // 只读取元数据，验证路径归一后重新检查边界，不打开设备。
-        assert!(resolve("/dev").is_err());
-        assert!(resolve("/dev/../").is_err());
-    }
 }

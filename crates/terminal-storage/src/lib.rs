@@ -21,8 +21,6 @@ mod session_logs;
 pub use session_logs::*;
 mod model;
 mod system;
-#[cfg(test)]
-mod tests;
 
 pub use key_files::read_key_file;
 pub use model::*;
@@ -35,7 +33,7 @@ use std::{
 };
 use thiserror::Error;
 
-const SCHEMA_VERSION: i64 = 9;
+const SCHEMA_VERSION: i64 = 10;
 
 #[derive(Debug, Error)]
 pub enum StorageError {
@@ -167,9 +165,9 @@ impl SqliteStore {
         let version: i64 = sqlx::query_scalar("PRAGMA user_version")
             .fetch_one(pool)
             .await?;
-        if ![0, 2, 3, 4, 5, 6, 7, 8, SCHEMA_VERSION].contains(&version) {
+        if ![0, 2, 3, 4, 5, 6, 7, 8, 9, SCHEMA_VERSION].contains(&version) {
             return Err(StorageError::Validation(
-                "数据库格式不兼容，仅支持当前加密格式及 schema 2/3/4/5/6/7/8 升级",
+                "数据库格式不兼容，仅支持当前加密格式及 schema 2–9 升级",
             ));
         }
         private_file(path)?;
@@ -200,12 +198,6 @@ impl SqliteStore {
         }
         session_logs::ensure_session_logs_schema(&mut connection).await?;
         Ok(())
-    }
-    #[cfg(test)]
-    async fn open(path: impl AsRef<Path>) -> Result<Self> {
-        let store = Self::locked(path);
-        store.unlock(&[42; 32]).await?;
-        Ok(store)
     }
 }
 

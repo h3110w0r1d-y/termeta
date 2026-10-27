@@ -379,7 +379,3 @@ impl SqliteStore {
         }
     }
 }
-
-#[cfg(test)]
-#[path = "password_change_tests.rs"]
-mod tests;

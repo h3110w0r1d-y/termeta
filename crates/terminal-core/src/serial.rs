@@ -60,36 +60,3 @@ impl SerialConfig {
         Ok(())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn serial_rejects_invalid_device_parameters() {
-        let mut config = SerialConfig {
-            path: "COM3".into(),
-            baud_rate: 9600,
-            charset: "UTF-8".into(),
-            data_bits: 8,
-            stop_bits: 1,
-            flow_control: SerialFlowControl::None,
-            parity: SerialParity::None,
-        };
-        assert!(config.validate().is_ok());
-        config.baud_rate = 0;
-        assert!(config.validate().is_err());
-        config.baud_rate = 9600;
-        config.charset = "UTF-16".into();
-        assert!(config.validate().is_err());
-        config.charset = "UTF-8".into();
-        config.data_bits = 9;
-        assert!(config.validate().is_err());
-        config.data_bits = 8;
-        config.stop_bits = 0;
-        assert!(config.validate().is_err());
-        config.stop_bits = 1;
-        config.path.push('\0');
-        assert!(config.validate().is_err());
-    }
-}

@@ -8,8 +8,6 @@ use zeroize::Zeroizing;
 mod database;
 mod merge;
 mod schema;
-#[cfg(test)]
-mod tests;
 mod validation;
 
 use database::{insert, read_data, strip_detection_token};

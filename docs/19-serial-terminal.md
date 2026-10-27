@@ -1,6 +1,6 @@
 # Serial 串口终端
 
-更新：2026-10-18。基础文本终端与保存配置已有源码；历史 macOS 局部验证不覆盖完整桌面集成及三平台验收。
+更新：2026-10-27。基础文本终端与保存配置已有源码；历史 macOS 局部验证不覆盖完整桌面集成及三平台验收。
 
 ## 1. 配置与范围
 
@@ -46,4 +46,4 @@ Unix 路径须为绝对路径，规范化符号链接后是 `/dev` 下的字符�
 
 2026-10-16 历史授权调试在 macOS 定向编译 terminal-core/terminal-serial，15 项测试通过；指定 ESP32-C3 以 115200/8N1、None 流控经真实会话与 ACK 链路验证启动输出和正常关闭。xterm 无界面缓冲对比验证非法 UTF-8 替换；该修复后未重新连接设备。
 
-未构建或启动完整桌面应用；证据不覆盖后续保存配置集成、其他设备/参数、硬件流控或 Windows/Linux。真实设备诊断工具 [serial_monitor](../crates/terminal-serial/examples/serial_monitor.rs) 仅接收并转义预览数据，须用户明确授权后运行；授权边界见 [测试说明](../tests/README.md)。
+未构建或启动完整桌面应用；证据不覆盖后续保存配置集成、其他设备/参数、硬件流控或 Windows/Linux。真实设备诊断工具 [serial_monitor](../crates/terminal-serial/examples/serial_monitor.rs) 仅接收并转义预览数据，须用户明确授权后运行；授权边界见 [验证说明](../tests/README.md)。

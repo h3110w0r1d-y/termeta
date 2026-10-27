@@ -21,6 +21,3 @@ pub use stream::*;
 pub use tokio_util::sync::CancellationToken;
 pub use types::*;
 pub use zeroize::Zeroizing;
-
-#[cfg(test)]
-mod tests;

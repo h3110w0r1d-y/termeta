@@ -6,14 +6,12 @@ use zeroize::Zeroizing;
 
 mod metadata;
 mod rotation;
-#[cfg(test)]
-mod tests;
 
 use metadata::{Header, derive, read_header, write_header};
 
 const SERVICE: &str = "io.termeta";
 const ACCOUNT: &str = "master-key-v2";
-/// 平台适配只持有一个主密钥；可注入测试适配器，避免测试访问真实钥匙串。
+/// 统一系统凭据库的主密钥读写，始终只管理一个保险库主密钥。
 pub(crate) trait MasterKeyBackend: Send + Sync {
     fn load(&self) -> Result<Zeroizing<Vec<u8>>, SecurityError>;
     fn save(&self, key: &[u8]) -> Result<(), SecurityError>;

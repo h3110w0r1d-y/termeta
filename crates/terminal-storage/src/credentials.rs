@@ -56,11 +56,6 @@ impl SqliteStore {
                 .ok_or(StorageError::NotFound)?;
         credential_from_row(row)
     }
-    // 仅用于构造旧版中断状态的回归样例；生产公共写入必须直接原子提交。
-    #[cfg(test)]
-    pub(crate) async fn begin_credential(&self, kind: &str, label: &str) -> Result<String> {
-        self.begin_scoped_credential(kind, label, None).await
-    }
     pub async fn begin_host_password(&self, profile_id: &str, label: &str) -> Result<String> {
         if Uuid::parse_str(profile_id).is_err() {
             return Err(StorageError::Validation("主机标识无效"));

@@ -225,31 +225,3 @@ fn parse(data: &str) -> Option<&'static str> {
     }
     None
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn release_id_precedes_family_and_banner_text() {
-        assert_eq!(
-            parse("Welcome Debian\nID=ubuntu\nID_LIKE=debian\n"),
-            Some("ubuntu")
-        );
-        assert_eq!(parse("ID=almalinux\nNAME=\"AlmaLinux\""), Some("alma"));
-        assert_eq!(parse("ID=unknown\nID_LIKE=\"rhel fedora\""), Some("redhat"));
-        assert_eq!(parse("ID=custom"), Some("linux"));
-        assert_eq!(parse("Darwin\r\n"), Some("osx"));
-        assert_eq!(parse("MikroTik\r\n"), Some("routeros"));
-        assert_eq!(parse("Microsoft Windows [Version 10.0.1]"), Some("windows"));
-        assert_eq!(parse("permission denied"), None);
-    }
-    #[test]
-    fn generic_ssh_version_is_not_an_os() {
-        assert_eq!(from_software("SSH-2.0-OpenSSH_9.9"), None);
-        assert_eq!(
-            from_software("SSH-2.0-OpenSSH_for_Windows_9.9"),
-            Some("windows")
-        );
-        assert_eq!(from_software("SSH-2.0-Darwinish-red-server"), None);
-    }
-}

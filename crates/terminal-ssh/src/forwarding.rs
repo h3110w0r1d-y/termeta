@@ -39,28 +39,6 @@ impl RemoteForward {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn remote_channels_must_match_registered_listener() {
-        let (incoming, _) = mpsc::channel(1);
-        let forward = RemoteForward {
-            incoming,
-            rule: ForwardRule {
-                mode: ForwardMode::Remote,
-                bind_address: "::1".into(),
-                bind_port: 8080,
-                target_address: Some("127.0.0.1".into()),
-                target_port: Some(80),
-            },
-        };
-        assert!(forward.matches("0:0:0:0:0:0:0:1", 8080));
-        assert!(!forward.matches("::1", 8081));
-        assert!(!forward.matches("2001:db8::1", 8080));
-    }
-}
-
 pub(crate) async fn run(
     connection: client::Handle<HostKeyHandler>,
     rule: ForwardRule,

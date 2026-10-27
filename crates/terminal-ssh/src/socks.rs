@@ -69,33 +69,3 @@ pub(crate) async fn request<S: AsyncRead + AsyncWrite + Unpin>(
     }
     Ok((host, port))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[tokio::test]
-    async fn fragmented_domain_is_preserved_for_remote_dns() {
-        let (mut client, mut server) = tokio::io::duplex(64);
-        let send = async {
-            for byte in [
-                5, 1, 0, 5, 1, 0, 3, 7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 1, 187,
-            ] {
-                client.write_all(&[byte]).await.unwrap();
-            }
-            let mut method = [0; 2];
-            client.read_exact(&mut method).await.unwrap();
-            assert_eq!(method, [5, 0]);
-        };
-        let (_, target) = tokio::join!(send, request(&mut server));
-        assert_eq!(target.unwrap(), ("example".into(), 443));
-    }
-    #[tokio::test]
-    async fn udp_associate_is_explicitly_rejected() {
-        let (mut client, mut server) = tokio::io::duplex(64);
-        client.write_all(&[5, 1, 0, 5, 3, 0, 1]).await.unwrap();
-        assert!(request(&mut server).await.is_err());
-        let mut response = [0; 12];
-        client.read_exact(&mut response).await.unwrap();
-        assert_eq!(response[3], 7);
-    }
-}

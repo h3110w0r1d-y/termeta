@@ -1,6 +1,6 @@
 # 代码结构评估与渐进重构方案
 
-更新：2026-10-23。本文只维护剩余结构问题与演进边界；当前分层见 [系统架构](03-architecture.md)，功能状态、运行验收和交付顺序分别见 [产品需求](01-product-requirements.md)、[路线](10-roadmap.md)。源码存在不代表编译或运行验证通过。
+更新：2026-10-27。本文只维护剩余结构问题与演进边界；当前分层见 [系统架构](03-architecture.md)，功能状态、运行验收和交付顺序分别见 [产品需求](01-product-requirements.md)、[路线](10-roadmap.md)。源码存在不代表编译或运行验证通过。
 
 ## 1. 组织原则
 
@@ -39,12 +39,12 @@ Tauri 2 + Rust + Vue 3/TS 分层适合现有功能。结构优化按资源生命
 
 剩余问题在 Rust [model](../crates/terminal-storage/src/model.rs) 的扁平结构和自由字符串 kind，[工作区存储](../crates/terminal-storage/src/workspaces.rs) 仍需构造空 SSH 字段。后续在序列化和存储边界显式映射，保留现有 schema、备份与 IPC 表示，补业务数据往返兼容证据。变更 wire 时同步 Rust/TS 与版本处理；Local cwd/env/argv、Serial HEX 不继续堆入 SSH 默认字段。
 
-设置的 Rust 归一化、校验和 patch 合并集中于 [设置规则](../src-tauri/src/settings.rs)，[命令](../src-tauri/src/commands/settings.rs) 负责授权、版本、串行读写和通知；[TS 状态规则](../src/modules/settings/state.ts) 负责默认值和 UI 归一，[Store](../src/modules/settings/store.ts) 只管理状态与局部保存队列。两端回归源码消费同一 [兼容样例](../tests/fixtures/settings-contract.json)，覆盖旧设置、嵌套合并与按 ID 删除；规则仍需各自维护，样例不能证明完整契约一致。保持多窗口热应用，不恢复整份草稿覆盖。
+设置的 Rust 归一化、校验和 patch 合并集中于 [设置规则](../src-tauri/src/settings.rs)，[命令](../src-tauri/src/commands/settings.rs) 负责授权、版本、串行读写和通知；[TS 状态规则](../src/modules/settings/state.ts) 负责默认值和 UI 归一，[Store](../src/modules/settings/store.ts) 只管理状态与局部保存队列。两端规则分别维护，变更时须同步核对旧设置、嵌套合并与按 ID 删除的契约，并通过授权运行验收确认。保持多窗口热应用，不恢复整份草稿覆盖。
 
 ## 4. 契约与验证边界
 
 [结构守卫](../scripts/check-structure.mjs) 检查命令清单、handler、字面量 invoke 和 capability 入口，自定义权限组按显式 `commands.allow` 解析；它不生成类型，也不证明序列化一致、最小权限或运行时 owner 校验正确。`Channel<T>` / `invoke<T>` 泛型不提供运行时验证。
 
-后续按领域补 Rust/TS 序列化样例及兼容输入，继续保持唯一 desktop 门面。是否生成 TS 取决于维护成本，并须核对具体依赖 release/API/MSRV/许可，不为生成器预先新增依赖。
+Rust/TS 序列化表示和兼容输入须按领域同步维护，继续保持唯一 desktop 门面。是否生成 TS 取决于维护成本，并须核对具体依赖 release/API/MSRV/许可，不为生成器预先新增依赖。
 
-回归源码与覆盖范围由 [测试说明](../tests/README.md) 维护；真实 SSH/PTY/Serial、SQLCipher、云备份、原生对话框及三平台退出/压力的门槛统一见 [运行验收边界](01-product-requirements.md#11-运行验收边界)。归档等并发预算仍是保守边界，须实测后调整。所有编译、测试、启动及连接遵循 [协作规则](../AGENTS.md)，静态检查不能替代运行证据。
+当前仓库不保留自动测试源码；保留的静态检查入口见 [验证说明](../tests/README.md)。真实 SSH/PTY/Serial、SQLCipher、云备份、原生对话框及三平台退出/压力的门槛统一见 [运行验收边界](01-product-requirements.md#11-运行验收边界)。归档等并发预算仍是保守边界，须实测后调整。所有编译、启动及连接遵循 [协作规则](../AGENTS.md)，静态检查不能替代运行证据。

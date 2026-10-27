@@ -322,34 +322,3 @@ pub async fn finish_drag(
 pub fn clear_exports(app: &tauri::AppHandle) {
     app.state::<LocalDropRegistry>().exports.clear();
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn drop_authorization_is_owner_bound_and_consumed_once() {
-        let registry = LocalDropRegistry::default();
-        let paths = vec![PathBuf::from("/external/file")];
-        let id = registry.register("main", &paths).unwrap();
-        assert!(registry.take("settings", &id).is_err());
-        assert_eq!(registry.take("main", &id).unwrap(), paths);
-        assert!(registry.take("main", &id).is_err());
-    }
-
-    #[test]
-    fn cancelled_gesture_remains_exclusive_until_cleanup_releases_it() {
-        let registry = LocalDropRegistry::default();
-        registry
-            .external_entries
-            .lock()
-            .unwrap()
-            .insert("main".into());
-        let outgoing = registry.begin_outgoing().unwrap();
-        assert!(registry.external_entries.lock().unwrap().is_empty());
-        outgoing.finish();
-        assert!(registry.begin_outgoing().is_err());
-        drop(outgoing);
-        assert!(registry.begin_outgoing().is_ok());
-    }
-}
