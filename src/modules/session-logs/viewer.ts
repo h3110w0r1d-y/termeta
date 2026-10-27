@@ -22,7 +22,7 @@ export function mountLogTerminal(
     fontSize: settings.fontSize,
     theme: snapshotTheme(snapshot),
     linkHandler: { activate() {} },
-    screenReaderMode: true,
+    screenReaderMode: false,
   });
   let disposed = false;
   const surface = screen ? document.createElement("div") : host;

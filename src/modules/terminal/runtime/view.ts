@@ -131,7 +131,7 @@ export function createTerminalEntry(
     scrollback: 5000,
     // 通过 xterm 公开选项让滚动增量按两倍累积，广播仍只跟随源端最终输入。
     scrollSensitivity: 2,
-    screenReaderMode: true,
+    screenReaderMode: false,
   });
   const fitAddon = new FitAddon(),
     search = new SearchAddon();
