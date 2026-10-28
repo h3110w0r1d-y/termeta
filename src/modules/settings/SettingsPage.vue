@@ -94,6 +94,10 @@ const mouseActionOptions = computed(() => [
   { value: "none", label: t("settings.mouseAction.none") },
   { value: "paste", label: t("terminal.actions.paste") },
 ]);
+const hostSortOptions = computed(() => [
+  { value: "recent", label: t("settings.hostSort.recent") },
+  { value: "manual", label: t("settings.hostSort.manual") },
+]);
 function resetPrimaryColor() {
   draft.value.primaryColor = "";
   // 按钮直接更新共享字段后，使用表单项公开接口重新校验。
@@ -102,6 +106,7 @@ function resetPrimaryColor() {
     .catch(() => undefined);
 }
 const rules = computed<FormRules>(() => ({
+  hostSortMode: requiredText("settings.general.hostSortMode"),
   sftpPosition: requiredText("settings.general.sftpPosition"),
   tabPosition: requiredText("settings.general.tabPosition"),
   tabDoubleClickAction: requiredText("settings.general.tabDoubleClickAction"),
@@ -205,6 +210,21 @@ const rules = computed<FormRules>(() => ({
                     {{ t("settings.sftpPosition.right") }}
                   </NRadioButton>
                 </NRadioGroup>
+              </NFormItem>
+              <NFormItem
+                :label="t('settings.general.hostSortMode')"
+                path="hostSortMode"
+              >
+                <div class="host-sort-field">
+                  <AppSelect
+                    v-model="draft.hostSortMode"
+                    :options="hostSortOptions"
+                    aria-describedby="settings-host-sort-description"
+                  />
+                  <p id="settings-host-sort-description" class="muted">
+                    {{ t("settings.hostSort.description") }}
+                  </p>
+                </div>
               </NFormItem>
               <NFormItem
                 :label="t('settings.general.tabDoubleClick')"
@@ -429,6 +449,15 @@ const rules = computed<FormRules>(() => ({
   width: 100%;
   min-width: 0;
   gap: 8px;
+}
+.host-sort-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+.host-sort-field p {
+  margin: 0;
 }
 .primary-color-row :deep(.n-color-picker) {
   flex: 1;

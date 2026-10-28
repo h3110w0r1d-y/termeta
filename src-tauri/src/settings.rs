@@ -44,6 +44,7 @@ pub fn validate(settings: &Value) -> Result<()> {
         "sftpShowHidden",
         "sftpPosition",
         "detectSshSystem",
+        "hostSortMode",
         "hostsView",
         "hostSearch",
         "fontFamily",
@@ -89,6 +90,10 @@ pub fn validate(settings: &Value) -> Result<()> {
         // 旧设置缺失时由前端默认隐藏；已保存的值必须是布尔值。
         || object.get("sftpShowHidden").is_some_and(|value| !value.is_boolean())
         || object.get("detectSshSystem").is_some_and(|value| !value.is_boolean())
+        // 旧设置沿用手动顺序；切换排序只改变显示偏好，不改写主机顺序。
+        || object.get("hostSortMode").is_some_and(|value| {
+            !matches!(value.as_str(), Some("recent" | "manual"))
+        })
         // 旧设置缺失时不执行本地鼠标动作；仅允许内置的粘贴行为。
         || ["terminalRightClickAction", "terminalMiddleClickAction"].iter().any(|key| {
             object.get(*key).is_some_and(|value| {

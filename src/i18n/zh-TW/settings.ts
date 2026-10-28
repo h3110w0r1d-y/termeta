@@ -1,5 +1,10 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
+  "settings.general.hostSortMode": "主機排序方式",
+  "settings.hostSort.recent": "最近使用時間倒序",
+  "settings.hostSort.manual": "手動排序",
+  "settings.hostSort.description":
+    "依最近使用排序時仍可拖曳主機至群組，無法拖曳排序。切回手動排序會恢復原有順序。",
   "settings.general.sftpPosition": "SFTP 顯示位置",
   "settings.sftpPosition.left": "左側",
   "settings.sftpPosition.right": "右側",

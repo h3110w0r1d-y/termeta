@@ -1,6 +1,6 @@
 import "./hostDrag.css";
 import { t } from "@/i18n";
-import { onBeforeUnmount, ref, type Ref } from "vue";
+import { onBeforeUnmount, ref, watch, type Ref } from "vue";
 import type { HostProfile } from "@/modules/hosts/model";
 import { errorMessage } from "@/services/desktop/client";
 import { compareHostOrder } from "./ordering";
@@ -70,9 +70,8 @@ export function useHostGroupDrag(options: {
       hostIds:
         kind === "host"
           ? selected.has(id)
-            ? store.hosts
+            ? store.orderedHosts
                 .filter((host) => selected.has(host.id))
-                .sort(compareHostOrder)
                 .map((host) => host.id)
             : [id]
           : [],
@@ -145,6 +144,7 @@ export function useHostGroupDrag(options: {
     const page = panel.value?.closest(".hosts-page");
     if (
       current.kind === "host" &&
+      store.manualOrder &&
       !current.target &&
       hit &&
       page?.contains(hit)
@@ -316,7 +316,7 @@ export function useHostGroupDrag(options: {
           );
           await store.arrangeHosts(rest);
         } else if (target !== null) {
-          // 迁组追加到目标组末尾，整个批次与顺序原子提交。
+          // 手动模式迁组追加到目标组末尾；最近使用模式只迁组，保留所有手动排序键。
           const groups = new Map(
             store.hosts.map((host) => [host.id, host.groupId]),
           );
@@ -325,10 +325,14 @@ export function useHostGroupDrag(options: {
             if (groups.get(id) === parentId) last = index;
           });
           rest.splice(last < 0 ? rest.length : last + 1, 0, ...current.hostIds);
-          await store.arrangeHosts(rest, {
-            hostIds: current.hostIds,
-            groupId: parentId,
-          });
+          await store.arrangeHosts(
+            store.manualOrder ? rest : ordered,
+            {
+              hostIds: current.hostIds,
+              groupId: parentId,
+            },
+            !store.manualOrder,
+          );
           reveal(parentId);
         }
       } else {
@@ -346,6 +350,7 @@ export function useHostGroupDrag(options: {
       store.managementBusy = false;
     }
   }
+  watch(() => store.manualOrder, cancelDrag);
   onBeforeUnmount(() => {
     finishDrag();
     clearTimeout(suppressTimer);

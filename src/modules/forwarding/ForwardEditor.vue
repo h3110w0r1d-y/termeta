@@ -56,7 +56,7 @@ const form = ref<FormInst>(),
   busy = ref(false),
   error = ref("");
 const hostOptions = computed(() =>
-  hosts.hosts
+  hosts.orderedHosts
     .filter((h) => h.kind === "ssh")
     .map((h) => ({
       label: `${h.name} (${h.username}@${h.address}:${h.port})`,

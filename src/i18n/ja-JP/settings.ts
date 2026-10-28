@@ -1,5 +1,10 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
+  "settings.general.hostSortMode": "ホストの並び順",
+  "settings.hostSort.recent": "最近使用した順",
+  "settings.hostSort.manual": "手動順",
+  "settings.hostSort.description":
+    "最近使用した順では、ドラッグでホストをグループへ移動できますが、並べ替えはできません。手動順に戻すと以前の順序が復元されます。",
   "settings.general.sftpPosition": "SFTP の表示位置",
   "settings.sftpPosition.left": "左側",
   "settings.sftpPosition.right": "右側",

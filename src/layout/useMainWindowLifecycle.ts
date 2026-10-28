@@ -2,6 +2,7 @@ import { onBeforeUnmount, onMounted, ref, type Ref } from "vue";
 import { t } from "../i18n";
 import { confirmAction } from "../components/ui/confirmation";
 import { usePortForwards } from "../modules/forwarding/store";
+import { useHosts } from "../modules/hosts/store";
 import { useSettings } from "../modules/settings/store";
 import { needsCloseConfirmation } from "../modules/terminal/activity";
 import { terminalRegistry } from "../modules/terminal/registry";
@@ -18,6 +19,7 @@ export function useMainWindowLifecycle(options: {
   const workbench = useWorkbenchStore();
   const settings = useSettings();
   const portForwards = usePortForwards();
+  const hosts = useHosts();
   const savingLogs = ref(false);
   let disposed = false;
   let closingWindow = false;
@@ -96,6 +98,12 @@ export function useMainWindowLifecycle(options: {
           if (closingWindow) return;
           event.preventDefault();
           void closeApplication();
+        }),
+      );
+      if (disposed) return;
+      retainListener(
+        await desktop.onHostUsed(({ profileId, lastUsedAt }) => {
+          hosts.markUsed(profileId, lastUsedAt);
         }),
       );
       if (disposed) return;

@@ -20,6 +20,7 @@ export interface HostMetadata {
   tags: string[];
   icon: string;
   sortOrder: number;
+  lastUsedAt: number | null;
   revision: number;
 }
 export interface SshHostProfile

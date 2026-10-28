@@ -138,7 +138,7 @@ pub async fn start_port_forward(
         .map_err(storage_error)?;
     // 转发不会启动终端程序，保存主机的命令模式不参与其生命周期。
     ssh.startup = terminal_core::SshStartup::default();
-    state.forward_sessions.open(
+    let snapshot = state.forward_sessions.open(
         &owner,
         request_id,
         id,
@@ -148,7 +148,10 @@ pub async fn start_port_forward(
         },
         TerminalSize { cols: 80, rows: 24 },
         Arc::new(ForwardSink(on_control)),
-    )
+    )?;
+    drop(_gate);
+    state.record_host_use(&window, &host).await;
+    Ok(snapshot)
 }
 #[tauri::command]
 pub async fn stop_port_forward(

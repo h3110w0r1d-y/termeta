@@ -69,6 +69,16 @@ export const desktop = {
     invoke<HostProfileDto>("save_workspace", { draft }).then(
       hostProfileFromDto,
     ),
+  recordWorkspaceUse: (profileId: string) =>
+    invoke<void>("record_workspace_use", { profileId }),
+  onHostUsed: (
+    handler: (usage: { profileId: string; lastUsedAt: number }) => void,
+  ) =>
+    listen<{ profileId: string; lastUsedAt: number }>(
+      "host-used",
+      (event) => handler(event.payload),
+      { target: getCurrentWindow().label },
+    ),
   listPortForwards: () =>
     invoke<{ profiles: ForwardProfile[]; sessions: SessionSnapshot[] }>(
       "list_port_forwards",

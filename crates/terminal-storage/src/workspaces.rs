@@ -8,6 +8,7 @@ fn workspace_profile(
     name: String,
     group_id: Option<String>,
     sort_order: i64,
+    last_used_at: Option<i64>,
     workspace: SavedWorkspace,
 ) -> HostProfile {
     HostProfile {
@@ -16,6 +17,7 @@ fn workspace_profile(
         name,
         group_id,
         sort_order,
+        last_used_at,
         workspace: Some(workspace),
         kind: "workspace".into(),
         startup: terminal_core::SshStartup::default(),
@@ -93,8 +95,8 @@ impl SqliteStore {
                 .bind(&id).bind(draft.name.trim()).bind(&config).bind(now()).bind(now()).execute(&mut *tx).await?;
             (id, 1, None)
         };
-        let sort_order =
-            sqlx::query_scalar("SELECT sort_order FROM connection_profiles WHERE id=?")
+        let metadata =
+            sqlx::query("SELECT sort_order,last_used_at FROM connection_profiles WHERE id=?")
                 .bind(&id)
                 .fetch_one(&mut *tx)
                 .await?;
@@ -103,7 +105,8 @@ impl SqliteStore {
             revision,
             draft.name.trim().into(),
             group_id,
-            sort_order,
+            metadata.try_get("sort_order")?,
+            metadata.try_get("last_used_at")?,
             draft.workspace,
         );
         tx.commit().await?;
@@ -145,8 +148,8 @@ impl SqliteStore {
         .bind(id)
         .execute(&mut *tx)
         .await?;
-        let sort_order =
-            sqlx::query_scalar("SELECT sort_order FROM connection_profiles WHERE id=?")
+        let metadata =
+            sqlx::query("SELECT sort_order,last_used_at FROM connection_profiles WHERE id=?")
                 .bind(&id)
                 .fetch_one(&mut *tx)
                 .await?;
@@ -155,7 +158,8 @@ impl SqliteStore {
             revision + 1,
             draft.name,
             draft.group_id,
-            sort_order,
+            metadata.try_get("sort_order")?,
+            metadata.try_get("last_used_at")?,
             workspace,
         );
         tx.commit().await?;

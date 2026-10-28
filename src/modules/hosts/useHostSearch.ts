@@ -5,13 +5,13 @@ import { hostAddress } from "./presentation";
 import { groupPath } from "./groups";
 import { matchesText, searchWords, toSearchableName } from "./search";
 
-// 保险库下拉和新建标签页弹窗共用索引、字段偏好及名称排序。
+// 保险库下拉、新建标签页与 SFTP 共用索引、字段偏好及主机排序。
 export function useHostSearch(query: Ref<string>, includeAllWhenEmpty = false) {
   const store = useHosts();
   const settings = useSettings();
   // 索引只随轻量主机元数据更新，不缓存输入历史，也不影响下方分组列表。
   const index = computed(() =>
-    store.hosts.map((host) => ({
+    store.orderedHosts.map((host) => ({
       host,
       fields: settings.value.hostSearch.fields.flatMap((field) => {
         const values = {
@@ -52,8 +52,7 @@ export function useHostSearch(query: Ref<string>, includeAllWhenEmpty = false) {
           ),
         ),
       )
-      .map((entry) => entry.host)
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .map((entry) => entry.host);
   });
   return matches;
 }

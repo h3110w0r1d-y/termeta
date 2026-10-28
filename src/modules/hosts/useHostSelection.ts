@@ -1,4 +1,12 @@
-import { computed, nextTick, ref, watch, type Ref } from "vue";
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+  type Ref,
+} from "vue";
 import type { HostProfile } from "@/modules/hosts/model";
 
 // 选区只属于当前浏览范围；锚点与键盘焦点分开，Shift 可连续扩展同一范围。
@@ -9,6 +17,49 @@ export function useHostSelection(
   const selectedIds = ref<string[]>([]);
   const anchorId = ref<string>();
   const focusedId = ref<string>();
+  const focusWithin = ref(false);
+  const windowFocused = ref(document.hasFocus());
+  const hasFocus = computed(() => windowFocused.value && focusWithin.value);
+  function syncFocus() {
+    focusWithin.value = !!root.value?.contains(document.activeElement);
+  }
+  function focusOut(event: FocusEvent) {
+    focusWithin.value =
+      event.relatedTarget instanceof Node &&
+      !!root.value?.contains(event.relatedTarget);
+  }
+  function focusRoot() {
+    root.value?.focus({ preventScroll: true });
+    syncFocus();
+  }
+  function windowFocus() {
+    windowFocused.value = true;
+    syncFocus();
+  }
+  function windowBlur() {
+    windowFocused.value = false;
+  }
+  watch(
+    root,
+    (element, _, onCleanup) => {
+      syncFocus();
+      element?.addEventListener("focusin", syncFocus);
+      element?.addEventListener("focusout", focusOut);
+      onCleanup(() => {
+        element?.removeEventListener("focusin", syncFocus);
+        element?.removeEventListener("focusout", focusOut);
+      });
+    },
+    { flush: "post" },
+  );
+  onMounted(() => {
+    window.addEventListener("focus", windowFocus);
+    window.addEventListener("blur", windowBlur);
+  });
+  onBeforeUnmount(() => {
+    window.removeEventListener("focus", windowFocus);
+    window.removeEventListener("blur", windowBlur);
+  });
   const selectedHosts = computed(() => {
     const ids = new Set(selectedIds.value);
     return visible.value.filter((host) => ids.has(host.id));
@@ -17,6 +68,16 @@ export function useHostSelection(
     selectedIds.value = [];
     anchorId.value = undefined;
     focusedId.value = undefined;
+  }
+  function replace(ids: string[]) {
+    const selected = new Set(ids);
+    selectedIds.value = visible.value
+      .filter((host) => selected.has(host.id))
+      .map((host) => host.id);
+    if (!anchorId.value || !selected.has(anchorId.value))
+      anchorId.value = selectedIds.value[0];
+    if (!focusedId.value || !selected.has(focusedId.value))
+      focusedId.value = selectedIds.value[0];
   }
   function element(id: string) {
     return [
@@ -156,6 +217,9 @@ export function useHostSelection(
     selectedIds,
     selectedHosts,
     focusedId,
+    hasFocus,
+    focusRoot,
+    replace,
     clear,
     select,
     click,

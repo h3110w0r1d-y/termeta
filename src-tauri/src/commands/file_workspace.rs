@@ -55,14 +55,17 @@ pub async fn sftp_connect(
     // 文件连接只复用传输与认证参数，不继承终端启动命令。
     config.startup = terminal_core::SshStartup::default();
     // SessionManager提供认证与取消生命周期；占位尺寸只作通用元数据，文件工厂不申请PTY。
-    state.file_sessions.open(
+    let snapshot = state.file_sessions.open(
         &owner,
         request_id.clone(),
         request_id,
         config,
         TerminalSize { cols: 80, rows: 24 },
         Arc::new(FileSink(on_control)),
-    )
+    )?;
+    drop(_gate);
+    state.record_host_use(&window, &profile_id).await;
+    Ok(snapshot)
 }
 
 #[derive(serde::Deserialize)]

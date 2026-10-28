@@ -25,6 +25,7 @@ defineProps<{
   mode: "card" | "list";
   selectedIds: string[];
   focusedId: string | undefined;
+  selectionActive: boolean;
   busy: boolean;
 }>();
 const emit = defineEmits<{
@@ -40,6 +41,7 @@ const emit = defineEmits<{
 <template>
   <ScrollFade
     class="host-list-scroll"
+    :class="{ 'selection-focused': selectionActive }"
     background="var(--bg)"
     :size="20"
     data-host-drop-area
@@ -214,15 +216,16 @@ const emit = defineEmits<{
 /* 选中与悬浮分开；只开放地址正文的原生选字。 */
 .host-item {
   position: relative;
+  outline: none;
   -webkit-user-select: none;
   user-select: none;
 }
-.host-item.host-selected,
-.host-item:focus-visible {
+.selection-focused .host-item.host-selected,
+.selection-focused .host-item:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
-.host-item.host-selected {
+.selection-focused .host-item.host-selected {
   background: color-mix(in srgb, var(--accent) 12%, var(--surface));
 }
 .host-item[data-host-drop-position]::after {

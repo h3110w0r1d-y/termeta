@@ -3,6 +3,7 @@ import { t } from "@/i18n";
 import HostCollection from "./HostCollection.vue";
 import ConnectionTypeDropdown from "./ConnectionTypeDropdown.vue";
 import { useHostSelection } from "./useHostSelection";
+import { useHostMarquee } from "./useHostMarquee";
 import { compareHostOrder } from "./ordering";
 import AssetIcon from "@/components/ui/AssetIcon.vue";
 import { NIcon } from "naive-ui";
@@ -86,15 +87,13 @@ function connectGroup(id: string) {
   if (!selected && id !== "all" && id !== "ungrouped") return;
   // 批量范围始终包含后代，不受右侧浏览范围和侧栏主机显示偏好影响。
   const ids = selected ? descendantIds(store.groups, id) : new Set<string>();
-  const profiles = store.hosts
-    .filter(
-      (host) =>
-        id === "all" ||
-        (id === "ungrouped"
-          ? !host.groupId
-          : !!host.groupId && ids.has(host.groupId)),
-    )
-    .sort(compareHostOrder);
+  const profiles = store.orderedHosts.filter(
+    (host) =>
+      id === "all" ||
+      (id === "ungrouped"
+        ? !host.groupId
+        : !!host.groupId && ids.has(host.groupId)),
+  );
   if (profiles.length === 1) emit("connect", profiles[0]!);
   else if (profiles.length > 1) {
     menu.value.show = false;
@@ -150,19 +149,38 @@ const scope = computed(() =>
     : new Set([group.value]),
 );
 const visible = computed(() =>
-  store.hosts
-    .filter(
-      (host) =>
-        group.value === "all" ||
-        (group.value === "ungrouped"
-          ? !host.groupId
-          : !!host.groupId && scope.value.has(host.groupId)),
-    )
-    .sort(compareHostOrder),
+  store.orderedHosts.filter(
+    (host) =>
+      group.value === "all" ||
+      (group.value === "ungrouped"
+        ? !host.groupId
+        : !!host.groupId && scope.value.has(host.groupId)),
+  ),
 );
 const hostContent = ref<HTMLElement>();
 const selection = useHostSelection(visible, hostContent);
-const { selectedIds, selectedHosts, focusedId } = selection;
+const {
+  selectedIds,
+  selectedHosts,
+  focusedId,
+  hasFocus: selectionFocused,
+} = selection;
+const menu = ref({ show: false, hostId: "", x: 0, y: 0 });
+const movingHost = ref<HostProfile>();
+const marquee = useHostMarquee({
+  root: hostContent,
+  enabled: () =>
+    props.active &&
+    !store.managementBusy &&
+    !menu.value.show &&
+    !batchOpen.value &&
+    !movingHost.value,
+  visibleIds: () => visible.value.map((host) => host.id),
+  selectedIds,
+  onSelection: selection.replace,
+  onFocus: selection.focusRoot,
+});
+const { rectangle, active: marqueeActive } = marquee;
 function openSelection() {
   if (!props.active || store.managementBusy || batchGroup.value.hostIds.length)
     return;
@@ -204,7 +222,6 @@ async function setIncludeChildren(value: boolean) {
 function createHost(kind: HostKind = "ssh") {
   emit("create", kind, selectedGroup.value?.id ?? null);
 }
-const menu = ref({ show: false, hostId: "", x: 0, y: 0 });
 const menuHosts = computed(() =>
   selectedIds.value.includes(menu.value.hostId)
     ? selectedHosts.value
@@ -265,9 +282,11 @@ const menuOptions = computed(() => [
         disabled: store.managementBusy,
       },
     ],
-    disabled: !menuHosts.value.every((host) =>
-      visible.value.some((item) => item.id === host.id),
-    ),
+    disabled:
+      !store.manualOrder ||
+      !menuHosts.value.every((host) =>
+        visible.value.some((item) => item.id === host.id),
+      ),
   },
   ...(menuHosts.value.length === 1
     ? [
@@ -281,7 +300,7 @@ const menuOptions = computed(() => [
 ]);
 // 只重排当前浏览范围，隐藏项保持原来的槽位，批次内部顺序始终不变。
 async function sortSelection(direction: "first" | "last" | "up" | "down") {
-  if (store.managementBusy || !props.active) return;
+  if (store.managementBusy || !props.active || !store.manualOrder) return;
   const selected = new Set(menuHosts.value.map((host) => host.id));
   const ids = visible.value.map((host) => host.id);
   const moved = ids.filter((id) => selected.has(id));
@@ -317,7 +336,6 @@ async function sortSelection(direction: "first" | "last" | "up" | "down") {
     store.managementBusy = false;
   }
 }
-const movingHost = ref<HostProfile>();
 const movingHostIds = ref<string[]>([]);
 const destination = ref("");
 const moveError = ref("");
@@ -353,7 +371,8 @@ function cardKey(event: KeyboardEvent, host: HostProfile) {
     event.defaultPrevented ||
     menu.value.show ||
     batchOpen.value ||
-    movingHost.value
+    movingHost.value ||
+    marqueeActive.value
   )
     return;
   if (event.key === "Enter") {
@@ -373,6 +392,12 @@ function cardKey(event: KeyboardEvent, host: HostProfile) {
   )
     openMenu(event, host);
 }
+function listKey(event: KeyboardEvent) {
+  const host =
+    visible.value.find((item) => item.id === focusedId.value) ??
+    selectedHosts.value[0];
+  if (host) cardKey(event, host);
+}
 // 页面捕获卡片外的导航；文档冒泡补足焦点落在页面外壳或 body 的情形。
 // 应用命令先在文档捕获阶段执行，输入、复杂控件、模态与弹层保留各自按键。
 function pageKey(event: KeyboardEvent) {
@@ -386,6 +411,7 @@ function pageKey(event: KeyboardEvent) {
     menu.value.show ||
     batchOpen.value ||
     movingHost.value ||
+    marqueeActive.value ||
     document.querySelector(
       "[data-modal-open], [data-ui-popup-open]:not([data-application-shortcuts]), body.host-dragging",
     )
@@ -462,6 +488,7 @@ async function moveHost() {
         hostIds: [...movingHostIds.value],
         groupId: destination.value || null,
       },
+      !store.manualOrder,
     );
     movingHost.value = undefined;
   } catch (e) {
@@ -493,6 +520,7 @@ watch(
   async (active) => {
     if (!active) {
       menu.value.show = false;
+      marquee.cancel();
       return;
     }
     // 主机页保活，显隐更新后聚焦；保留选中分组和树展开状态。
@@ -501,16 +529,22 @@ watch(
   },
   { immediate: true, flush: "post" },
 );
-watch([group, includeChildren], () => {
+watch([group, includeChildren, () => settings.value.hostSortMode], () => {
   menu.value.show = false;
+  marquee.cancel();
   selection.clear();
   groupTree.value?.cancelDrag();
+});
+watch(displayMode, () => marquee.cancel());
+watch(selectionFocused, (focused) => {
+  if (!focused) marquee.cancel();
 });
 </script>
 <template>
   <section class="hosts-page home-page" @keydown.capture="pageKey">
     <HostSearch
       ref="search"
+      class="hosts-search"
       :active="active"
       @connect="emit('connect', $event)"
       @navigate-hosts="selection.first"
@@ -544,18 +578,20 @@ watch([group, includeChildren], () => {
       {{ error }}
     </NAlert>
     <div class="host-layout">
-      <HostGroupTree
-        ref="groupTree"
-        v-model="group"
-        :active="active"
-        :selected-host-ids="selectedIds"
-        @host-drag-start="selection.beginDrag"
-        @error="error = $event"
-        @connect="emit('connect', $event)"
-        @connect-group="connectGroup"
-        @edit-host="emit('edit', $event)"
-        @host-menu="openMenu"
-      />
+      <div class="host-group-panel">
+        <HostGroupTree
+          ref="groupTree"
+          v-model="group"
+          :active="active"
+          :selected-host-ids="selectedIds"
+          @host-drag-start="selection.beginDrag"
+          @error="error = $event"
+          @connect="emit('connect', $event)"
+          @connect-group="connectGroup"
+          @edit-host="emit('edit', $event)"
+          @host-menu="openMenu"
+        />
+      </div>
       <GroupConnectDialog
         v-model:open="batchOpen"
         :active="active"
@@ -565,11 +601,7 @@ watch([group, includeChildren], () => {
         @connect="connectMany"
         @after-leave="batchGroup = { id: 'all', hostIds: [] }"
       />
-      <section
-        ref="hostContent"
-        class="host-content"
-        :aria-label="t('hosts.filters.group')"
-      >
+      <section class="host-content" :aria-label="t('hosts.filters.group')">
         <div class="host-scope">
           <NEllipsis>
             <NText strong>{{ groupName }}</NText>
@@ -612,20 +644,43 @@ watch([group, includeChildren], () => {
             </NRadioButton>
           </NRadioGroup>
         </div>
-        <HostCollection
-          :hosts="visible"
-          :groups="store.groups"
-          :mode="displayMode"
-          :selected-ids="selectedIds"
-          :focused-id="focusedId"
-          :busy="store.managementBusy"
-          @create="createHost()"
-          @select="selection.click"
-          @connect="doubleClick"
-          @drag="(event, host) => groupTree?.startHostDrag(event, host)"
-          @keydown="cardKey"
-          @menu="openMenu"
-        />
+        <div
+          ref="hostContent"
+          class="host-selection-area"
+          :class="{ 'host-marquee-active': marqueeActive }"
+          tabindex="-1"
+          @pointerdown="marquee.start"
+          @click.capture="marquee.suppressClick"
+          @keydown.self="listKey"
+        >
+          <HostCollection
+            :hosts="visible"
+            :groups="store.groups"
+            :mode="displayMode"
+            :selected-ids="selectedIds"
+            :focused-id="focusedId"
+            :selection-active="
+              active &&
+              selectionFocused &&
+              !menu.show &&
+              !batchOpen &&
+              !movingHost
+            "
+            :busy="store.managementBusy"
+            @create="createHost()"
+            @select="selection.click"
+            @connect="doubleClick"
+            @drag="(event, host) => groupTree?.startHostDrag(event, host)"
+            @keydown="cardKey"
+            @menu="openMenu"
+          />
+          <div
+            v-if="rectangle"
+            class="host-selection-rectangle"
+            :style="rectangle"
+            aria-hidden="true"
+          />
+        </div>
       </section>
     </div>
     <NDropdown
@@ -690,10 +745,18 @@ watch([group, includeChildren], () => {
 </template>
 <style scoped>
 .hosts-page {
+  --host-list-inset: 24px;
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  padding: 28px 0 0;
+  max-width: none;
+}
+.hosts-search,
+.host-actions,
+.hosts-error {
+  margin-inline: 28px;
 }
 .host-actions {
   flex-shrink: 0;
@@ -704,9 +767,15 @@ watch([group, includeChildren], () => {
 }
 .host-layout {
   display: flex;
-  gap: 24px;
   flex: 1;
   min-height: 0;
+  padding-left: 28px;
+}
+.host-group-panel {
+  display: flex;
+  flex-shrink: 0;
+  min-height: 0;
+  margin-bottom: 28px;
 }
 .host-content {
   display: flex;
@@ -720,7 +789,32 @@ watch([group, includeChildren], () => {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 16px;
+  margin: 0 28px 0 var(--host-list-inset);
+}
+/* 将页面留白和栏间距放进列表命中区，四周都能发起清选或框选。 */
+.host-selection-area {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 16px 28px 28px var(--host-list-inset);
+  overflow: hidden;
+  outline: none;
+  isolation: isolate;
+}
+.host-marquee-active,
+.host-marquee-active :deep(*) {
+  -webkit-user-select: none;
+  user-select: none;
+}
+.host-selection-rectangle {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
 }
 .host-scope > :first-child {
   max-width: 100%;
@@ -740,8 +834,8 @@ watch([group, includeChildren], () => {
   display: flex;
 }
 @media (max-width: 1000px) {
-  .host-layout {
-    gap: 16px;
+  .hosts-page {
+    --host-list-inset: 16px;
   }
 }
 </style>

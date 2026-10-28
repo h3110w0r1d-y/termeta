@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { compareHostOrder } from "./ordering";
 import { t } from "@/i18n";
 import ScrollFade from "@/components/ui/ScrollFade.vue";
 import { closeContextMenuOnOutside } from "@/components/ui/contextMenu";
@@ -104,9 +103,8 @@ const tree = computed<TreeOption[]>(() => {
     counts.set(host.groupId, (counts.get(host.groupId) ?? 0) + 1);
   const hostNodes = (groupId: string | null): TreeOption[] =>
     showHosts.value
-      ? store.hosts
+      ? store.orderedHosts
           .filter((host) => host.groupId === groupId)
-          .sort(compareHostOrder)
           .map((host) => ({
             key: `host:${host.id}`,
             label: host.name,

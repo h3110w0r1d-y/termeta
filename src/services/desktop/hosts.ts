@@ -8,8 +8,18 @@ import type { HostDraftDto, HostInventoryDto, HostProfileDto } from "./types";
 
 /** 扁平 wire 中仅有占位含义的字段在此止步，业务必须先按 kind 收窄。 */
 export function hostProfileFromDto(dto: HostProfileDto): HostProfile {
-  const { id, name, groupId, tags, icon, sortOrder, revision } = dto;
-  const metadata = { id, name, groupId, tags, icon, sortOrder, revision };
+  const { id, name, groupId, tags, icon, sortOrder, lastUsedAt, revision } =
+    dto;
+  const metadata = {
+    id,
+    name,
+    groupId,
+    tags,
+    icon,
+    sortOrder,
+    lastUsedAt,
+    revision,
+  };
   const invalid = () => new Error(t("hosts.errors.invalidConfiguration"));
   if (
     dto.kind !== "ssh" &&

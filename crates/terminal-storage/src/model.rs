@@ -29,6 +29,7 @@ pub struct HostDraft {
 #[serde(rename_all = "camelCase")]
 pub struct HostProfile {
     pub sort_order: i64,
+    pub last_used_at: Option<i64>,
     #[serde(default)]
     pub startup: SshStartup,
     #[serde(default)]
@@ -168,6 +169,8 @@ pub struct WorkspaceDraft {
 pub struct HostArrangement {
     pub ordered_hosts: Vec<HostOrderEntry>,
     pub move_to: Option<HostMove>,
+    #[serde(default)]
+    pub preserve_order: bool,
 }
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

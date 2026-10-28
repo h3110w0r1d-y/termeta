@@ -91,6 +91,7 @@ impl SqliteStore {
             };
             let host = HostProfile {
                 sort_order: row.try_get("sort_order")?,
+                last_used_at: row.try_get("last_used_at")?,
                 startup: if kind == "ssh" {
                     ssh_startup(&config)?
                 } else {
@@ -151,6 +152,9 @@ impl SqliteStore {
     /// 仅更新位置与分组，不经过认证配置保存路径，也不接触秘密或活动会话。
     pub async fn arrange_hosts(&self, draft: HostArrangement) -> Result<HostInventory> {
         use std::collections::{HashMap, HashSet};
+        if draft.preserve_order && draft.move_to.is_none() {
+            return Err(StorageError::Validation("保留手动顺序只适用于迁移分组"));
+        }
         let mut tx = self.pool().await?.begin_with("BEGIN IMMEDIATE").await?;
         let rows = sqlx::query("SELECT id,revision,sort_order,group_id FROM connection_profiles WHERE kind IN ('ssh','telnet','serial','workspace')")
             .fetch_all(&mut *tx).await?;
@@ -213,9 +217,15 @@ impl SqliteStore {
             } else {
                 group
             };
-            if *order != position as i64 || group != group_id {
+            // 最近使用模式只迁组，不把当前展示位置写回手动排序键。
+            let sort_order = if draft.preserve_order {
+                *order
+            } else {
+                position as i64
+            };
+            if *order != sort_order || group != group_id {
                 sqlx::query("UPDATE connection_profiles SET sort_order=?,group_id=?,revision=revision+1,updated_at=? WHERE id=?")
-                    .bind(position as i64).bind(group_id).bind(timestamp).bind(&entry.id).execute(&mut *tx).await?;
+                    .bind(sort_order).bind(group_id).bind(timestamp).bind(&entry.id).execute(&mut *tx).await?;
             }
         }
         let hosts = Self::list_hosts_from(&mut tx, "", None).await?;
@@ -228,6 +238,15 @@ impl SqliteStore {
         let host = Self::get_host_from(&mut tx, id).await?;
         tx.commit().await?;
         Ok(host)
+    }
+    /// 使用记录不改变配置版本、修改时间或手动位置，避免与正在编辑的草稿冲突。
+    pub async fn record_host_use(&self, id: &str) -> Result<i64> {
+        sqlx::query_scalar("UPDATE connection_profiles SET last_used_at=MAX(COALESCE(last_used_at,0),?) WHERE id=? AND kind IN ('ssh','telnet','serial','workspace') RETURNING last_used_at")
+            .bind(now())
+            .bind(id)
+            .fetch_optional(&*self.pool().await?)
+            .await?
+            .ok_or(StorageError::NotFound)
     }
     async fn get_host_from(
         connection: &mut sqlx::SqliteConnection,

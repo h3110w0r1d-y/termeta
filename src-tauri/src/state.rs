@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 use tauri::{
-    WebviewWindow,
+    Emitter, WebviewWindow,
     ipc::{Channel, Response},
 };
 use terminal_core::{Result, SessionError, SessionEvent, SessionManager, SessionSink};
@@ -87,6 +87,19 @@ impl SessionSink for DesktopSink {
 }
 
 impl AppState {
+    /// 浏览元数据写入失败不能撤销已接受的连接，也不能把已创建会话误报为打开失败。
+    pub async fn record_host_use(&self, window: &WebviewWindow, profile_id: &str) {
+        match self.store.record_host_use(profile_id).await {
+            Ok(last_used_at) => {
+                let _ = window.emit_to(
+                    window.label(),
+                    "host-used",
+                    serde_json::json!({ "profileId": profile_id, "lastUsedAt": last_used_at }),
+                );
+            }
+            Err(error) => eprintln!("无法保存主机最近使用时间：{error}"),
+        }
+    }
     /// 定时扫描仅兜底；正常结束、显式关闭与 owner 销毁均由 core 同步通知撤销。
     pub fn cleanup_sftp(&self) {
         let ids: Vec<_> = self.sftp.lock().unwrap().keys().cloned().collect();

@@ -1,5 +1,10 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
+  "settings.general.hostSortMode": "Host sort order",
+  "settings.hostSort.recent": "Recently used first",
+  "settings.hostSort.manual": "Manual order",
+  "settings.hostSort.description":
+    "When sorted by recent use, drag hosts to groups without reordering them. Switching back to manual order restores your previous order.",
   "settings.general.sftpPosition": "SFTP position",
   "settings.sftpPosition.left": "Left",
   "settings.sftpPosition.right": "Right",

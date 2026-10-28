@@ -16,6 +16,7 @@ export interface HostSearchSettings {
   fields: HostSearchField[];
 }
 export type TerminalMouseAction = "none" | "paste";
+export type HostSortMode = "recent" | "manual";
 export interface AppSettings extends SchemePreferences {
   schemaVersion: 1;
   language: Language;
@@ -27,6 +28,7 @@ export interface AppSettings extends SchemePreferences {
   sftpShowHidden: boolean;
   sftpPosition: "left" | "right";
   detectSshSystem: boolean;
+  hostSortMode: HostSortMode;
   hostsView: HostsViewSettings;
   hostSearch: HostSearchSettings;
   fontFamily: string;

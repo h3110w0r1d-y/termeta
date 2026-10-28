@@ -15,6 +15,7 @@ export function defaultSettings(): AppSettings {
     sftpShowHidden: false,
     sftpPosition: "right",
     detectSshSystem: true,
+    hostSortMode: "manual",
     hostsView: {
       includeChildren: false,
       expandedGroupIds: [],

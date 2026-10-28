@@ -61,6 +61,28 @@ pub async fn save_workspace(
         .map_err(storage_error)
 }
 #[tauri::command]
+pub async fn record_workspace_use(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    profile_id: String,
+) -> Result<()> {
+    owner(&window)?;
+    let profile = state
+        .store
+        .get_host(&profile_id)
+        .await
+        .map_err(storage_error)?;
+    if profile.kind != "workspace" {
+        return Err(SessionError::new(
+            "INVALID_CONFIG",
+            "validation",
+            "此入口只记录保存工作区的使用",
+        ));
+    }
+    state.record_host_use(&window, &profile_id).await;
+    Ok(())
+}
+#[tauri::command]
 pub async fn delete_host(
     window: WebviewWindow,
     state: State<'_, AppState>,

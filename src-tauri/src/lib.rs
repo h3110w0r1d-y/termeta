@@ -183,6 +183,7 @@ pub fn run() {
             commands::arrange_hosts,
             commands::save_host,
             commands::save_workspace,
+            commands::record_workspace_use,
             commands::delete_host,
             commands::save_host_group,
             commands::delete_host_group,

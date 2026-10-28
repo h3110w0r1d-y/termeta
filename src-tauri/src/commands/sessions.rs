@@ -85,6 +85,10 @@ pub async fn open_session(
     if let Some(snapshot) = state.sessions.lookup_request(&owner, &request_id) {
         return Ok(snapshot);
     }
+    let saved_profile_id = match &target {
+        OpenTarget::Saved { profile_id } => Some(profile_id.clone()),
+        _ => None,
+    };
     let config = match target {
         OpenTarget::Local => SessionConfig::Local,
         OpenTarget::Telnet { config } => SessionConfig::Telnet(config),
@@ -169,9 +173,14 @@ pub async fn open_session(
         output: on_output,
         control: on_control,
     });
-    state
+    let snapshot = state
         .sessions
-        .open(&owner, request_id, terminal_id, config, size, sink)
+        .open(&owner, request_id, terminal_id, config, size, sink)?;
+    drop(_gate);
+    if let Some(profile_id) = saved_profile_id {
+        state.record_host_use(&window, &profile_id).await;
+    }
+    Ok(snapshot)
 }
 #[tauri::command]
 pub async fn write_session(

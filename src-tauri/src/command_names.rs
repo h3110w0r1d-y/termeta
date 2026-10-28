@@ -41,6 +41,7 @@ pub const COMMANDS: &[&str] = &[
     "arrange_hosts",
     "save_host",
     "save_workspace",
+    "record_workspace_use",
     "delete_host",
     "save_host_group",
     "delete_host_group",

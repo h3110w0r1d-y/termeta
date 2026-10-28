@@ -27,7 +27,7 @@ const visible = computed(() =>
   ),
 );
 function references(id: string) {
-  return hosts.hosts.filter(
+  return hosts.orderedHosts.filter(
     (host) =>
       host.kind === "ssh" &&
       host.authPlan.some((step) => step.credentialId === id),

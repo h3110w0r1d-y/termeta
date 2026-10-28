@@ -3,6 +3,7 @@ import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { useHosts } from "../hosts/store";
 import { clone } from "@/services/data/clone";
+import { desktop } from "@/services/desktop/client";
 import { terminalBaseTitle, terminalDisplayTitle } from "../terminal/title";
 import { moveTabBefore } from "./tabInsertion";
 import { broadcastTargets, type InputKind } from "../terminal/inputRouter";
@@ -283,6 +284,10 @@ export const useWorkbenchStore = defineStore("workbench", () => {
     unifyGroupScheme(group, created[workspace.focusedIndex]!);
     groups.value = groups.value.filter((g) => g === group || !ids.has(g.id));
     activeId.value = group.id;
+    // 布局已恢复后记录保存工作区的使用，不因元数据写入失败撤销新建终端。
+    void desktop.recordWorkspaceUse(host.id).catch((cause: unknown) => {
+      console.error(cause);
+    });
   }
   function snapshotWorkspace(id: string): SavedWorkspace {
     const group = groups.value.find((g) => g.id === id);
