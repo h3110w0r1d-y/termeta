@@ -15,7 +15,7 @@
 
 Windows 所有用户安装只共享程序文件，不共享数据库或主密钥；同一 Windows 用户切换安装范围且应用标识不变时仍使用原数据与凭据项。以另一账号启动应用（包括使用另一管理员账号运行）会切换到该账号的数据目录和凭据库，不会自动读取原账号保险库。
 
-SQLCipher 由锁定的 `libsqlite3-sys 0.30.1` 内嵌 4.5.7 源码与 vendored OpenSSL 提供。连接先应用 raw key 再读页面，拒绝缺少 SQLCipher 4 的环境，不回退普通 SQLite；禁用 SQL 语句日志。Unix 应用目录 0700、数据库及元数据 0600；Windows 沿用当前用户数据目录的 ACL，不额外设置文件 ACL。
+SQLCipher 由锁定的 `libsqlite3-sys 0.37.0` 内嵌 4.10.0 源码（基于 SQLite 3.50.4）与 vendored OpenSSL 提供，SQLx 固定 0.9.0。连接先应用 raw key 再读页面，使用 SQLCipher 4 兼容参数并拒绝缺少 SQLCipher 4 的环境，不回退普通 SQLite；禁用 SQL 语句日志。Unix 应用目录 0700、数据库及元数据 0600；Windows 沿用当前用户数据目录的 ACL，不额外设置文件 ACL。
 
 实现入口：[存储连接与初始化](../crates/terminal-storage/src/lib.rs)、[主密钥与元数据](../crates/terminal-security/src/master_key.rs)。
 
@@ -31,7 +31,7 @@ SQLCipher 由锁定的 `libsqlite3-sys 0.30.1` 内嵌 4.5.7 源码与 vendored O
 
 修改保险库密码要求已解锁并重新验证旧密码；新密码遵守首次设置限制且不能与旧密码相同。保留 UUID，生成新盐和 nonce，格式与 schema 不变。实现见 [主密钥协调](../crates/terminal-security/src/master_key.rs) 与 [文件切换](../crates/terminal-storage/src/password_change.rs)。
 
-流程与凭据多步写入串行，数据库生命周期门闩暂停新查询并等待原池归还事务。关闭 WAL、切至 DELETE 日志模式后复制完整加密主文件，仅在独占副本执行 SQLCipher `rekey`；验证新密钥、完整性和外键后切换正式数据库及元数据。全程不生成明文库、不改迁移记录；重新开放业务池不重复启动迁移或改写会话日志，终端输出/取消不经此门闩。
+流程与凭据多步写入串行，数据库生命周期门闩暂停新查询并等待原池归还事务。关闭 WAL、切至 DELETE 日志模式后复制完整加密主文件，仅在独占副本执行 SQLCipher rekey；验证新密钥、完整性和外键后切换正式数据库及元数据。全程不生成明文库、不改迁移记录；重新开放业务池不重复启动迁移或改写会话日志，终端输出/取消不经此门闩。
 
 同目录 `termeta-encrypted-v2.password-change/` 保存新旧加密文件和持久化标记：
 
@@ -86,6 +86,8 @@ SSH `config_json.startup` 使用共享 `SshStartup` 类型：Shell 或 PTY exec�
 ## 6. schema 与迁移
 
 密钥和页面完整性通过后，专用初始化连接接受 `user_version=0` 或同格式 2–11。Snippets/日志采用迁移后幂等建表，不增加 SQLx 迁移或改变 user_version，不改已有迁移及校验记录。父表重建前在迁移事务外关闭外键，SQLx `Migrator::run_direct` 之后恢复并检查外键，通过才发布业务池；失败保持回滚与校验和检查。
+
+数据库引擎版本、SQLCipher 加密格式和业务 schema 分别维护。连接保持 SQLCipher 4 兼容参数，解锁仅补齐当前程序内嵌的业务迁移；已经是 schema 11 的库不会因驱动或引擎版本变化而增加 schema。现有入口不自动调用 `cipher_migrate` 或更换主密钥，密码变更仍通过独立的加密副本与恢复流程完成。
 
 | 迁移文件 | 结果 schema | 内容 |
 | --- | --- | --- |

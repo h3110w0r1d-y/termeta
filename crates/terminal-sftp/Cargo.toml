@@ -9,5 +9,5 @@ terminal-core = { path = "../terminal-core" }
 terminal-files = { path = "../terminal-files" }
 terminal-ssh = { path = "../terminal-ssh" }
 russh-sftp = { version = "=3.0.1", default-features = false }
-async-trait = "=0.1.89"
-tokio = { version = "=1.50.0", features = ["sync", "time"] }
+async-trait = "=0.1.92"
+tokio = { version = "=1.54.1", features = ["sync", "time"] }

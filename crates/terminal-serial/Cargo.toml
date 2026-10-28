@@ -9,9 +9,9 @@ terminal-core = { path = "../terminal-core" }
 serialport = { version = "=4.10.1", default-features = false }
 encoding_rs = "=0.8.42"
 serde = { version = "=1.0.229", features = ["derive"] }
-async-trait = "=0.1.89"
-tokio = { version = "=1.50.0", features = ["rt", "sync", "time", "macros"] }
+async-trait = "=0.1.92"
+tokio = { version = "=1.54.1", features = ["rt", "sync", "time", "macros"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-foundation = "=0.10.1"
-io-kit-sys = "=0.4.1"
+io-kit-sys = "=0.5.0"

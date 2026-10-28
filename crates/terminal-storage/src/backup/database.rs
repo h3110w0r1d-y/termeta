@@ -1,7 +1,7 @@
 //! 白名单业务快照的事务读写及不跨设备传播的元数据清理。
 use super::{Cell, Data, MAX_DATABASE_BYTES, MAX_ROWS, TABLES, Table};
 use crate::{Result, StorageError};
-use sqlx::{Row, ValueRef};
+use sqlx::{AssertSqlSafe, Row, ValueRef};
 use zeroize::Zeroizing;
 
 pub(crate) async fn insert(
@@ -10,7 +10,8 @@ pub(crate) async fn insert(
     row: &[Cell],
 ) -> Result<()> {
     let sql = table.insert();
-    let mut query = sqlx::query(&sql);
+    // 表名和列名仅来自内部白名单，备份单元格继续通过参数绑定写入。
+    let mut query = sqlx::query(AssertSqlSafe(sql));
     for value in row {
         query = match value {
             Cell::Null => query.bind(Option::<String>::None),
@@ -46,7 +47,8 @@ pub(crate) async fn read_data(tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>) -> R
             _ => "",
         };
         let query = format!("{}{} LIMIT {}", table.select(), filter, MAX_ROWS + 1);
-        let mut stream = sqlx::query(&query).fetch(&mut **tx);
+        // 查询只组合内部表定义、固定筛选和常量限额，不接收备份内容作为 SQL。
+        let mut stream = sqlx::query(AssertSqlSafe(query)).fetch(&mut **tx);
         let mut rows = Vec::new();
         use futures_util::TryStreamExt;
         while let Some(source) = stream.try_next().await? {

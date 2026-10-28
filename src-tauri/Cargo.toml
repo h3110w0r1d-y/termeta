@@ -3,6 +3,7 @@ name = "termeta"
 version = "0.1.0"
 description = "Modular desktop SSH client"
 edition = "2024"
+rust-version = "1.94"
 
 [[bin]]
 name = "Termeta"
@@ -13,16 +14,16 @@ name = "termeta_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "=2.6.3", features = [] }
+tauri-build = { version = "=2.7.4", features = [] }
 
 [dependencies]
 terminal-telnet = { path = "../crates/terminal-telnet" }
 terminal-local = { path = "../crates/terminal-local" }
 terminal-serial = { path = "../crates/terminal-serial" }
-tauri = { version = "=2.11.5", features = [] }
-tauri-plugin-opener = "=2.5.5"
-tauri-plugin-dialog = "=2.6.0"
-tauri-plugin-single-instance = "=2.4.2"
+tauri = { version = "=2.12.5", features = [] }
+tauri-plugin-opener = "=2.7.2"
+tauri-plugin-dialog = "=2.8.4"
+tauri-plugin-single-instance = "=2.5.5"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 terminal-core = { path = "../crates/terminal-core" }
@@ -31,9 +32,9 @@ terminal-files = { path = "../crates/terminal-files" }
 terminal-sftp = { path = "../crates/terminal-sftp" }
 terminal-storage = { path = "../crates/terminal-storage" }
 terminal-security = { path = "../crates/terminal-security" }
-async-trait = "0.1"
-tokio = { version = "1", features = ["fs", "sync", "time"] }
-uuid = { version = "1", features = ["v4"] }
+async-trait = "0.1.92"
+tokio = { version = "1.54.1", features = ["fs", "sync", "time"] }
+uuid = { version = "1.29.0", features = ["v4"] }
 zeroize = "1"
 url = "=2.5.8"
 reqwest = { version = "=0.13.5", default-features = false, features = ["rustls", "json"] }

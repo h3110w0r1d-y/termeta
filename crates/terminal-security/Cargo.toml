@@ -2,23 +2,24 @@
 name = "terminal-security"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.94"
 
 [dependencies]
 terminal-core = { path = "../terminal-core" }
 terminal-storage = { path = "../terminal-storage" }
-async-trait = "0.1.89"
-tokio = { version = "1.48.0", features = ["sync", "rt"] }
+async-trait = "0.1.92"
+tokio = { version = "1.54.1", features = ["sync", "rt"] }
 zeroize = "1.8.2"
 thiserror = "2.0.17"
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.154"
-uuid = { version = "=1.22.0", features = ["v4"] }
+uuid = { version = "=1.29.0", features = ["v4"] }
 argon2 = { version = "=0.6.0", default-features = false, features = ["alloc", "zeroize"] }
 aes-gcm = { version = "=0.11.1", features = ["zeroize"] }
 rand_core = { version = "=0.6.4", features = ["getrandom"] }
 
-base64 = "=0.22.1"
-zstd = { version = "=0.13.3", default-features = false }
+base64 = "=0.23.1"
+zstd = { version = "=0.14.3", default-features = false }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 keyring = { version = "=3.6.3", default-features = false, features = ["apple-native"] }

@@ -180,8 +180,9 @@ impl SqliteStore {
             .execute(&mut *connection)
             .await?;
         // 已取得连接时直接迁移，避免 run 的 Acquire 生命周期约束使解锁 future 无法满足 Send。
+        // 不限制目标版本且实际执行迁移 SQL，不能只把待执行项登记为已应用。
         let migrated = sqlx::migrate!("./migrations")
-            .run_direct(&mut *connection)
+            .run_direct(None, &mut *connection, false)
             .await;
         sqlx::query("PRAGMA foreign_keys = ON")
             .execute(&mut *connection)

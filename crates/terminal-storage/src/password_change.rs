@@ -1,4 +1,5 @@
 use crate::*;
+use libsqlite3_sys as ffi;
 use std::{fs::OpenOptions, io::Write};
 
 const MARKER: &[u8] = b"termeta-password-change-v1\n";
@@ -287,11 +288,41 @@ impl SqliteStore {
         blocking(move || files.create(&metadata)).await?;
         let target = journal.file("next.sqlite3");
         let staged = Self::checked_pool(&target, old_key, SqliteJournalMode::Delete).await?;
-        let encoded = zeroize::Zeroizing::new(hex::encode(new_key));
-        let statement =
-            zeroize::Zeroizing::new(format!("PRAGMA rekey = \"x'{}'\"", encoded.as_str()));
-        // 只在独占的加密副本上改密钥；连接禁用 SQL 日志并在完成后立即关闭。
-        let rekeyed = sqlx::query(&statement).execute(&staged).await;
+        let rekeyed = async {
+            let mut connection = staged.acquire().await?;
+            // SQLCipher 通过 x'…' 形式识别原始密钥的 64 个十六进制字符，裸字节会被当作口令再次派生。
+            let mut raw_key = zeroize::Zeroizing::new([0u8; 67]);
+            raw_key[..2].copy_from_slice(b"x'");
+            raw_key[66] = b'\'';
+            hex::encode_to_slice(new_key, &mut raw_key[2..66])
+                .map_err(|_| StorageError::Validation("保险库密钥编码失败"))?;
+            let runtime = tokio::runtime::Handle::current();
+            blocking(move || {
+                // 在阻塞线程独占句柄，守卫保证 SQLx worker 不会并发访问；原生指针不跨线程转移。
+                let rekeyed = (|| {
+                    let mut handle = runtime.block_on(connection.lock_handle())?;
+                    let code = unsafe {
+                        ffi::sqlite3_rekey_v2(
+                            handle.as_raw_handle().as_ptr(),
+                            c"main".as_ptr(),
+                            raw_key.as_ptr().cast(),
+                            raw_key.len() as std::ffi::c_int,
+                        )
+                    };
+                    if code != ffi::SQLITE_OK {
+                        return Err(StorageError::Validation("加密数据库密钥更新失败"));
+                    }
+                    Ok(())
+                })();
+                // 先释放句柄守卫再等待 worker 关闭连接；保留改密错误，成功时再报告关闭错误。
+                let closed = runtime
+                    .block_on(connection.close())
+                    .map_err(StorageError::from);
+                rekeyed.and(closed)
+            })
+            .await
+        }
+        .await;
         staged.close().await;
         rekeyed?;
         let verified = Self::checked_pool(&target, new_key, SqliteJournalMode::Delete).await?;

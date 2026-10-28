@@ -18,7 +18,7 @@
 
 [生成脚本](../scripts/generate-app-icons.py) 从 SVG 生成桌面 PNG、ICO、ICNS 和网页图标，只调整画布取景，不改变图稿内部形体。通用版去除外部留白，macOS 版保留平台留白。默认生成深浅两套资源：深色输出到 `src-tauri/icons/` 和 `public/terminal.svg`，亮色输出到 `src-tauri/icons/light/` 和 `public/terminal-light.svg`；应用图标不随界面主题自动切换。
 
-生成工具要求 Python ≥3.10，Pillow 12.3.0 和 resvg-py 0.5.0 固定于 [工具依赖](../scripts/icon-requirements.txt)，并使用仓库锁定的 Tauri CLI 2.12.3：
+生成工具要求 Python ≥3.10，Pillow 12.3.0 和 resvg-py 0.5.0 固定于 [工具依赖](../scripts/icon-requirements.txt)，并使用仓库锁定的 Tauri CLI 2.12.4：
 
 ```sh
 python scripts/generate-app-icons.py
@@ -44,7 +44,7 @@ python scripts/generate-app-icons.py
 
 ## 界面及 SSH 系统图标
 
-通用界面图标使用 MIT 许可的 [Tabler Icons](https://tabler.io/icons)，依赖固定为 `@tabler/icons-vue` 3.49.0。
+通用界面图标使用 MIT 许可的 [Tabler Icons](https://tabler.io/icons)，依赖固定为 `@tabler/icons-vue` 3.50.0。
 
 28 个 SSH 系统/类型 SVG 来自维护者指定的 Termius 图标素材，保留原始字节，位于 [systems/](../src/assets/svg/systems/)。名称映射、颜色和 SHA-256 见 [host-system-icons.json](host-system-icons.json)。不声明项目拥有这些素材，也不额外授予开源许可；再分发授权仍待确认。
 
