@@ -14,7 +14,9 @@
 | 数据库 | [SQLx 0.9.0](https://docs.rs/sqlx/0.9.0/sqlx/)，sqlite/runtime-tokio/migrate/macros | MIT OR Apache-2.0，声明 MSRV 1.94；Rust 独占 SQL。迁移事务和父表重建见 [存储](07-storage.md) |
 | SQLCipher | [libsqlite3-sys 0.37.0](https://docs.rs/crate/libsqlite3-sys/0.37.0/source/)，bundled-sqlcipher-vendored-openssl | 内嵌 SQLCipher 4.10.0（BSD，基于 SQLite 3.50.4）与 OpenSSL；保持 SQLCipher 4 兼容参数，依赖目标平台原生工具链 |
 | 主密钥/备份加密 | [Argon2 0.6.0](https://docs.rs/argon2/0.6.0/argon2/) alloc/zeroize；[AES-GCM 0.11.1](https://docs.rs/aes-gcm/0.11.1/aes_gcm/) zeroize | MIT OR Apache-2.0，声明 MSRV 1.85；用于主密钥校验与第三方独立密码云包，不替代 SQLCipher 页加密 |
-| OS 缓存 | [keyring 3.6.3](https://docs.rs/keyring/3.6.3/keyring/)，按平台启用 backend | MIT OR Apache-2.0，声明 MSRV 1.75；macOS apple-native、Windows windows-native、Linux sync-secret-service/crypto-rust/vendored，仅缓存主密钥 |
+| OS 缓存 | [keyring-core 1.0.1](https://docs.rs/keyring-core/1.0.1/keyring_core/) 与显式平台 store | MIT OR Apache-2.0，core 声明 MSRV 1.85，平台 store 最高 1.88；仅缓存主密钥，保留现有 OS 条目标识与密码恢复边界 |
+| 系统随机源 | [getrandom 0.4.3](https://docs.rs/getrandom/0.4.3/getrandom/) 的 sys_rng feature、[rand_core 0.10.1](https://docs.rs/rand_core/0.10.1/rand_core/) | MIT OR Apache-2.0，声明 MSRV 1.85；使用可失败系统随机接口生成盐和 nonce，失败即中止对应操作，不回退到弱随机源 |
+| 私钥来源摘要 | [sha2 0.11.1](https://docs.rs/sha2/0.11.1/sha2/) 与 hex 0.4.3 | MIT OR Apache-2.0，sha2 声明 MSRV 1.88；显式编码摘要，保持已登记 SHA-256 摘要表示兼容 |
 | Local | [portable-pty 0.9.0](https://crates.io/crates/portable-pty/0.9.0) | MIT，未声明 MSRV；Unix PTY/Windows ConPTY、独立阻塞 I/O，完整进程树回收待完善 |
 | Serial | [serialport 4.10.1](https://docs.rs/serialport/4.10.1/serialport/)，禁用默认 libudev feature | MPL-2.0，声明 MSRV 1.59；None/Software/Hardware 流控及平台独占 |
 | 文本编码 | [encoding_rs 0.8.42](https://docs.rs/encoding_rs/0.8.42/encoding_rs/) | (Apache-2.0 OR MIT) AND BSD-3-Clause，声明 MSRV 1.88；流式解码，不可表示输入明确失败 |
@@ -26,6 +28,10 @@
 桌面插件固定为 opener 2.7.2、dialog 2.8.4、single-instance 2.5.5，均沿用 Apache-2.0 OR MIT 许可和 Rust 1.90 声明。固定版本依据：[Tauri](https://docs.rs/crate/tauri/2.12.5/source/Cargo.toml)、[tauri-build](https://docs.rs/crate/tauri-build/2.7.4/source/Cargo.toml)、[opener](https://docs.rs/crate/tauri-plugin-opener/2.7.2/source/Cargo.toml)、[dialog](https://docs.rs/crate/tauri-plugin-dialog/2.8.4/source/Cargo.toml)、[single-instance](https://docs.rs/crate/tauri-plugin-single-instance/2.5.5/source/Cargo.toml)。storage、security 与桌面壳的 Rust 1.94 基线由 SQLx 0.9 决定；其他领域 crate 的 Rust 1.89 声明不表示完整应用仍支持该工具链。
 
 SQLx SQLite 0.9.0 接受 `libsqlite3-sys >=0.30.1,<0.38.0`，应用直接固定 0.37.0 并启用 SQLCipher，避免链接普通 SQLite；该 SQLCipher 源码的 SQLite 版本不能由 sys 内另一份普通 SQLite 源码版本推断。固定依据：[SQLx SQLite manifest](https://docs.rs/crate/sqlx-sqlite/0.9.0/source/Cargo.toml)、[SQLCipher 源码](https://docs.rs/crate/libsqlite3-sys/0.37.0/source/sqlcipher/sqlite3.c)。更新引擎不增加业务 schema 或改变保险库加密格式，兼容边界见 [存储](07-storage.md#6-schema-与迁移)。
+
+OS 缓存采用 Keyring 4 生态的按需依赖方式，由 core 与各平台 store 直接装配：macOS 使用 apple-native-keyring-store 1.0.2，仅启用 keychain；Windows 使用 windows-native-keyring-store 1.1.0，禁用默认搜索 feature；Linux 使用 dbus-secret-service-keyring-store 1.0.1，启用 crypto-rust/vendored，沿用同步 DBus Secret Service。三者许可均为 MIT OR Apache-2.0，声明 MSRV 分别为 1.85、1.88、1.88。后端显式选择，不依赖全局默认 store 或内存、文件回退；现有缓存兼容约束见 [存储](07-storage.md#1-存储边界)。固定依据：[官方装配建议](https://docs.rs/crate/keyring/4.2.0/source/README.md)、[core](https://docs.rs/crate/keyring-core/1.0.1/source/Cargo.toml)、[Apple](https://docs.rs/crate/apple-native-keyring-store/1.0.2/source/Cargo.toml)、[Windows](https://docs.rs/crate/windows-native-keyring-store/1.1.0/source/Cargo.toml)、[DBus](https://docs.rs/crate/dbus-secret-service-keyring-store/1.0.1/source/Cargo.toml)。
+
+系统随机源使用 getrandom 的 SysRng 与 rand_core 的 TryRng，不引入应用级伪随机生成器；随机材料生成失败时返回错误，不能继续发布使用默认字节的元数据或备份。私钥来源摘要使用 sha2 的 Digest 接口并显式转为小写十六进制，保持既有登记值兼容，不改变 SSH 公钥指纹。固定依据：[getrandom manifest](https://docs.rs/crate/getrandom/0.4.3/source/Cargo.toml)、[rand_core manifest](https://docs.rs/crate/rand_core/0.10.1/source/Cargo.toml)、[sha2 manifest](https://docs.rs/crate/sha2/0.11.1/source/Cargo.toml)。
 
 SerializeAddon 0.14.0（MIT，未声明独立 engines/features/MSRV）与 xterm 6.0.0 使用同一源码基线。使用固定 release 的 `serialize({excludeModes,excludeAltBuffer})` 保留缓冲样式，不使用 HTML 导出；插件标为 experimental，升级须验证复杂样式、宽字符及备用屏往返。来源：[包元数据](https://registry.npmjs.org/@xterm/addon-serialize/0.14.0)、[固定提交 API](https://github.com/xtermjs/xterm.js/blob/f447274f430fd22513f6adbf9862d19524471c04/addons/addon-serialize/typings/addon-serialize.d.ts)。
 
@@ -67,6 +73,6 @@ Linux 拖出直接固定使用已在 Tauri/Wry 锁图中的 [gtk 0.18.2](https:/
 | rsa 0.10.0-rc.18 | [RUSTSEC-2023-0071](https://rustsec.org/advisories/RUSTSEC-2023-0071.html) | RSA 时序侧信道；实际 SSH 签名路径未启用 blinding，不能以未暴露解密 oracle 判为安全 |
 | glib 0.18.5 | [RUSTSEC-2024-0429](https://rustsec.org/advisories/RUSTSEC-2024-0429.html) | Linux GTK3 传递依赖不安全，需升级依赖或审阅补丁 |
 | proc-macro-error 1.0.4 | [RUSTSEC-2024-0370](https://rustsec.org/advisories/RUSTSEC-2024-0370.html) | 上游停止维护，跟踪桌面依赖升级 |
-| zvariant / zvariant_derive / zbus_names | [RUSTSEC-2026-0370](https://rustsec.org/advisories/RUSTSEC-2026-0370.html) / [0372](https://rustsec.org/advisories/RUSTSEC-2026-0372.html) / [0371](https://rustsec.org/advisories/RUSTSEC-2026-0371.html) | 停止维护；按 Secret Service、文件对话框等实际平台依赖跟踪上游替代，不强制覆盖不兼容系列 |
+| zvariant / zvariant_derive / zbus_names | [RUSTSEC-2026-0370](https://rustsec.org/advisories/RUSTSEC-2026-0370.html) / [0372](https://rustsec.org/advisories/RUSTSEC-2026-0372.html) / [0371](https://rustsec.org/advisories/RUSTSEC-2026-0371.html) | 停止维护；按文件对话框等桌面传递依赖跟踪上游替代，不强制覆盖不兼容系列 |
 
 升级或发布时同步复核实际启用依赖、MSRV、原生工具链、notices 与资源许可。

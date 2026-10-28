@@ -84,7 +84,8 @@ pub fn read_key_file(
             "私钥文件不可读、格式不支持或权限不安全，请重新选择",
         ));
     }
-    let fingerprint = format!("sha256:{:x}", Sha256::digest(bytes.as_slice()));
+    // 显式编码摘要，保持历史登记的小写十六进制表示，不依赖摘要容器的格式化实现。
+    let fingerprint = format!("sha256:{}", hex::encode(Sha256::digest(bytes.as_slice())));
     if expected_fingerprint.is_some_and(|expected| expected != fingerprint) {
         return Err(StorageError::Validation(
             "私钥内容已变更，请通过原生选择器重新选择并授权",

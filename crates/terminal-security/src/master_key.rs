@@ -17,15 +17,46 @@ pub(crate) trait MasterKeyBackend: Send + Sync {
     fn save(&self, key: &[u8]) -> Result<(), SecurityError>;
 }
 pub(crate) struct OsMasterKey;
+impl OsMasterKey {
+    /// 显式选择系统后端，不依赖全局默认 store，也不允许回退到内存或文件缓存。
+    fn entry() -> keyring_core::Result<keyring_core::Entry> {
+        use keyring_core::api::CredentialStoreApi;
+
+        #[cfg(target_os = "macos")]
+        {
+            apple_native_keyring_store::keychain::Store::new()?.build(SERVICE, ACCOUNT, None)
+        }
+        #[cfg(target_os = "windows")]
+        {
+            windows_native_keyring_store::Store::new()?.build(SERVICE, ACCOUNT, None)
+        }
+        #[cfg(target_os = "linux")]
+        {
+            // 保持 keyring 3 的 target 属性约束，不采用无 target 的跨集合宽匹配。
+            let modifiers = std::collections::HashMap::from([("target", "default")]);
+            dbus_secret_service_keyring_store::Store::new()?.build(
+                SERVICE,
+                ACCOUNT,
+                Some(&modifiers),
+            )
+        }
+        #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+        {
+            Err(keyring_core::Error::NotSupportedByStore(
+                "Termeta requires a supported desktop credential store".into(),
+            ))
+        }
+    }
+}
 impl MasterKeyBackend for OsMasterKey {
     fn load(&self) -> Result<Zeroizing<Vec<u8>>, SecurityError> {
-        keyring::Entry::new(SERVICE, ACCOUNT)
+        Self::entry()
             .and_then(|entry| entry.get_secret())
             .map(Zeroizing::new)
             .map_err(|_| SecurityError::Unavailable)
     }
     fn save(&self, key: &[u8]) -> Result<(), SecurityError> {
-        keyring::Entry::new(SERVICE, ACCOUNT)
+        Self::entry()
             .and_then(|entry| entry.set_secret(key))
             .map_err(|_| SecurityError::Unavailable)
     }

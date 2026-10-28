@@ -11,7 +11,9 @@
 | OS 凭据库 | 只缓存一个 32 字节主密钥：service=`io.termeta`、account=`master-key-v2` |
 | Rust 内存 | 已解锁连接池及短期秘密；秘密不通过公共 DTO 返回，不能保证第三方库内部副本全部擦除 |
 
-数据目录由 Tauri `app_data_dir()` 解析，Windows 为当前运行用户的 `%APPDATA%\io.termeta`，macOS 为 `~/Library/Application Support/io.termeta`，不随程序安装目录或安装范围迁移。macOS 主密钥缓存使用 Keychain；Windows 使用 `keyring 3.6.3` 的 `windows-native` 后端写入当前用户 Windows 凭据管理器的通用凭据，目标名为 `master-key-v2.io.termeta`。OS 库仅缓存主密钥，SSH 密码和私钥正文仍在加密数据库中。
+数据目录由 Tauri `app_data_dir()` 解析，Windows 为当前运行用户的 `%APPDATA%\io.termeta`，macOS 为 `~/Library/Application Support/io.termeta`，不随程序安装目录或安装范围迁移。
+
+OS 主密钥缓存由 keyring-core 与显式平台 store 访问。macOS 沿用 User（login）Keychain 中相同 service/account 的通用凭据；Windows 沿用当前用户 Windows 凭据管理器的通用凭据，目标名为 `master-key-v2.io.termeta`；Linux 沿用同步 DBus Secret Service，以现有 service、username 和 `target=default` 属性匹配，保留旧标记约束，不采用无 target 的跨集合宽匹配；新增条目写入默认集合。Keyring 3 写入的这些缓存条目标识保持兼容，无需搬迁主密钥；后端缺失、锁定或访问失败仍通过保险库密码恢复，不选择内存、文件或 mock 后端。OS 库仅缓存主密钥，SSH 密码和私钥正文仍在加密数据库中。
 
 Windows 所有用户安装只共享程序文件，不共享数据库或主密钥；同一 Windows 用户切换安装范围且应用标识不变时仍使用原数据与凭据项。以另一账号启动应用（包括使用另一管理员账号运行）会切换到该账号的数据目录和凭据库，不会自动读取原账号保险库。
 
@@ -21,7 +23,7 @@ SQLCipher 由锁定的 `libsqlite3-sys 0.37.0` 内嵌 4.10.0 源码（基于 SQL
 
 ## 2. 首次设置与解锁
 
-新密码至少 12 个字符、最多 1024 UTF-8 字节，不 trim。固定 Argon2id v19（64 MiB、3 轮、1 并行度）派生 32 字节主密钥；不接受元数据指定任意 KDF 预算。GCM 的 AAD 绑定保险库 UUID、KDF、盐及初始化标记，标记变化使用新 nonce。
+新密码至少 12 个字符、最多 1024 UTF-8 字节，不 trim。固定 Argon2id v19（64 MiB、3 轮、1 并行度）派生 32 字节主密钥；不接受元数据指定任意 KDF 预算。盐和 nonce 由操作系统随机源生成，源失败则中止对应操作，不采用默认字节或降级随机源。GCM 的 AAD 绑定保险库 UUID、KDF、盐及初始化标记，标记变化使用新 nonce。
 
 首次初始化先原子发布元数据，再创建加密数据库及迁移，最后标记完成；中断可用原密码重试。只有密钥、页面/逻辑完整性、迁移及外键检查成功后才开放业务池。已完成的元数据对应数据库缺失/截断，或数据库存在而元数据缺失时均拒绝开放，不重建空库。
 
@@ -53,7 +55,7 @@ SQLCipher 由锁定的 `libsqlite3-sys 0.37.0` 内嵌 4.10.0 源码（基于 SQL
 | Serial | `config_json.serialConfig`；无 SSH 地址、认证或秘密，保存不访问设备 |
 | Workspace | `config_json.workspace` 布局和保存主机引用；只由 `save_workspace` 创建/整体替换 |
 
-密码、私钥正文及可选解密口令保存在加密的 `credentials.secret`；私钥直接输入正文，既有凭据仍可使用，不依赖原文件。历史私钥来源登记保留兼容，新建凭据不再登记路径或文件引用，不改变 schema 或已应用迁移。公共列表仅返回公共项元数据。公共引用须类型匹配且 ready，专属凭据须属于对应主机。直接主机密码非空替换、显式空串移除、省略/null 保留；复制主机不复制专属密码。
+密码、私钥正文及可选解密口令保存在加密的 `credentials.secret`；私钥直接输入正文，既有凭据仍可使用，不依赖原文件。历史私钥来源登记保留兼容，内容摘要继续按原始读取字节计算 SHA-256，保持 `sha256:` 前缀与小写十六进制表示；新建凭据不再登记路径或文件引用，不改变 schema 或已应用迁移。公共列表仅返回公共项元数据。公共引用须类型匹配且 ready，专属凭据须属于对应主机。直接主机密码非空替换、显式空串移除、省略/null 保留；复制主机不复制专属密码。
 
 公共密码与输入的私钥使用单条 INSERT 原子提交元数据、秘密及 ready 状态，失败不留下 pending 占位项。主机专属密码替换仍用 pending/ready/deleting 协调：先准备新项，再事务绑定新项并登记旧项 deleting；失败保留原引用，提交后清理失败不改变保存成功语义。解锁协调在专用操作锁内回收无认证引用的主机孤立项及历史公共 pending 项，保留可用公共 ready 项和仍被引用的记录。被引用公共项不能删除，不扫描旧 OS 凭据。实现见 [凭据协调](../crates/terminal-security/src/vault.rs)、[凭据存储](../crates/terminal-storage/src/credentials.rs)。
 

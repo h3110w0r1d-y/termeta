@@ -6,7 +6,8 @@ use aes_gcm::{
 };
 use argon2::{Algorithm, Argon2, Params, Version};
 use base64::{Engine, engine::general_purpose::STANDARD};
-use rand_core::{OsRng, RngCore};
+use getrandom::SysRng;
+use rand_core::TryRng;
 use serde::{Deserialize, Serialize};
 use std::{
     borrow::Cow,
@@ -90,7 +91,7 @@ pub fn seal(
 ) -> Result<String, SecurityError> {
     password_valid(password)?;
     let mut salt = [0; 16];
-    OsRng.try_fill_bytes(&mut salt).map_err(|_| invalid())?;
+    SysRng.try_fill_bytes(&mut salt).map_err(|_| invalid())?;
     let key = derive(password, &salt)?;
     validate_metadata(metadata)?;
     if database.len() > MAX_DATABASE_BYTES || !database.starts_with(b"SQLite format 3\0") {
@@ -115,7 +116,7 @@ pub fn seal(
     clear.extend_from_slice(&compressed);
     let mut header = [0u8; HEADER_BYTES];
     header[..8].copy_from_slice(MAGIC);
-    OsRng
+    SysRng
         .try_fill_bytes(&mut header[8..])
         .map_err(|_| invalid())?;
     header[8..24].copy_from_slice(&salt);

@@ -6,7 +6,8 @@ use aes_gcm::{
     aead::{Aead, Payload},
 };
 use argon2::{Algorithm, Argon2, Params, Version};
-use rand_core::{OsRng, RngCore};
+use getrandom::SysRng;
+use rand_core::TryRng;
 use serde::{Deserialize, Serialize};
 use std::{
     fs::OpenOptions,
@@ -64,7 +65,7 @@ impl Header {
     }
     pub(super) fn seal(&mut self, key: &[u8; 32]) -> Result<(), SecurityError> {
         // 完成标记也是认证数据；状态变更必须使用新的 nonce，禁止重用同一 GCM nonce。
-        OsRng
+        SysRng
             .try_fill_bytes(&mut self.nonce)
             .map_err(|_| unavailable())?;
         self.verifier = Aes256Gcm::new_from_slice(key)
@@ -89,7 +90,7 @@ impl Header {
             verifier: Vec::new(),
             initialized: false,
         };
-        OsRng
+        SysRng
             .try_fill_bytes(&mut header.salt)
             .map_err(|_| unavailable())?;
         let key = derive(password, &header.salt)?;

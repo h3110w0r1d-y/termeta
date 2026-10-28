@@ -2,7 +2,8 @@
 use super::metadata::{derive, read_header};
 use super::{PasswordChangeResult, cleanup_warning, unavailable};
 use crate::{CredentialVault, SecurityError};
-use rand_core::{OsRng, RngCore};
+use getrandom::SysRng;
+use rand_core::TryRng;
 use zeroize::Zeroizing;
 
 impl CredentialVault {
@@ -51,7 +52,7 @@ impl CredentialVault {
                 .verify(&old_key)
                 .map_err(|_| SecurityError::Vault("旧密码不正确或保险库校验数据损坏"))?;
             let mut next = header;
-            OsRng
+            SysRng
                 .try_fill_bytes(&mut next.salt)
                 .map_err(|_| unavailable())?;
             let new_key = derive(&new_password, &next.salt)?;
