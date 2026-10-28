@@ -3,31 +3,21 @@ import { compareHostOrder } from "./ordering";
 import { t } from "@/i18n";
 import ScrollFade from "@/components/ui/ScrollFade.vue";
 import { closeContextMenuOnOutside } from "@/components/ui/contextMenu";
-import { computed, h, nextTick, ref, watch, reactive } from "vue";
+import { computed, h, ref, watch } from "vue";
 import {
   NButton,
   NDropdown,
-  NForm,
-  type FormInst,
-  NFormItem,
-  NInput,
-  NRadio,
-  NRadioGroup,
   NScrollbar,
-  NSelect,
-  NSpace,
   NSwitch,
   NText,
   NTree,
   type TreeOption,
 } from "naive-ui";
-import { requiredText, validateForm } from "@/services/forms/rules";
-import AppDialog from "@/components/ui/AppDialog.vue";
-import { confirmAction } from "@/components/ui/confirmation";
-import { desktop, errorMessage } from "@/services/desktop/client";
+import { errorMessage } from "@/services/desktop/client";
 import HostProfileIcon from "./HostProfileIcon.vue";
+import HostGroupDialogs from "./HostGroupDialogs.vue";
 import type { HostGroup, HostProfile } from "@/modules/hosts/model";
-import { descendantIds, groupChoices, groupPath } from "./groups";
+import { nextGroupOrder } from "./groups";
 import { useHosts } from "./store";
 import { useSettings } from "../settings/store";
 import { useHostGroupDrag } from "./useHostGroupDrag";
@@ -99,16 +89,7 @@ watch(
   },
 );
 const menu = ref({ show: false, id: "all", x: 0, y: 0 });
-const editor = ref(false);
-const editing = ref<HostGroup>();
-const name = ref("");
-const parent = ref<string | null>(null);
-const groupModel = reactive({ name, parent });
-const dialogError = ref("");
-const deleteTarget = ref<HostGroup>();
-const deleteMode = ref("move");
-const deleteError = ref("");
-const deletePreview = ref({ hosts: 0, groups: 0, direct: 0, parent: "" });
+const dialogs = ref<InstanceType<typeof HostGroupDialogs>>();
 function hostFromOption(option: TreeOption) {
   return option.hostId
     ? store.hosts.find((host) => host.id === option.hostId)
@@ -171,13 +152,6 @@ const tree = computed<TreeOption[]>(() => {
     ...build(null),
   ];
 });
-const parentOptions = computed(() => [
-  { label: t("hosts.groups.topLevel"), value: "" },
-  ...groupChoices(
-    store.groups,
-    editing.value ? descendantIds(store.groups, editing.value.id) : undefined,
-  ),
-]);
 const menuOptions = computed(() => {
   const real = store.groups.some((group) => group.id === menu.value.id);
   return [
@@ -218,30 +192,18 @@ function panelMenu(event: MouseEvent) {
     openMenu(event, "all");
 }
 function editGroup(group?: HostGroup, parentId: string | null = null) {
-  editing.value = group ? { ...group } : undefined;
-  name.value = group?.name ?? "";
-  parent.value = group?.parentId ?? parentId;
-  dialogError.value = "";
-  editor.value = true;
+  dialogs.value?.edit(group, parentId);
+}
+function savedGroup(id: string) {
+  reveal(id);
+  emit("update:modelValue", id);
 }
 function selectMenu(key: string) {
   menu.value.show = false;
   const group = store.groups.find((item) => item.id === menu.value.id);
   if (key === "create") editGroup(undefined, group?.id ?? null);
   else if (key === "edit" && group) editGroup(group);
-  else if (key === "delete" && group) {
-    const ids = descendantIds(store.groups, group.id);
-    deletePreview.value = {
-      groups: ids.size - 1,
-      hosts: store.hosts.filter((host) => host.groupId && ids.has(host.groupId))
-        .length,
-      direct: store.hosts.filter((host) => host.groupId === group.id).length,
-      parent: group.parentId ? groupPath(store.groups, group.parentId) : "",
-    };
-    deleteMode.value = "move";
-    deleteError.value = "";
-    deleteTarget.value = { ...group };
-  }
+  else if (key === "delete" && group) dialogs.value?.remove(group);
 }
 function reveal(id: string | null) {
   const next = new Set(expanded.value);
@@ -253,90 +215,8 @@ function reveal(id: string | null) {
   }
   void setExpanded([...next]);
 }
-const form = ref<FormInst>();
-const groupRules = computed(() => ({
-  name: requiredText("hosts.groups.name"),
-}));
-async function saveGroup() {
-  if (store.managementBusy || !(await validateForm(form.value))) return;
-  store.managementBusy = true;
-  dialogError.value = "";
-  try {
-    const saved = await store.saveGroup(
-      {
-        id: editing.value?.id ?? null,
-        name: name.value.trim(),
-        parentId: parent.value || null,
-        sortOrder: editing.value?.sortOrder ?? nextOrder(parent.value || null),
-      },
-      editing.value?.revision ?? null,
-    );
-    reveal(saved.id);
-    emit("update:modelValue", saved.id);
-    editor.value = false;
-  } catch (error) {
-    dialogError.value = errorMessage(error);
-  } finally {
-    store.managementBusy = false;
-  }
-}
-async function deleteGroup() {
-  const target = deleteTarget.value;
-  if (!target || store.managementBusy) return;
-  store.managementBusy = true;
-  deleteError.value = "";
-  const deleteHosts = deleteMode.value === "delete";
-  try {
-    if (deleteHosts) {
-      // 先关闭选择弹窗，再显示独立的最终确认，避免两个焦点陷阱重叠。
-      deleteTarget.value = undefined;
-      await nextTick();
-      if (
-        !(await confirmAction(
-          t("hosts.groups.confirmDeleteAll", {
-            name: target.name,
-            groups: deletePreview.value.groups,
-            hosts: deletePreview.value.hosts,
-          }),
-        ))
-      )
-        return;
-    }
-    await desktop.deleteGroup(target.id, target.revision, deleteHosts);
-    deleteTarget.value = undefined;
-    if (
-      (deleteHosts &&
-        descendantIds(store.groups, target.id).has(props.modelValue)) ||
-      props.modelValue === target.id
-    )
-      emit("update:modelValue", target.parentId ?? "ungrouped");
-    // 删除已经提交，重读失败时明确提示，避免让用户重复执行删除。
-    try {
-      await store.load();
-    } catch (error) {
-      emit(
-        "error",
-        t("hosts.groups.refreshAfterDeleteFailed", {
-          value1: errorMessage(error),
-        }),
-      );
-    }
-  } catch (error) {
-    if (deleteTarget.value) deleteError.value = errorMessage(error);
-    else emit("error", errorMessage(error));
-  } finally {
-    store.managementBusy = false;
-  }
-}
 function nextOrder(parentId: string | null) {
-  return (
-    Math.max(
-      0,
-      ...store.groups
-        .filter((group) => group.parentId === parentId)
-        .map((group) => group.sortOrder),
-    ) + 1
-  );
+  return nextGroupOrder(store.groups, parentId);
 }
 
 const { drag, startDrag, startHostDrag, cancelDrag } = useHostGroupDrag({
@@ -566,117 +446,13 @@ defineExpose({ startHostDrag, cancelDrag });
       @clickoutside="closeContextMenuOnOutside($event, menu)"
       @update:show="menu.show = $event"
     />
-    <AppDialog
-      v-model:open="editor"
-      :title="editing ? t('hosts.groups.edit') : t('hosts.groups.create')"
-      :locked="store.managementBusy"
-    >
-      <NForm
-        ref="form"
-        :model="groupModel"
-        :rules="groupRules"
-        @submit.prevent="saveGroup"
-      >
-        <NFormItem :label="t('hosts.groups.name')" path="name">
-          <NInput
-            v-model:value="groupModel.name"
-            autofocus
-            maxlength="128"
-            @keydown.enter.prevent="saveGroup"
-          />
-        </NFormItem>
-        <NFormItem :label="t('hosts.groups.parent')">
-          <NSelect
-            :value="parent ?? ''"
-            :options="parentOptions"
-            filterable
-            @update:value="parent = $event || null"
-          />
-        </NFormItem>
-        <NText v-if="dialogError" type="error" role="alert">
-          {{ dialogError }}
-        </NText>
-      </NForm>
-      <template #footer>
-        <NSpace justify="end">
-          <NButton :disabled="store.managementBusy" @click="editor = false">
-            {{ t("common.actions.cancel") }}
-          </NButton>
-          <NButton
-            type="primary"
-            :loading="store.managementBusy"
-            @click="saveGroup"
-          >
-            {{ t("common.actions.save") }}
-          </NButton>
-        </NSpace>
-      </template>
-    </AppDialog>
-    <AppDialog
-      :open="!!deleteTarget"
-      :title="t('hosts.groups.delete')"
-      :locked="store.managementBusy"
-      @update:open="
-        (value) => {
-          if (!value) deleteTarget = undefined;
-        }
-      "
-    >
-      <p>
-        {{
-          t("hosts.groups.deletePrompt", {
-            name: deleteTarget?.name ?? "",
-          })
-        }}
-      </p>
-      <NRadioGroup v-model:value="deleteMode" name="delete-group-mode">
-        <NSpace vertical>
-          <NRadio value="move">{{ t("hosts.groups.keepContents") }}</NRadio>
-          <NText depth="3">
-            {{
-              t("hosts.groups.moveContentsDescription", {
-                direct: deletePreview.direct,
-                parent:
-                  deletePreview.parent || t("hosts.groups.topLevelDestination"),
-              })
-            }}
-          </NText>
-          <NRadio value="delete">{{ t("hosts.groups.deleteContents") }}</NRadio>
-          <NText depth="3">
-            {{
-              t("hosts.groups.deleteContentsDescription", {
-                groups: deletePreview.groups,
-                hosts: deletePreview.hosts,
-              })
-            }}
-          </NText>
-        </NSpace>
-      </NRadioGroup>
-      <NText v-if="deleteError" type="error" role="alert">
-        {{ deleteError }}
-      </NText>
-      <template #footer>
-        <NSpace justify="end">
-          <NButton
-            :disabled="store.managementBusy"
-            @click="deleteTarget = undefined"
-          >
-            {{ t("common.actions.cancel") }}
-          </NButton>
-          <NButton
-            :type="deleteMode === 'delete' ? 'error' : 'primary'"
-            :loading="store.managementBusy"
-            @click="deleteGroup"
-          >
-            {{
-              deleteMode === "delete"
-                ? t("common.actions.continueMenu")
-                : t("hosts.groups.deleteAndMove")
-            }}
-          </NButton>
-        </NSpace>
-      </template>
-    </AppDialog>
+    <HostGroupDialogs
+      ref="dialogs"
+      :selected-id="modelValue"
+      @saved="savedGroup"
+      @select="emit('update:modelValue', $event)"
+      @error="emit('error', $event)"
+    />
   </aside>
 </template>
 
@@ -731,16 +507,12 @@ defineExpose({ startHostDrag, cancelDrag });
   flex: 1;
   min-height: 0;
 }
-.groups-help,
-.drag-status {
-  padding-top: 12px;
-  font-size: 12px;
-}
 :deep(.group-drop-target) {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
 :deep(.n-tree-node-content) {
+  width: 100%;
   min-width: 0;
 }
 /* 前缀只承载图形，避免继承文字行盒后产生基线留白。 */

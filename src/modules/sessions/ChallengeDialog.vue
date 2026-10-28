@@ -110,11 +110,13 @@ async function auth(cancel = false) {
       </p>
       <dl class="fingerprint">
         <dt>{{ t("hosts.form.address") }}</dt>
-        <dd>{{ current.endpoint.host }}:{{ current.endpoint.port }}</dd>
+        <dd class="selectable-text">
+          {{ current.endpoint.host }}:{{ current.endpoint.port }}
+        </dd>
         <dt>{{ t("knownHosts.algorithm") }}</dt>
-        <dd>{{ current.algorithm }}</dd>
+        <dd class="selectable-text">{{ current.algorithm }}</dd>
         <dt>{{ t("knownHosts.fingerprint") }}</dt>
-        <dd>{{ current.fingerprint }}</dd>
+        <dd class="selectable-text">{{ current.fingerprint }}</dd>
       </dl>
       <p class="muted">
         {{ t("knownHosts.changedWarning") }}

@@ -41,3 +41,14 @@ export function groupChoices(
     .filter((group) => !excluded.has(group.id))
     .map((group) => ({ value: group.id, label: groupPath(groups, group.id) }));
 }
+
+export function nextGroupOrder(groups: HostGroup[], parentId: string | null) {
+  return (
+    Math.max(
+      0,
+      ...groups
+        .filter((group) => group.parentId === parentId)
+        .map((group) => group.sortOrder),
+    ) + 1
+  );
+}

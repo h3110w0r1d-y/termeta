@@ -2,6 +2,7 @@ import type { Terminal } from "@xterm/xterm";
 import type { Scheme } from "@/theme/types";
 import { parseColor, rgba } from "@/theme/colors";
 import { toXtermTheme } from "@/theme/xterm";
+import "./terminalRenderer.css";
 
 function selectionOverlayColor(hex: string): string {
   const [red, green, blue, alpha] = parseColor(hex);

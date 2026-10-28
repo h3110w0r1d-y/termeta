@@ -1,0 +1,6 @@
+/* 菜单经 Teleport 挂载到组件树外，仅约束此入口的文字，不覆盖控件皮肤。 */
+.terminal-context-menu .n-dropdown-option-body__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

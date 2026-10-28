@@ -25,7 +25,7 @@ import { pendingPaste, resolvePaste } from "./paste";
               })
         }}
       </p>
-      <pre class="paste-preview">{{ pendingPaste.text }}</pre>
+      <pre class="paste-preview selectable-text">{{ pendingPaste.text }}</pre>
     </template>
     <template #footer>
       <NFlex justify="end">

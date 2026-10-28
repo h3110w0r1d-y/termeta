@@ -7,6 +7,7 @@ import { builtinSchemes as builtinThemeOptions } from "@/theme/schemes";
 import { terminalRegistry } from "../terminal/registry";
 import { useWorkbenchStore } from "./store";
 import { isSessionTerminal } from "../sessions/control";
+import "./terminalMenu.css";
 
 export function useTerminalMenu(options: {
   perform: (action: () => void | Promise<void>) => void;

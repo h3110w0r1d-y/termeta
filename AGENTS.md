@@ -31,7 +31,7 @@ Termeta 是 Tauri 2 + Rust + Vue 3 + TypeScript 桌面终端客户端，目标 W
 - 前端使用 pnpm、Vue 3 Composition API、严格 TypeScript，Rust edition 2024；不切 React，桌面本地架构不引入 HTTP/WebSocket 后端。依赖落地或升级须复核具体 release 的 API/features/MSRV/许可/公告，同步锁文件及 [依赖说明](docs/02-library-research.md)，不以 latest 页面锁版本。
 - **新增或修改的代码注释使用中文**，保留标识符/API 和必要术语，说明意图与边界，避免复述代码。
 - Vue/TS 跨越两层及以上的相对导入使用 `@/`（`src/`）别名；仓库根目录的资源清单使用 `@resources/`（`resources/`），同目录与单层父目录可保留相对导入。
-- 通用控件优先 Naive UI 2.45.3，封装只做薄适配，使用公开 props/themeOverrides，不复制库皮肤；业务 CSS 就近 scoped，动态 DOM 用明确 :deep() 或入口适配。应用标签使用 AppTabs。
+- 通用控件优先 Naive UI 2.45.3，封装只做薄适配，使用公开 props/themeOverrides，不复制库皮肤。base.css 只保留主题、基础规则与跨业务共享布局；组件样式使用 scoped，动态 DOM 用明确 :deep()，必须全局生效的适配由所属业务入口导入并限定语义类名，禁止全局覆盖控件库通用类。应用标签使用 AppTabs。
 - NForm model、控件 v-model 与 rules/path 必须共享响应式字段，禁止对象字面量/展开/computed 快照作 model。已有 ref 可用 reactive 包装，不能复制 .value 后异步同步；嵌套调整同步 rules/path。程序更新通过 FormItem 公开 validate 重验，保留正常 input/change/blur 及提交校验，不用清错、取消校验或 nextTick 补丁掩盖旧值。可选字段不强制必填，弹窗操作放 AppDialog #footer。
 - Vue 沿用仓库 Prettier 配置，htmlWhitespaceSensitivity=ignore 仅限 *.vue；多行正文、闭合标签及相邻组件保持清晰换行。修改 Vue 后执行 `pnpm format:vue`、`pnpm check:format:vue`。精确空格使用显式文本，必要时单节点 prettier-ignore 并说明，保留 pre 内容。
 - 通用 UI 图标使用 @tabler/icons-vue；不新增手写 SVG/字符替代。用户指定的 28 个 SSH 系统 SVG 见 resources/host-system-icons.json，主机系统标志保留原样；原生窗口和品牌资源保留平台/品牌形式。AssetIcon 仅作语义映射。图标按钮有可访问名称，装饰图标 aria-hidden。

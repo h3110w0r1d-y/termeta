@@ -44,7 +44,9 @@ async function submit() {
       v-if="currentConfirmation"
       @submit.prevent="submit"
     >
-      <p class="confirmation-message">{{ currentConfirmation.message }}</p>
+      <p class="confirmation-message selectable-text">
+        {{ currentConfirmation.message }}
+      </p>
       <NFormItem
         v-if="currentConfirmation.input !== undefined"
         :label="t('common.dialog.inputTitle')"

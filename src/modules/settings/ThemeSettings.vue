@@ -17,20 +17,10 @@ import AppInput from "@/components/ui/AppInput.vue";
 import AppTextarea from "@/components/ui/AppTextarea.vue";
 import { requiredText, validateForm } from "@/services/forms/rules";
 import AppButton from "@/components/ui/AppButton.vue";
-import {
-  computed,
-  ref,
-  shallowRef,
-  watch,
-  nextTick,
-  onMounted,
-  onBeforeUnmount,
-  reactive,
-} from "vue";
-import { Terminal } from "@xterm/xterm";
+import { computed, ref, watch, nextTick, onMounted, reactive } from "vue";
 import ColorField from "./ColorField.vue";
 import SchemeThumbnail from "@/theme/SchemeThumbnail.vue";
-import { applyTerminalTheme } from "../terminal/theme";
+import TerminalThemePreview from "../terminal/TerminalThemePreview.vue";
 import type { Scheme } from "@/theme/types";
 import {
   builtinSchemes,
@@ -50,8 +40,6 @@ const themeFile = ref<HTMLInputElement>();
 const draft = defineModel<AppSettings>("settings", { required: true });
 const error = ref(""),
   editor = ref<Scheme>(clone(defaultScheme)),
-  previewHost = ref<HTMLElement>(),
-  preview = shallowRef<Terminal>(),
   importText = ref(""),
   imported = ref<Scheme>(),
   schemeSearch = ref(""),
@@ -98,16 +86,6 @@ onMounted(() => {
   );
 });
 watch(
-  [expanded, previewHost],
-  async () => {
-    // 折叠内容首次显示后才初始化预览，后续收起保留同一实例。
-    if (!expanded.value.includes("customize")) return;
-    await nextTick();
-    makePreview();
-  },
-  { flush: "post" },
-);
-watch(
   () => draft.value.defaultSchemeId,
   () =>
     editScheme(
@@ -119,38 +97,6 @@ function selectScheme(s: Scheme) {
   if (draft.value.defaultSchemeId === s.id) editScheme(s);
   else draft.value.defaultSchemeId = s.id;
 }
-watch(
-  editor,
-  () => {
-    if (preview.value && previewHost.value)
-      applyTerminalTheme(preview.value, previewHost.value, editor.value);
-  },
-  { deep: true },
-);
-function makePreview() {
-  if (!previewHost.value || preview.value) return;
-  const term = new Terminal({
-    // 粗体仅改变字重，避免普通 ANSI 色被自动替换为高亮色。
-    drawBoldTextInBrightColors: false,
-    cols: 65,
-    rows: 9,
-    fontSize: 12,
-    disableStdin: true,
-  });
-  applyTerminalTheme(term, previewHost.value, editor.value);
-  term.open(previewHost.value);
-  preview.value = term;
-  term.write(
-    `Termeta ${t("themes.preview.label")} · 中文 / UTF-8 / 🖥\r\n\x1b[1mSSH workspace\x1b[0m  user@server ~\r\n`,
-  );
-  for (let i = 0; i < 16; i++) term.write(`\x1b[48;5;${i}m  \x1b[0m`);
-  term.write("\r\n");
-  for (let i = 16; i < 256; i++) term.write(`\x1b[48;5;${i}m \x1b[0m`);
-  term.write(
-    "\r\n\x1b[38;2;100;200;240mTruecolor RGB\x1b[0m  cursor ▌ / selection",
-  );
-}
-onBeforeUnmount(() => preview.value?.dispose());
 function editScheme(s: Scheme) {
   syncingEditor = true;
   editor.value = clone(s);
@@ -289,7 +235,7 @@ function confirmImport() {
         v-model="schemeSearch"
         :placeholder="t('themes.search.placeholder')"
         :aria-label="t('themes.search.label')"
-        style="flex: 1; min-width: 0"
+        class="scheme-search"
       />
       <AppButton @click="themeFile?.click()">
         {{ t("themes.actions.importJson") }}
@@ -346,7 +292,10 @@ function confirmImport() {
             <NFormItem :label="t('themes.form.name')" path="editor.name">
               <AppInput v-model="formModel.editor.name" maxlength="80" />
             </NFormItem>
-            <div ref="previewHost" class="theme-preview" />
+            <TerminalThemePreview
+              :scheme="editor"
+              :active="expanded.includes('customize')"
+            />
             <p v-if="contrast < 4.5" class="error">
               {{
                 t("themes.contrastWarning", {
@@ -442,6 +391,10 @@ function confirmImport() {
   gap: 20px;
   min-width: 0;
 }
+.scheme-search {
+  flex: 1;
+  min-width: 0;
+}
 .scheme-card {
   width: 100%;
   height: auto;
@@ -463,10 +416,5 @@ function confirmImport() {
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: left;
-}
-.theme-preview {
-  height: 170px;
-  overflow: hidden;
-  margin: 12px 0;
 }
 </style>

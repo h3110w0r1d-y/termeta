@@ -1,5 +1,6 @@
-/* 应用入口统一维护主题、基础规则、共享布局及跨组件的动态 DOM 适配。 */
+/* 全局只保留主题、基础规则和跨业务共享的语义布局；动态 DOM 适配归所属模块。 */
 
+/* 默认主题由窗口外观同步覆盖。 */
 :root {
   font-family:
     Inter,
@@ -21,6 +22,8 @@
   --input: #ffffff0f;
   color-scheme: dark;
 }
+
+/* 文档、输入与可复制正文。 */
 * {
   box-sizing: border-box;
 }
@@ -45,10 +48,7 @@ textarea,
 [contenteditable="true"],
 .selectable-text,
 [role="alert"],
-.error,
-.confirmation-message,
-.fingerprint dd,
-.paste-preview {
+.error {
   -webkit-user-select: text;
   user-select: text;
 }
@@ -58,6 +58,8 @@ h3,
 p {
   margin-top: 0;
 }
+
+/* 共享文案和表单布局。 */
 .muted {
   color: var(--muted);
   font-size: 12px;
@@ -82,6 +84,8 @@ p {
 .span-2 {
   grid-column: span 2;
 }
+
+/* 会话列表、标签和状态栏共享的状态标记。 */
 .status-dot {
   display: inline-block;
   width: 6px;
@@ -102,6 +106,8 @@ p {
 .status-dot.awaitingHostKey {
   background: #f2c97d;
 }
+
+/* 保险库各业务页面共用的内容布局。 */
 .home-page {
   width: 100%;
   padding: 28px;
@@ -121,36 +127,4 @@ p {
   margin: 9px 0;
   font-size: 26px;
   letter-spacing: -0.7px;
-}
-
-/* 适配固定的 xterm 6 DOM 渲染器：沿用原选区矩形，仅将透明选区放到文字上方。
-   不拦截鼠标；升级渲染器时须复验这些 DOM 类名与图层关系。 */
-.terminal-selection-overlay .xterm .xterm-screen > .xterm-selection {
-  z-index: 3;
-  pointer-events: none;
-}
-.terminal-selection-overlay .xterm .xterm-screen > .xterm-selection div {
-  background-color: var(--terminal-selection-inactive);
-}
-.terminal-selection-overlay .xterm.focus .xterm-screen > .xterm-selection div {
-  background-color: var(--terminal-selection-active);
-}
-
-/* 自定义名称可能很长，仅约束菜单文字尺寸，菜单皮肤/滚动/定位仍由Naive UI提供。 */
-.terminal-context-menu .n-dropdown-option-body__label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.n-tree-node-content{
-  width: 100%;
-}
-
-/* 拖动手势期间覆盖可复制正文，避免跨过地址时产生浏览器文字选区。 */
-body.host-dragging,
-body.host-dragging * {
-  -webkit-user-select: none !important;
-  user-select: none !important;
-  cursor: grabbing !important;
 }

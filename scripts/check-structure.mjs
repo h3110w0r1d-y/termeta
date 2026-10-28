@@ -25,6 +25,13 @@ for (const path of (await walk("src")).filter((path) =>
     if (lines > 500) large.push(`${path}: ${lines} 行（人工复查职责）`);
   }
   if (path.endsWith(".vue")) {
+    for (const style of text.matchAll(/<style\b([^>]*)>/g)) {
+      if (!/(?:^|\s)scoped(?:\s|=|$)/.test(style[1])) {
+        errors.push(
+          `${path}: 组件样式须使用 scoped，动态 DOM 的全局适配放在所属模块的显式 CSS 入口`,
+        );
+      }
+    }
     // 表单 model 必须直接引用响应式状态，不能在渲染时创建值快照。
     const computedModels = new Set(
       [

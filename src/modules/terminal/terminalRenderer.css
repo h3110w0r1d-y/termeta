@@ -1,0 +1,11 @@
+/* 固定 xterm 6 的动态 DOM 适配由主题入口加载；沿用选区几何，不拦截鼠标。 */
+.terminal-selection-overlay .xterm .xterm-screen > .xterm-selection {
+  z-index: 3;
+  pointer-events: none;
+}
+.terminal-selection-overlay .xterm .xterm-screen > .xterm-selection div {
+  background-color: var(--terminal-selection-inactive);
+}
+.terminal-selection-overlay .xterm.focus .xterm-screen > .xterm-selection div {
+  background-color: var(--terminal-selection-active);
+}
