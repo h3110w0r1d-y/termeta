@@ -12,12 +12,13 @@ use windows::{
             STG_E_LOCKVIOLATION, STG_E_READFAULT,
         },
         System::Com::{
-            CoTaskMemAlloc, ISequentialStream_Impl, IStream, IStream_Impl, LOCKTYPE, STATFLAG,
-            STATFLAG_NONAME, STATSTG, STGC, STGM_READ, STGMEDIUM, STGMEDIUM_0, STGTY_STREAM,
-            STREAM_SEEK, STREAM_SEEK_CUR, STREAM_SEEK_END, STREAM_SEEK_SET, TYMED_ISTREAM,
+            ISequentialStream_Impl, IStream, IStream_Impl, LOCKTYPE, STATFLAG, STATFLAG_NONAME,
+            STATSTG, STGC, STGM_READ, STGMEDIUM, STGMEDIUM_0, STGTY_STREAM, STREAM_SEEK,
+            STREAM_SEEK_CUR, STREAM_SEEK_END, STREAM_SEEK_SET, TYMED_ISTREAM,
         },
+        UI::Shell::SHStrDupW,
     },
-    core::{HRESULT, Ref, Result, implement},
+    core::{HRESULT, HSTRING, Ref, Result, implement},
 };
 
 struct Cursor {
@@ -303,15 +304,8 @@ impl IStream_Impl for Stream_Impl {
             ..Default::default()
         };
         if flags.0 & STATFLAG_NONAME.0 == 0 {
-            let name: Vec<u16> = entry.relative.encode_utf16().chain([0]).collect();
-            let pointer = unsafe { CoTaskMemAlloc(name.len() * size_of::<u16>()) }.cast::<u16>();
-            if pointer.is_null() {
-                return Err(windows::Win32::Foundation::E_OUTOFMEMORY.into());
-            }
-            unsafe {
-                std::ptr::copy_nonoverlapping(name.as_ptr(), pointer, name.len());
-            }
-            stat.pwcsName = windows::core::PWSTR(pointer);
+            // 名称使用 COM 任务分配器，所有权随 STATSTG 交给调用方。
+            stat.pwcsName = unsafe { SHStrDupW(&HSTRING::from(entry.relative.as_str()))? };
         }
         unsafe {
             output.write(stat);
