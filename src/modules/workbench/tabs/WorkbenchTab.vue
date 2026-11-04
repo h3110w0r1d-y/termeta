@@ -4,6 +4,7 @@ import { NIcon } from "naive-ui";
 import { IconFileText, IconX } from "@tabler/icons-vue";
 import { t } from "@/i18n";
 import { stateLabels } from "@/modules/sessions/presentation";
+import { isMac } from "@/services/commands/registry";
 import type { TabBarItem } from "../types";
 
 const props = defineProps<{
@@ -41,7 +42,7 @@ const closeLabel = computed(() =>
 <template>
   <div
     class="app-tab-item"
-    :class="{ selected, dragging }"
+    :class="{ selected, dragging, 'platform-mac': isMac }"
     :data-sort-tab="tab.kind === 'terminal' ? tab.id : undefined"
     role="presentation"
     @mousedown.middle.prevent
@@ -92,6 +93,10 @@ const closeLabel = computed(() =>
   color: var(--muted);
   border-radius: var(--app-tab-radius);
 }
+.app-tab-item.platform-mac {
+  padding-right: 0;
+  padding-left: 6px;
+}
 .app-tab,
 .app-tab-close {
   appearance: none;
@@ -117,6 +122,10 @@ const closeLabel = computed(() =>
 .app-tab-title {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.platform-mac .status-dot {
+  order: 1;
+  margin: 0 0 0 auto;
 }
 .app-tab-item:not(.selected):not(:hover) {
   background: var(--app-tab-background);
@@ -144,6 +153,9 @@ const closeLabel = computed(() =>
   width: var(--tab-close-size);
   height: var(--tab-close-size);
   margin: 0;
+}
+.platform-mac .app-tab-close {
+  order: -1;
 }
 .app-tab-close:hover {
   background: var(--app-tab-close-hover);
