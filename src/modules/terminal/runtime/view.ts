@@ -186,6 +186,7 @@ export function mountTerminalView(
   terminal: TerminalItem,
   handlers: {
     data: (packet: TerminalInput) => void;
+    punctuationEnabled: () => boolean;
     paste: (text: string) => Promise<void>;
     reconnect: () => Promise<void>;
     pasteClipboard: () => Promise<void>;
@@ -225,7 +226,7 @@ export function mountTerminalView(
   entry.observer.observe(host);
   term.attachCustomKeyEventHandler((e) => {
     if (e.type !== "keydown") return true;
-    // 单独按修饰键不应结束输入法组合、清除选区或改变滚屏位置。
+    // inputOrigin 已在捕获阶段过滤纯修饰键；此处保留防御，避免进入组合与终端动作。
     if (["Meta", "Control", "Alt", "Shift"].includes(e.key)) return false;
     if (commands.route(e, useSettings().value.keymap.bindings, true))
       return false;
@@ -277,7 +278,11 @@ export function mountTerminalView(
     }
     return true;
   });
-  entry.inputOrigin = observeTerminalInput(term, handlers.data);
+  entry.inputOrigin = observeTerminalInput(
+    term,
+    handlers.data,
+    handlers.punctuationEnabled,
+  );
   entry.disposeMouseActions = bindTerminalMouseActions(host, {
     isMac,
     action: (button) =>

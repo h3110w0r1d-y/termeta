@@ -219,6 +219,15 @@ onMounted(() => {
     if (workbench.activeTerminal)
       terminalRegistry.bottom(workbench.activeTerminal.terminalId);
   });
+  commands.register("terminal.togglePunctuationConversion", () => {
+    const terminal = workbench.activeTerminal;
+    if (!terminal) return;
+    terminal.convertChinesePunctuation = !(
+      terminal.convertChinesePunctuation ??
+      settings.value.convertChinesePunctuation
+    );
+    terminalRegistry.focus(terminal.terminalId);
+  });
   document.addEventListener("keydown", globalKey, true);
 });
 onBeforeUnmount(() => {

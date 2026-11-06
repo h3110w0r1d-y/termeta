@@ -1,5 +1,13 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
+  "terminal.punctuation.toggle":
+    "Temporarily toggle Chinese punctuation conversion",
+  "terminal.punctuation.on": "Punctuation: On",
+  "terminal.punctuation.off": "Punctuation: Off",
+  "terminal.punctuation.enable":
+    "Enable Chinese punctuation conversion for this terminal until it is closed. The saved setting is unchanged.",
+  "terminal.punctuation.disable":
+    "Disable Chinese punctuation conversion for this terminal until it is closed. The saved setting is unchanged.",
   "terminal.regions.area": "Terminal area",
   "terminal.search.label": "Search terminal history",
   "terminal.search.placeholder": "Search terminal history…",

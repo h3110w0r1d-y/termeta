@@ -24,6 +24,8 @@ export interface TerminalItem extends TerminalActivity {
   revision: number;
   error: string;
   schemeId?: string;
+  /** 当前终端的临时输入偏好，重连保留，关闭视图后丢弃。 */
+  convertChinesePunctuation?: boolean;
   size: { cols: number; rows: number };
 }
 /** 一个动态标签的运行布局，可容纳一个或多个终端；工作区存档另用 SavedWorkspace。 */

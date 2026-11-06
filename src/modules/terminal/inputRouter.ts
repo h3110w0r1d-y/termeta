@@ -1,4 +1,5 @@
 import type { TerminalInput } from "./inputOrigin";
+import { convertChinesePunctuation } from "./punctuation";
 
 export type InputKind = "keyboard" | "wheel";
 
@@ -30,6 +31,7 @@ export function broadcastTargets(
 interface InputPorts {
   targets: (sourceId: string, kind: InputKind) => string[];
   send: (id: string, bytes: Uint8Array) => void;
+  convertChinesePunctuation: (id: string) => boolean;
   applicationCursor: (id: string) => boolean;
   wheel: (
     id: string,
@@ -100,9 +102,21 @@ export function createInputRouter(ports: InputPorts) {
   return {
     local,
     data(sourceId: string, packet: TerminalInput) {
+      const keyboardInput =
+        packet.userInput &&
+        !packet.binary &&
+        !packet.wheel &&
+        !isMouseReport(packet.data);
+      // 粘贴/片段和广播生成的输入均在 local 中；只转换来源终端的键盘及 IME 最终文本。
+      const data =
+        keyboardInput &&
+        !localDepth.has(sourceId) &&
+        ports.convertChinesePunctuation(sourceId)
+          ? convertChinesePunctuation(packet.data)
+          : packet.data;
       const bytes = packet.binary
-        ? Uint8Array.from(packet.data, (c) => c.charCodeAt(0))
-        : new TextEncoder().encode(packet.data);
+        ? Uint8Array.from(data, (c) => c.charCodeAt(0))
+        : new TextEncoder().encode(data);
       // 原终端始终只发送一次；广播生成的输入只回目标连接，不再向外扩散。
       ports.send(sourceId, bytes);
       if (localDepth.has(sourceId)) return;
@@ -118,12 +132,11 @@ export function createInputRouter(ports: InputPorts) {
         }
         return;
       }
-      if (!packet.userInput || packet.binary || isMouseReport(packet.data))
-        return;
+      if (!keyboardInput) return;
       for (const id of new Set(ports.targets(sourceId, "keyboard"))) {
         if (id !== sourceId) {
-          const data = cursorInput(packet.data, ports.applicationCursor(id));
-          ports.send(id, new TextEncoder().encode(data));
+          const targetData = cursorInput(data, ports.applicationCursor(id));
+          ports.send(id, new TextEncoder().encode(targetData));
         }
       }
     },

@@ -1,5 +1,12 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
+  "terminal.punctuation.toggle": "中国語の記号変換を一時的に切り替え",
+  "terminal.punctuation.on": "記号変換：オン",
+  "terminal.punctuation.off": "記号変換：オフ",
+  "terminal.punctuation.enable":
+    "現在のターミナルの中国語記号変換を一時的に有効にします。ターミナルを閉じると保存済みの設定に戻ります。",
+  "terminal.punctuation.disable":
+    "現在のターミナルの中国語記号変換を一時的に無効にします。ターミナルを閉じると保存済みの設定に戻ります。",
   "terminal.regions.area": "ターミナル領域",
   "terminal.search.label": "ターミナル履歴を検索",
   "terminal.search.placeholder": "ターミナル履歴を検索…",

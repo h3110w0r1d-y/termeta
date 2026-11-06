@@ -1,5 +1,9 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
+  "settings.terminal.convertChinesePunctuation":
+    "입력한 중국어 문장 부호를 영문 문장 부호로 변환",
+  "settings.terminal.convertChinesePunctuationHint":
+    "터미널에서 직접 입력하거나 입력기로 확정한 중국어 문장 부호를 변환합니다. 붙여넣은 내용은 변환하지 않습니다. 하단 상태 표시줄에서 현재 터미널을 닫을 때까지 임시로 변경할 수 있습니다.",
   "settings.general.hostSortMode": "호스트 정렬 방식",
   "settings.hostSort.recent": "최근 사용한 순",
   "settings.hostSort.manual": "수동 정렬",

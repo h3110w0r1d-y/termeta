@@ -36,6 +36,7 @@ export interface AppSettings extends SchemePreferences {
   scrollback: number;
   confirmClose: boolean;
   multilinePaste: boolean;
+  convertChinesePunctuation: boolean;
   terminalRightClickAction: TerminalMouseAction;
   terminalMiddleClickAction: TerminalMouseAction;
   keymap: Keymap;

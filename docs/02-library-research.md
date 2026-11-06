@@ -58,7 +58,7 @@ Linux 拖出直接固定使用已在 Tauri/Wry 锁图中的 [gtk 0.18.2](https:/
 ## 3. 升级时必须复核的边界
 
 - 日志颜色快照集中在 `session-logs/snapshot.ts`，读取固定 xterm 6 的 `_core._themeService.colors` 以保留运行中动态调色，结构不兼容时阻止归档而非静默替换颜色；升级须复核此适配和 SerializeAddon。
-- xterm 内部用户输入标记与鼠标动作编码集中在 inputOrigin.ts，选区适配也依赖渲染结构。升级须复核 IME、自动应答、广播与选区，不能仅依据公开 onData 判断用户输入。
+- xterm 内部用户输入标记、原生文本去重状态与鼠标动作编码集中在 inputOrigin.ts，选区适配也依赖渲染结构。固定 6.0.0 通过提前过滤纯修饰键，兼容 WebKit 的 Shift 中文标点事件顺序，依据见 [上游问题](https://github.com/xtermjs/xterm.js/issues/6144) 与 [修复](https://github.com/xtermjs/xterm.js/pull/6200)。原生直接提交的标点转换保留 keypress 去重，组合正文仍由 xterm 确认后发送。升级须复核 IME、自动应答、广播、选区及此兼容处理，不能仅依据公开 onData 判断用户输入。
 - Tauri 原始 Channel、ACK、后台标签、取消和三种 WebView 的内存水位须联合验证；AppManifest、capability 与 owner 不可只保留其一。
 - SQLCipher raw key、加密副本 rekey、serialize/deserialize、迁移/外键切换和故障恢复须使用实际数据库验证，不能由 API 存在推定可靠。
 - keyring 后端需覆盖服务缺失/锁定/缓存失败，不允许明文或 mock 回退；PTY/串口需验证阻塞时唤醒与平台清理。

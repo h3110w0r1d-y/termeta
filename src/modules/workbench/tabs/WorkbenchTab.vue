@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { NIcon } from "naive-ui";
 import { IconFileText, IconX } from "@tabler/icons-vue";
 import { t } from "@/i18n";
@@ -38,6 +38,12 @@ const label = computed(() =>
 const closeLabel = computed(() =>
   t("workbench.actions.closeNamed", { name: props.tab.title }),
 );
+const titleButton = ref<HTMLButtonElement>();
+function activate() {
+  // 状态标记和标签留白共用激活入口，日志标签也保留原生按钮的焦点行为。
+  titleButton.value?.focus({ preventScroll: true });
+  emit("activate");
+}
 </script>
 <template>
   <div
@@ -45,12 +51,30 @@ const closeLabel = computed(() =>
     :class="{ selected, dragging, 'platform-mac': isMac }"
     :data-sort-tab="tab.kind === 'terminal' ? tab.id : undefined"
     role="presentation"
+    :title="title"
+    @click="activate"
+    @dblclick="tab.kind === 'terminal' && emit('doubleClick')"
     @mousedown.middle.prevent
     @auxclick.middle.prevent.stop="emit('close')"
     @pointerdown="tab.kind === 'terminal' && emit('dragStart', $event)"
     @contextmenu.prevent="tab.kind === 'terminal' && emit('menu', $event)"
   >
+    <NIcon
+      v-if="tab.kind === 'log'"
+      class="app-tab-indicator"
+      :size="16"
+      aria-hidden="true"
+    >
+      <IconFileText />
+    </NIcon>
+    <i
+      v-else
+      class="app-tab-indicator status-dot"
+      :class="tab.state"
+      aria-hidden="true"
+    />
     <button
+      ref="titleButton"
       :id="'app-tab-' + tab.id"
       type="button"
       role="tab"
@@ -60,14 +84,7 @@ const closeLabel = computed(() =>
       :tabindex="selected ? 0 : -1"
       :aria-controls="'tab-panel-' + tab.id"
       :aria-label="label"
-      :title="title"
-      @click="emit('activate')"
-      @dblclick="tab.kind === 'terminal' && emit('doubleClick')"
     >
-      <NIcon v-if="tab.kind === 'log'" :size="16" aria-hidden="true">
-        <IconFileText />
-      </NIcon>
-      <i v-else class="status-dot" :class="tab.state" aria-hidden="true" />
       <span class="app-tab-title">{{ tab.title }}</span>
     </button>
     <button
@@ -76,7 +93,8 @@ const closeLabel = computed(() =>
       tabindex="-1"
       :aria-label="closeLabel"
       :title="closeLabel"
-      @click="emit('close')"
+      @click.stop="emit('close')"
+      @dblclick.stop
     >
       <NIcon :size="16" aria-hidden="true"><IconX /></NIcon>
     </button>
@@ -84,18 +102,24 @@ const closeLabel = computed(() =>
 </template>
 <style scoped>
 .app-tab-item {
-  display: flex;
+  display: grid;
+  grid-template-areas: "indicator title close";
+  grid-template-columns: 16px minmax(0, 1fr) var(--tab-close-size);
+  align-items: center;
+  column-gap: 6px;
   flex: 0 0 auto;
+  min-width: 0;
   max-width: var(--app-tab-max-width, 260px);
   height: var(--tab-height);
   touch-action: none;
-  padding-right: 6px;
+  cursor: pointer;
+  padding-inline: 6px;
   color: var(--muted);
   border-radius: var(--app-tab-radius);
 }
 .app-tab-item.platform-mac {
-  padding-right: 0;
-  padding-left: 6px;
+  grid-template-areas: "close title indicator";
+  grid-template-columns: var(--tab-close-size) minmax(0, 1fr) 16px;
 }
 .app-tab,
 .app-tab-close {
@@ -108,24 +132,25 @@ const closeLabel = computed(() =>
   cursor: pointer;
 }
 .app-tab {
+  grid-area: title;
   display: flex;
   align-items: center;
-  flex: 1;
-  gap: 4px;
   min-width: 0;
   height: var(--tab-height);
-  padding: var(--tab-padding-block) 12px;
+  padding: 0;
   line-height: 24px;
   white-space: nowrap;
   text-align: left;
 }
 .app-tab-title {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.platform-mac .status-dot {
-  order: 1;
-  margin: 0 0 0 auto;
+.app-tab-indicator {
+  grid-area: indicator;
+  justify-self: center;
+  margin: 0;
 }
 .app-tab-item:not(.selected):not(:hover) {
   background: var(--app-tab-background);
@@ -137,25 +162,24 @@ const closeLabel = computed(() =>
   background: var(--app-tab-active);
   color: var(--app-tab-text);
 }
-.app-tab:focus-visible,
+.app-tab-item:has(.app-tab:focus-visible),
 .app-tab-close:focus-visible {
   outline: 2px solid var(--app-tab-text);
   outline-offset: -2px;
 }
+.app-tab:focus-visible {
+  outline: none;
+}
 .app-tab-close {
+  grid-area: close;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
   line-height: 0;
-  flex: 0 0 auto;
-  align-self: center;
   width: var(--tab-close-size);
   height: var(--tab-close-size);
   margin: 0;
-}
-.platform-mac .app-tab-close {
-  order: -1;
 }
 .app-tab-close:hover {
   background: var(--app-tab-close-hover);

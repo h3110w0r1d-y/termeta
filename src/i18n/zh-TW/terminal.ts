@@ -1,5 +1,12 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
+  "terminal.punctuation.toggle": "暫時切換中文標點轉換",
+  "terminal.punctuation.on": "標點轉換：開",
+  "terminal.punctuation.off": "標點轉換：關",
+  "terminal.punctuation.enable":
+    "暫時開啟目前終端的中文標點轉換；關閉終端後恢復設定預設值。",
+  "terminal.punctuation.disable":
+    "暫時關閉目前終端的中文標點轉換；關閉終端後恢復設定預設值。",
   "terminal.regions.area": "終端區域",
   "terminal.search.label": "搜尋終端歷史",
   "terminal.search.placeholder": "搜尋終端歷史…",

@@ -60,6 +60,12 @@ export const commandDefinitions = [
   ],
   ["terminal.openLink", "terminal.actions.openLink", "terminal", ""],
   [
+    "terminal.togglePunctuationConversion",
+    "terminal.punctuation.toggle",
+    "terminal",
+    "",
+  ],
+  [
     "workbench.newLocalTerminal",
     "workbench.actions.newLocalTerminal",
     "application",

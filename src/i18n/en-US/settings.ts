@@ -1,5 +1,9 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
+  "settings.terminal.convertChinesePunctuation":
+    "Convert Chinese punctuation to English punctuation when typing",
+  "settings.terminal.convertChinesePunctuationHint":
+    "Convert Chinese punctuation typed or confirmed with an input method in the terminal. Pasted text is unchanged. Use the bottom status bar to override this for the current terminal until it is closed.",
   "settings.general.hostSortMode": "Host sort order",
   "settings.hostSort.recent": "Recently used first",
   "settings.hostSort.manual": "Manual order",

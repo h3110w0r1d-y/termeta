@@ -1,5 +1,12 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
+  "terminal.punctuation.toggle": "중국어 문장 부호 변환 임시 전환",
+  "terminal.punctuation.on": "문장 부호 변환: 켬",
+  "terminal.punctuation.off": "문장 부호 변환: 끔",
+  "terminal.punctuation.enable":
+    "현재 터미널의 중국어 문장 부호 변환을 임시로 켭니다. 터미널을 닫으면 저장된 설정으로 돌아갑니다.",
+  "terminal.punctuation.disable":
+    "현재 터미널의 중국어 문장 부호 변환을 임시로 끕니다. 터미널을 닫으면 저장된 설정으로 돌아갑니다.",
   "terminal.regions.area": "터미널 영역",
   "terminal.search.label": "터미널 기록 검색",
   "terminal.search.placeholder": "터미널 기록 검색…",

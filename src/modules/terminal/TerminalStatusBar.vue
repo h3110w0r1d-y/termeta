@@ -2,7 +2,9 @@
 import { resolveTerminalScheme } from "@/theme/schemes";
 import { useSettings } from "../settings/store";
 import { NConfigProvider } from "naive-ui";
+import { computed } from "vue";
 import { t } from "@/i18n";
+import { commands } from "@/services/commands/registry";
 import AppButton from "@/components/ui/AppButton.vue";
 import type { TerminalItem } from "../workbench/types";
 import { stateLabels } from "../sessions/presentation";
@@ -15,6 +17,11 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ toggleSftp: [] }>();
 const settings = useSettings();
+const punctuationConversion = computed(
+  () =>
+    props.terminal.convertChinesePunctuation ??
+    settings.value.convertChinesePunctuation,
+);
 const { theme, themeOverrides, style } = useTerminalSurface(
   () => resolveTerminalScheme(props.terminal, settings.value).colors,
 );
@@ -42,20 +49,43 @@ const { theme, themeOverrides, style } = useTerminalSurface(
       <span v-else>
         {{ terminal.size.cols }} × {{ terminal.size.rows }} · UTF-8
       </span>
-      <AppButton
-        v-if="terminal.kind === 'ssh' && sftpAvailable"
-        class="status-sftp-toggle"
-        size="tiny"
-        :variant="terminal.sftpOpen ? 'primary' : 'default'"
-        :aria-pressed="!!terminal.sftpOpen"
-        :disabled="
-          dragging || (!terminal.sftpOpen && terminal.state !== 'connected')
-        "
-        :title="t('files.sidebar.toggle')"
-        @click="emit('toggleSftp')"
-      >
-        SFTP
-      </AppButton>
+      <div class="status-actions">
+        <AppButton
+          size="tiny"
+          variant="default"
+          :aria-pressed="punctuationConversion"
+          :disabled="dragging"
+          :title="
+            t(
+              punctuationConversion
+                ? 'terminal.punctuation.disable'
+                : 'terminal.punctuation.enable',
+            )
+          "
+          @click="commands.execute('terminal.togglePunctuationConversion')"
+        >
+          {{
+            t(
+              punctuationConversion
+                ? "terminal.punctuation.on"
+                : "terminal.punctuation.off",
+            )
+          }}
+        </AppButton>
+        <AppButton
+          v-if="terminal.kind === 'ssh' && sftpAvailable"
+          size="tiny"
+          :variant="terminal.sftpOpen ? 'primary' : 'default'"
+          :aria-pressed="!!terminal.sftpOpen"
+          :disabled="
+            dragging || (!terminal.sftpOpen && terminal.state !== 'connected')
+          "
+          :title="t('files.sidebar.toggle')"
+          @click="emit('toggleSftp')"
+        >
+          SFTP
+        </AppButton>
+      </div>
     </footer>
   </NConfigProvider>
 </template>
@@ -72,10 +102,10 @@ const { theme, themeOverrides, style } = useTerminalSurface(
   color: var(--muted);
   font-size: 11px;
 }
-.status-bar span:last-child {
-  margin-left: auto;
-}
-.status-sftp-toggle {
+.status-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-left: auto;
 }
 </style>

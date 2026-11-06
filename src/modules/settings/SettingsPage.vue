@@ -305,6 +305,17 @@ const rules = computed<FormRules>(() => ({
                   :options="mouseActionOptions"
                 />
               </NFormItem>
+              <div class="punctuation-field span-2">
+                <AppCheckbox
+                  v-model="draft.convertChinesePunctuation"
+                  aria-describedby="settings-punctuation-description"
+                >
+                  {{ t("settings.terminal.convertChinesePunctuation") }}
+                </AppCheckbox>
+                <p id="settings-punctuation-description" class="muted">
+                  {{ t("settings.terminal.convertChinesePunctuationHint") }}
+                </p>
+              </div>
               <AppCheckbox v-model="draft.confirmClose" class="span-2">
                 {{ t("settings.security.confirmClose") }}
               </AppCheckbox>
@@ -450,13 +461,15 @@ const rules = computed<FormRules>(() => ({
   min-width: 0;
   gap: 8px;
 }
-.host-sort-field {
+.host-sort-field,
+.punctuation-field {
   display: flex;
   flex-direction: column;
   gap: 8px;
   width: 100%;
 }
-.host-sort-field p {
+.host-sort-field p,
+.punctuation-field p {
   margin: 0;
 }
 .primary-color-row :deep(.n-color-picker) {

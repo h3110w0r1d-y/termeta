@@ -53,6 +53,7 @@ pub fn validate(settings: &Value) -> Result<()> {
         "defaultSchemeId",
         "confirmClose",
         "multilinePaste",
+        "convertChinesePunctuation",
         "terminalRightClickAction",
         "terminalMiddleClickAction",
         "keymap",
@@ -90,6 +91,8 @@ pub fn validate(settings: &Value) -> Result<()> {
         // 旧设置缺失时由前端默认隐藏；已保存的值必须是布尔值。
         || object.get("sftpShowHidden").is_some_and(|value| !value.is_boolean())
         || object.get("detectSshSystem").is_some_and(|value| !value.is_boolean())
+        // 旧设置缺失时不转换输入；显式保存只接受布尔开关。
+        || object.get("convertChinesePunctuation").is_some_and(|value| !value.is_boolean())
         // 旧设置沿用手动顺序；切换排序只改变显示偏好，不改写主机顺序。
         || object.get("hostSortMode").is_some_and(|value| {
             !matches!(value.as_str(), Some("recent" | "manual"))
@@ -453,6 +456,7 @@ fn command(id: &str) -> bool {
         "terminal.paste",
         "terminal.find",
         "terminal.scrollToBottom",
+        "terminal.togglePunctuationConversion",
         "terminal.openLink",
     ]
     .contains(&id)

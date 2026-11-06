@@ -33,6 +33,7 @@ export function defaultSettings(): AppSettings {
     hostSchemes: {},
     confirmClose: true,
     multilinePaste: true,
+    convertChinesePunctuation: false,
     terminalRightClickAction: "none",
     terminalMiddleClickAction: "none",
     keymap: { schemaVersion: 2, bindings: defaults() },

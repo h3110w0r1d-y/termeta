@@ -1,5 +1,8 @@
 // 使用稳定的语义 key，文案修改不改变调用标识。
 export default {
+  "settings.terminal.convertChinesePunctuation": "输入中文标点时转换为英文标点",
+  "settings.terminal.convertChinesePunctuationHint":
+    "转换终端键入和输入法确认的中文标点，不转换粘贴内容。底部状态栏可临时覆盖当前终端，关闭终端后恢复此设置。",
   "settings.general.hostSortMode": "主机排序方式",
   "settings.hostSort.recent": "最近使用时间倒序",
   "settings.hostSort.manual": "手动排序",

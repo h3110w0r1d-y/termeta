@@ -1,5 +1,6 @@
 import type { IDisposable, Terminal } from "@xterm/xterm";
 import type { FinalWheelInput } from "./inputRouter";
+import { convertChinesePunctuation } from "./punctuation";
 
 export interface TerminalInput {
   data: string;
@@ -21,6 +22,7 @@ function inputCore(term: Terminal) {
   return (
     term as unknown as {
       _core?: {
+        readonly _keyPressHandled?: boolean;
         coreService?: { onUserInput?: (listener: () => void) => IDisposable };
         coreMouseService?: {
           triggerMouseEvent?: (
@@ -111,8 +113,63 @@ export function sendFinalWheelInput(
 export function observeTerminalInput(
   term: Terminal,
   receive: (input: TerminalInput) => void,
+  punctuationEnabled: () => boolean,
 ) {
   const core = inputCore(term);
+  const element = term.element;
+  let composing = false;
+  let compositionTimer: ReturnType<typeof setTimeout> | undefined;
+  const compositionStart = (event: CompositionEvent) => {
+    if (event.target !== term.textarea) return;
+    if (compositionTimer !== undefined) clearTimeout(compositionTimer);
+    compositionTimer = undefined;
+    composing = true;
+  };
+  const compositionEnd = (event: CompositionEvent) => {
+    if (event.target !== term.textarea) return;
+    // 在冒泡阶段等待 xterm 已安排的组合提交，避免直接输入抢先或重复发送组合正文。
+    if (compositionTimer !== undefined) clearTimeout(compositionTimer);
+    compositionTimer = setTimeout(() => {
+      composing = false;
+      compositionTimer = undefined;
+    }, 0);
+  };
+  const punctuationInput = (event: InputEvent) => {
+    if (
+      event.target !== term.textarea ||
+      event.defaultPrevented ||
+      !event.cancelable ||
+      event.inputType !== "insertText" ||
+      event.isComposing ||
+      composing ||
+      core?._keyPressHandled !== false ||
+      !event.data ||
+      !punctuationEnabled()
+    )
+      return;
+    const converted = convertChinesePunctuation(event.data);
+    if (converted === event.data) return;
+    // 沿用 xterm 的 keypress 去重状态；能力缺失时不接管，不重复发送已处理的字符。
+    // WebKit 可先提交 Shift 标点再发 keydown；只接管已确认文本，不按物理键猜字符。
+    // 取消原生插入后仅发送一次，迟到的 keydown 也不会从 textarea 差量重复提取标点。
+    event.preventDefault();
+    event.stopPropagation();
+    term.input(converted, true);
+  };
+  const ignoreModifierKeydown = (event: KeyboardEvent) => {
+    if (
+      event.target === term.textarea &&
+      ["Meta", "Control", "Alt", "Shift"].includes(event.key)
+    ) {
+      // xterm 6 在自定义按键回调前标记 keydown；WebKit 的 Shift 标点可能先发 input。
+      // 提前过滤纯修饰键，保留原生输入法行为及前一字符的去重状态，避免首个标点丢失。
+      event.stopPropagation();
+    }
+  };
+  element?.addEventListener("compositionstart", compositionStart, true);
+  element?.addEventListener("compositionend", compositionEnd);
+  element?.addEventListener("beforeinput", punctuationInput, true);
+  element?.addEventListener("keydown", ignoreModifierKeydown, true);
   let userInput = false;
   let wheelEvent: WheelEvent | undefined;
   let wheelRevision = 0;
@@ -157,6 +214,11 @@ export function observeTerminalInput(
     dispose() {
       wheelRevision++;
       wheelEvent = undefined;
+      if (compositionTimer !== undefined) clearTimeout(compositionTimer);
+      element?.removeEventListener("compositionstart", compositionStart, true);
+      element?.removeEventListener("compositionend", compositionEnd);
+      element?.removeEventListener("beforeinput", punctuationInput, true);
+      element?.removeEventListener("keydown", ignoreModifierKeydown, true);
       marker?.dispose();
       data.dispose();
       binary.dispose();

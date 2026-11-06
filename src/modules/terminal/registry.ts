@@ -66,8 +66,15 @@ function connectedTargets(sourceId: string, kind: InputKind = "keyboard") {
     );
   });
 }
+function punctuationConversionEnabled(id: string) {
+  return (
+    entries.get(id)?.terminal.convertChinesePunctuation ??
+    useSettings().value.convertChinesePunctuation
+  );
+}
 const inputRouter = createInputRouter({
   targets: connectedTargets,
+  convertChinesePunctuation: punctuationConversionEnabled,
   send(id, bytes) {
     const entry = entries.get(id);
     if (entry && !entry.disposed) input(entry, entry.terminal, bytes);
@@ -88,6 +95,8 @@ export const terminalRegistry = {
     entries.set(terminal.terminalId, entry);
     mountTerminalView(entry, terminal, {
       data: (packet) => inputRouter.data(terminal.terminalId, packet),
+      punctuationEnabled: () =>
+        punctuationConversionEnabled(terminal.terminalId),
       paste: (text) => this.pasteText(terminal.terminalId, text),
       reconnect: () => this.connect(terminal),
       pasteClipboard: () => this.paste(terminal.terminalId),
