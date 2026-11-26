@@ -9,7 +9,7 @@ import { useWorkbenchStore, type TabBarItem } from "../store";
 import WorkbenchTab from "./WorkbenchTab.vue";
 import { useTabDrag } from "./useTabDrag";
 import { useTabScroll } from "./useTabScroll";
-import { useWindowDrag } from "./useWindowDrag";
+import { useWindowDrag } from "@/components/useWindowDrag";
 const props = defineProps<{
   tabs: TabBarItem[];
   activeId: string;

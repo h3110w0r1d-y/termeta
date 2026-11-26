@@ -1,19 +1,23 @@
 <script setup lang="ts">
-import type { CSSProperties } from "vue";
+import { ref, type CSSProperties } from "vue";
 import ApplicationMenu from "@/components/ApplicationMenu.vue";
 import WindowControls from "@/components/WindowControls.vue";
 import WorkbenchSidebarToggle from "@/modules/workbench/WorkbenchSidebarToggle.vue";
 import { isMac } from "@/services/commands/registry";
+import { useModalWindowDrag } from "./useModalWindowDrag";
 
 defineProps<{
   position: "top" | "left";
   appearance: CSSProperties;
 }>();
 const emit = defineEmits<{ error: [message: string] }>();
+const header = ref<HTMLElement>();
+useModalWindowDrag(header, (message) => emit("error", message));
 </script>
 
 <template>
   <header
+    ref="header"
     class="workbench-header"
     :class="{ 'with-left-tabs': position === 'left', 'platform-mac': isMac }"
     :style="appearance"

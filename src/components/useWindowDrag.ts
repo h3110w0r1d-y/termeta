@@ -13,7 +13,7 @@ interface PendingDrag {
   y: number;
 }
 
-/** 可点击 Header 控件的窗口拖动手势；移动超过阈值后才交给原生窗口。 */
+/** 共用窗口拖动手势；移动超过阈值后才交给原生窗口，避免触发起点点击。 */
 export function useWindowDrag(options: WindowDragOptions) {
   const threshold = options.threshold ?? 6;
   let pending: PendingDrag | undefined;
